@@ -119,6 +119,14 @@ section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{di
 .block-container,div[data-testid="stMainBlockContainer"]{padding-top:1.3rem!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
 header[data-testid="stHeader"]{height:0;background:transparent}
+/* In-copy links (e.g. URLs inside gig descriptions): on-brand amber + soft
+   underline instead of Streamlit's default blue. Skips our own gr-* links. */
+[data-testid="stMarkdownContainer"] a:not([class*="gr-"]){
+  color:#e0a56a;text-decoration:underline;text-decoration-thickness:1px;
+  text-decoration-color:rgba(232,147,58,.4);text-underline-offset:2.5px;
+  transition:color .13s ease,text-decoration-color .13s ease}
+[data-testid="stMarkdownContainer"] a:not([class*="gr-"]):hover{
+  color:#E8933A;text-decoration-color:#E8933A}
 /* --- Mobile (phones): scale the hero down, tidy the stacked top bar --- */
 @media (max-width:640px){
   .gr-h1{font-size:30px!important;letter-spacing:-.7px!important;line-height:1.12!important;margin-bottom:13px!important}
