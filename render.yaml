@@ -1,0 +1,32 @@
+# render.yaml — one-file "blueprint" so Render can build Gig Radar automatically.
+# In Render: New +  ->  Blueprint  ->  pick this repo, and it reads this file.
+#
+# Notes:
+#  - Free plan: the app sleeps after ~15 min idle and takes ~30-60s to wake. Fine
+#    for a preview; upgrade the plan later for an always-on "real" site.
+#  - The build step ingests live gigs so the site isn't empty on first load. The
+#    "|| true" means a slow/blocked source never fails the whole deploy.
+#  - Data is baked in at build time (fresh as of each deploy). Visitors can pull
+#    the latest any time with the in-app "Check for new gigs" button. For data +
+#    profile edits that SURVIVE redeploys, uncomment the disk block and DATA_DIR.
+
+services:
+  - type: web
+    name: gig-radar
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python ingest.py || true"
+    startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # Optional: keep data + profile across redeploys (needs the disk below).
+      # - key: DATA_DIR
+      #   value: /var/data
+
+    # Optional persistent storage (uncomment to keep the DB + profile between deploys).
+    # A small disk is inexpensive; the free plan does not include one.
+    # disk:
+    #   name: gig-radar-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

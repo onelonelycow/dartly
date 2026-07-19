@@ -1,0 +1,8 @@
+streamlit>=1.30
+streamlit-option-menu>=0.3
+pandas>=2.0
+altair>=5.0
+requests>=2.31
+feedparser>=6.0
+praw>=7.7
+python-dotenv>=1.0

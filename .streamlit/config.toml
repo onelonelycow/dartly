@@ -1,0 +1,15 @@
+# Gig Radar theme — amber brand accent everywhere (matches the logo).
+[theme]
+base = "dark"
+primaryColor = "#E8933A"
+
+# Server settings for running behind a host like Render.
+# The port is passed on the command line ($PORT); these are the safe defaults.
+[server]
+headless = true
+address = "0.0.0.0"
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false
