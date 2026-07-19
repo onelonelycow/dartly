@@ -1,6 +1,6 @@
-# Putting Gig Radar online (Render) — a preview, before the "real" site
+# Putting Dartly online (Render) — a preview, before the "real" site
 
-This gets Gig Radar onto a public URL you can send to people to test. It's a
+This gets Dartly onto a public URL you can send to people to test. It's a
 **preview**, not the finished product — see "Good to know" at the bottom for what
 changes before it's a real website.
 

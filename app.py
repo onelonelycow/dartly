@@ -1,5 +1,5 @@
 """
-app.py — Gig Radar.
+app.py — Dartly.
 
 Made for freelancers, by freelancers. An icon-navigated app: Dashboard (welcome +
 your picks), Gigs (the whole board), Market (what work pays), Alerts, and Profile
@@ -34,7 +34,7 @@ import profile as profile_mod
 
 BASE = Path(__file__).parent
 
-st.set_page_config(page_title="Gig Radar", page_icon="⚡", layout="wide",
+st.set_page_config(page_title="Dartly", page_icon="⚡", layout="wide",
                    initial_sidebar_state="collapsed")
 
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
@@ -119,6 +119,21 @@ section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{di
 .block-container,div[data-testid="stMainBlockContainer"]{padding-top:1.3rem!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
 header[data-testid="stHeader"]{height:0;background:transparent}
+/* --- Mobile (phones): scale the hero down, tidy the stacked top bar --- */
+@media (max-width:640px){
+  .gr-h1{font-size:30px!important;letter-spacing:-.7px!important;line-height:1.12!important;margin-bottom:13px!important}
+  .gr-sub{font-size:15px!important;line-height:1.55!important}
+  .gr-hero{padding:6px 4px 4px;margin-top:0}
+  .gr-eyebrow{margin-bottom:15px;font-size:10px;letter-spacing:.4px;padding:4px 11px}
+  .gr-stats{gap:9px}
+  .gr-stat{min-width:calc(50% - 5px)}          /* two stat cards per row */
+  .gr-stat .n{font-size:26px}
+  /* pull the stacked logo / nav / avatar rows together and right-align account */
+  div[data-testid="stHorizontalBlock"]:first-of-type{gap:.15rem!important}
+  div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="stImage"]{margin:0 auto}
+  .gr-acct{display:block;text-align:right}
+  .gr-menu{top:44px}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -750,7 +765,7 @@ if "nav" in st.query_params:
 
 _bcol, _ncol, _rcol = st.columns([1.5, 5.2, 1.4], vertical_alignment="center")
 with _bcol:
-    st.image(str(BASE / "assets" / "logo.svg"), width=150)
+    st.image(str(BASE / "assets" / "logo.svg"), width=100)
 with _ncol:
     selected = option_menu(
         None, _TABS,

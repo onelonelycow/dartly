@@ -1,10 +1,10 @@
 """
-config.py — the "settings" for Gig Radar.
+config.py — the "settings" for Dartly.
 
 This is the ONE file you can safely edit yourself without knowing how to code.
 It's just lists of words and source names. Add/remove between the quotes, keep commas.
 
-Gig Radar aggregates public "who's hiring" demand from MANY sources (freelance gig
+Dartly aggregates public "who's hiring" demand from MANY sources (freelance gig
 boards + remote job boards), classifies each by SKILL and BUDGET, and surfaces the
 freshest matching opportunities so a user can respond first.
 """

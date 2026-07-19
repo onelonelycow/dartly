@@ -22,7 +22,7 @@ import alerts
 def main():
     minutes = int(sys.argv[1]) if len(sys.argv) > 1 else 10
     prefs = alerts.load_prefs()
-    print(f"⚡ Gig Radar watcher — checking every {minutes} min. Ctrl+C to stop.")
+    print(f"⚡ Dartly watcher — checking every {minutes} min. Ctrl+C to stop.")
     print(f"   Alerting on: skills={prefs['skills'] or 'ALL'} "
           f"budgets={prefs['budgets'] or 'ALL'} keyword={prefs['keyword'] or '—'}\n")
     while True:
