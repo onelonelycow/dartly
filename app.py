@@ -648,7 +648,7 @@ def view_alerts(pro):
 
     st.markdown("**📱 Phone push** — instant, even with the site closed")
     ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
-                         placeholder="pick a private topic, e.g. gigradar-alex-9f2",
+                         placeholder="pick a private topic, e.g. dartly-alex-9f2",
                          help="Install the free **ntfy** app, subscribe to this exact "
                               "topic name, and pushes land on your phone in seconds.")
 

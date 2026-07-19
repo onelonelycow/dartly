@@ -15,7 +15,7 @@ they can't be automated for you.
 Render deploys from a GitHub repo.
 
 1. Make a free account at **https://github.com** if you don't have one.
-2. Create a new **empty** repository (green "New" button). Name it `gig-radar`.
+2. Create a new **empty** repository (green "New" button). Name it `dartly`.
    Leave "Add a README" unchecked. Keep it **Private** if you like.
 3. GitHub then shows a "…or push an existing repository" box with two lines that
    start with `git remote add origin …` and `git push …`. Copy those two lines.
@@ -31,7 +31,7 @@ Render deploys from a GitHub repo.
    everything automatically. Click **Apply** / **Create**.
 4. Wait ~3–6 minutes for the first build. It installs the app and pulls in a fresh
    batch of live gigs so the site isn't empty. When it's done you get a public URL
-   like `https://gig-radar.onrender.com`.
+   like `https://dartly.onrender.com`.
 
 That's it — open the URL and you'll see the dashboard.
 
