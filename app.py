@@ -30,6 +30,7 @@ import pitch
 import market
 import score
 import location
+import drafts
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -333,6 +334,16 @@ def scored(view):
     return view.sort_values("_score", ascending=False)
 
 
+def _save_draft(gig_id, key):
+    drafts.save(gig_id, st.session_state.get(key, ""))
+    st.session_state[f"_saved_{gig_id}"] = True
+
+
+def _regen_draft(gig, key):
+    st.session_state[key] = pitch.draft_pitch(gig, prof)
+    st.session_state[f"_saved_{gig['id']}"] = False
+
+
 def gig_card(r, pro):
     with st.container(border=True):
         new = '<span class="gr-new">New</span>' if r.get("is_new") == 1 else ""
@@ -380,12 +391,31 @@ def gig_card(r, pro):
             st.write(body.replace("$", "\\$"))
         st.caption(f"Posted {human_time(r.get('posted_at'))}")
 
+        gid = r["id"]
+        saved_exists = drafts.has(gid)
         label = "✍️ Draft my reply" if pro else "✍️ Draft my reply  🔒 Pro"
+        if pro and saved_exists:
+            label += "  ·  📝 saved"
         with st.expander(label):
             if pro:
-                st.text_area("Your draft", value=pitch.draft_pitch(r, prof), height=240,
-                             key=f"pitch_{r['id']}", label_visibility="collapsed")
-                st.caption("Tweak it, copy, and you're first in line. 🧡")
+                key = f"pitch_{gid}"
+                # Seed once: your saved edit if you have one, else a fresh draft.
+                if key not in st.session_state:
+                    st.session_state[key] = drafts.load(gid) or pitch.draft_pitch(r, prof)
+                st.text_area("Your draft", height=240, key=key,
+                             label_visibility="collapsed")
+                bc1, bc2 = st.columns(2)
+                bc1.button("💾 Save draft", key=f"save_{gid}", use_container_width=True,
+                           on_click=_save_draft, args=(gid, key))
+                bc2.button("🔄 Start fresh", key=f"regen_{gid}", use_container_width=True,
+                           on_click=_regen_draft, args=(r, key),
+                           help="Replace your edits with a new auto-draft")
+                if st.session_state.pop(f"_saved_{gid}", False):
+                    st.caption("Saved ✓ — your edits will be here when you come back. 🧡")
+                elif saved_exists:
+                    st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
+                else:
+                    st.caption("Tweak it, save it, copy — and you're first in line. 🧡")
             else:
                 st.caption("🔒 On **Pro**, we write a ready-to-send reply for this exact "
                            "gig — so you can fire back first, without staring at a blank "

@@ -9,3 +9,4 @@ demand_radar.db
 alert_prefs.json
 .env
 *.log
+drafts.json
