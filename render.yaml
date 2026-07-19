@@ -12,7 +12,7 @@
 
 services:
   - type: web
-    name: gig-radar
+    name: dartly
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt && python ingest.py || true"
