@@ -35,7 +35,8 @@ import profile as profile_mod
 
 BASE = Path(__file__).parent
 
-st.set_page_config(page_title="Dartly", page_icon="⚡", layout="wide",
+st.set_page_config(page_title="Dartly",
+                   page_icon=str(BASE / "assets" / "favicon.png"), layout="wide",
                    initial_sidebar_state="collapsed")
 
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
