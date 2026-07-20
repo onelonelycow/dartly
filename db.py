@@ -11,8 +11,13 @@ DB_PATH = data_file("demand_radar.db")
 
 
 def connect():
-    conn = sqlite3.connect(DB_PATH)
+    # timeout lets a reader wait briefly if the background fetcher is mid-write.
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")  # concurrent reads during writes
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 

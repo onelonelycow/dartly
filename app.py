@@ -31,6 +31,7 @@ import market
 import score
 import location
 import drafts
+import refresh
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -276,6 +277,7 @@ def load_feed():
 
 
 db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
+refresh.start()     # background fetcher: grows the feed while the app is in use
 df, merged = load_feed()
 stats = market.skill_stats(df.to_dict("records")) if not df.empty else {}
 
@@ -433,6 +435,23 @@ def gig_card(r, pro):
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
+@st.fragment(run_every=40)
+def live_stats():
+    """Re-reads the feed every ~40s so the headline numbers climb on their own
+    as the background fetcher pulls in new gigs — no click needed."""
+    cur, _ = load_feed()
+    if cur.empty:
+        return
+    my = cur[cur["job_type"].isin(prof.get("skills"))] if prof.get("skills") else cur
+    stat_cards([
+        ("On the board now", f"{len(cur):,}", "#E8933A", "?nav=gigs"),
+        ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF", "?nav=gigs&qf=recent"),
+        ("In your wheelhouse", f"{len(my):,}", "#35B37E", "?nav=gigs&qf=mine"),
+        ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
+         "?nav=gigs&qf=urgent"),
+    ])
+
+
 def view_dashboard(pro):
     n = len(df)
     eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
@@ -455,15 +474,8 @@ def view_dashboard(pro):
         st.warning("👋 **First time here?** Take 30 seconds on the **Profile** tab to tell "
                    "us what you do — then the gigs that actually fit you show up right here.")
 
-    my = df[df["job_type"].isin(prof.get("skills"))] if prof.get("skills") else df
     st.write("")
-    stat_cards([
-        ("On the board now", f"{len(df):,}", "#E8933A", "?nav=gigs"),
-        ("Fresh · last 24h", f"{recent_count(df, 24):,}", "#4C8DFF", "?nav=gigs&qf=recent"),
-        ("In your wheelhouse", f"{len(my):,}", "#35B37E", "?nav=gigs&qf=mine"),
-        ("Urgent", f"{int((df['urgency'] == 'Urgent').sum()):,}", "#E96250",
-         "?nav=gigs&qf=urgent"),
-    ])
+    live_stats()
 
     st.divider()
     if prof.get("skills"):
