@@ -25,10 +25,23 @@ TIMEOUT = 25
 # ---------------------------------------------------------------------------
 # small helpers
 # ---------------------------------------------------------------------------
+def _fix_mojibake(text: str) -> str:
+    """Repair text whose UTF-8 bytes were mistakenly read as latin-1 (e.g. an
+    en-dash '–' showing up as 'â\\x80\\x93'). Safe on clean text: real unicode
+    isn't latin-1-encodable, so those strings are left untouched."""
+    if "Ã" not in text and "â" not in text:
+        return text
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return text
+
+
 def _strip(text) -> str:
     if not text:
         return ""
-    text = re.sub(r"<[^>]+>", " ", str(text))
+    text = _fix_mojibake(str(text))
+    text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"\s+", " ", _html.unescape(text)).strip()
 
 
@@ -40,7 +53,11 @@ def _epoch_to_iso(epoch):
 
 
 def _get(url):
-    return requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+    # These APIs serve UTF-8 JSON; force it so responses that omit their charset
+    # don't get decoded as latin-1 (which turns em-dashes etc. into mojibake).
+    r.encoding = "utf-8"
+    return r
 
 
 # ---------------------------------------------------------------------------
