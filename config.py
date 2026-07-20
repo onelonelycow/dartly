@@ -84,6 +84,24 @@ JOB_TYPES = {
 }
 
 # ---------------------------------------------------------------------------
+# CATEGORY GROUPS — a few BROAD buckets shown on the dashboard. Each maps to the
+# granular JOB_TYPES above. Clicking a bucket filters the board to all its subs;
+# users can then drill into a specific sub-category (or add subs to their profile).
+# ---------------------------------------------------------------------------
+CATEGORY_GROUPS = {
+    "Tech & Data":        ["Development / tech", "Data / analytics", "QA / testing",
+                           "IT / support"],
+    "Design & Media":     ["Design / creative", "Video / animation", "Audio / music",
+                           "Architecture / 3D"],
+    "Writing & Language": ["Writing / content", "Translation / language",
+                           "Teaching / tutoring"],
+    "Marketing & Sales":  ["Marketing / SEO", "Sales / outreach"],
+    "Business & Support": ["Product / PM", "Admin / VA", "Finance / accounting",
+                           "HR / recruiting", "Consulting / strategy",
+                           "Customer support"],
+}
+
+# ---------------------------------------------------------------------------
 # BUDGET (the "budget" slider uses these + parsed dollar amounts)
 # ---------------------------------------------------------------------------
 BIG_JOB_SIGNALS = ["/month", "per month", "monthly", "retainer", "ongoing", "long-term",

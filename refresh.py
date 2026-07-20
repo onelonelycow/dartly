@@ -12,7 +12,7 @@ plan). That's the tradeoff we chose for $0.
 import threading
 import time
 
-_INTERVAL_S = 300          # ~5 min between fetches (don't hammer the sources)
+_INTERVAL_S = 120          # ~2 min between fetches
 _FIRST_DELAY_S = 30        # let the app finish booting before the first pull
 _started = False
 _lock = threading.Lock()

@@ -465,21 +465,24 @@ def live_stats():
 
 
 def category_strip():
-    """Clickable category chips (with live counts) so people can browse the board
-    on their own instead of only the algorithmic 'Picked for you' list."""
+    """A few BROAD category buckets (with live counts) so people can browse the
+    board at a glance. Each links to a filtered Gigs view where they can drill
+    into the specific sub-categories."""
     if df.empty:
         return
-    counts = df["job_type"].value_counts()
-    cats = [(c, int(n)) for c, n in counts.items() if c != "Other / general" and n]
-    if not cats:
+    counts = df["job_type"].value_counts().to_dict()
+    groups = [(g, sum(counts.get(s, 0) for s in subs))
+              for g, subs in config.CATEGORY_GROUPS.items()]
+    groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
+    if not groups:
         return
     st.markdown('<div style="text-align:center;color:#8a919c;font-size:13px;'
                 'font-weight:600;letter-spacing:.02em;margin:2px 0 10px">'
                 'Or browse by category</div>', unsafe_allow_html=True)
     chips = "".join(
-        f'<a class="gr-cat" href="?nav=gigs&cat={quote(c)}" target="_self">'
-        f'{html.escape(c)}<span class="n">{n:,}</span></a>'
-        for c, n in cats[:12]
+        f'<a class="gr-cat" href="?nav=gigs&group={quote(g)}" target="_self">'
+        f'{html.escape(g)}<span class="n">{n:,}</span></a>'
+        for g, n in groups
     )
     st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
 
@@ -586,8 +589,9 @@ def view_gigs(pro):
         elif qf == "recent":
             view = view[view["posted_at"].map(lambda r: is_recent(r, 24))]
 
-    # Category arriving from a Dashboard "browse by category" chip
+    # A broad bucket (dashboard) or a specific sub-category drill-down
     cat = st.session_state.get("catfilter", "")
+    group = st.session_state.get("groupfilter", "")
     if cat:
         cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
         cc1.markdown(f'<span class="gr-qf">▸ {html.escape(cat)}</span>',
@@ -596,6 +600,27 @@ def view_gigs(pro):
             st.session_state["catfilter"] = ""
             st.rerun()
         view = view[view["job_type"] == cat]
+    elif group and group in config.CATEGORY_GROUPS:
+        subs = config.CATEGORY_GROUPS[group]
+        cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
+        cc1.markdown(f'<span class="gr-qf">▸ {html.escape(group)}</span>',
+                     unsafe_allow_html=True)
+        if cc2.button("✕ clear", key="cleargrp", use_container_width=True):
+            st.session_state["groupfilter"] = ""
+            st.rerun()
+        view = view[view["job_type"].isin(subs)]
+        # sub-category chips to narrow into a specific one
+        vc = view["job_type"].value_counts().to_dict()
+        subchips = "".join(
+            f'<a class="gr-cat" href="?nav=gigs&cat={quote(s)}" target="_self">'
+            f'{html.escape(s)}<span class="n">{vc.get(s, 0):,}</span></a>'
+            for s in subs if vc.get(s, 0)
+        )
+        if subchips:
+            st.markdown('<div style="font-size:12px;color:#7c828d;margin:2px 0 5px">'
+                        'Narrow to a sub-category:</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="gr-cats" style="justify-content:flex-start">'
+                        f'{subchips}</div>', unsafe_allow_html=True)
 
     note = f"**{len(view):,}** gigs for you"
     if merged:
@@ -863,6 +888,7 @@ if "nav" in st.query_params:
             st.session_state["_manualnav"] = _idx
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
             st.session_state["catfilter"] = st.query_params.get("cat", "")
+            st.session_state["groupfilter"] = st.query_params.get("group", "")
         st.session_state["_profile"] = False
     st.query_params.clear()
 
@@ -918,6 +944,7 @@ st.divider()
 if active != "Gigs":
     st.session_state["quickfilter"] = ""
     st.session_state["catfilter"] = ""
+    st.session_state["groupfilter"] = ""
 
 # ---------------------------------------------------------------------------
 # Route
