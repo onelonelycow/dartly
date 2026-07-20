@@ -45,7 +45,7 @@ st.markdown("""
 .gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
   border-radius:14px;padding:15px 16px 16px;position:relative;overflow:hidden}
-.gr-stat .accent{position:absolute;left:0;top:0;bottom:0;width:4px}
+.gr-stat .accent{position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 4px 4px 0}
 .gr-stat .l{font-size:12.5px;color:#98a0ab;font-weight:500;margin:0 0 9px}
 .gr-stat .n{font-size:31px;font-weight:600;color:#f2f4f7;line-height:1;
   font-variant-numeric:tabular-nums}
@@ -77,10 +77,14 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   background:radial-gradient(ellipse 640px 260px at 50% -8%,rgba(232,147,58,.11),transparent 72%)}
 .gr-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;
   letter-spacing:.6px;text-transform:uppercase;color:#eaa662;
-  background:rgba(232,147,58,.1);border:1px solid rgba(232,147,58,.26);
+  background:rgba(232,147,58,.09);border:1px solid rgba(232,147,58,.18);
   border-radius:999px;padding:5px 14px;margin-bottom:22px}
 .gr-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#37c689;
-  box-shadow:0 0 0 3px rgba(55,198,137,.18)}
+  animation:gr-ping 2s ease-in-out infinite}
+@keyframes gr-ping{
+  0%{box-shadow:0 0 0 0 rgba(55,198,137,.5)}
+  70%{box-shadow:0 0 0 6px rgba(55,198,137,0)}
+  100%{box-shadow:0 0 0 0 rgba(55,198,137,0)}}
 .gr-h1{font-size:46px;line-height:1.06;font-weight:700;letter-spacing:-1.4px;
   color:#f5f7fa;margin:0 0 18px;text-wrap:balance}
 .gr-h1 .accent{color:#E8933A}
@@ -437,8 +441,8 @@ def view_dashboard(pro):
         '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
         'You just <span class="accent">reply first.</span></h1>'
         "<p class=\"gr-sub\">Freelancing's enough of a hustle. We watch "
-        "<b>everywhere gigs get posted</b>, around the clock, and surface the ones "
-        "that fit you — from quick $20 tasks to full projects.</p>"
+        "<b>every board and community</b> around the clock, then surface the gigs "
+        "that fit you, from a quick $20 task to a full project.</p>"
         "</div>", unsafe_allow_html=True)
 
     if df.empty:
