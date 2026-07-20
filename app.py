@@ -137,6 +137,16 @@ section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{di
 .block-container,div[data-testid="stMainBlockContainer"]{padding-top:1.3rem!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
 header[data-testid="stHeader"]{height:0;background:transparent}
+/* Hide Streamlit's own chrome so it reads as a real product, not a demo. */
+#MainMenu,[data-testid="stToolbar"],[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],.stDeployButton,[data-testid="stAppDeployButton"],
+[data-testid="stMainMenu"],footer{display:none!important;visibility:hidden!important}
+.gr-footer{max-width:980px;margin:52px auto 6px;padding:22px 16px 4px;
+  border-top:1px solid #23262d;display:flex;flex-direction:column;
+  align-items:center;gap:4px;text-align:center}
+.gr-footer .brand{color:#eaa662;font-weight:700;font-size:14px;letter-spacing:.02em}
+.gr-footer .tag{color:#8a919c;font-size:13px}
+.gr-footer .meta{color:#5a616c;font-size:11.5px}
 /* In-copy links (e.g. URLs inside gig descriptions): on-brand amber + soft
    underline instead of Streamlit's default blue. Skips our own gr-* links. */
 [data-testid="stMarkdownContainer"] a:not([class*="gr-"]){
@@ -765,7 +775,7 @@ def view_alerts(pro):
     with cols[0]:
         if st.button("💾 Save my alerts", use_container_width=True):
             alerts.save_prefs(crit)
-            st.success("You're set. Keep `python watch.py` running for live pings.")
+            st.success("Saved — your alert preferences are set. 🔔")
     with cols[1]:
         if st.button("🔔 Send a test ping", use_container_width=True):
             n = alerts.notify_new(crit)
@@ -780,14 +790,13 @@ def view_alerts(pro):
                 live.append("email")
             st.info(f"Pinged you about {n} new gig(s) via {', '.join(live)}.")
 
-    st.caption("Live pings run while `python watch.py` is going (checks every 10 min) and "
-               "follow the skills & keywords in your **Profile**.")
+    st.caption("Alerts follow the skills & keywords in your **Profile**. Hit "
+               "**Send a test ping** to confirm your channels are wired up.")
 
 
 def view_profile(pro):
     st.markdown("### 👋 Tell us about you")
-    st.caption("The more we know, the better the gigs we send your way. Everything here "
-               "stays on your own machine.")
+    st.caption("The more we know, the better the gigs we surface for you.")
     pct = profile_mod.completeness(prof)
     st.progress(pct / 100, text=f"You're {pct}% set up")
 
@@ -959,3 +968,10 @@ elif active == "Alerts":
     view_alerts(PRO)
 elif active == "Profile":
     view_profile(PRO)
+
+st.markdown(
+    '<div class="gr-footer">'
+    '<span class="brand">Dartly</span>'
+    '<span class="tag">Freelance gigs, the moment they drop — so you reply first.</span>'
+    '<span class="meta">An early preview, built in the open · © 2026</span>'
+    '</div>', unsafe_allow_html=True)
