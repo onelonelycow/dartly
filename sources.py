@@ -25,16 +25,34 @@ TIMEOUT = 25
 # ---------------------------------------------------------------------------
 # small helpers
 # ---------------------------------------------------------------------------
+# UTF-8 sequences that got read as latin-1: a lead byte (C2-DF for 2-byte chars,
+# E0-EF for 3-byte) followed by continuation bytes, all in \x80-\xbf.
+_MOJIBAKE_RE = re.compile("[\xc2-\xdf][\x80-\xbf]|[\xe0-\xef][\x80-\xbf]{2}")
+
+
+def _redecode(m):
+    try:
+        return m.group(0).encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return m.group(0)
+
+
 def _fix_mojibake(text: str) -> str:
     """Repair text whose UTF-8 bytes were mistakenly read as latin-1 (e.g. an
-    en-dash '–' showing up as 'â\\x80\\x93'). Safe on clean text: real unicode
-    isn't latin-1-encodable, so those strings are left untouched."""
-    if "Ã" not in text and "â" not in text:
+    en-dash '–' showing up as 'â\\x80\\x93', or 'á' as 'Ã¡'). Safe on clean text:
+    a real 'â'/'Ã' isn't followed by continuation bytes, so it won't match."""
+    if not any(c in text for c in ("Ã", "â", "Â")):
         return text
+    # Whole-string round-trip first: cleanest when the entire value was mangled.
     try:
-        return text.encode("latin-1").decode("utf-8")
+        fixed = text.encode("latin-1").decode("utf-8")
+        if "â" not in fixed and "Ã" not in fixed:
+            return fixed
     except (UnicodeEncodeError, UnicodeDecodeError):
-        return text
+        pass
+    # Otherwise re-decode each mangled sequence in place (handles partial mangle
+    # and any character — accents, dashes, quotes — without a hand-maintained list).
+    return _MOJIBAKE_RE.sub(_redecode, text)
 
 
 def _strip(text) -> str:
