@@ -275,6 +275,7 @@ def load_feed():
     return df, before - len(df)
 
 
+db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
 df, merged = load_feed()
 stats = market.skill_stats(df.to_dict("records")) if not df.empty else {}
 

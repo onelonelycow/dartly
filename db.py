@@ -92,6 +92,27 @@ def count() -> int:
     return n
 
 
+def ensure_seeded():
+    """If the working DB is missing or empty, populate it from the bundled
+    seed.db. Lets a fresh deploy have gigs instantly without fetching live data
+    during the build (which is slow/fragile on small hosts)."""
+    import shutil
+    from pathlib import Path
+    seed = Path(__file__).parent / "seed.db"
+    try:
+        if not seed.exists() or seed.resolve() == DB_PATH.resolve():
+            return
+        empty = True
+        if DB_PATH.exists():
+            init_db()          # ensure schema, safe if it already exists
+            empty = count() == 0
+        if empty:
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(seed, DB_PATH)
+    except Exception:
+        pass
+
+
 def reset_new_flags():
     """Clear the 'new' flag on all posts (call before a fresh fetch)."""
     conn = connect()

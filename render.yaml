@@ -4,18 +4,18 @@
 # Notes:
 #  - Free plan: the app sleeps after ~15 min idle and takes ~30-60s to wake. Fine
 #    for a preview; upgrade the plan later for an always-on "real" site.
-#  - The build step ingests live gigs so the site isn't empty on first load. The
-#    "|| true" means a slow/blocked source never fails the whole deploy.
-#  - Data is baked in at build time (fresh as of each deploy). Visitors can pull
-#    the latest any time with the in-app "Check for new gigs" button. For data +
-#    profile edits that SURVIVE redeploys, uncomment the disk block and DATA_DIR.
+#  - The build only installs deps (fast + reliable). The app ships with a bundled
+#    seed.db so it has gigs on first load — no fragile live-fetch during the build.
+#  - Visitors can pull the latest any time with the in-app "Check for new gigs"
+#    button. For data + profile edits that SURVIVE redeploys, uncomment the disk
+#    block and DATA_DIR.
 
 services:
   - type: web
     name: gig-radar
     runtime: python
     plan: free
-    buildCommand: "pip install -r requirements.txt && python ingest.py || true"
+    buildCommand: "pip install --no-cache-dir -r requirements.txt"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
       - key: PYTHON_VERSION
