@@ -11,6 +11,7 @@ import os
 import re
 import html
 from pathlib import Path
+from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
@@ -102,6 +103,16 @@ a.gr-stat{text-decoration:none;color:inherit;cursor:pointer;display:block}
 .gr-qf{display:inline-block;font-size:13px;font-weight:500;color:#eaa662;
   background:rgba(232,147,58,.1);border:1px solid rgba(232,147,58,.28);
   border-radius:999px;padding:4px 13px}
+.gr-cats{display:flex;flex-wrap:wrap;gap:9px;margin:2px 0 2px;
+  max-width:980px;margin-left:auto;margin-right:auto;justify-content:center}
+a.gr-cat{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;
+  color:#cdd3dc!important;text-decoration:none!important;background:#191c22;
+  border:1px solid #2b3039;border-radius:999px;padding:7px 8px 7px 14px;
+  transition:border-color .14s ease,background .14s ease,color .14s ease}
+a.gr-cat:hover{border-color:#E8933A;background:#22262e;color:#fff!important}
+a.gr-cat .n{font-size:11.5px;font-weight:600;color:#8a919c;background:#0f1115;
+  border-radius:999px;padding:1px 8px;line-height:1.5}
+a.gr-cat:hover .n{color:#eaa662}
 a.gr-avatar{display:inline-flex;align-items:center;justify-content:center;
   width:38px;height:38px;border-radius:50%;background:#22262e;border:1px solid #3a4150;
   color:#eaa662!important;font-size:15px;font-weight:600;text-decoration:none!important;
@@ -452,6 +463,26 @@ def live_stats():
     ])
 
 
+def category_strip():
+    """Clickable category chips (with live counts) so people can browse the board
+    on their own instead of only the algorithmic 'Picked for you' list."""
+    if df.empty:
+        return
+    counts = df["job_type"].value_counts()
+    cats = [(c, int(n)) for c, n in counts.items() if c != "Other / general" and n]
+    if not cats:
+        return
+    st.markdown('<div style="text-align:center;color:#8a919c;font-size:13px;'
+                'font-weight:600;letter-spacing:.02em;margin:2px 0 10px">'
+                'Or browse by category</div>', unsafe_allow_html=True)
+    chips = "".join(
+        f'<a class="gr-cat" href="?nav=gigs&cat={quote(c)}" target="_self">'
+        f'{html.escape(c)}<span class="n">{n:,}</span></a>'
+        for c, n in cats[:12]
+    )
+    st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
+
+
 def view_dashboard(pro):
     n = len(df)
     eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
@@ -476,6 +507,9 @@ def view_dashboard(pro):
 
     st.write("")
     live_stats()
+
+    st.write("")
+    category_strip()
 
     st.divider()
     if prof.get("skills"):
@@ -550,6 +584,17 @@ def view_gigs(pro):
             view = view[view["job_type"].isin(prof["skills"])]
         elif qf == "recent":
             view = view[view["posted_at"].map(lambda r: is_recent(r, 24))]
+
+    # Category arriving from a Dashboard "browse by category" chip
+    cat = st.session_state.get("catfilter", "")
+    if cat:
+        cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
+        cc1.markdown(f'<span class="gr-qf">▸ {html.escape(cat)}</span>',
+                     unsafe_allow_html=True)
+        if cc2.button("✕ clear", key="clearcat", use_container_width=True):
+            st.session_state["catfilter"] = ""
+            st.rerun()
+        view = view[view["job_type"] == cat]
 
     note = f"**{len(view):,}** gigs for you"
     if merged:
@@ -816,6 +861,7 @@ if "nav" in st.query_params:
         if _idx is not None:
             st.session_state["_manualnav"] = _idx
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
+            st.session_state["catfilter"] = st.query_params.get("cat", "")
         st.session_state["_profile"] = False
     st.query_params.clear()
 
@@ -867,9 +913,10 @@ with _rcol:
 
 st.divider()
 
-# A quick-filter (from a Dashboard stat) only lives while you're on Gigs.
+# A quick-filter / category (from a Dashboard click) only lives while on Gigs.
 if active != "Gigs":
     st.session_state["quickfilter"] = ""
+    st.session_state["catfilter"] = ""
 
 # ---------------------------------------------------------------------------
 # Route
