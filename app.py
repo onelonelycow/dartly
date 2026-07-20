@@ -446,10 +446,11 @@ def gig_card(r, pro):
 # ---------------------------------------------------------------------------
 # Views
 # ---------------------------------------------------------------------------
-@st.fragment(run_every=40)
+@st.fragment(run_every=60)
 def live_stats():
-    """Re-reads the feed every ~40s so the headline numbers climb on their own
-    as the background fetcher pulls in new gigs — no click needed."""
+    """Re-reads the feed every ~60s so the headline numbers climb on their own
+    as the background fetcher pulls in new gigs — no click needed. (Kept a touch
+    slower than the ~5-min fetch to avoid needless reruns.)"""
     cur, _ = load_feed()
     if cur.empty:
         return
