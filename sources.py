@@ -63,6 +63,16 @@ def _strip(text) -> str:
     return re.sub(r"\s+", " ", _html.unescape(text)).strip()
 
 
+# Some sources (e.g. Freelancer.com) append a timestamp to the title, like
+# "... - 20/07/2026 11:00 EDT". Strip that trailing date/time for clean titles.
+_TITLE_TS = re.compile(
+    r"\s*[-–—]\s*\d{1,2}/\d{1,2}/\d{2,4}\s+\d{1,2}:\d{2}\s*[A-Za-z]{0,4}\s*$")
+
+
+def _clean_title(text: str) -> str:
+    return _TITLE_TS.sub("", _strip(text)).strip()
+
+
 def _epoch_to_iso(epoch):
     try:
         return datetime.fromtimestamp(float(epoch), tz=timezone.utc).isoformat()
@@ -239,7 +249,7 @@ def fetch_freelancer() -> list[dict]:
         out.append({
             "source": "freelancer", "source_id": str(p.get("id")),
             "url": url_p,
-            "title": _strip(p.get("title", "")),
+            "title": _clean_title(p.get("title", "")),
             "body": _strip(f"{desc} {jobs} {budget}"),
             "posted_at": _epoch_to_iso(p.get("time_submitted")),
         })
