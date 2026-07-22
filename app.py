@@ -36,6 +36,7 @@ import location
 import drafts
 import refresh
 import analytics
+import people
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -194,6 +195,7 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   border:1px solid rgba(232,147,58,.28);border-radius:16px}
 .gr-cap.joined{background:linear-gradient(180deg,rgba(53,179,126,.10),rgba(53,179,126,.03));
   border-color:rgba(53,179,126,.32)}
+.gr-cap.plain{background:#15181d;border-color:#262a31}
 .gr-cap-h{font-size:19px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin-bottom:6px}
 .gr-cap-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
 .gr-cap-s b{color:#eaa662}
@@ -400,7 +402,8 @@ def load_feed():
 
 db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
 refresh.start()     # background fetcher: grows the feed while the app is in use
-analytics.init()    # visit counting + signups, in their own database file
+analytics.init()    # visit counting, in its own database file
+people.init()       # who signed up, their profile, and their feedback
 
 # One id per browser tab. Streamlit reruns this script constantly, so without
 # this every scroll and click would look like a brand-new visitor.
@@ -663,7 +666,11 @@ def view_dashboard(pro):
         gig_card(r, pro)
 
     st.divider()
-    signup_card("dashboard")
+    _sc, _fc = st.columns(2)
+    with _sc:
+        signup_card("dashboard")
+    with _fc:
+        feedback_card("dashboard")
 
 
 def view_gigs(pro):
@@ -1034,14 +1041,20 @@ def view_profile(pro):
                              value=prof.get("bio", ""),
                              placeholder="10+ yrs designing brand identities for small businesses.")
         if st.form_submit_button("💾 Save", use_container_width=True):
-            profile_mod.save({
+            _saved = {
                 "name": f_name.strip(), "headline": f_headline.strip(),
                 "skills": f_skills, "rate_floor": f_floor, "rate_unit": f_unit,
                 "keywords": f_keywords.strip(), "mute": f_mute.strip(),
                 "portfolio": f_portfolio.strip(), "bio": f_bio.strip(),
                 "country": f_country if f_country != "Other / elsewhere" else "",
                 "city": f_city.strip(),
-            })
+            }
+            profile_mod.save(_saved)
+            # If they've signed up, keep a copy against their email, so what we
+            # have is a person and their craft, not just an address.
+            _who = st.session_state.get("_signed_up_email", "")
+            if _who:
+                people.attach_profile(_who, _saved)
             st.session_state.pop("_geo", None)
             st.success("Got it — we've tuned things to you. 🧡")
             st.rerun()
@@ -1062,6 +1075,9 @@ def view_profile(pro):
         if st.button("⭐ Upgrade to Pro", type="primary"):
             st.session_state.plan = "Pro"
             st.rerun()
+
+    st.divider()
+    feedback_card("profile")
 
 
 # ---------------------------------------------------------------------------
@@ -1086,7 +1102,7 @@ def signup_card(where="dashboard"):
                 sent = st.form_submit_button("Notify me", type="primary",
                                              use_container_width=True)
         if sent:
-            ok, msg = analytics.add_signup(email, note=where)
+            ok, msg = people.add_person(email, source=where)
             if ok:
                 st.session_state["_signed_up_email"] = email.strip().lower()
                 note("signup", where)
@@ -1104,7 +1120,7 @@ def signup_card(where="dashboard"):
         for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"), (a3, "No", "no")):
             with col:
                 if st.button(label, key=f"pay_{val}_{where}", use_container_width=True):
-                    analytics.set_pay_answer(joined, val)
+                    people.set_pay(joined, val)
                     st.session_state["_pay_answered"] = True
                     note("click", f"pay:{val}")
                     st.rerun()
@@ -1112,8 +1128,51 @@ def signup_card(where="dashboard"):
         st.markdown(
             '<div class="gr-cap joined">'
             '<div class="gr-cap-h">Thanks — that\'s genuinely useful ✓</div>'
-            '<div class="gr-cap-s">We\'ll email you when alerts open up.</div>'
+            '<div class="gr-cap-s">We\'ll email you when alerts open up. Fill in your '
+            '<b>Profile</b> and we\'ll learn what to send you.</div>'
             '</div>', unsafe_allow_html=True)
+
+
+def feedback_card(where="dashboard"):
+    """
+    Ask what's wrong with it.
+
+    Deliberately never asks for an email first: gating feedback on a signup is
+    how you end up hearing only from the people who already liked it.
+    """
+    if st.session_state.get(f"_fb_sent_{where}"):
+        st.markdown(
+            '<div class="gr-cap joined"><div class="gr-cap-h">Got it, thank you ✓</div>'
+            '<div class="gr-cap-s">Genuinely useful. This goes straight to the person '
+            'building it.</div></div>', unsafe_allow_html=True)
+        return
+
+    st.markdown(
+        '<div class="gr-cap plain">'
+        '<div class="gr-cap-h">What would make this actually useful?</div>'
+        '<div class="gr-cap-s">Missing a source? Wrong gigs? Something broken or '
+        'confusing? Tell us straight, no email needed.</div>'
+        '</div>', unsafe_allow_html=True)
+
+    with st.form(f"fb_{where}", clear_on_submit=False, border=False):
+        msg = st.text_area("Feedback", height=90, label_visibility="collapsed",
+                           placeholder="The gigs are all remote, I wanted local ones…")
+        c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+        with c1:
+            rating = st.radio("How's it working?",
+                              ["Useful", "It's ok", "Not for me"],
+                              horizontal=True, label_visibility="collapsed", index=None)
+        with c2:
+            sent = st.form_submit_button("Send", type="primary",
+                                         use_container_width=True)
+    if sent:
+        code = {"Useful": "good", "It's ok": "ok", "Not for me": "bad"}.get(rating, "")
+        if people.add_feedback(msg, email=st.session_state.get("_signed_up_email", ""),
+                               rating=code, page=where):
+            st.session_state[f"_fb_sent_{where}"] = True
+            note("click", f"feedback:{code or 'none'}")
+            st.rerun()
+        st.warning("Add a line about what's not working and we'll get it.")
 
 
 # ---------------------------------------------------------------------------
@@ -1128,17 +1187,7 @@ def view_admin():
         ("Visitors · all time", f"{s['sessions']:,}", "#E8933A"),
         ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
-        ("Signups", f"{s['signups']:,}", "#e5675f"),
     ])
-
-    pay = s.get("pay") or {}
-    if pay:
-        st.markdown("#### Would you pay $12/month?")
-        stat_cards([
-            ("Yes", f"{pay.get('yes', 0):,}", "#35b37e"),
-            ("Maybe", f"{pay.get('maybe', 0):,}", "#E8933A"),
-            ("No", f"{pay.get('no', 0):,}", "#e5675f"),
-        ])
 
     c1, c2 = st.columns(2)
     with c1:
@@ -1156,22 +1205,54 @@ def view_admin():
         else:
             st.caption("Nothing yet.")
 
-    st.markdown("#### Signups")
-    rows = analytics.signup_rows()
-    if rows:
-        table = pd.DataFrame(rows).rename(
-            columns={"ts": "When", "email": "Email", "pay": "Would pay", "note": "From"})
-        st.dataframe(table, use_container_width=True, hide_index=True)
-        st.download_button("⬇️  Download CSV", table.to_csv(index=False),
-                           file_name="nabbly-signups.csv", mime="text/csv")
-    else:
-        st.caption("No signups yet.")
+    ppl = people.stats()
+    _pay = ppl.get("pay") or {}
+    st.markdown("#### The people")
+    stat_cards([
+        ("Signed up", f"{ppl['people']:,}", "#E8933A"),
+        ("Told us their craft", f"{ppl['with_profile']:,}", "#5b9dff"),
+        ("Left feedback", f"{ppl['feedback']:,}", "#35b37e"),
+        ("Would pay · yes", f"{_pay.get('yes', 0):,}", "#e5675f"),
+    ])
+    if _pay:
+        st.caption(f"Would pay $12/month — yes: **{_pay.get('yes', 0)}** · "
+                   f"maybe: **{_pay.get('maybe', 0)}** · no: **{_pay.get('no', 0)}**")
 
-    if not analytics.WEBHOOK_URL:
+    rows = people.people_rows()
+    if rows:
+        cols = ["created", "email", "pay", "name", "headline", "skills",
+                "rate_floor", "rate_unit", "country", "city", "portfolio", "source"]
+        table = pd.DataFrame(rows)[[c for c in cols if c in rows[0]]]
+        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.download_button("⬇️  Download people CSV", table.to_csv(index=False),
+                           file_name="nabbly-people.csv", mime="text/csv")
+    else:
+        st.caption("Nobody yet.")
+
+    st.markdown("#### What they said")
+    fb = people.feedback_rows()
+    if fb:
+        for r in fb[:25]:
+            who = r["email"] or "anonymous"
+            tone = {"good": "#35b37e", "ok": "#E8933A", "bad": "#e5675f"}.get(r["rating"], "#697080")
+            st.markdown(
+                f'<div style="border-left:3px solid {tone};background:#15181d;'
+                f'border-radius:0 10px 10px 0;padding:11px 15px;margin-bottom:9px">'
+                f'<div style="font-size:14.5px;color:#e9ecf1">{html.escape(r["message"])}</div>'
+                f'<div style="font-size:11.5px;color:#7b828d;margin-top:5px">'
+                f'{html.escape(who)} · {html.escape(r["page"] or "—")} · {r["ts"][:16]}</div>'
+                f'</div>', unsafe_allow_html=True)
+        st.download_button("⬇️  Download feedback CSV", pd.DataFrame(fb).to_csv(index=False),
+                           file_name="nabbly-feedback.csv", mime="text/csv")
+    else:
+        st.caption("No feedback yet.")
+
+    if not people.WEBHOOK_URL:
         st.warning(
-            "**This data resets on every deploy.** Render's free tier wipes the disk. "
-            "Set `SIGNUP_WEBHOOK_URL` in Render → Environment and every signup is also "
-            "sent there the moment it happens, so an email can never be lost.")
+            "**All of this resets on every deploy.** Render's free tier wipes the disk. "
+            "Set `SIGNUP_WEBHOOK_URL` in Render → Environment and every signup, profile "
+            "and piece of feedback is also POSTed there the moment it arrives, so the "
+            "copy that matters lives somewhere you own.")
 
 
 # ---------------------------------------------------------------------------
