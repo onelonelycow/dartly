@@ -204,9 +204,15 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
     if desktop:
         send_desktop("⚡ Nabbly",
                      f"{len(fresh)} new matching gig(s)! Top: {fresh[0]['title'][:60]}")
-    send_ntfy(prefs.get("ntfy_topic", ""), fresh)
-    send_sms(prefs.get("sms_to", ""), fresh)
-    send_telegram(prefs.get("telegram_token", ""), prefs.get("telegram_chat", ""), fresh)
+    # Saved prefs win, but each channel falls back to an environment variable.
+    # alert_prefs.json lives on the server's disk, which Render's free tier
+    # wipes on every deploy — so anything configured only in the UI goes quiet
+    # after the next push, silently. Set these in Render and they stick.
+    send_ntfy(prefs.get("ntfy_topic") or os.environ.get("NTFY_TOPIC", ""), fresh)
+    send_sms(prefs.get("sms_to") or os.environ.get("ALERT_SMS_TO", ""), fresh)
+    send_telegram(prefs.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN", ""),
+                  prefs.get("telegram_chat") or os.environ.get("TELEGRAM_CHAT", ""),
+                  fresh)
     send_discord(prefs.get("discord_webhook") or os.environ.get("DISCORD_WEBHOOK_URL", ""),
                  fresh)
     send_email(fresh)

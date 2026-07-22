@@ -886,6 +886,16 @@ def _status(state, text):
     st.markdown(f'<div class="gr-ch-st {state}">{text}</div>', unsafe_allow_html=True)
 
 
+def _chan_status(ui_value, env_key):
+    """Ready if it's filled in here, or set on the server (which outlives deploys)."""
+    if (ui_value or "").strip():
+        _status("on", "Ready")
+    elif os.environ.get(env_key, "").strip():
+        _status("on", "Ready · set on the server")
+    else:
+        _status("off", "Not set up")
+
+
 def view_alerts(pro):
     st.markdown("### 🔔 We'll tap you on the shoulder")
     if not pro:
@@ -919,8 +929,7 @@ def view_alerts(pro):
             ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
                                  placeholder="a private topic, e.g. nabbly-alex-9f2",
                                  label_visibility="collapsed")
-            _status("on" if ntfy.strip() else "off",
-                    "Ready" if ntfy.strip() else "Not set up")
+            _chan_status(ntfy, "NTFY_TOPIC")
 
     r2a, r2b = st.columns(2)
     with r2a:
@@ -931,8 +940,7 @@ def view_alerts(pro):
             webhook = st.text_input("Webhook URL", value=p.get("discord_webhook", ""),
                                     label_visibility="collapsed",
                                     placeholder="paste your webhook URL")
-            _status("on" if webhook.strip() else "off",
-                    "Ready" if webhook.strip() else "Not set up")
+            _chan_status(webhook, "DISCORD_WEBHOOK_URL")
     with r2b:
         with st.container(border=True):
             _channel("Telegram",
@@ -943,8 +951,7 @@ def view_alerts(pro):
                                      placeholder="bot token")
             tg_chat = st.text_input("Chat ID", value=p.get("telegram_chat", ""),
                                     label_visibility="collapsed", placeholder="chat id")
-            _status("on" if (tg_token.strip() and tg_chat.strip()) else "off",
-                    "Ready" if (tg_token.strip() and tg_chat.strip()) else "Not set up")
+            _chan_status(tg_token.strip() and tg_chat.strip(), "TELEGRAM_TOKEN")
 
     r3a, r3b = st.columns(2)
     with r3a:
