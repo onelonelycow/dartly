@@ -40,6 +40,8 @@ import people
 import profile as profile_mod
 
 BASE = Path(__file__).parent
+# Inlined rather than st.image() so the mark can be wrapped in a link home.
+LOGO_SVG = (BASE / "assets" / "logo.svg").read_text()
 
 st.set_page_config(page_title="Nabbly",
                    page_icon=str(BASE / "assets" / "favicon.png"), layout="wide",
@@ -143,7 +145,12 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
    space beneath it and rode high, while .gr-acct was an inline-block whose
    22px line box let the 38px avatar hang below. Both are boxes now. */
 div[data-testid="stHorizontalBlock"]:first-of-type iframe{display:block;margin:0}
-div[data-testid="stHorizontalBlock"]:first-of-type [data-testid="stImage"]{margin:0}
+/* The logo is a link home. line-height:0 stops the anchor's line box adding
+   phantom height under the mark and knocking the bar out of line again. */
+.gr-home{display:block;line-height:0;text-decoration:none!important;
+  transition:opacity .14s ease}
+.gr-home:hover{opacity:.8}
+.gr-home svg{width:150px;height:auto;display:block}
 /* The avatar's wrappers were pinned to a 22px line box, so a 38px avatar
    overflowed downward instead of the column growing to hold it. */
 div[data-testid="stHorizontalBlock"]:first-of-type
@@ -222,7 +229,7 @@ div[data-testid="stForm"]{border:0;padding:0;max-width:640px;margin:0 auto}
   .gr-stat .n{font-size:26px}
   /* pull the stacked logo / nav / avatar rows together and right-align account */
   div[data-testid="stHorizontalBlock"]:first-of-type{gap:.15rem!important}
-  div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="stImage"]{margin:0 auto}
+  .gr-home svg{margin:0 auto;width:132px}
   .gr-acct{justify-content:flex-end}
   .gr-menu{top:44px}
 }
@@ -1290,7 +1297,11 @@ if "nav" in st.query_params:
 
 _bcol, _ncol, _rcol = st.columns([2.0, 4.9, 1.3], vertical_alignment="center")
 with _bcol:
-    st.image(str(BASE / "assets" / "logo.svg"), width=150)
+    # Clicking the mark goes home — the way out when someone has filtered
+    # themselves into a corner three pages deep.
+    st.markdown(f'<a class="gr-home" href="?nav=dashboard" target="_self" '
+                f'title="Back to the dashboard">{LOGO_SVG}</a>',
+                unsafe_allow_html=True)
 with _ncol:
     selected = option_menu(
         None, _TABS,
