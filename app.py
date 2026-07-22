@@ -144,7 +144,10 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
    an <iframe> is inline by default, so the nav reserved ~7px of descender
    space beneath it and rode high, while .gr-acct was an inline-block whose
    22px line box let the 38px avatar hang below. Both are boxes now. */
-div[data-testid="stHorizontalBlock"]:first-of-type iframe{display:block;margin:0}
+/* Scoped by what the row CONTAINS, not by position. ":first-of-type" also
+   matched the first column row inside the profile form, which right-aligned
+   and squashed its fields. :has() pins these rules to the top bar only. */
+div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0}
 /* The logo is a link home. line-height:0 stops the anchor's line box adding
    phantom height under the mark and knocking the bar out of line again. */
 .gr-home{display:block;line-height:0;text-decoration:none!important;
@@ -153,8 +156,7 @@ div[data-testid="stHorizontalBlock"]:first-of-type iframe{display:block;margin:0
 .gr-home svg{width:150px;height:auto;display:block}
 /* The avatar's wrappers were pinned to a 22px line box, so a 38px avatar
    overflowed downward instead of the column growing to hold it. */
-div[data-testid="stHorizontalBlock"]:first-of-type
-  [data-testid="stColumn"]:last-of-type
+[data-testid="stColumn"]:has(.gr-acct)
   :is([data-testid="stElementContainer"],[data-testid="stMarkdown"],
       [data-testid="stMarkdownContainer"],[data-testid="stMarkdown"] > div){
   /* 45px = the logo's rendered height, which sets the bar height. Keeping the
@@ -166,12 +168,10 @@ div[data-testid="stHorizontalBlock"]:first-of-type
    height it saw first (22px), which went stale once the box grew to 38px.
    Drop that margin, stretch the column to the full bar height, and centre the
    avatar inside it — no hard-coded offsets to drift out of date. */
-div[data-testid="stHorizontalBlock"]:first-of-type
-  [data-testid="stColumn"]:last-of-type{
+[data-testid="stColumn"]:has(.gr-acct){
   margin-top:0!important;align-self:stretch;
   display:flex;align-items:center;justify-content:flex-end}
-div[data-testid="stHorizontalBlock"]:first-of-type
-  [data-testid="stColumn"]:last-of-type [data-testid="stVerticalBlock"]{
+[data-testid="stColumn"]:has(.gr-acct) [data-testid="stVerticalBlock"]{
   height:100%!important;justify-content:center!important;align-items:flex-end!important}
 .gr-acct{position:relative;display:flex;align-items:center;height:38px;
   margin-top:auto;margin-bottom:auto}   /* auto margins centre it in the bar */
@@ -208,8 +208,10 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-cap-h{font-size:19px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin-bottom:6px}
 .gr-cap-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
 .gr-cap-s b{color:#eaa662}
-/* keep the email row snug under the card */
-div[data-testid="stForm"]{border:0;padding:0;max-width:640px;margin:0 auto}
+/* Forms lose Streamlit's chrome so the capture cards read as one block. NOTE:
+   this must not constrain width — an earlier max-width here squeezed the
+   profile form into the middle of the page and collided its labels. */
+div[data-testid="stForm"]{border:0;padding:0}
 /* In-copy links (e.g. URLs inside gig descriptions): on-brand amber + soft
    underline instead of Streamlit's default blue. Skips our own gr-* links. */
 [data-testid="stMarkdownContainer"] a:not([class*="gr-"]){
@@ -228,7 +230,7 @@ div[data-testid="stForm"]{border:0;padding:0;max-width:640px;margin:0 auto}
   .gr-stat{min-width:calc(50% - 5px)}          /* two stat cards per row */
   .gr-stat .n{font-size:26px}
   /* pull the stacked logo / nav / avatar rows together and right-align account */
-  div[data-testid="stHorizontalBlock"]:first-of-type{gap:.15rem!important}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home){gap:.15rem!important}
   .gr-home svg{margin:0 auto;width:132px}
   .gr-acct{justify-content:flex-end}
   .gr-menu{top:44px}
