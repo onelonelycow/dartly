@@ -1313,7 +1313,11 @@ with _ncol:
     selected = option_menu(
         None, _TABS,
         icons=["speedometer2", "broadcast", "graph-up-arrow", "bell"],
-        orientation="horizontal", default_index=0, key="topnav",
+        orientation="horizontal", key="topnav",
+        # Remember where we are. manual_select only forces the tab for one run,
+        # so without this any click after arriving via a link (a stat card, a
+        # category chip) fell back to index 0 and threw you to the Dashboard.
+        default_index=st.session_state.get("_navidx", 0),
         manual_select=st.session_state.pop("_manualnav", None),
         styles={
             "container": {"padding": "0", "background-color": "transparent"},
@@ -1325,6 +1329,9 @@ with _ncol:
                                   "font-weight": "600"},
         },
     )
+
+if selected in _TABS:
+    st.session_state["_navidx"] = _TABS.index(selected)
 
 # Clicking a main tab (a real change) leaves the Profile view.
 if "_omprev" in st.session_state and selected != st.session_state["_omprev"]:
