@@ -136,6 +136,35 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
 .gr-menu a:hover{background:#262b34;color:#fff!important}
 .gr-menu .gr-mi.muted{color:#6b7178!important;cursor:default}
 .gr-menu-sep{height:1px;background:#2a2f38;margin:5px 4px}
+/* --- Top bar: put the logo, the nav and the avatar on one line -----------
+   Streamlit centres the three columns, but their contents drifted apart:
+   an <iframe> is inline by default, so the nav reserved ~7px of descender
+   space beneath it and rode high, while .gr-acct was an inline-block whose
+   22px line box let the 38px avatar hang below. Both are boxes now. */
+div[data-testid="stHorizontalBlock"]:first-of-type iframe{display:block;margin:0}
+div[data-testid="stHorizontalBlock"]:first-of-type [data-testid="stImage"]{margin:0}
+/* The avatar's wrappers were pinned to a 22px line box, so a 38px avatar
+   overflowed downward instead of the column growing to hold it. */
+div[data-testid="stHorizontalBlock"]:first-of-type
+  [data-testid="stColumn"]:last-of-type
+  :is([data-testid="stElementContainer"],[data-testid="stMarkdown"],
+      [data-testid="stMarkdownContainer"],[data-testid="stMarkdown"] > div){
+  height:auto!important;min-height:38px!important;align-self:center!important;
+  display:flex!important;align-items:center!important;justify-content:flex-end!important;
+  margin:0!important;padding:0!important;transform:none!important}
+/* Streamlit centres a column by baking in a margin-top computed from the
+   height it saw first (22px), which went stale once the box grew to 38px.
+   Drop that margin, stretch the column to the full bar height, and centre the
+   avatar inside it — no hard-coded offsets to drift out of date. */
+div[data-testid="stHorizontalBlock"]:first-of-type
+  [data-testid="stColumn"]:last-of-type{
+  margin-top:0!important;align-self:stretch;
+  display:flex;align-items:center;justify-content:flex-end}
+div[data-testid="stHorizontalBlock"]:first-of-type
+  [data-testid="stColumn"]:last-of-type [data-testid="stVerticalBlock"]{
+  height:100%;justify-content:center}
+.gr-acct{position:relative;display:flex;align-items:center;height:38px;
+  margin-top:auto;margin-bottom:auto}   /* auto margins centre it in the bar */
 section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{display:none!important}
 .block-container,div[data-testid="stMainBlockContainer"]{padding-top:1.3rem!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
@@ -190,7 +219,7 @@ div[data-testid="stForm"]{border:0;padding:0;max-width:640px;margin:0 auto}
   /* pull the stacked logo / nav / avatar rows together and right-align account */
   div[data-testid="stHorizontalBlock"]:first-of-type{gap:.15rem!important}
   div[data-testid="stHorizontalBlock"]:first-of-type div[data-testid="stImage"]{margin:0 auto}
-  .gr-acct{display:block;text-align:right}
+  .gr-acct{justify-content:flex-end}
   .gr-menu{top:44px}
 }
 </style>
