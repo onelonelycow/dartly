@@ -150,7 +150,9 @@ div[data-testid="stHorizontalBlock"]:first-of-type
   [data-testid="stColumn"]:last-of-type
   :is([data-testid="stElementContainer"],[data-testid="stMarkdown"],
       [data-testid="stMarkdownContainer"],[data-testid="stMarkdown"] > div){
-  height:auto!important;min-height:38px!important;align-self:center!important;
+  /* 45px = the logo's rendered height, which sets the bar height. Keeping the
+     avatar's box the same means there is nothing left to centre. */
+  height:100%!important;min-height:45px!important;align-self:stretch!important;
   display:flex!important;align-items:center!important;justify-content:flex-end!important;
   margin:0!important;padding:0!important;transform:none!important}
 /* Streamlit centres a column by baking in a margin-top computed from the
@@ -163,7 +165,7 @@ div[data-testid="stHorizontalBlock"]:first-of-type
   display:flex;align-items:center;justify-content:flex-end}
 div[data-testid="stHorizontalBlock"]:first-of-type
   [data-testid="stColumn"]:last-of-type [data-testid="stVerticalBlock"]{
-  height:100%;justify-content:center}
+  height:100%!important;justify-content:center!important;align-items:flex-end!important}
 .gr-acct{position:relative;display:flex;align-items:center;height:38px;
   margin-top:auto;margin-bottom:auto}   /* auto margins centre it in the bar */
 section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{display:none!important}
@@ -1286,9 +1288,9 @@ if "nav" in st.query_params:
         st.session_state["_profile"] = False
     st.query_params.clear()
 
-_bcol, _ncol, _rcol = st.columns([1.5, 5.2, 1.4], vertical_alignment="center")
+_bcol, _ncol, _rcol = st.columns([2.0, 4.9, 1.3], vertical_alignment="center")
 with _bcol:
-    st.image(str(BASE / "assets" / "logo.svg"), width=100)
+    st.image(str(BASE / "assets" / "logo.svg"), width=150)
 with _ncol:
     selected = option_menu(
         None, _TABS,
