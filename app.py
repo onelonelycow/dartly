@@ -10,6 +10,7 @@ Run:   streamlit run app.py
 import os
 import re
 import html
+import uuid
 from pathlib import Path
 from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
@@ -33,6 +34,7 @@ import score
 import location
 import drafts
 import refresh
+import analytics
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -147,6 +149,17 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-footer .brand{color:#eaa662;font-weight:700;font-size:14px;letter-spacing:.02em}
 .gr-footer .tag{color:#8a919c;font-size:13px}
 .gr-footer .meta{color:#5a616c;font-size:11.5px}
+/* --- Early-access capture card --- */
+.gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
+  background:linear-gradient(180deg,rgba(232,147,58,.09),rgba(232,147,58,.03));
+  border:1px solid rgba(232,147,58,.28);border-radius:16px}
+.gr-cap.joined{background:linear-gradient(180deg,rgba(53,179,126,.10),rgba(53,179,126,.03));
+  border-color:rgba(53,179,126,.32)}
+.gr-cap-h{font-size:19px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin-bottom:6px}
+.gr-cap-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
+.gr-cap-s b{color:#eaa662}
+/* keep the email row snug under the card */
+div[data-testid="stForm"]{border:0;padding:0;max-width:640px;margin:0 auto}
 /* In-copy links (e.g. URLs inside gig descriptions): on-brand amber + soft
    underline instead of Streamlit's default blue. Skips our own gr-* links. */
 [data-testid="stMarkdownContainer"] a:not([class*="gr-"]){
@@ -299,6 +312,26 @@ def load_feed():
 
 db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
 refresh.start()     # background fetcher: grows the feed while the app is in use
+analytics.init()    # visit counting + signups, in their own database file
+
+# One id per browser tab. Streamlit reruns this script constantly, so without
+# this every scroll and click would look like a brand-new visitor.
+if "_sid" not in st.session_state:
+    st.session_state["_sid"] = uuid.uuid4().hex[:12]
+    analytics.track("session", "", st.session_state["_sid"])
+SID = st.session_state["_sid"]
+
+
+def note(event: str, detail: str = ""):
+    """Record something the visitor did (once per session per thing)."""
+    seen = st.session_state.setdefault("_seen_events", set())
+    key = f"{event}:{detail}"
+    if key in seen:
+        return
+    seen.add(key)
+    analytics.track(event, detail, SID)
+
+
 df, merged = load_feed()
 stats = market.skill_stats(df.to_dict("records")) if not df.empty else {}
 
@@ -540,6 +573,9 @@ def view_dashboard(pro):
                    "tab. The board moves fast; there'll be more any minute.")
     for r in top.to_dict("records"):
         gig_card(r, pro)
+
+    st.divider()
+    signup_card("dashboard")
 
 
 def view_gigs(pro):
@@ -884,9 +920,125 @@ def view_profile(pro):
 
 
 # ---------------------------------------------------------------------------
+# Early access: an email, then the only question that really matters
+# ---------------------------------------------------------------------------
+def signup_card(where="dashboard"):
+    joined = st.session_state.get("_signed_up_email", "")
+
+    if not joined:
+        st.markdown(
+            '<div class="gr-cap">'
+            '<div class="gr-cap-h">Want these the moment they drop?</div>'
+            '<div class="gr-cap-s">Nabbly is an early preview. Leave your email and '
+            'we\'ll tell you the day instant alerts open up. No spam, no sharing.</div>'
+            '</div>', unsafe_allow_html=True)
+        with st.form(f"signup_{where}", clear_on_submit=False, border=False):
+            c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+            with c1:
+                email = st.text_input("Email", placeholder="you@example.com",
+                                      label_visibility="collapsed")
+            with c2:
+                sent = st.form_submit_button("Notify me", type="primary",
+                                             use_container_width=True)
+        if sent:
+            ok, msg = analytics.add_signup(email, note=where)
+            if ok:
+                st.session_state["_signed_up_email"] = email.strip().lower()
+                note("signup", where)
+                st.rerun()
+            st.warning(msg)
+
+    elif not st.session_state.get("_pay_answered"):
+        st.markdown(
+            '<div class="gr-cap joined">'
+            '<div class="gr-cap-h">You\'re on the list ✓</div>'
+            '<div class="gr-cap-s">One quick question and we\'ll leave you alone. '
+            'Would you pay <b>$12 a month</b> for instant alerts, ranked picks, and '
+            'drafted replies?</div></div>', unsafe_allow_html=True)
+        a1, a2, a3 = st.columns(3)
+        for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"), (a3, "No", "no")):
+            with col:
+                if st.button(label, key=f"pay_{val}_{where}", use_container_width=True):
+                    analytics.set_pay_answer(joined, val)
+                    st.session_state["_pay_answered"] = True
+                    note("click", f"pay:{val}")
+                    st.rerun()
+    else:
+        st.markdown(
+            '<div class="gr-cap joined">'
+            '<div class="gr-cap-h">Thanks — that\'s genuinely useful ✓</div>'
+            '<div class="gr-cap-s">We\'ll email you when alerts open up.</div>'
+            '</div>', unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Admin: who showed up. Visit ?admin=<ADMIN_KEY>  (see analytics.py)
+# ---------------------------------------------------------------------------
+def view_admin():
+    s = analytics.stats()
+    st.markdown("## Signals")
+    st.caption("Who showed up, what they opened, and who raised their hand. "
+               "Only reachable with the admin key.")
+    stat_cards([
+        ("Visitors · all time", f"{s['sessions']:,}", "#E8933A"),
+        ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
+        ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
+        ("Signups", f"{s['signups']:,}", "#e5675f"),
+    ])
+
+    pay = s.get("pay") or {}
+    if pay:
+        st.markdown("#### Would you pay $12/month?")
+        stat_cards([
+            ("Yes", f"{pay.get('yes', 0):,}", "#35b37e"),
+            ("Maybe", f"{pay.get('maybe', 0):,}", "#E8933A"),
+            ("No", f"{pay.get('no', 0):,}", "#e5675f"),
+        ])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("#### Views opened")
+        if s["views"]:
+            st.dataframe(pd.DataFrame(s["views"], columns=["View", "Opens"]),
+                         use_container_width=True, hide_index=True)
+        else:
+            st.caption("Nothing yet.")
+    with c2:
+        st.markdown("#### Things clicked")
+        if s["clicks"]:
+            st.dataframe(pd.DataFrame(s["clicks"], columns=["What", "Clicks"]),
+                         use_container_width=True, hide_index=True)
+        else:
+            st.caption("Nothing yet.")
+
+    st.markdown("#### Signups")
+    rows = analytics.signup_rows()
+    if rows:
+        table = pd.DataFrame(rows).rename(
+            columns={"ts": "When", "email": "Email", "pay": "Would pay", "note": "From"})
+        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.download_button("⬇️  Download CSV", table.to_csv(index=False),
+                           file_name="nabbly-signups.csv", mime="text/csv")
+    else:
+        st.caption("No signups yet.")
+
+    if not analytics.WEBHOOK_URL:
+        st.warning(
+            "**This data resets on every deploy.** Render's free tier wipes the disk. "
+            "Set `SIGNUP_WEBHOOK_URL` in Render → Environment and every signup is also "
+            "sent there the moment it happens, so an email can never be lost.")
+
+
+# ---------------------------------------------------------------------------
 # Top nav bar (+ stat-card click navigation via query params)
 # ---------------------------------------------------------------------------
 _TABS = ["Dashboard", "Gigs", "Market", "Alerts"]
+
+# The admin panel replaces the whole page — nothing else needs to render.
+if analytics.ADMIN_KEY and st.query_params.get("admin", "") == analytics.ADMIN_KEY:
+    view_admin()
+    st.stop()
+
 if "nav" in st.query_params:
     _nav = st.query_params.get("nav", "").lower()
     if _nav == "profile":
@@ -898,6 +1050,13 @@ if "nav" in st.query_params:
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
             st.session_state["catfilter"] = st.query_params.get("cat", "")
             st.session_state["groupfilter"] = st.query_params.get("group", "")
+            # What pulled them in? Tracked per click, not per session.
+            for _kind, _val in (("category", st.session_state["groupfilter"]),
+                                ("skill", st.session_state["catfilter"]),
+                                ("stat", st.session_state["quickfilter"])):
+                if _val:
+                    analytics.track("click", f"{_kind}:{_val}", SID)
+                    break
         st.session_state["_profile"] = False
     st.query_params.clear()
 
@@ -958,6 +1117,8 @@ if active != "Gigs":
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
+note("view", active)
+
 if active == "Dashboard":
     view_dashboard(PRO)
 elif active == "Gigs":
