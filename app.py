@@ -519,8 +519,9 @@ def gig_card(r, pro):
         badge_items = []
         if pro and r.get("_score") is not None:
             badge_items.append((f"🎯 {int(r['_score'])}% match", "match"))
+        _src = (r["source"] or "").lower()
         badge_items += [(r["job_type"], ""), (f"{r['size_tier']} budget", ""),
-                        (r["source"], "")]
+                        (config.source_label(_src), "")]
         # where can this be done — and can *you* take it?
         loc = location.tag(r)
         if location.is_local(r, prof.get("city")):
@@ -529,11 +530,15 @@ def gig_card(r, pro):
             loc_lbl = location.label(loc)
             if loc_lbl:
                 ok = location.eligible(loc, location.country_region(prof.get("country")))
-                if ok:
-                    badge_items.append((loc_lbl, "loc"))
-                else:
+                if not ok:
                     # geo-locked to a region you're not in — make that obvious
                     badge_items.append((f"🔒 {loc['restrict']}-only · can't apply", "locoff"))
+                # A plain "Remote" pill beside a board called RemoteOK is the
+                # same fact twice. Anything sharper (US-only, worldwide) still
+                # earns its place.
+                elif not (_src in config.REMOTE_ONLY_SOURCES
+                          and loc_lbl.strip().lower().endswith("remote")):
+                    badge_items.append((loc_lbl, "loc"))
         if r.get("urgency") == "Urgent":
             badge_items.append(("🔥 Urgent", "urgent"))
         if pro:
@@ -982,19 +987,19 @@ def view_alerts(pro):
             st.success("Saved — your alert preferences are set. 🔔")
     with cols[1]:
         if st.button("🔔 Send a test ping", use_container_width=True):
-            n = alerts.notify_new(crit)
-            live = ["desktop"]
-            if sms.strip() and alerts.sms_ready() and alerts.valid_phone(sms):
-                live.append("text")
-            if ntfy.strip():
-                live.append("phone push")
-            if webhook.strip():
-                live.append("Discord/Slack")
-            if tg_token.strip() and tg_chat.strip():
-                live.append("Telegram")
-            if os.environ.get("SMTP_HOST"):
-                live.append("email")
-            st.info(f"Pinged you about {n} new gig(s) via {', '.join(live)}.")
+            res = alerts.send_test(crit)
+            if not res:
+                st.warning("No channels are set up yet, so there was nothing to send to. "
+                           "Add a phone-push topic above, or set one on the server.")
+            else:
+                worked = [k for k, v in res.items() if v]
+                failed = [k for k, v in res.items() if not v]
+                if worked:
+                    st.success(f"Sent a test alert to **{', '.join(worked)}**. "
+                               "It should land within a few seconds.")
+                if failed:
+                    st.error(f"Couldn't reach **{', '.join(failed)}**. Double-check the "
+                             "topic, URL or keys for that channel.")
 
     st.caption("Alerts follow the skills & keywords in your **Profile**. Hit "
                "**Send a test ping** to confirm your channels are wired up.")

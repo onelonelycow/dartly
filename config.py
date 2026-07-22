@@ -112,3 +112,24 @@ SMALL_JOB_SIGNALS = ["one time", "one-time", "quick", "small task", "gift card",
 
 URGENT_SIGNALS = ["asap", "urgent", "immediately", "today", "right away", "start now",
                   "this week"]
+
+# Boards that ONLY ever carry remote work. Their name already says it, so a
+# "Remote" pill next to a source called RemoteOK is the same fact twice.
+REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
+
+# Raw source keys are how we fetch; these are how a human should read them.
+SOURCE_LABELS = {
+    "remoteok": "RemoteOK",
+    "remotive": "Remotive",
+    "weworkremotely": "We Work Remotely",
+    "arbeitnow": "Arbeitnow",
+    "jobicy": "Jobicy",
+    "freelancer": "Freelancer.com",
+    "reddit": "Reddit",
+}
+
+
+def source_label(key: str) -> str:
+    """Pretty name for a source, falling back to the raw key."""
+    return SOURCE_LABELS.get((key or "").lower(), key or "")
+

@@ -192,6 +192,46 @@ def send_email(gigs: list[dict]) -> bool:
         return False
 
 
+def send_test(prefs: dict | None = None) -> dict:
+    """
+    Fire a sample alert at every configured channel and report what worked.
+
+    Why this exists: "Send a test ping" used to call notify_new(), which only
+    sends when there are gigs nobody has been alerted about yet. The background
+    fetcher runs every couple of minutes and consumes exactly those, so by the
+    time anyone pressed the button the queue was empty and it always reported
+    "0 new gigs" — telling you nothing about whether your channels work.
+
+    This ignores the queue, sends a real message, and returns
+    {channel: True/False} so a failure is visible instead of silent.
+    """
+    prefs = prefs or load_prefs()
+    sample = [{
+        "title": "Nabbly test alert — this is what a match looks like",
+        "url": "https://nabbly.co",
+        "job_type": "Test", "size_tier": "Medium", "source": "nabbly",
+    }]
+    # Saved pref first, then the env var, matching notify_new.
+    ntfy = prefs.get("ntfy_topic") or os.environ.get("NTFY_TOPIC", "")
+    sms = prefs.get("sms_to") or os.environ.get("ALERT_SMS_TO", "")
+    tg_t = prefs.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN", "")
+    tg_c = prefs.get("telegram_chat") or os.environ.get("TELEGRAM_CHAT", "")
+    hook = prefs.get("discord_webhook") or os.environ.get("DISCORD_WEBHOOK_URL", "")
+
+    out = {}
+    if ntfy:
+        out["phone push"] = send_ntfy(ntfy, sample)
+    if sms and sms_ready():
+        out["text"] = send_sms(sms, sample)
+    if hook:
+        out["Discord/Slack"] = send_discord(hook, sample)
+    if tg_t and tg_c:
+        out["Telegram"] = send_telegram(tg_t, tg_c, sample)
+    if os.environ.get("SMTP_HOST"):
+        out["email"] = send_email(sample)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # orchestration
 # ---------------------------------------------------------------------------
