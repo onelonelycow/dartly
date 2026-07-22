@@ -55,11 +55,18 @@ def _fix_mojibake(text: str) -> str:
     return _MOJIBAKE_RE.sub(_redecode, text)
 
 
+# RemoteOK ends every listing with an anti-scraping block ("Please mention the
+# word X and tag R…") followed by an SEO keyword dump. It always runs to the end
+# of the description and is pure noise to a reader, so we cut from there on.
+BOILERPLATE = re.compile(r"\s*please mention the word\b.*$", re.I | re.S)
+
+
 def _strip(text) -> str:
     if not text:
         return ""
     text = _fix_mojibake(str(text))
     text = re.sub(r"<[^>]+>", " ", text)
+    text = BOILERPLATE.sub("", text)
     return re.sub(r"\s+", " ", _html.unescape(text)).strip()
 
 
@@ -71,6 +78,22 @@ _TITLE_TS = re.compile(
 
 def _clean_title(text: str) -> str:
     return _TITLE_TS.sub("", _strip(text)).strip()
+
+
+# Every source carries two kinds of text: the description a HUMAN should read,
+# and machine hints (skill tags, salary, categories) that only the classifier
+# and the keyword search care about. Gluing them together made previews read
+# like "...a set of minim Graphic Design Logo Design Photoshop $20 - $250".
+# We still keep both in one column, but separate them with an invisible
+# character so the preview can show only the human half. See display_body().
+HINT_SEP = "\x1f"
+
+
+def _body(human, *hints) -> str:
+    """Human description first, machine hints after an invisible separator."""
+    human = _strip(human or "")
+    tail = _strip(" ".join(str(h) for h in hints if h))
+    return f"{human}{HINT_SEP}{tail}" if tail else human
 
 
 def _epoch_to_iso(epoch):
@@ -146,7 +169,7 @@ def fetch_remoteok() -> list[dict]:
             "source": "remoteok", "source_id": str(it["id"]),
             "url": it.get("url") or it.get("apply_url", ""),
             "title": f"{it.get('position','')} — {it.get('company','')}".strip(" —"),
-            "body": _strip(f"{it.get('description','')} {tags} {salary}"),
+            "body": _body(it.get("description", ""), tags, salary),
             "posted_at": it.get("date"),
         })
     return out
@@ -165,9 +188,8 @@ def fetch_remotive() -> list[dict]:
             "source": "remotive", "source_id": str(it.get("id")),
             "url": it.get("url", ""),
             "title": f"{it.get('title','')} — {it.get('company_name','')}".strip(" —"),
-            "body": _strip(f"{it.get('description','')} "
-                           f"{it.get('category','')} {it.get('salary','')} "
-                           f"{' '.join(it.get('tags',[]) or [])}"),
+            "body": _body(it.get("description", ""), it.get("category", ""),
+                          it.get("salary", ""), " ".join(it.get("tags", []) or [])),
             "posted_at": it.get("publication_date"),
         })
     return out
@@ -186,9 +208,9 @@ def fetch_arbeitnow() -> list[dict]:
             "source": "arbeitnow", "source_id": str(it.get("slug")),
             "url": it.get("url", ""),
             "title": f"{it.get('title','')} — {it.get('company_name','')}".strip(" —"),
-            "body": _strip(f"{it.get('description','')} "
-                           f"{' '.join(it.get('tags',[]) or [])} "
-                           f"{' '.join(it.get('job_types',[]) or [])}"),
+            "body": _body(it.get("description", ""),
+                          " ".join(it.get("tags", []) or []),
+                          " ".join(it.get("job_types", []) or [])),
             "posted_at": _epoch_to_iso(it.get("created_at")),
         })
     return out
@@ -210,8 +232,8 @@ def fetch_jobicy() -> list[dict]:
             "source": "jobicy", "source_id": str(it.get("id")),
             "url": it.get("url", ""),
             "title": f"{it.get('jobTitle','')} — {it.get('companyName','')}".strip(" —"),
-            "body": _strip(f"{it.get('jobExcerpt','')} {it.get('jobDescription','')} "
-                           f"{' '.join(it.get('jobIndustry',[]) or [])} {salary}"),
+            "body": _body(f"{it.get('jobExcerpt','')} {it.get('jobDescription','')}",
+                          " ".join(it.get("jobIndustry", []) or []), salary),
             "posted_at": it.get("pubDate"),
         })
     return out
@@ -250,7 +272,7 @@ def fetch_freelancer() -> list[dict]:
             "source": "freelancer", "source_id": str(p.get("id")),
             "url": url_p,
             "title": _clean_title(p.get("title", "")),
-            "body": _strip(f"{desc} {jobs} {budget}"),
+            "body": _body(desc, jobs, budget),
             "posted_at": _epoch_to_iso(p.get("time_submitted")),
         })
     return out

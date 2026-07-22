@@ -27,6 +27,7 @@ load_dotenv()
 import db
 import config
 import ingest
+import sources
 import alerts
 import pitch
 import market
@@ -269,6 +270,55 @@ def smart_trim(text, target=230, hard=520):
     return (cut[:sp] if sp > 0 else cut) + "…"
 
 
+_HINT_SEP = "\x1f"
+# Rows written before sources._body existed (including the bundled seed) have
+# the machine hints glued straight onto the description. Trim the tell-tale
+# tail: a run of capitalised skill tags, and a trailing budget/salary string.
+_BUDGET_TAIL = re.compile(
+    r"\s*\$?[\d,.]+\s*[-–—]\s*\$?[\d,.]*\s*(?:[A-Z]{3})?\s*"
+    r"(?:budget|/\s*year|/\s*yr|per\s+year)?\s*$", re.I)
+_TAGLIKE = re.compile(r"^[A-Z][A-Za-z0-9+#./-]*$")       # "WordPress", "Make.com"
+_TECHY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+#./-]*$")   # "n8n", "3D", "24/7"
+
+
+def _strip_tag_tail(text):
+    """Peel a trailing run of skill tags: 'PHP Website Design WordPress n8n'."""
+    words = text.split()
+    i = len(words)
+    while i:
+        w = words[i - 1]
+        if w.endswith((".", "!", "?", ",", ":", ";")):
+            break  # real punctuation means we're back in prose
+        taggy = _TAGLIKE.match(w) or (
+            _TECHY.match(w)
+            and any(c.isdigit() or c == "." for c in w)   # "n8n", "3D", "v2.0"
+            and any(c.isalpha() for c in w))              # but never a bare number
+        if not taggy:
+            break
+        i -= 1
+    # Only a long run is a tag dump; a couple of proper nouns is just a sentence.
+    return " ".join(words[:i]) if len(words) - i >= 5 else text
+
+
+def display_body(raw):
+    """The half of a post a human should actually read (see sources._body)."""
+    text = (raw or "").split(_HINT_SEP)[0].strip()
+    # Rows fetched before sources._strip learned to drop it still carry
+    # RemoteOK's "please mention the word …" scraper bait.
+    text = sources.BOILERPLATE.sub("", text).strip()
+    for _ in range(3):  # a budget can sit behind the tags, so peel a few times
+        before = text
+        text = _strip_tag_tail(_BUDGET_TAIL.sub("", text))
+        if text == before:
+            break
+    text = text.strip(" ·,-–—")
+    # Several feeds hand us a preview that stops mid-word. Say so, rather than
+    # pretending the sentence ended there.
+    if text and text[-1] not in ".!?…\"')":
+        text += "…"
+    return text
+
+
 def stat_cards(items):
     html = ('<div class="gr-stats" style="max-width:980px;margin-left:auto;'
             'margin-right:auto;justify-content:center">')
@@ -447,7 +497,7 @@ def gig_card(r, pro):
                 st.markdown('<div class="gr-why"><span class="lead">why</span>'
                             + chips + "</div>", unsafe_allow_html=True)
 
-        body = smart_trim(r.get("body") or "")
+        body = smart_trim(display_body(r.get("body")))
         if body:
             # escape $ so "$30 - $250" isn't rendered as a LaTeX formula
             st.write(body.replace("$", "\\$"))
