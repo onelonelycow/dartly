@@ -972,6 +972,6 @@ elif active == "Profile":
 st.markdown(
     '<div class="gr-footer">'
     '<span class="brand">Dartly</span>'
-    '<span class="tag">Freelance gigs, the moment they drop — so you reply first.</span>'
+    '<span class="tag">Every gig. The moment it drops.</span>'
     '<span class="meta">An early preview, built in the open · © 2026</span>'
     '</div>', unsafe_allow_html=True)
