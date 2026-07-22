@@ -103,9 +103,18 @@ def send_ntfy(topic: str, gigs: list[dict]) -> bool:
     msg = f"{len(gigs)} new gig(s). Top: {top['title'][:90]}"
     try:
         r = requests.post(
-            f"https://ntfy.sh/{topic}", data=msg.encode("utf-8"),
-            headers={"Title": "⚡ Nabbly", "Tags": "zap",
+            # .strip() because a trailing space pasted into an env var would
+            # publish to a topic nobody is subscribed to, silently.
+            f"https://ntfy.sh/{topic.strip()}", data=msg.encode("utf-8"),
+            # HTTP headers are latin-1 ONLY. This Title used to read "⚡ Nabbly",
+            # and that emoji made requests raise UnicodeEncodeError before
+            # anything left the machine — so every push failed, silently, from
+            # the day it was written. The "zap" tag already draws a ⚡ on the
+            # phone, so the emoji was breaking it for nothing. Keep this ASCII.
+            headers={"Title": "Nabbly", "Tags": "zap",
                      "Click": top.get("url", "")}, timeout=10)
+        if r.status_code >= 300:
+            print("  ntfy push failed:", r.status_code, r.text[:140])
         return r.status_code < 300
     except Exception as e:
         print("  ntfy push failed:", e)
