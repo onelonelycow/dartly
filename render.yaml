@@ -1,4 +1,4 @@
-# render.yaml — one-file "blueprint" so Render can build Dartly automatically.
+# render.yaml — one-file "blueprint" so Render can build Nabbly automatically.
 # In Render: New +  ->  Blueprint  ->  pick this repo, and it reads this file.
 #
 # Notes:

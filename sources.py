@@ -18,7 +18,7 @@ import feedparser
 
 import config
 
-HEADERS = {"User-Agent": "dartly/0.1 (public job & gig aggregator)"}
+HEADERS = {"User-Agent": "nabbly/0.1 (public job & gig aggregator)"}
 TIMEOUT = 25
 
 

@@ -1,10 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40" role="img" aria-label="Dartly">
-  <rect x="4" y="4" width="32" height="32" rx="9" fill="#E8933A"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="1.9" stroke-linecap="round">
-    <path d="M24.18 15.02 A6.5 6.5 0 0 1 24.18 24.98"/>
-    <path d="M15.82 15.02 A6.5 6.5 0 0 0 15.82 24.98"/>
-    <path d="M26.75 11.96 A10.5 10.5 0 0 1 26.75 28.04" opacity="0.5"/>
-    <path d="M13.25 11.96 A10.5 10.5 0 0 0 13.25 28.04" opacity="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="Nabbly">
+  <defs>
+    <linearGradient id="nbA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7B569"/>
+      <stop offset=".52" stop-color="#E8933A"/>
+      <stop offset="1" stop-color="#CB6F16"/>
+    </linearGradient>
+    <linearGradient id="nbG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".30"/>
+      <stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="nbL" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.15" flood-color="#7C4206" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <rect x="4" y="4" width="40" height="40" rx="11" fill="url(#nbA)"/>
+  <rect x="4" y="4" width="40" height="40" rx="11" fill="url(#nbG)"/>
+  <rect x="4.7" y="4.7" width="38.6" height="38.6" rx="10.4" fill="none" stroke="#fff" stroke-opacity=".26" stroke-width="1.1"/>
+  <circle cx="34.2" cy="11.4" r="4.7" fill="none" stroke="#fff" stroke-opacity=".36" stroke-width="1.4"/>
+  <g filter="url(#nbL)">
+    <path d="M13.5 33.5 L13.5 17" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M13.5 17 L23 30.5 L32 14" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="34.2" cy="11.4" r="2.5" fill="#fff"/>
   </g>
-  <circle cx="20" cy="20" r="2.4" fill="#FFFFFF"/>
 </svg>

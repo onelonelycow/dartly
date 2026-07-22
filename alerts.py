@@ -73,7 +73,7 @@ def send_discord(webhook: str, gigs: list[dict]) -> bool:
         return False
     lines = [f"**{g['title']}**\n{g['job_type']} · {g['size_tier']} budget · "
              f"{g['source']}\n{g['url']}" for g in gigs[:8]]
-    content = "⚡ **New matching gigs on Dartly:**\n\n" + "\n\n".join(lines)
+    content = "⚡ **New matching gigs on Nabbly:**\n\n" + "\n\n".join(lines)
     try:
         r = requests.post(webhook, json={"content": content[:1900]}, timeout=15)
         return r.status_code in (200, 204)
@@ -92,7 +92,7 @@ def send_ntfy(topic: str, gigs: list[dict]) -> bool:
     try:
         r = requests.post(
             f"https://ntfy.sh/{topic}", data=msg.encode("utf-8"),
-            headers={"Title": "⚡ Dartly", "Tags": "zap",
+            headers={"Title": "⚡ Nabbly", "Tags": "zap",
                      "Click": top.get("url", "")}, timeout=10)
         return r.status_code < 300
     except Exception as e:
@@ -103,7 +103,7 @@ def send_ntfy(topic: str, gigs: list[dict]) -> bool:
 def send_telegram(token: str, chat_id: str, gigs: list[dict]) -> bool:
     if not (token and chat_id):
         return False
-    lines = [f"⚡ {len(gigs)} new gig(s) on Dartly:"]
+    lines = [f"⚡ {len(gigs)} new gig(s) on Nabbly:"]
     for g in gigs[:6]:
         lines.append(f"• {g['title'][:90]}\n{g['url']}")
     try:
@@ -127,7 +127,7 @@ def send_email(gigs: list[dict]) -> bool:
     body = "\n\n".join(f"{g['title']}\n{g['job_type']} · {g['size_tier']} budget · "
                        f"{g['source']}\n{g['url']}" for g in gigs)
     msg = EmailMessage()
-    msg["Subject"] = f"⚡ {len(gigs)} new Dartly match(es)"
+    msg["Subject"] = f"⚡ {len(gigs)} new Nabbly match(es)"
     msg["From"] = user
     msg["To"] = to
     msg.set_content("New matching gigs:\n\n" + body)
@@ -152,7 +152,7 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
     if not fresh:
         return 0
     if desktop:
-        send_desktop("⚡ Dartly",
+        send_desktop("⚡ Nabbly",
                      f"{len(fresh)} new matching gig(s)! Top: {fresh[0]['title'][:60]}")
     send_ntfy(prefs.get("ntfy_topic", ""), fresh)
     send_telegram(prefs.get("telegram_token", ""), prefs.get("telegram_chat", ""), fresh)

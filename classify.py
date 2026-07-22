@@ -1,5 +1,5 @@
 """
-classify.py — the v0 "brain" for Dartly.
+classify.py — the v0 "brain" for Nabbly.
 
 Given a gig post's title + body, decide:
   - is this a real CLIENT hiring (demand)?  -> title tag [Hiring] / [Task]

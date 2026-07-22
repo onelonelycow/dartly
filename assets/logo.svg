@@ -1,11 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 116 40" width="116" height="40" role="img" aria-label="Dartly">
-  <rect x="4" y="5" width="30" height="30" rx="8" fill="#E8933A"/>
-  <g fill="none" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round">
-    <path d="M22.86 15.40 A6 6 0 0 1 22.86 24.60"/>
-    <path d="M15.14 15.40 A6 6 0 0 0 15.14 24.60"/>
-    <path d="M25.11 12.72 A9.5 9.5 0 0 1 25.11 27.28" opacity="0.5"/>
-    <path d="M12.89 12.72 A9.5 9.5 0 0 0 12.89 27.28" opacity="0.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 132 40" width="132" height="40" role="img" aria-label="Nabbly">
+  <defs>
+    <linearGradient id="nbwA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F7B569"/>
+      <stop offset=".52" stop-color="#E8933A"/>
+      <stop offset="1" stop-color="#CB6F16"/>
+    </linearGradient>
+    <linearGradient id="nbwG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".30"/>
+      <stop offset=".55" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="nbwL" x="-35%" y="-35%" width="170%" height="170%">
+      <feDropShadow dx="0" dy="0.9" stdDeviation="0.85" flood-color="#7C4206" flood-opacity=".42"/>
+    </filter>
+  </defs>
+  <g transform="translate(1,2) scale(0.75)">
+    <rect x="4" y="4" width="40" height="40" rx="11" fill="url(#nbwA)"/>
+    <rect x="4" y="4" width="40" height="40" rx="11" fill="url(#nbwG)"/>
+    <rect x="4.7" y="4.7" width="38.6" height="38.6" rx="10.4" fill="none" stroke="#fff" stroke-opacity=".26" stroke-width="1.1"/>
+    <circle cx="34.2" cy="11.4" r="4.7" fill="none" stroke="#fff" stroke-opacity=".36" stroke-width="1.4"/>
+    <g filter="url(#nbwL)">
+      <path d="M13.5 33.5 L13.5 17" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3.5" stroke-linecap="round"/>
+      <path d="M13.5 17 L23 30.5 L32 14" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="34.2" cy="11.4" r="2.5" fill="#fff"/>
+    </g>
   </g>
-  <circle cx="19" cy="20" r="2.2" fill="#FFFFFF"/>
-  <text x="44" y="26" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" letter-spacing="-0.4" fill="#ECEEF1">Dart<tspan fill="#E8933A">ly</tspan></text>
+  <text x="44" y="26" font-family="ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" letter-spacing="-0.4" fill="#ECEEF1">Nabb<tspan fill="#E8933A">ly</tspan></text>
 </svg>

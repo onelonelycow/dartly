@@ -39,7 +39,7 @@ def start():
         if _started:
             return
         _started = True
-        threading.Thread(target=_loop, daemon=True, name="dartly-refresh").start()
+        threading.Thread(target=_loop, daemon=True, name="nabbly-refresh").start()
 
 
 def state() -> dict:

@@ -38,7 +38,7 @@ def _email(gigs: list[dict]) -> bool:
     body = "\n\n".join(f"{g['title']}\n{g['job_type']} · {g['size_tier']} budget · "
                        f"{g['source']}\n{g['url']}" for g in gigs)
     msg = EmailMessage()
-    msg["Subject"] = f"🗞️ Dartly daily digest — {len(gigs)} gigs in your skills"
+    msg["Subject"] = f"🗞️ Nabbly daily digest — {len(gigs)} gigs in your skills"
     msg["From"] = user
     msg["To"] = to
     msg.set_content("Today's gigs in your skills:\n\n" + body)

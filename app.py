@@ -1,5 +1,5 @@
 """
-app.py — Dartly.
+app.py — Nabbly.
 
 Made for freelancers, by freelancers. An icon-navigated app: Dashboard (welcome +
 your picks), Gigs (the whole board), Market (what work pays), Alerts, and Profile
@@ -37,7 +37,7 @@ import profile as profile_mod
 
 BASE = Path(__file__).parent
 
-st.set_page_config(page_title="Dartly",
+st.set_page_config(page_title="Nabbly",
                    page_icon=str(BASE / "assets" / "favicon.png"), layout="wide",
                    initial_sidebar_state="collapsed")
 
@@ -747,7 +747,7 @@ def view_alerts(pro):
 
     st.markdown("**📱 Phone push** — instant, even with the site closed")
     ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
-                         placeholder="pick a private topic, e.g. dartly-alex-9f2",
+                         placeholder="pick a private topic, e.g. nabbly-alex-9f2",
                          help="Install the free **ntfy** app, subscribe to this exact "
                               "topic name, and pushes land on your phone in seconds.")
 
@@ -971,7 +971,7 @@ elif active == "Profile":
 
 st.markdown(
     '<div class="gr-footer">'
-    '<span class="brand">Dartly</span>'
+    '<span class="brand">Nabbly</span>'
     '<span class="tag">Every gig. The moment it drops.</span>'
     '<span class="meta">An early preview, built in the open · © 2026</span>'
     '</div>', unsafe_allow_html=True)
