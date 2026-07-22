@@ -4,13 +4,17 @@ alerts.py — the speed-to-lead engine.
 Finds gigs that match your saved alert preferences and haven't been alerted yet,
 then notifies you across whatever channels are set up:
   - macOS desktop notification (zero setup)
+  - phone push via ntfy       (free, install the app, pick a topic)
+  - text message via Twilio   (TWILIO_* keys in .env — the one paid channel)
   - Discord / Slack webhook   (paste a webhook URL — no password)
+  - Telegram bot              (bot token + chat id)
   - email                     (SMTP settings in .env — you set these up)
 
 Preferences (which skills/budgets/keyword to alert on, + webhook URL) live in
 alert_prefs.json. Email secrets live in .env.
 """
 import os
+import re
 import ssl
 import json
 import smtplib
@@ -24,8 +28,16 @@ from paths import data_file
 
 PREFS_PATH = data_file("alert_prefs.json")
 DEFAULT_PREFS = {"skills": [], "budgets": [], "keyword": "", "discord_webhook": "",
-                 "ntfy_topic": "", "telegram_token": "", "telegram_chat": ""}
+                 "ntfy_topic": "", "telegram_token": "", "telegram_chat": "",
+                 "sms_to": ""}
 # empty skills/budgets = match everything
+
+# Phone numbers must be E.164: a + then country code, e.g. +15551234567.
+_PHONE_RE = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def valid_phone(number: str) -> bool:
+    return bool(_PHONE_RE.match((number or "").strip()))
 
 
 def load_prefs() -> dict:
@@ -117,6 +129,44 @@ def send_telegram(token: str, chat_id: str, gigs: list[dict]) -> bool:
         return False
 
 
+def sms_ready() -> bool:
+    """True when the server has Twilio credentials, so texts can actually go out."""
+    return all(os.environ.get(k, "").strip() for k in
+               ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM"))
+
+
+def send_sms(to_number: str, gigs: list[dict]) -> bool:
+    """
+    Text message via Twilio.
+
+    Needs TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM in the
+    environment. Unlike the other channels there's no free option here — a
+    carrier has to be paid to deliver a text — so this stays quiet unless the
+    keys are present. Kept to one gig and one link: a text people read at a
+    glance beats a wall they scroll past.
+    """
+    to_number = (to_number or "").strip()
+    if not (gigs and valid_phone(to_number) and sms_ready()):
+        return False
+    sid = os.environ["TWILIO_ACCOUNT_SID"].strip()
+    token = os.environ["TWILIO_AUTH_TOKEN"].strip()
+    frm = os.environ["TWILIO_FROM"].strip()
+    top = gigs[0]
+    more = f" (+{len(gigs) - 1} more)" if len(gigs) > 1 else ""
+    body = f"Nabbly: {top['title'][:80]}{more}\n{top.get('url', '')}"
+    try:
+        r = requests.post(
+            f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",
+            auth=(sid, token),
+            data={"From": frm, "To": to_number, "Body": body}, timeout=15)
+        if r.status_code >= 300:
+            print("  sms failed:", r.status_code, r.text[:160])
+        return r.status_code < 300
+    except Exception as e:
+        print("  sms failed:", e)
+        return False
+
+
 def send_email(gigs: list[dict]) -> bool:
     host = os.environ.get("SMTP_HOST")
     user = os.environ.get("SMTP_USER")
@@ -155,6 +205,7 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
         send_desktop("⚡ Nabbly",
                      f"{len(fresh)} new matching gig(s)! Top: {fresh[0]['title'][:60]}")
     send_ntfy(prefs.get("ntfy_topic", ""), fresh)
+    send_sms(prefs.get("sms_to", ""), fresh)
     send_telegram(prefs.get("telegram_token", ""), prefs.get("telegram_chat", ""), fresh)
     send_discord(prefs.get("discord_webhook") or os.environ.get("DISCORD_WEBHOOK_URL", ""),
                  fresh)

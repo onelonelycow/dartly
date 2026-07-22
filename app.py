@@ -150,6 +150,15 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-footer .brand{color:#eaa662;font-weight:700;font-size:14px;letter-spacing:.02em}
 .gr-footer .tag{color:#8a919c;font-size:13px}
 .gr-footer .meta{color:#5a616c;font-size:11.5px}
+/* --- Alert channel cards: name carries the weight, no emoji needed --- */
+.gr-ch-h{font-size:17px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin:0 0 4px}
+.gr-ch-s{font-size:12.5px;color:#98a0ab;line-height:1.5;margin:0 0 11px;min-height:38px}
+.gr-ch-st{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+  margin-top:9px;display:flex;align-items:center;gap:6px}
+.gr-ch-st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.gr-ch-st.on{color:#69d7a1}
+.gr-ch-st.off{color:#697080}
+.gr-ch-st.warn{color:#e0a56a}
 /* --- Early-access capture card --- */
 .gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
   background:linear-gradient(180deg,rgba(232,147,58,.09),rgba(232,147,58,.03));
@@ -821,6 +830,17 @@ def view_market(pro):
     st.caption("Ballpark — budgets blend project & hourly figures across sources.")
 
 
+def _channel(name, blurb):
+    """An alert channel's heading. The name does the work, so no icon."""
+    st.markdown(f'<div class="gr-ch-h">{name}</div>'
+                f'<div class="gr-ch-s">{blurb}</div>', unsafe_allow_html=True)
+
+
+def _status(state, text):
+    """A dot plus a word: on (green), off (grey), warn (amber)."""
+    st.markdown(f'<div class="gr-ch-st {state}">{text}</div>', unsafe_allow_html=True)
+
+
 def view_alerts(pro):
     st.markdown("### 🔔 We'll tap you on the shoulder")
     if not pro:
@@ -831,31 +851,75 @@ def view_alerts(pro):
                "we hit every one the second a gig fits you.")
     p = alerts.load_prefs()
 
-    st.markdown("**📱 Phone push** — instant, even with the site closed")
-    ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
-                         placeholder="pick a private topic, e.g. nabbly-alex-9f2",
-                         help="Install the free **ntfy** app, subscribe to this exact "
-                              "topic name, and pushes land on your phone in seconds.")
+    r1a, r1b = st.columns(2)
+    with r1a:
+        with st.container(border=True):
+            _channel("Text message",
+                     "A text the second a gig fits you. The only channel that reaches "
+                     "you with no app open and the phone in your pocket.")
+            sms = st.text_input("Mobile number", value=p.get("sms_to", ""),
+                                placeholder="+15551234567", label_visibility="collapsed")
+            if not alerts.sms_ready():
+                _status("warn", "Needs Twilio keys on the server")
+            elif sms.strip() and not alerts.valid_phone(sms):
+                _status("warn", "Use the +15551234567 format")
+            else:
+                _status("on" if sms.strip() else "off",
+                        "Ready" if sms.strip() else "Add your number")
+    with r1b:
+        with st.container(border=True):
+            _channel("Phone push",
+                     "Free and instant, and it fires even with the site closed. Install "
+                     "the ntfy app and subscribe to this exact topic.")
+            ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
+                                 placeholder="a private topic, e.g. nabbly-alex-9f2",
+                                 label_visibility="collapsed")
+            _status("on" if ntfy.strip() else "off",
+                    "Ready" if ntfy.strip() else "Not set up")
 
-    st.markdown("**💬 Discord / Slack**")
-    webhook = st.text_input("Webhook URL", value=p.get("discord_webhook", ""),
-                            label_visibility="collapsed",
-                            placeholder="paste your Discord or Slack webhook URL")
+    r2a, r2b = st.columns(2)
+    with r2a:
+        with st.container(border=True):
+            _channel("Discord or Slack",
+                     "Drops matching gigs straight into a channel. Paste a webhook URL, "
+                     "no password needed.")
+            webhook = st.text_input("Webhook URL", value=p.get("discord_webhook", ""),
+                                    label_visibility="collapsed",
+                                    placeholder="paste your webhook URL")
+            _status("on" if webhook.strip() else "off",
+                    "Ready" if webhook.strip() else "Not set up")
+    with r2b:
+        with st.container(border=True):
+            _channel("Telegram",
+                     "Message a bot you own. Create one with @BotFather, then paste its "
+                     "token and your chat id.")
+            tg_token = st.text_input("Bot token", value=p.get("telegram_token", ""),
+                                     label_visibility="collapsed",
+                                     placeholder="bot token")
+            tg_chat = st.text_input("Chat ID", value=p.get("telegram_chat", ""),
+                                    label_visibility="collapsed", placeholder="chat id")
+            _status("on" if (tg_token.strip() and tg_chat.strip()) else "off",
+                    "Ready" if (tg_token.strip() and tg_chat.strip()) else "Not set up")
 
-    with st.expander("More ways to hear about it"):
-        st.markdown("**✈️ Telegram**")
-        tg_token = st.text_input("Bot token", value=p.get("telegram_token", ""))
-        tg_chat = st.text_input("Chat ID", value=p.get("telegram_chat", ""))
-        st.markdown("**✉️ Email** — add SMTP details to your `.env` and it sends itself.")
-        st.markdown("**🖥️ Desktop pop-up** — on automatically while the watcher runs on "
-                    "your Mac.")
-        st.caption("📲 Text/SMS is next — it needs a paid provider, so we started with the "
-                   "free, instant options above.")
+    r3a, r3b = st.columns(2)
+    with r3a:
+        with st.container(border=True):
+            _channel("Email",
+                     "A full digest with every match and its link. Configured on the "
+                     "server with your SMTP details.")
+            _status("on" if os.environ.get("SMTP_HOST") else "off",
+                    "Ready" if os.environ.get("SMTP_HOST") else "Needs SMTP settings")
+    with r3b:
+        with st.container(border=True):
+            _channel("Desktop pop-up",
+                     "A notification on your Mac. On automatically whenever the watcher "
+                     "is running, nothing to set up.")
+            _status("on", "Always on")
 
     crit = {"skills": prof.get("skills", []), "budgets": ["Small", "Medium", "Large"],
             "keyword": prof.get("keywords", ""), "discord_webhook": webhook.strip(),
             "ntfy_topic": ntfy.strip(), "telegram_token": tg_token.strip(),
-            "telegram_chat": tg_chat.strip()}
+            "telegram_chat": tg_chat.strip(), "sms_to": sms.strip()}
 
     cols = st.columns(2)
     with cols[0]:
@@ -866,6 +930,8 @@ def view_alerts(pro):
         if st.button("🔔 Send a test ping", use_container_width=True):
             n = alerts.notify_new(crit)
             live = ["desktop"]
+            if sms.strip() and alerts.sms_ready() and alerts.valid_phone(sms):
+                live.append("text")
             if ntfy.strip():
                 live.append("phone push")
             if webhook.strip():
