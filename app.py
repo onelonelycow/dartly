@@ -263,15 +263,17 @@ header[data-testid="stHeader"]{height:0;background:transparent}
    One quiet line telling you whose session this is and how long the trial has
    left. It sits above the fold on every page because "when does this stop
    working" is the question a tester will actually have. */
-.gr-trial{display:flex;align-items:center;justify-content:center;gap:9px;
-  flex-wrap:wrap;font-size:13px;line-height:1.45;padding:9px 16px;border-radius:11px;
-  margin:0 0 6px;text-align:center;
+/* Deliberately not a flex row: `gap` treats every inline run as its own item,
+   so a bolded phrase mid-sentence got 9px punched in before the next word and
+   it read as "Nabbly Free ." */
+.gr-trial{display:block;font-size:13px;line-height:1.5;padding:9px 16px;
+  border-radius:11px;margin:0 0 6px;text-align:center;text-wrap:pretty;
   background:rgba(232,147,58,.08);border:1px solid rgba(232,147,58,.24);color:#c3cad3}
 .gr-trial b{color:#E8933A;font-weight:700}
 .gr-trial.over{background:rgba(233,98,80,.09);border-color:rgba(233,98,80,.32)}
 .gr-trial.over b{color:#f2a08f}
-.gr-trial.guest{background:#15181d;border-color:#262b33;color:#8d949e}
-.gr-trial.guest b{color:#aeb5bf}
+.gr-trial.free{background:#15181d;border-color:#262b33;color:#9aa1ab}
+.gr-trial.free b{color:#c8ced7}
 @media (max-width:640px){.gr-trial{font-size:12.5px;padding:8px 12px}}
 /* --- Early-access capture card --- */
 .gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
@@ -431,9 +433,11 @@ ACCOUNT = _resolve_account()
 if ACCOUNT:
     paths.set_scope(paths.scope_for(ACCOUNT["email"]))
 else:
-    if "_guest" not in st.session_state:
-        st.session_state["_guest"] = "guest-" + secrets.token_hex(8)
-    paths.set_scope(st.session_state["_guest"])
+    # Not signed in: a scratch space unique to this browser session, so two
+    # people browsing at once still never see each other's data.
+    if "_visitor" not in st.session_state:
+        st.session_state["_visitor"] = "free-" + secrets.token_hex(8)
+    paths.set_scope(st.session_state["_visitor"])
 
 ACCESS = accounts.status(ACCOUNT)
 PRO = ACCESS["pro"]
@@ -1392,8 +1396,9 @@ def view_profile(pro):
                     st.logout()
                 st.rerun()
     else:
-        st.info("You're browsing as a guest, so nothing here is saved. "
-                "Start a free trial from the **Dashboard** to keep it.")
+        st.info("You're on **Nabbly Free**. Fill this in and we'll use it "
+                "straight away, and signing in from the **Dashboard** keeps it "
+                "for next time, plus 14 days of Pro.")
     pct = profile_mod.completeness(prof)
     st.progress(pct / 100, text=f"You're {pct}% set up")
 
@@ -1512,9 +1517,10 @@ def trial_bar():
     """One line: whose session this is, and how long they've got."""
     if not ACCESS["signed_in"]:
         st.markdown(
-            '<div class="gr-trial guest">You\'re browsing as a guest, so nothing '
-            'you set here is saved. <b>Start a free trial below</b> to keep your '
-            'profile and unlock everything.</div>', unsafe_allow_html=True)
+            '<div class="gr-trial free">You\'re on <b>Nabbly Free</b>. The whole '
+            'board is yours, every gig, every source. Sign in below to save your '
+            'profile and start <b>14 days of Pro</b>.</div>',
+            unsafe_allow_html=True)
         return
     if ACCESS["plan"] == "pro":
         st.markdown('<div class="gr-trial"><b>Pro</b> &nbsp;·&nbsp; '
@@ -1523,10 +1529,10 @@ def trial_bar():
         return
     if ACCESS["expired"]:
         st.markdown(
-            '<div class="gr-trial over"><b>Your Pro trial has ended.</b> '
-            'Ranked picks, drafted replies, market data and alerts are paused. '
-            'The board itself stays free, and everything you saved is still '
-            'here.</div>', unsafe_allow_html=True)
+            '<div class="gr-trial over">You\'re on <b>Nabbly Free</b> now, and '
+            'the whole board stays yours. Ranked picks, drafted replies, market '
+            'rates and instant alerts are the Pro parts, and everything you saved '
+            'is still here waiting.</div>', unsafe_allow_html=True)
         return
     d = ACCESS["days_left"]
     st.markdown(

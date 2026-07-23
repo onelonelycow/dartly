@@ -71,8 +71,16 @@ def user_file(name: str, scope: str | None = None) -> Path:
 
 
 def all_scopes() -> list[str]:
-    """Every person with saved data. Used by the background alerter."""
+    """
+    Every signed-in person's directory.
+
+    Skips the throwaway ones. A not-signed-in visitor gets a "free-" scratch
+    space that lasts as long as their browser session, and treating those as
+    real people would have the background alerter walking thousands of empty
+    directories that nobody can be reached at.
+    """
     if not USERS_DIR.exists():
         return []
     return sorted(p.name for p in USERS_DIR.iterdir()
-                  if p.is_dir() and p.name != _ANON)
+                  if p.is_dir() and p.name != _ANON
+                  and not p.name.startswith("free-"))
