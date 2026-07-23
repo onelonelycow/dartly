@@ -97,6 +97,11 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-h1{font-size:46px;line-height:1.06;font-weight:700;letter-spacing:-1.4px;
   color:#f5f7fa;margin:0 0 18px;text-wrap:balance}
 .gr-h1 .accent{color:#E8933A}
+/* Streamlit hangs a "#" deep-link off every markdown heading. That's a docs
+   convention: here it reads as a stray icon welded to the end of the hero, and
+   it points at an in-page anchor nobody can use, because the app navigates by
+   tabs rather than by scrolling one long document. */
+[data-testid="stHeaderActionElements"]{display:none!important}
 .gr-sub{display:inline-block;font-size:17px;line-height:1.6;color:#99a1ac;
   max-width:600px;margin:0;text-align:center;text-wrap:pretty}
 .gr-sub b{color:#ced4dc;font-weight:600}
