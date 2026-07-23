@@ -10,3 +10,17 @@ alert_prefs.json
 .env
 *.log
 drafts.json
+
+# per-user state (profiles, alert channels, drafts) — never committed
+users/
+profile.json
+drafts.json
+alert_prefs.json
+
+# Runtime databases: these fill up with signup emails and feedback the moment
+# real people use the site, and this repo is public. seed.db stays tracked on
+# purpose (bundled gigs, no personal data, needed for first boot).
+nabbly_people.db
+nabbly_signals.db
+*.db-wal
+*.db-shm

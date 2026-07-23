@@ -44,6 +44,8 @@ def _baseline():
 def _loop():
     import ingest
     import alerts
+    import accounts
+    import paths
     time.sleep(_FIRST_DELAY_S)
     _baseline()
     last_alert = 0.0
@@ -60,13 +62,21 @@ def _loop():
             # each loop so a change on the Alerts page takes effect without a
             # restart.
             try:
-                gap = max(1, int(alerts.load_prefs().get("every_min") or 15)) * 60
+                # Shortest gap anyone has asked for, so a user who wants alerts
+                # every 5 minutes isn't held to someone else's hourly setting.
+                gaps = []
+                for _a in accounts.all_accounts():
+                    paths.set_scope(paths.scope_for(_a["email"]))
+                    gaps.append(max(1, int(alerts.load_prefs().get("every_min") or 15)))
+                gap = (min(gaps) if gaps else 15) * 60
             except Exception:
                 gap = _ALERT_MIN_GAP_S
             if time.time() - last_alert >= gap:
-                # desktop=False: the pop-up shells out to osascript, which only
-                # exists on the owner's Mac. The server is Linux.
-                n = alerts.notify_new(desktop=False)
+                # One pass per signed-in person, each against their own skills
+                # and their own channels. notify_new() is the single-user path
+                # and reads whichever profile the thread happens to be scoped
+                # to, which in a background thread is nobody's.
+                n = alerts.notify_everyone(desktop=False)
                 if n:
                     _state["alerted"] += n
                     _state["last_alert"] = time.time()

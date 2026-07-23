@@ -9,9 +9,12 @@ Stores who you are and what you want, in profile.json:
 """
 import json
 
-from paths import data_file
+from paths import user_file
 
-PATH = data_file("profile.json")
+# Resolved per call, not at import: which file this is depends on who is
+# looking, and that is only known once the request is being served.
+def _path():
+    return user_file("profile.json")
 DEFAULT = {
     "name": "",         # for pitches
     "headline": "",     # e.g. "Brand & logo designer" — used in pitches
@@ -32,6 +35,7 @@ COMPLETENESS_FIELDS = ["name", "headline", "skills", "rate_floor",
 
 
 def load() -> dict:
+    PATH = _path()
     if PATH.exists():
         try:
             return {**DEFAULT, **json.loads(PATH.read_text())}
@@ -47,4 +51,4 @@ def completeness(p: dict) -> int:
 
 
 def save(p: dict):
-    PATH.write_text(json.dumps({**DEFAULT, **p}, indent=2))
+    _path().write_text(json.dumps({**DEFAULT, **p}, indent=2))

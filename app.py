@@ -11,6 +11,7 @@ import os
 import re
 import html
 import uuid
+import secrets
 from pathlib import Path
 from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
@@ -37,6 +38,8 @@ import drafts
 import refresh
 import analytics
 import people
+import paths
+import accounts
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -255,6 +258,20 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   .gr-draft-body{padding:14px 15px 15px;font-size:13.5px;line-height:1.6}
   .gr-draft-hd{padding:12px 15px 11px}
 }
+/* --- Trial / account strip -------------------------------------------------
+   One quiet line telling you whose session this is and how long the trial has
+   left. It sits above the fold on every page because "when does this stop
+   working" is the question a tester will actually have. */
+.gr-trial{display:flex;align-items:center;justify-content:center;gap:9px;
+  flex-wrap:wrap;font-size:13px;line-height:1.45;padding:9px 16px;border-radius:11px;
+  margin:0 0 6px;text-align:center;
+  background:rgba(232,147,58,.08);border:1px solid rgba(232,147,58,.24);color:#c3cad3}
+.gr-trial b{color:#E8933A;font-weight:700}
+.gr-trial.over{background:rgba(233,98,80,.09);border-color:rgba(233,98,80,.32)}
+.gr-trial.over b{color:#f2a08f}
+.gr-trial.guest{background:#15181d;border-color:#262b33;color:#8d949e}
+.gr-trial.guest b{color:#aeb5bf}
+@media (max-width:640px){.gr-trial{font-size:12.5px;padding:8px 12px}}
 /* --- Early-access capture card --- */
 .gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
   background:linear-gradient(180deg,rgba(232,147,58,.09),rgba(232,147,58,.03));
@@ -383,14 +400,38 @@ div[data-testid="stForm"]{border:0;padding:0}
 """, unsafe_allow_html=True)
 
 db.init_db()
+accounts.init()
+
+# --- Who is looking at this screen? -----------------------------------------
+# This has to run before anything reads a profile, because which profile to
+# read depends on the answer. Signed-in people are identified by a token in
+# the URL; everyone else gets a scratch space unique to their browser session,
+# so two strangers browsing at once never see each other's data.
+def _resolve_account():
+    tok = st.query_params.get("u") or st.session_state.get("_tok") or ""
+    if tok:
+        acc = accounts.by_token(tok)
+        if acc:
+            st.session_state["_tok"] = tok
+            return acc
+        st.session_state.pop("_tok", None)   # stale or forged token
+    return None
+
+
+ACCOUNT = _resolve_account()
+if ACCOUNT:
+    paths.set_scope(paths.scope_for(ACCOUNT["email"]))
+else:
+    if "_guest" not in st.session_state:
+        st.session_state["_guest"] = "guest-" + secrets.token_hex(8)
+    paths.set_scope(st.session_state["_guest"])
+
+ACCESS = accounts.status(ACCOUNT)
+PRO = ACCESS["pro"]
+
 prof = profile_mod.load()
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 FEED_CAP = 60
-
-# Demo default: always Pro. (Swap to an admin login on a real deployment.)
-if "plan" not in st.session_state:
-    st.session_state.plan = "Pro"
-PRO = st.session_state.plan == "Pro"
 
 
 # ---------------------------------------------------------------------------
@@ -888,7 +929,7 @@ def draft_showcase(pro):
             '<div class="gr-draft-k">🔒 Pro · we write the reply for you</div>'
             f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div></div>'
             '<div class="gr-draft-lock">On <b>Pro</b> this box already contains a '
-            'ready-to-send reply for this exact gig, written from your profile — '
+            'ready-to-send reply for this exact gig, written from your profile, '
             'so you answer in seconds instead of staring at a blank message.</div>'
             '</div>', unsafe_allow_html=True)
         return
@@ -935,6 +976,8 @@ def view_dashboard(pro):
         st.info("Nothing loaded yet. Pop over to **Gigs** and hit *Check for new gigs* — "
                 "we'll pull the latest for you.")
         return
+
+    trial_bar()
 
     if not prof.get("skills"):
         first_run_card()
@@ -1424,15 +1467,58 @@ def view_profile(pro):
 # ---------------------------------------------------------------------------
 # Early access: an email, then the only question that really matters
 # ---------------------------------------------------------------------------
-def signup_card(where="dashboard"):
-    joined = st.session_state.get("_signed_up_email", "")
+def start_trial(email: str, where: str):
+    """
+    Sign someone in and put their token in the URL.
 
-    if not joined:
+    The token in the address bar is what makes them the same person tomorrow.
+    We tell them to keep the link rather than pretending a cookie will hold.
+    """
+    acc, is_new = accounts.sign_in(email, source=where)
+    if not acc:
+        return False, "That doesn't look like an email address."
+    st.session_state["_tok"] = acc["token"]
+    st.query_params["u"] = acc["token"]
+    note("signup" if is_new else "signin", where)
+    return True, ""
+
+
+def trial_bar():
+    """One line: whose session this is, and how long they've got."""
+    if not ACCESS["signed_in"]:
+        st.markdown(
+            '<div class="gr-trial guest">You\'re browsing as a guest, so nothing '
+            'you set here is saved. <b>Start a free trial below</b> to keep your '
+            'profile and unlock everything.</div>', unsafe_allow_html=True)
+        return
+    if ACCESS["plan"] == "pro":
+        st.markdown('<div class="gr-trial"><b>Pro</b> &nbsp;·&nbsp; '
+                    'everything unlocked. Thanks for testing Nabbly.</div>',
+                    unsafe_allow_html=True)
+        return
+    if ACCESS["expired"]:
+        st.markdown(
+            '<div class="gr-trial over"><b>Your Pro trial has ended.</b> '
+            'Ranked picks, drafted replies, market data and alerts are paused. '
+            'The board itself stays free, and everything you saved is still '
+            'here.</div>', unsafe_allow_html=True)
+        return
+    d = ACCESS["days_left"]
+    st.markdown(
+        f'<div class="gr-trial"><b>Pro trial</b> &nbsp;·&nbsp; '
+        f'<b>{d} day{"s" if d != 1 else ""}</b> left. Everything is unlocked, '
+        f'so push it hard and tell us what breaks.</div>', unsafe_allow_html=True)
+
+
+def signup_card(where="dashboard"):
+    if not ACCESS["signed_in"]:
         st.markdown(
             '<div class="gr-cap">'
-            '<div class="gr-cap-h">Want these the moment they drop?</div>'
-            '<div class="gr-cap-s">Nabbly is an early preview. Leave your email and '
-            'we\'ll tell you the day instant alerts open up. No spam, no sharing.</div>'
+            '<div class="gr-cap-h">Start your free 14-day Pro trial</div>'
+            '<div class="gr-cap-s">Everything switched on: ranked picks, drafted '
+            'replies, market rates and instant alerts. No card, no password, one '
+            'field. We keep your email to send you the link back and nothing '
+            'else.</div>'
             '</div>', unsafe_allow_html=True)
         with st.form(f"signup_{where}", clear_on_submit=False, border=False):
             c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
@@ -1440,23 +1526,23 @@ def signup_card(where="dashboard"):
                 email = st.text_input("Email", placeholder="you@example.com",
                                       label_visibility="collapsed")
             with c2:
-                sent = st.form_submit_button("Notify me", type="primary",
+                sent = st.form_submit_button("Start my trial", type="primary",
                                              use_container_width=True)
         if sent:
-            ok, msg = people.add_person(email, source=where)
+            ok, msg = start_trial(email, where)
             if ok:
-                st.session_state["_signed_up_email"] = email.strip().lower()
-                note("signup", where)
                 st.rerun()
             st.warning(msg)
+        return
 
-    elif not st.session_state.get("_pay_answered"):
+    joined = ACCESS["email"]
+    if not st.session_state.get("_pay_answered"):
         st.markdown(
             '<div class="gr-cap joined">'
-            '<div class="gr-cap-h">You\'re on the list ✓</div>'
-            '<div class="gr-cap-s">One quick question and we\'ll leave you alone. '
-            'Would you pay <b>$12 a month</b> for instant alerts, ranked picks, and '
-            'drafted replies?</div></div>', unsafe_allow_html=True)
+            '<div class="gr-cap-h">You\'re in ✓</div>'
+            '<div class="gr-cap-s">One quick question while you\'re here. When the '
+            'trial ends, would you pay <b>$12 a month</b> to keep instant alerts, '
+            'ranked picks, and drafted replies?</div></div>', unsafe_allow_html=True)
         a1, a2, a3 = st.columns(3)
         for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"), (a3, "No", "no")):
             with col:
@@ -1468,10 +1554,11 @@ def signup_card(where="dashboard"):
     else:
         st.markdown(
             '<div class="gr-cap joined">'
-            '<div class="gr-cap-h">Thanks — that\'s genuinely useful ✓</div>'
-            '<div class="gr-cap-s">We\'ll email you when alerts open up. Fill in your '
-            '<b>Profile</b> and we\'ll learn what to send you.</div>'
-            '</div>', unsafe_allow_html=True)
+            '<div class="gr-cap-h">Thanks, that\'s genuinely useful ✓</div>'
+            '<div class="gr-cap-s"><b>Keep the link in your address bar.</b> It\'s '
+            'how Nabbly knows you next time, and there\'s no password to lose. '
+            'Bookmark it now and your profile, drafts and alerts will be waiting.'
+            '</div></div>', unsafe_allow_html=True)
 
 
 def feedback_card(where="dashboard"):

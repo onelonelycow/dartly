@@ -7,12 +7,14 @@ in drafts.json (keyed by gig id) via the shared DATA_DIR.
 """
 import json
 
-from paths import data_file
+from paths import user_file
 
-PATH = data_file("drafts.json")
+def _path():
+    return user_file("drafts.json")
 
 
 def _all() -> dict:
+    PATH = _path()
     if PATH.exists():
         try:
             return json.loads(PATH.read_text())
@@ -29,14 +31,14 @@ def load(gig_id) -> str:
 def save(gig_id, text: str):
     d = _all()
     d[str(gig_id)] = text
-    PATH.write_text(json.dumps(d, indent=2))
+    _path().write_text(json.dumps(d, indent=2))
 
 
 def delete(gig_id):
     d = _all()
     if str(gig_id) in d:
         del d[str(gig_id)]
-        PATH.write_text(json.dumps(d, indent=2))
+        _path().write_text(json.dumps(d, indent=2))
 
 
 def has(gig_id) -> bool:

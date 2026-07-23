@@ -24,9 +24,11 @@ from email.message import EmailMessage
 import requests
 
 import db
-from paths import data_file
+from paths import data_file, user_file
 
-PREFS_PATH = data_file("alert_prefs.json")
+def _prefs_path():
+    """Per person: these hold a phone number and webhook URLs."""
+    return user_file("alert_prefs.json")
 DEFAULT_PREFS = {
     "skills": [], "budgets": [], "keyword": "",
     "discord_webhook": "", "ntfy_topic": "", "telegram_token": "",
@@ -54,6 +56,7 @@ def valid_phone(number: str) -> bool:
 
 
 def load_prefs() -> dict:
+    PREFS_PATH = _prefs_path()
     if PREFS_PATH.exists():
         try:
             return {**DEFAULT_PREFS, **json.loads(PREFS_PATH.read_text())}
@@ -63,7 +66,7 @@ def load_prefs() -> dict:
 
 
 def save_prefs(prefs: dict):
-    PREFS_PATH.write_text(json.dumps({**DEFAULT_PREFS, **prefs}, indent=2))
+    _prefs_path().write_text(json.dumps({**DEFAULT_PREFS, **prefs}, indent=2))
 
 
 def matches(post: dict, prefs: dict) -> bool:
@@ -326,3 +329,49 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
     send_email(fresh)   # email is a digest, it can carry the lot
     db.mark_alerted([p["id"] for p in fresh])
     return total
+
+
+def notify_everyone(desktop: bool = False) -> int:
+    """
+    Alert every signed-in person, each against their own channels and skills.
+
+    The single-user path above marks gigs alerted globally, which is exactly
+    wrong once more than one person is here: the first person's alert would
+    silence everyone else's. So each account tracks the highest gig id it has
+    been told about, and we work forward from that per person.
+
+    Returns the number of people we actually pinged.
+    """
+    import accounts
+    import paths
+    import db as _db
+
+    pinged = 0
+    rows = _db.all_posts(demand_only=True)
+    if not rows:
+        return 0
+    newest = max(int(r["id"]) for r in rows)
+
+    for acc in accounts.all_accounts():
+        if not accounts.status(acc)["pro"]:
+            continue                      # trial over: alerts are a Pro feature
+        paths.set_scope(paths.scope_for(acc["email"]))
+        prefs = load_prefs()
+        if not any(prefs.get(k) for k in
+                   ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):
+            continue                      # nothing configured, nothing to send
+        since = int(acc.get("last_alert_id") or 0)
+        fresh = [r for r in rows if int(r["id"]) > since and matches(r, prefs)]
+        if fresh:
+            total = len(fresh)
+            shown = fresh[:max(1, int(prefs.get("max_per_alert") or 5))]
+            send_ntfy(prefs.get("ntfy_topic", ""), shown, total)
+            send_sms(prefs.get("sms_to", ""), shown, total)
+            send_telegram(prefs.get("telegram_token", ""),
+                          prefs.get("telegram_chat", ""), shown, total)
+            send_discord(prefs.get("discord_webhook", ""), shown, total)
+            pinged += 1
+        # Move the marker even when nothing matched, so a quiet person doesn't
+        # accumulate a backlog that fires the moment they change their skills.
+        accounts.set_last_alert_id(acc["email"], newest)
+    return pinged
