@@ -198,6 +198,31 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-ch-st.on{color:#69d7a1}
 .gr-ch-st.off{color:#697080}
 .gr-ch-st.warn{color:#e0a56a}
+/* --- First run: pick a skill, watch the board re-sort around you ---------
+   The old first-run experience was a banner telling you to go to another tab.
+   This asks the one question that matters and answers it live, before you
+   commit to anything. */
+.gr-onb{max-width:640px;margin:0 auto 4px;padding:20px 22px 8px;text-align:center;
+  background:linear-gradient(180deg,rgba(232,147,58,.10),rgba(232,147,58,.03));
+  border:1px solid rgba(232,147,58,.30);border-radius:16px}
+.gr-onb-h{font-size:20px;font-weight:700;color:#f2f4f7;letter-spacing:-.35px;margin-bottom:5px}
+.gr-onb-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:48ch;margin:0 auto}
+.gr-onb-hit{max-width:640px;margin:12px auto 2px;text-align:center;font-size:15.5px;
+  color:#b9c0c9;animation:gr-count .32s ease-out}
+.gr-onb-hit b{color:#E8933A;font-size:21px;font-weight:750;font-variant-numeric:tabular-nums}
+@keyframes gr-count{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* --- New gigs landing while you watch ------------------------------------
+   A card carrying the "New" badge slides in rather than just appearing, so
+   "every gig, the moment it drops" is something you see happen. */
+@keyframes gr-land{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:none}}
+[data-testid="stVerticalBlockBorderWrapper"]:has(.gr-new){
+  animation:gr-land .5s cubic-bezier(.22,1,.36,1);
+  border-color:rgba(232,147,58,.42)!important}
+@media (prefers-reduced-motion:reduce){
+  [data-testid="stVerticalBlockBorderWrapper"]:has(.gr-new){animation:none}
+  .gr-onb-hit{animation:none}
+}
 /* --- Early-access capture card --- */
 .gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
   background:linear-gradient(180deg,rgba(232,147,58,.09),rgba(232,147,58,.03));
@@ -724,6 +749,68 @@ def category_strip():
     st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
 
 
+def first_run_card():
+    """
+    The moment someone realises it already did the work for them.
+
+    The old version was a banner pointing at another tab, which is a chore, not
+    a hook. This asks the one question that matters and answers it live: pick a
+    skill and the count updates before you've committed to anything.
+    """
+    st.markdown('<div class="gr-onb">'
+                '<div class="gr-onb-h">What do you do?</div>'
+                '<div class="gr-onb-s">Pick a couple and the whole board re-sorts '
+                'around you. Five seconds, no signup.</div></div>',
+                unsafe_allow_html=True)
+    picked = st.multiselect(
+        "Your skills", ALL_SKILLS, default=[], label_visibility="collapsed",
+        placeholder="Start typing — e.g. Design / creative, Writing / content")
+
+    if not picked:
+        return
+    srcs = sorted(df["source"].unique())
+    hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs, False, "")
+    fresh = recent_count(hit, 24)
+    bits = f"<b>{len(hit):,}</b> gigs already fit you"
+    if fresh:
+        bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
+    st.markdown(f'<div class="gr-onb-hit">{bits}</div>', unsafe_allow_html=True)
+    if st.button("Show me these  →", type="primary", use_container_width=True):
+        prof["skills"] = picked
+        profile_mod.save(prof)
+        note("click", "firstrun:skills")
+        st.rerun()
+
+
+@st.fragment(run_every=45)
+def arrivals_pill():
+    """
+    "3 landed while you were reading" — the Twitter pattern.
+
+    Polling the list and silently reordering it under someone's eyes is
+    hostile; a pill they choose to tap is not. It also makes the live feed
+    visible, which is the entire promise of the product.
+    """
+    cur, _ = load_feed()
+    if cur.empty or "id" not in cur:
+        return
+    newest = int(cur["id"].max())
+    if not st.session_state.get("_seen_max_id"):
+        st.session_state["_seen_max_id"] = newest      # baseline on first view
+        return
+    newer = cur[cur["id"] > st.session_state["_seen_max_id"]]
+    if prof.get("skills"):
+        newer = newer[newer["job_type"].isin(prof["skills"])]
+    n = len(newer)
+    if not n:
+        return
+    if st.button(f"⚡  {n} new gig{'s' if n > 1 else ''} landed while you were here  →",
+                 key="arrivals", type="primary", use_container_width=True):
+        st.session_state["_seen_max_id"] = newest
+        note("click", "arrivals")
+        st.rerun()
+
+
 def view_dashboard(pro):
     n = len(df)
     eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
@@ -743,8 +830,7 @@ def view_dashboard(pro):
         return
 
     if not prof.get("skills"):
-        st.warning("👋 **First time here?** Take 30 seconds on the **Profile** tab to tell "
-                   "us what you do — then the gigs that actually fit you show up right here.")
+        first_run_card()
 
     st.write("")
     live_stats()
@@ -753,6 +839,7 @@ def view_dashboard(pro):
     category_strip()
 
     st.divider()
+    arrivals_pill()
     if prof.get("skills"):
         st.markdown("### 🎯 Picked for you")
         srcs = sorted(df["source"].unique())
