@@ -39,6 +39,7 @@ import refresh
 import analytics
 import people
 import paths
+import auth
 import accounts
 import profile as profile_mod
 
@@ -408,6 +409,14 @@ accounts.init()
 # the URL; everyone else gets a scratch space unique to their browser session,
 # so two strangers browsing at once never see each other's data.
 def _resolve_account():
+    # Google first: it hands us an address it has already verified, so it beats
+    # a link that anyone could forward and an email box that nobody checked.
+    gmail = auth.google_email(st)
+    if gmail:
+        acc, _ = accounts.sign_in(gmail, source="google")
+        if acc:
+            return acc
+
     tok = st.query_params.get("u") or st.session_state.get("_tok") or ""
     if tok:
         acc = accounts.by_token(tok)
@@ -1369,6 +1378,22 @@ def view_alerts(pro):
 def view_profile(pro):
     st.markdown("### 👋 Tell us about you")
     st.caption("The more we know, the better the gigs we surface for you.")
+
+    if ACCESS["signed_in"]:
+        _who, _out = st.columns([3, 1], vertical_alignment="center")
+        _who.caption(f"Signed in as **{ACCESS['email']}**")
+        with _out:
+            if st.button("Sign out", use_container_width=True, key="signout"):
+                # Drop our own session first, then Google's if it owns this
+                # login, otherwise st.logout() reruns and we never get here.
+                st.session_state.pop("_tok", None)
+                st.query_params.clear()
+                if auth.google_email(st):
+                    st.logout()
+                st.rerun()
+    else:
+        st.info("You're browsing as a guest, so nothing here is saved. "
+                "Start a free trial from the **Dashboard** to keep it.")
     pct = profile_mod.completeness(prof)
     st.progress(pct / 100, text=f"You're {pct}% set up")
 
@@ -1512,14 +1537,27 @@ def trial_bar():
 
 def signup_card(where="dashboard"):
     if not ACCESS["signed_in"]:
+        tail = ("One tap, no password, no card."
+                if auth.enabled() else
+                "No card, no password, one field.")
         st.markdown(
             '<div class="gr-cap">'
             '<div class="gr-cap-h">Start your free 14-day Pro trial</div>'
             '<div class="gr-cap-s">Everything switched on: ranked picks, drafted '
-            'replies, market rates and instant alerts. No card, no password, one '
-            'field. We keep your email to send you the link back and nothing '
-            'else.</div>'
+            f'replies, market rates and instant alerts. {tail} We use your email '
+            'to keep your profile and for nothing else.</div>'
             '</div>', unsafe_allow_html=True)
+
+        if auth.enabled():
+            _g1, _g2, _g3 = st.columns([1, 2, 1])
+            with _g2:
+                if st.button("Continue with Google", type="primary",
+                             use_container_width=True, key=f"goog_{where}"):
+                    note("click", f"google:{where}")
+                    st.login("google")
+            st.caption("We only ever see your email address and name.")
+            return
+
         with st.form(f"signup_{where}", clear_on_submit=False, border=False):
             c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
             with c1:
@@ -1552,13 +1590,18 @@ def signup_card(where="dashboard"):
                     note("click", f"pay:{val}")
                     st.rerun()
     else:
+        how_back = (
+            "Come back any time and tap <b>Continue with Google</b>. Your "
+            "profile, drafts and alerts will be waiting."
+            if auth.enabled() else
+            "<b>Keep the link in your address bar.</b> It's how Nabbly knows "
+            "you next time, and there's no password to lose. Bookmark it now "
+            "and your profile, drafts and alerts will be waiting.")
         st.markdown(
             '<div class="gr-cap joined">'
             '<div class="gr-cap-h">Thanks, that\'s genuinely useful ✓</div>'
-            '<div class="gr-cap-s"><b>Keep the link in your address bar.</b> It\'s '
-            'how Nabbly knows you next time, and there\'s no password to lose. '
-            'Bookmark it now and your profile, drafts and alerts will be waiting.'
-            '</div></div>', unsafe_allow_html=True)
+            f'<div class="gr-cap-s">{how_back}</div></div>',
+            unsafe_allow_html=True)
 
 
 def feedback_card(where="dashboard"):

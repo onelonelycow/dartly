@@ -24,3 +24,7 @@ nabbly_people.db
 nabbly_signals.db
 *.db-wal
 *.db-shm
+
+# Written at boot by auth.py from environment variables. Contains the Google
+# OAuth client secret and the cookie signing key.
+.streamlit/secrets.toml
