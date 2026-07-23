@@ -975,10 +975,46 @@ def view_alerts(pro):
                      "is running, nothing to set up.")
             _status("on", "Always on")
 
+    st.markdown("#### How often, and how many")
+    st.caption("The difference between an edge and a nuisance. Start calm — you can "
+               "always turn it up.")
+    h1, h2, h3 = st.columns(3)
+    with h1:
+        _every_opts = {"As they land (2 min)": 2, "Every 15 minutes": 15,
+                       "Every 30 minutes": 30, "Hourly": 60,
+                       "Every 3 hours": 180, "Twice a day": 720, "Once a day": 1440}
+        _cur = int(p.get("every_min") or 15)
+        _names = list(_every_opts)
+        _idx = next((i for i, k in enumerate(_names) if _every_opts[k] == _cur), 1)
+        every_lbl = st.selectbox("How often at most", _names, index=_idx,
+                                 help="Nabbly checks the boards every couple of minutes "
+                                      "regardless. This only limits how often it pings you.")
+        every_min = _every_opts[every_lbl]
+    with h2:
+        max_per = st.selectbox("Gigs listed per alert", [1, 3, 5, 10, 20],
+                               index=[1, 3, 5, 10, 20].index(int(p.get("max_per_alert") or 5))
+                               if int(p.get("max_per_alert") or 5) in (1, 3, 5, 10, 20) else 2,
+                               help="Anything beyond this is still counted, and the alert "
+                                    "links to the board so you can see the rest.")
+    with h3:
+        urgent_only = st.toggle("Only urgent gigs", value=bool(p.get("urgent_only")),
+                                help="The quietest setting there is. Everything else "
+                                     "still shows on the board.")
+
+    _srcs = sorted({s for s in df["source"].unique()}) if not df.empty else []
+    sources = st.multiselect(
+        "Only alert me about these boards",
+        _srcs, default=[s for s in (p.get("sources") or []) if s in _srcs],
+        format_func=config.source_label,
+        help="Leave empty for every board. Narrowing this is the single most "
+             "effective way to cut the noise.")
+
     crit = {"skills": prof.get("skills", []), "budgets": ["Small", "Medium", "Large"],
             "keyword": prof.get("keywords", ""), "discord_webhook": webhook.strip(),
             "ntfy_topic": ntfy.strip(), "telegram_token": tg_token.strip(),
-            "telegram_chat": tg_chat.strip(), "sms_to": sms.strip()}
+            "telegram_chat": tg_chat.strip(), "sms_to": sms.strip(),
+            "every_min": every_min, "max_per_alert": max_per,
+            "urgent_only": bool(urgent_only), "sources": sources}
 
     cols = st.columns(2)
     with cols[0]:

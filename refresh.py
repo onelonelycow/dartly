@@ -18,7 +18,7 @@ import time
 
 _INTERVAL_S = 120          # ~2 min between fetches
 _FIRST_DELAY_S = 30        # let the app finish booting before the first pull
-_ALERT_MIN_GAP_S = 300     # never ping more than once every 5 min (see _loop)
+_ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _started = False
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
@@ -56,9 +56,14 @@ def _loop():
 
             # Batch anything that landed since the last ping. The fetch runs
             # every 2 minutes, but pinging that often all day is how people end
-            # up muting you. Five minutes still beats everyone else to the
-            # reply and stays welcome.
-            if time.time() - last_alert >= _ALERT_MIN_GAP_S:
+            # up muting you, so the gap is the user's call now — read fresh
+            # each loop so a change on the Alerts page takes effect without a
+            # restart.
+            try:
+                gap = max(1, int(alerts.load_prefs().get("every_min") or 15)) * 60
+            except Exception:
+                gap = _ALERT_MIN_GAP_S
+            if time.time() - last_alert >= gap:
                 # desktop=False: the pop-up shells out to osascript, which only
                 # exists on the owner's Mac. The server is Linux.
                 n = alerts.notify_new(desktop=False)

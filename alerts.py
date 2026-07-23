@@ -27,10 +27,23 @@ import db
 from paths import data_file
 
 PREFS_PATH = data_file("alert_prefs.json")
-DEFAULT_PREFS = {"skills": [], "budgets": [], "keyword": "", "discord_webhook": "",
-                 "ntfy_topic": "", "telegram_token": "", "telegram_chat": "",
-                 "sms_to": ""}
-# empty skills/budgets = match everything
+DEFAULT_PREFS = {
+    "skills": [], "budgets": [], "keyword": "",
+    "discord_webhook": "", "ntfy_topic": "", "telegram_token": "",
+    "telegram_chat": "", "sms_to": "",
+    # --- how often, from where, how many -------------------------------
+    # The three levers that decide whether alerts feel like an edge or like
+    # spam. Defaults are deliberately calm: a quarter-hour digest of at most
+    # five gigs beats a buzz every two minutes.
+    "every_min": 15,        # minimum minutes between pings
+    "sources": [],          # [] = every board
+    "max_per_alert": 5,     # how many gigs get listed in one message
+    "urgent_only": False,   # only ping for gigs marked urgent
+}
+# empty skills/budgets/sources = match everything
+
+# Where a "see them all" link should point. Overridable for local testing.
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://nabbly.co").rstrip("/")
 
 # Phone numbers must be E.164: a + then country code, e.g. +15551234567.
 _PHONE_RE = re.compile(r"^\+[1-9]\d{7,14}$")
@@ -58,10 +71,29 @@ def matches(post: dict, prefs: dict) -> bool:
         return False
     if prefs.get("budgets") and post.get("size_tier") not in prefs["budgets"]:
         return False
+    if prefs.get("sources") and post.get("source") not in prefs["sources"]:
+        return False
+    if prefs.get("urgent_only") and post.get("urgency") != "Urgent":
+        return False
     kw = (prefs.get("keyword") or "").strip().lower()
     if kw and kw not in f"{post.get('title','')} {post.get('body','')}".lower():
         return False
     return True
+
+
+def board_url(gigs: list[dict], total: int | None = None) -> str:
+    """
+    Where a notification should send you.
+
+    One gig, go straight to it. Several, go to the board showing the fresh
+    ones — because a phone notification that says "6 new gigs" and then opens
+    a single listing has thrown the other five away.
+    """
+    if total is None:
+        total = len(gigs)
+    if total == 1 and gigs and gigs[0].get("url"):
+        return gigs[0]["url"]
+    return f"{PUBLIC_URL}/?nav=gigs&qf=recent"
 
 
 # ---------------------------------------------------------------------------
@@ -80,12 +112,16 @@ def send_desktop(title: str, message: str) -> bool:
         return False
 
 
-def send_discord(webhook: str, gigs: list[dict]) -> bool:
+def send_discord(webhook: str, gigs: list[dict], total: int | None = None) -> bool:
     if not webhook:
         return False
     lines = [f"**{g['title']}**\n{g['job_type']} · {g['size_tier']} budget · "
              f"{g['source']}\n{g['url']}" for g in gigs[:8]]
-    content = "⚡ **New matching gigs on Nabbly:**\n\n" + "\n\n".join(lines)
+    n = total if total is not None else len(gigs)
+    head = f"⚡ **{n} new matching gig{'s' if n != 1 else ''} on Nabbly:**"
+    if n > len(gigs):
+        lines.append(f"…and {n - len(gigs)} more: {board_url(gigs, n)}")
+    content = head + "\n\n" + "\n\n".join(lines)
     try:
         r = requests.post(webhook, json={"content": content[:1900]}, timeout=15)
         return r.status_code in (200, 204)
@@ -94,13 +130,23 @@ def send_discord(webhook: str, gigs: list[dict]) -> bool:
         return False
 
 
-def send_ntfy(topic: str, gigs: list[dict]) -> bool:
+def send_ntfy(topic: str, gigs: list[dict], total: int | None = None) -> bool:
     """Instant phone push via ntfy.sh — free, no account, fires even when the
     site is closed. The user installs the ntfy app and subscribes to `topic`."""
     if not topic:
         return False
     top = gigs[0]
-    msg = f"{len(gigs)} new gig(s). Top: {top['title'][:90]}"
+    if total is None:
+        total = len(gigs)
+    if total == 1:
+        msg = top["title"][:180]
+    else:
+        # List them. A push that says "6 new gigs" and shows one is a push
+        # that threw five away — the whole point is seeing what landed.
+        lines = [f"• {g['title'][:70]}" for g in gigs]
+        if total > len(gigs):
+            lines.append(f"…and {total - len(gigs)} more")
+        msg = "\n".join(lines)
     try:
         r = requests.post(
             # .strip() because a trailing space pasted into an env var would
@@ -111,8 +157,11 @@ def send_ntfy(topic: str, gigs: list[dict]) -> bool:
             # anything left the machine — so every push failed, silently, from
             # the day it was written. The "zap" tag already draws a ⚡ on the
             # phone, so the emoji was breaking it for nothing. Keep this ASCII.
-            headers={"Title": "Nabbly", "Tags": "zap",
-                     "Click": top.get("url", "")}, timeout=10)
+            headers={"Title": f"Nabbly · {total} new gig{'s' if total != 1 else ''}",
+                     "Tags": "zap",
+                     # Opens the board when there's more than one, so every gig
+                     # in the message is actually reachable.
+                     "Click": board_url(gigs, total)}, timeout=10)
         if r.status_code >= 300:
             print("  ntfy push failed:", r.status_code, r.text[:140])
         return r.status_code < 300
@@ -121,12 +170,15 @@ def send_ntfy(topic: str, gigs: list[dict]) -> bool:
         return False
 
 
-def send_telegram(token: str, chat_id: str, gigs: list[dict]) -> bool:
+def send_telegram(token: str, chat_id: str, gigs: list[dict], total: int | None = None) -> bool:
     if not (token and chat_id):
         return False
-    lines = [f"⚡ {len(gigs)} new gig(s) on Nabbly:"]
-    for g in gigs[:6]:
+    n = total if total is not None else len(gigs)
+    lines = [f"⚡ {n} new gig{'s' if n != 1 else ''} on Nabbly:"]
+    for g in gigs:
         lines.append(f"• {g['title'][:90]}\n{g['url']}")
+    if n > len(gigs):
+        lines.append(f"…and {n - len(gigs)} more: {board_url(gigs, n)}")
     try:
         r = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -144,7 +196,7 @@ def sms_ready() -> bool:
                ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM"))
 
 
-def send_sms(to_number: str, gigs: list[dict]) -> bool:
+def send_sms(to_number: str, gigs: list[dict], total: int | None = None) -> bool:
     """
     Text message via Twilio.
 
@@ -160,8 +212,10 @@ def send_sms(to_number: str, gigs: list[dict]) -> bool:
     sid = os.environ["TWILIO_ACCOUNT_SID"].strip()
     token = os.environ["TWILIO_AUTH_TOKEN"].strip()
     frm = os.environ["TWILIO_FROM"].strip()
+    if total is None:
+        total = len(gigs)
     top = gigs[0]
-    more = f" (+{len(gigs) - 1} more)" if len(gigs) > 1 else ""
+    more = f" (+{total - 1} more)" if total > 1 else ""
     body = f"Nabbly: {top['title'][:80]}{more}\n{top.get('url', '')}"
     try:
         r = requests.post(
@@ -250,20 +304,25 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
     fresh = [p for p in db.unalerted() if matches(p, prefs)]
     if not fresh:
         return 0
+    total = len(fresh)
+    # List only a handful, but clear the WHOLE queue. Dribbling a backlog out
+    # a few per cycle would turn one busy hour into a day of buzzing; better
+    # to show the top few and say how many more are waiting on the board.
+    shown = fresh[:max(1, int(prefs.get("max_per_alert") or 5))]
     if desktop:
-        send_desktop("⚡ Nabbly",
-                     f"{len(fresh)} new matching gig(s)! Top: {fresh[0]['title'][:60]}")
+        send_desktop("Nabbly",
+                     f"{total} new matching gig(s)! Top: {shown[0]['title'][:60]}")
     # Saved prefs win, but each channel falls back to an environment variable.
     # alert_prefs.json lives on the server's disk, which Render's free tier
     # wipes on every deploy — so anything configured only in the UI goes quiet
     # after the next push, silently. Set these in Render and they stick.
-    send_ntfy(prefs.get("ntfy_topic") or os.environ.get("NTFY_TOPIC", ""), fresh)
-    send_sms(prefs.get("sms_to") or os.environ.get("ALERT_SMS_TO", ""), fresh)
+    send_ntfy(prefs.get("ntfy_topic") or os.environ.get("NTFY_TOPIC", ""), shown, total)
+    send_sms(prefs.get("sms_to") or os.environ.get("ALERT_SMS_TO", ""), shown, total)
     send_telegram(prefs.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN", ""),
                   prefs.get("telegram_chat") or os.environ.get("TELEGRAM_CHAT", ""),
-                  fresh)
+                  shown, total)
     send_discord(prefs.get("discord_webhook") or os.environ.get("DISCORD_WEBHOOK_URL", ""),
-                 fresh)
-    send_email(fresh)
+                 shown, total)
+    send_email(fresh)   # email is a digest, it can carry the lot
     db.mark_alerted([p["id"] for p in fresh])
-    return len(fresh)
+    return total
