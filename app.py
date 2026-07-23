@@ -199,6 +199,9 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   align-items:center;gap:4px;text-align:center}
 .gr-footer .brand{color:#eaa662;font-weight:700;font-size:14px;letter-spacing:.02em}
 .gr-footer .tag{color:#8a919c;font-size:13px}
+.gr-footer .foot-link{color:#8a919c;font-size:12.5px;font-weight:600;
+  text-decoration:none;margin:2px 0}
+.gr-footer .foot-link:hover{color:#eaa662}
 .gr-footer .meta{color:#5a616c;font-size:11.5px}
 /* --- Alert channel cards: name carries the weight, no emoji needed --- */
 .gr-ch-h{font-size:17px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin:0 0 4px}
@@ -286,6 +289,64 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-cap-h{font-size:19px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin-bottom:6px}
 .gr-cap-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
 .gr-cap-s b{color:#eaa662}
+
+/* --- Cohesive call-to-action / feedback cards -----------------------------
+   The border wraps the WHOLE card (heading, copy, input, button) via a real
+   st.container, instead of the old bordered box that held only the heading and
+   left the form floating loose beneath it. Scoped by an invisible marker span
+   so it never catches the many other bordered containers on the page (gig
+   cards use the same wrapper). */
+/* The bordered container is the stVerticalBlock that has our marker as a direct
+   element-container child. Matching the marker anywhere via :has would also
+   catch the column and page blocks that wrap it; the `>` pins it to the exact
+   container so only that one card is styled. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-cta-mark){
+  border:1px solid rgba(232,147,58,.30)!important;border-radius:18px!important;
+  background:linear-gradient(180deg,rgba(232,147,58,.08),rgba(232,147,58,.02))!important;
+  padding:6px 20px 14px!important}
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-fb-mark){
+  border:1px solid #262a31!important;border-radius:18px!important;
+  background:#15181d!important;padding:6px 20px 14px!important}
+.gr-cta-h{font-size:19px;font-weight:700;color:#f4f6f9;letter-spacing:-.3px;
+  text-align:center;margin:8px 0 3px}
+.gr-cta-s{font-size:13.5px;color:#98a0ab;line-height:1.5;text-align:center;
+  max-width:44ch;margin:0 auto 13px}
+.gr-cta-s b{color:#eaa662}
+.gr-feat{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 7px;
+  margin:2px auto 15px;max-width:430px}
+.gr-feat span{font-size:12px;font-weight:500;color:#d3d9e1;
+  background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.22);
+  border-radius:999px;padding:3px 11px;white-space:nowrap}
+.gr-feat span::before{content:"✓ ";color:#eaa662;font-weight:700}
+.gr-cta-fine{text-align:center;font-size:11.5px;color:#6b7280;margin:9px 0 6px}
+.gr-mini{text-align:center;font-size:13px;color:#9aa1ab;margin:4px 0 8px}
+.gr-mini b{color:#eaa662;font-weight:700}
+
+/* --- Hero without the paragraph, and the quiet link to the story ---------- */
+.gr-hero-tight{padding-bottom:6px}
+/* Streamlit colours markdown links blue by default; force our muted grey so it
+   doesn't fight the amber brand. */
+.gr-about-link,.gr-about-link:link,.gr-about-link:visited{display:inline-block;
+  margin-top:4px;font-size:13.5px;font-weight:600;color:#8a919c!important;
+  text-decoration:none!important;letter-spacing:.01em;transition:color .15s}
+.gr-about-link:hover{color:#eaa662!important}
+
+/* --- About page ----------------------------------------------------------- */
+.gr-about{max-width:680px;margin:6px auto 0;line-height:1.68}
+.gr-about h2{font-size:26px;font-weight:750;letter-spacing:-.5px;color:#f4f6f9;
+  margin:26px 0 10px;text-wrap:balance}
+.gr-about h2:first-child{margin-top:6px}
+.gr-about p{font-size:15.5px;color:#b8bfc9;margin:0 0 14px}
+.gr-about p b{color:#e7ebf1;font-weight:600}
+.gr-about .lead{font-size:18px;color:#dfe4ea;line-height:1.6}
+.gr-about ol{margin:0 0 16px;padding-left:0;counter-reset:step;list-style:none}
+.gr-about ol li{position:relative;padding:2px 0 12px 40px;font-size:15px;color:#b8bfc9}
+.gr-about ol li b{color:#eef1f5}
+.gr-about ol li::before{counter-increment:step;content:counter(step);
+  position:absolute;left:0;top:0;width:27px;height:27px;border-radius:8px;
+  background:rgba(232,147,58,.14);border:1px solid rgba(232,147,58,.3);
+  color:#eaa662;font-weight:700;font-size:13px;display:flex;align-items:center;
+  justify-content:center;font-family:ui-monospace,Menlo,monospace}
 /* Forms lose Streamlit's chrome so the capture cards read as one block. NOTE:
    this must not constrain width — an earlier max-width here squeezed the
    profile form into the middle of the page and collided its labels. */
@@ -818,14 +879,29 @@ def live_stats():
     cur, _ = load_feed()
     if cur.empty:
         return
-    my = cur[cur["job_type"].isin(prof.get("skills"))] if prof.get("skills") else cur
-    stat_cards([
-        ("On the board now", f"{len(cur):,}", "#E8933A", "?nav=gigs"),
-        ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF", "?nav=gigs&qf=recent"),
-        ("In your wheelhouse", f"{len(my):,}", "#35B37E", "?nav=gigs&qf=mine"),
-        ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
-         "?nav=gigs&qf=urgent"),
-    ])
+    skills = prof.get("skills") or []
+    # Signed in with skills → the numbers are about YOU: your matches, your
+    # fresh ones, your urgent ones, with one card for whole-board context.
+    # Signed out → the board at large, exactly as before.
+    if ACCESS["signed_in"] and skills:
+        mine = cur[cur["job_type"].isin(skills)]
+        stat_cards([
+            ("Matching you", f"{len(mine):,}", "#E8933A", "?nav=gigs&qf=mine"),
+            ("Fresh for you · 24h", f"{recent_count(mine, 24):,}", "#4C8DFF",
+             "?nav=gigs&qf=mine"),
+            ("Urgent for you", f"{int((mine['urgency'] == 'Urgent').sum()):,}",
+             "#E96250", "?nav=gigs&qf=urgent"),
+            ("On the whole board", f"{len(cur):,}", "#35B37E", "?nav=gigs"),
+        ])
+    else:
+        stat_cards([
+            ("On the board now", f"{len(cur):,}", "#E8933A", "?nav=gigs"),
+            ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
+             "?nav=gigs&qf=recent"),
+            ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
+             "?nav=gigs&qf=urgent"),
+            ("Live sources", f"{cur['source'].nunique()}", "#35B37E", "?nav=gigs"),
+        ])
 
 
 def category_strip():
@@ -851,37 +927,43 @@ def category_strip():
     st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
 
 
-def first_run_card():
+def skills_search():
     """
-    The moment someone realises it already did the work for them.
+    The one control on the front page: pick what you do, the board re-sorts.
 
-    The old version was a banner pointing at another tab, which is a chore, not
-    a hook. This asks the one question that matters and answers it live: pick a
-    skill and the count updates before you've committed to anything.
+    Lives directly under the headline. For a returning person it's pre-filled
+    with their saved skills, so the live count already reflects them; editing it
+    and hitting the button re-personalises everything below. The count updating
+    as you pick, before you commit to anything, is the hook.
     """
-    st.markdown('<div class="gr-onb">'
-                '<div class="gr-onb-h">What do you do?</div>'
-                '<div class="gr-onb-s">Pick a couple and the whole board re-sorts '
-                'around you. Five seconds, no signup.</div></div>',
-                unsafe_allow_html=True)
+    have = prof.get("skills") or []
+    sub = ("" if have else
+           '<div class="gr-onb-s">Pick a couple and the whole board re-sorts '
+           'around you.</div>')
+    st.markdown('<div class="gr-onb"><div class="gr-onb-h">What do you do?</div>'
+                + sub + '</div>', unsafe_allow_html=True)
     picked = st.multiselect(
-        "Your skills", ALL_SKILLS, default=[], label_visibility="collapsed",
+        "Your skills", ALL_SKILLS, default=have, label_visibility="collapsed",
         placeholder="Start typing — e.g. Design / creative, Writing / content")
 
-    if not picked:
-        return
-    srcs = sorted(df["source"].unique())
-    hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs, False, "")
-    fresh = recent_count(hit, 24)
-    bits = f"<b>{len(hit):,}</b> gigs already fit you"
-    if fresh:
-        bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
-    st.markdown(f'<div class="gr-onb-hit">{bits}</div>', unsafe_allow_html=True)
-    if st.button("Show me these  →", type="primary", use_container_width=True):
-        prof["skills"] = picked
-        profile_mod.save(prof)
-        note("click", "firstrun:skills")
-        st.rerun()
+    if picked:
+        srcs = sorted(df["source"].unique())
+        hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs, False, "")
+        fresh = recent_count(hit, 24)
+        bits = f"<b>{len(hit):,}</b> gigs fit you"
+        if fresh:
+            bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
+        st.markdown(f'<div class="gr-onb-hit">{bits}</div>', unsafe_allow_html=True)
+
+    # Only offer the commit button when the picks differ from what's saved,
+    # so a returning person whose skills are already set sees a clean board,
+    # not a redundant call to action.
+    if picked and set(picked) != set(have):
+        if st.button("Show me these  →", type="primary", use_container_width=True):
+            prof["skills"] = picked
+            profile_mod.save(prof)
+            note("click", "search:skills")
+            st.rerun()
 
 
 @st.fragment(run_every=45)
@@ -976,14 +1058,16 @@ def draft_showcase(pro):
 def view_dashboard(pro):
     n = len(df)
     eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
+    # The hero is a headline and nothing else. The old paragraph explaining the
+    # company moved to the About page: a landing page should sell the value in a
+    # line, not lecture. A single quiet link points anyone who wants the story.
     st.markdown(
-        '<div class="gr-hero">'
+        '<div class="gr-hero gr-hero-tight">'
         f'<span class="gr-eyebrow"><span class="dot"></span>{eyebrow}</span>'
         '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
         'You just <span class="accent">reply first.</span></h1>'
-        "<p class=\"gr-sub\">Freelancing's enough of a hustle. We watch "
-        "<b>every board and community</b> around the clock, then surface the gigs "
-        "that fit you, from a quick $20 task to a full project.</p>"
+        '<a class="gr-about-link" href="?nav=about" target="_self">'
+        'What is Nabbly? →</a>'
         "</div>", unsafe_allow_html=True)
 
     if df.empty:
@@ -991,10 +1075,9 @@ def view_dashboard(pro):
                 "we'll pull the latest for you.")
         return
 
-    trial_bar()
-
-    if not prof.get("skills"):
-        first_run_card()
+    # The search sits right under the headline: pick what you do, and the
+    # numbers below rearrange around you.
+    skills_search()
 
     st.write("")
     live_stats()
@@ -1021,11 +1104,16 @@ def view_dashboard(pro):
         gig_card(r, pro)
 
     st.divider()
-    _sc, _fc = st.columns(2)
-    with _sc:
-        signup_card("dashboard")
-    with _fc:
+    # A Pro member has no trial card to show, so feedback takes the full width
+    # rather than leaving a lopsided empty column beside it.
+    if ACCESS["signed_in"] and ACCESS["plan"] == "pro":
         feedback_card("dashboard")
+    else:
+        _sc, _fc = st.columns(2)
+        with _sc:
+            signup_card("dashboard")
+        with _fc:
+            feedback_card("dashboard")
 
 
 def view_gigs(pro):
@@ -1514,101 +1602,151 @@ def start_trial(email: str, where: str):
     return True, ""
 
 
-def trial_bar():
-    """One line: whose session this is, and how long they've got."""
-    if not ACCESS["signed_in"]:
-        st.markdown(
-            '<div class="gr-trial free">You\'re on <b>Nabbly Free</b>. The whole '
-            'board is yours, every gig, every source. Sign in below to save your '
-            'profile and start <b>14 days of Pro</b>.</div>',
-            unsafe_allow_html=True)
-        return
-    if ACCESS["plan"] == "pro":
-        st.markdown('<div class="gr-trial"><b>Pro</b> &nbsp;·&nbsp; '
-                    'everything unlocked. Thanks for testing Nabbly.</div>',
-                    unsafe_allow_html=True)
-        return
-    if ACCESS["expired"]:
-        st.markdown(
-            '<div class="gr-trial over">You\'re on <b>Nabbly Free</b> now, and '
-            'the whole board stays yours. Ranked picks, drafted replies, market '
-            'rates and instant alerts are the Pro parts, and everything you saved '
-            'is still here waiting.</div>', unsafe_allow_html=True)
-        return
-    d = ACCESS["days_left"]
-    st.markdown(
-        f'<div class="gr-trial"><b>Pro trial</b> &nbsp;·&nbsp; '
-        f'<b>{d} day{"s" if d != 1 else ""}</b> left. Everything is unlocked, '
-        f'so push it hard and tell us what breaks.</div>', unsafe_allow_html=True)
+_FEAT = ('<div class="gr-feat"><span>Ranked picks</span><span>Drafted replies</span>'
+         '<span>Market rates</span><span>Instant alerts</span></div>')
 
 
 def signup_card(where="dashboard"):
-    if not ACCESS["signed_in"]:
-        tail = ("One tap, no password, no card."
-                if auth.enabled() else
-                "No card, no password, one field.")
-        st.markdown(
-            '<div class="gr-cap">'
-            '<div class="gr-cap-h">Start your free 14-day Pro trial</div>'
-            '<div class="gr-cap-s">Everything switched on: ranked picks, drafted '
-            f'replies, market rates and instant alerts. {tail} We use your email '
-            'to keep your profile and for nothing else.</div>'
-            '</div>', unsafe_allow_html=True)
+    """
+    The trial / upgrade card. One cohesive, on-brand block whose look adapts to
+    where the person is: not signed in (start a trial), on a trial (a quiet
+    day-count plus the one willingness-to-pay question), or trial over (a clean
+    Pro upsell). Pro members see nothing here; there's nothing to sell them.
+    """
+    a = ACCESS
+    if a["signed_in"] and a["plan"] == "pro":
+        return
 
-        if auth.enabled():
+    # On an active trial: they already have everything, so no hard sell. Ask the
+    # single research question once, then just show days remaining, quietly.
+    if a["signed_in"] and a["pro"]:
+        if not st.session_state.get("_pay_answered"):
+            with st.container(border=True):
+                st.markdown(
+                    '<span class="gr-cta-mark"></span>'
+                    '<div class="gr-cta-h">Quick one while you\'re here</div>'
+                    '<div class="gr-cta-s">When the trial ends, would you pay '
+                    '<b>$12/mo</b> to keep ranked picks, drafted replies and '
+                    'instant alerts?</div>', unsafe_allow_html=True)
+                a1, a2, a3 = st.columns(3)
+                for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"),
+                                        (a3, "No", "no")):
+                    with col:
+                        if st.button(label, key=f"pay_{val}_{where}",
+                                     use_container_width=True):
+                            people.set_pay(a["email"], val)
+                            st.session_state["_pay_answered"] = True
+                            note("click", f"pay:{val}")
+                            st.rerun()
+        else:
+            d = a["days_left"]
+            st.markdown(f'<div class="gr-mini">✨ <b>{d} day{"s" if d != 1 else ""}</b>'
+                        ' of Pro left on your trial</div>', unsafe_allow_html=True)
+        return
+
+    # Not signed in, or a lapsed trial: the conversion card.
+    signed = a["signed_in"]
+    heading = "Keep Pro after your trial" if signed else "Start free — 14 days of Pro"
+    with st.container(border=True):
+        st.markdown(f'<span class="gr-cta-mark"></span>'
+                    f'<div class="gr-cta-h">{heading}</div>{_FEAT}',
+                    unsafe_allow_html=True)
+
+        if signed:
+            # No billing is wired yet, so "upgrade" honestly records interest.
+            if st.session_state.get("_upgrade_noted"):
+                st.markdown('<div class="gr-mini">Noted — we\'ll email you the '
+                            'moment Pro opens. <b>Thanks.</b></div>',
+                            unsafe_allow_html=True)
+            else:
+                _u1, _u2, _u3 = st.columns([1, 2, 1])
+                with _u2:
+                    if st.button("I want Pro", type="primary",
+                                 use_container_width=True, key=f"up_{where}"):
+                        people.set_pay(a["email"], "yes")
+                        st.session_state["_upgrade_noted"] = True
+                        note("click", f"upgrade:{where}")
+                        st.rerun()
+                st.markdown('<div class="gr-cta-fine">$12/mo when it launches · '
+                            'nothing charged now</div>', unsafe_allow_html=True)
+        elif auth.enabled():
             _g1, _g2, _g3 = st.columns([1, 2, 1])
             with _g2:
                 if st.button("Continue with Google", type="primary",
                              use_container_width=True, key=f"goog_{where}"):
                     note("click", f"google:{where}")
                     st.login("google")
-            st.caption("We only ever see your email address and name.")
-            return
-
-        with st.form(f"signup_{where}", clear_on_submit=False, border=False):
-            c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-            with c1:
-                email = st.text_input("Email", placeholder="you@example.com",
-                                      label_visibility="collapsed")
-            with c2:
-                sent = st.form_submit_button("Start my trial", type="primary",
-                                             use_container_width=True)
-        if sent:
-            ok, msg = start_trial(email, where)
-            if ok:
-                st.rerun()
-            st.warning(msg)
-        return
-
-    joined = ACCESS["email"]
-    if not st.session_state.get("_pay_answered"):
-        st.markdown(
-            '<div class="gr-cap joined">'
-            '<div class="gr-cap-h">You\'re in ✓</div>'
-            '<div class="gr-cap-s">One quick question while you\'re here. When the '
-            'trial ends, would you pay <b>$12 a month</b> to keep instant alerts, '
-            'ranked picks, and drafted replies?</div></div>', unsafe_allow_html=True)
-        a1, a2, a3 = st.columns(3)
-        for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"), (a3, "No", "no")):
-            with col:
-                if st.button(label, key=f"pay_{val}_{where}", use_container_width=True):
-                    people.set_pay(joined, val)
-                    st.session_state["_pay_answered"] = True
-                    note("click", f"pay:{val}")
+            st.markdown('<div class="gr-cta-fine">No card · no password · we only '
+                        'see your email &amp; name</div>', unsafe_allow_html=True)
+        else:
+            with st.form(f"signup_{where}", clear_on_submit=False, border=False):
+                c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+                with c1:
+                    email = st.text_input("Email", placeholder="you@example.com",
+                                          label_visibility="collapsed")
+                with c2:
+                    sent = st.form_submit_button("Start", type="primary",
+                                                 use_container_width=True)
+            if sent:
+                ok, msg = start_trial(email, where)
+                if ok:
                     st.rerun()
-    else:
-        how_back = (
-            "Come back any time and tap <b>Continue with Google</b>. Your "
-            "profile, drafts and alerts will be waiting."
-            if auth.enabled() else
-            "<b>Keep the link in your address bar.</b> It's how Nabbly knows "
-            "you next time, and there's no password to lose. Bookmark it now "
-            "and your profile, drafts and alerts will be waiting.")
-        st.markdown(
-            '<div class="gr-cap joined">'
-            '<div class="gr-cap-h">Thanks, that\'s genuinely useful ✓</div>'
-            f'<div class="gr-cap-s">{how_back}</div></div>',
-            unsafe_allow_html=True)
+                st.warning(msg)
+            st.markdown('<div class="gr-cta-fine">No card · no password · one field'
+                        '</div>', unsafe_allow_html=True)
+
+
+def view_about():
+    """
+    The company story, moved off the front page so the hero can stay a headline.
+
+    This is where the "freelancing's enough of a hustle" explanation lives now,
+    told properly: the problem, how Nabbly works, and what's free versus Pro.
+    """
+    st.markdown(
+        '<div class="gr-about">'
+        '<h2>The fastest reply usually wins.</h2>'
+        '<p class="lead">Freelancing is enough of a hustle without refreshing ten '
+        'job boards all day. The work is out there, scattered across boards, '
+        'subreddits and communities, and the person who answers a good post '
+        '<b>first</b> is usually the one who gets it.</p>'
+
+        '<p>So Nabbly watches all of it for you, around the clock, and puts every '
+        'gig in one place the moment it drops, from a quick $20 task to a full '
+        'project. No more tab-hopping, no more finding the perfect job a day '
+        'after it was filled.</p>'
+
+        '<h2>How it works</h2>'
+        '<ol>'
+        '<li>We <b>watch every board and community</b> continuously, so you '
+        'don\'t have to keep a single tab open.</li>'
+        '<li>Each gig is <b>sorted by skill, budget and urgency</b>, then matched '
+        'against what you do, so your board is yours.</li>'
+        '<li>When something fits, you get an <b>instant alert</b> on whichever '
+        'channel you like, before the crowd shows up.</li>'
+        '<li>We even <b>draft the first reply</b> from the actual post, so you '
+        'answer in seconds instead of staring at a blank message.</li>'
+        '</ol>'
+
+        '<h2>Free, and Pro</h2>'
+        '<p><b>Free</b> gives you the whole board: every gig, every source, '
+        'search and browse as much as you like. <b>Pro</b> adds the edge, the '
+        'parts that help you reply first: gigs ranked by fit, drafted replies, '
+        'market rate intelligence, and instant alerts. Every new account starts '
+        'with 14 days of Pro so you can feel the difference.</p>'
+
+        '<h2>Where we\'re at</h2>'
+        '<p>Nabbly is an early preview, built in the open by one person who was '
+        'tired of losing good gigs to whoever happened to be online. If '
+        'something is missing or wrong, the feedback box on the dashboard goes '
+        'straight to them. Tell us straight.</p>'
+        '</div>', unsafe_allow_html=True)
+
+    _b1, _b2, _b3 = st.columns([1, 1.4, 1])
+    with _b2:
+        if st.button("← Back to the board", use_container_width=True):
+            st.query_params["nav"] = "dashboard"
+            st.rerun()
 
 
 def feedback_card(where="dashboard"):
@@ -1619,38 +1757,37 @@ def feedback_card(where="dashboard"):
     how you end up hearing only from the people who already liked it.
     """
     if st.session_state.get(f"_fb_sent_{where}"):
-        st.markdown(
-            '<div class="gr-cap joined"><div class="gr-cap-h">Got it, thank you ✓</div>'
-            '<div class="gr-cap-s">Genuinely useful. This goes straight to the person '
-            'building it.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="gr-mini">Got it, thank you ✓ &nbsp; This goes '
+                    'straight to the person building it.</div>',
+                    unsafe_allow_html=True)
         return
 
-    st.markdown(
-        '<div class="gr-cap plain">'
-        '<div class="gr-cap-h">What would make this actually useful?</div>'
-        '<div class="gr-cap-s">Missing a source? Wrong gigs? Something broken or '
-        'confusing? Tell us straight, no email needed.</div>'
-        '</div>', unsafe_allow_html=True)
-
-    with st.form(f"fb_{where}", clear_on_submit=False, border=False):
-        msg = st.text_area("Feedback", height=90, label_visibility="collapsed",
-                           placeholder="The gigs are all remote, I wanted local ones…")
-        c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-        with c1:
-            rating = st.radio("How's it working?",
-                              ["Useful", "It's ok", "Not for me"],
-                              horizontal=True, label_visibility="collapsed", index=None)
-        with c2:
-            sent = st.form_submit_button("Send", type="primary",
-                                         use_container_width=True)
-    if sent:
-        code = {"Useful": "good", "It's ok": "ok", "Not for me": "bad"}.get(rating, "")
-        if people.add_feedback(msg, email=st.session_state.get("_signed_up_email", ""),
-                               rating=code, page=where):
-            st.session_state[f"_fb_sent_{where}"] = True
-            note("click", f"feedback:{code or 'none'}")
-            st.rerun()
-        st.warning("Add a line about what's not working and we'll get it.")
+    with st.container(border=True):
+        st.markdown(
+            '<span class="gr-fb-mark"></span>'
+            '<div class="gr-cta-h">What would make this better?</div>'
+            '<div class="gr-cta-s">Missing a source? Wrong gigs? Something broken? '
+            'Tell us straight, no email needed.</div>', unsafe_allow_html=True)
+        with st.form(f"fb_{where}", clear_on_submit=False, border=False):
+            msg = st.text_area("Feedback", height=90, label_visibility="collapsed",
+                               placeholder="The gigs are all remote, I wanted local ones…")
+            c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+            with c1:
+                rating = st.radio("How's it working?",
+                                  ["Useful", "It's ok", "Not for me"],
+                                  horizontal=True, label_visibility="collapsed",
+                                  index=None)
+            with c2:
+                sent = st.form_submit_button("Send", type="primary",
+                                             use_container_width=True)
+        if sent:
+            code = {"Useful": "good", "It's ok": "ok", "Not for me": "bad"}.get(rating, "")
+            if people.add_feedback(msg, email=ACCESS.get("email", ""),
+                                   rating=code, page=where):
+                st.session_state[f"_fb_sent_{where}"] = True
+                note("click", f"feedback:{code or 'none'}")
+                st.rerun()
+            st.warning("Add a line about what's not working and we'll get it.")
 
 
 # ---------------------------------------------------------------------------
@@ -1768,10 +1905,15 @@ if "nav" in st.query_params:
     _nav = st.query_params.get("nav", "").lower()
     if _nav == "profile":
         st.session_state["_profile"] = True
+        st.session_state["_about"] = False
+    elif _nav == "about":
+        st.session_state["_about"] = True
+        st.session_state["_profile"] = False
     else:
         _idx = {t.lower(): i for i, t in enumerate(_TABS)}.get(_nav)
         if _idx is not None:
             st.session_state["_manualnav"] = _idx
+            st.session_state["_about"] = False
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
             st.session_state["catfilter"] = st.query_params.get("cat", "")
             st.session_state["groupfilter"] = st.query_params.get("group", "")
@@ -1816,12 +1958,14 @@ with _ncol:
 if selected in _TABS:
     st.session_state["_navidx"] = _TABS.index(selected)
 
-# Clicking a main tab (a real change) leaves the Profile view.
+# Clicking a main tab (a real change) leaves the Profile / About views.
 if "_omprev" in st.session_state and selected != st.session_state["_omprev"]:
     st.session_state["_profile"] = False
+    st.session_state["_about"] = False
 st.session_state["_omprev"] = selected
 _on_profile = bool(st.session_state.get("_profile"))
-active = "Profile" if _on_profile else selected
+_on_about = bool(st.session_state.get("_about"))
+active = "About" if _on_about else ("Profile" if _on_profile else selected)
 
 with _rcol:
     _name = (prof.get("name") or "").strip()
@@ -1865,10 +2009,13 @@ elif active == "Alerts":
     view_alerts(PRO)
 elif active == "Profile":
     view_profile(PRO)
+elif active == "About":
+    view_about()
 
 st.markdown(
     '<div class="gr-footer">'
     '<span class="brand">Nabbly</span>'
     '<span class="tag">Every gig. The moment it drops.</span>'
+    '<a class="foot-link" href="?nav=about" target="_self">About</a>'
     '<span class="meta">An early preview, built in the open · © 2026</span>'
     '</div>', unsafe_allow_html=True)
