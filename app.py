@@ -73,7 +73,8 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-pill.urgent{background:rgba(233,98,80,.18);color:#f2a08f;border-color:rgba(233,98,80,.5)}
 .gr-pill.low{background:rgba(212,160,60,.16);color:#e2bd7c;border-color:rgba(212,160,60,.4)}
 .gr-pill.loc{background:rgba(76,141,255,.15);color:#8fb6ff;border-color:rgba(76,141,255,.42)}
-.gr-pill.locnear{background:rgba(94,196,120,.16);color:#84d99b;border-color:rgba(94,196,120,.45)}
+.gr-pill.locnear,.gr-pill.remote{background:rgba(94,196,120,.16);color:#84d99b;
+  border-color:rgba(94,196,120,.45)}
 .gr-pill.locoff{background:#1c1f26;color:#7c828d;border-color:#2e333d}
 .gr-why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 11px}
 .gr-why .lead{font-size:10px;font-weight:600;letter-spacing:.8px;
@@ -530,6 +531,21 @@ def pills(items):
     st.markdown(f'<div class="gr-pills">{spans}</div>', unsafe_allow_html=True)
 
 
+def source_pill(src: str):
+    """
+    (text, css class) for a board's pill.
+
+    Boards that are remote-only carry that fact in their name, so rather than
+    adding a second "Remote" pill beside them we let the source pill say it:
+    a globe and the same green the location pills use.
+    """
+    src = (src or "").lower()
+    label = config.source_label(src)
+    if src in config.REMOTE_ONLY_SOURCES:
+        return f"🌐 {label}", "remote"
+    return label, ""
+
+
 # ---------------------------------------------------------------------------
 # Shared data
 # ---------------------------------------------------------------------------
@@ -659,7 +675,7 @@ def gig_card(r, pro):
             badge_items.append((f"🎯 {int(r['_score'])}% match", "match"))
         _src = (r["source"] or "").lower()
         badge_items += [(r["job_type"], ""), (f"{r['size_tier']} budget", ""),
-                        (config.source_label(_src), "")]
+                        source_pill(_src)]
         # where can this be done — and can *you* take it?
         loc = location.tag(r)
         if location.is_local(r, prof.get("city")):
@@ -858,7 +874,7 @@ def draft_showcase(pro):
         f'<span class="gr-pill {c}">{html.escape(str(t))}</span>' for t, c in [
             (f"🎯 {int(g['_score'])}% match", "match") if g.get("_score") is not None else ("", ""),
             (g.get("job_type", ""), ""), (f"{g.get('size_tier','')} budget", ""),
-            (config.source_label((g.get("source") or "").lower()), ""),
+            source_pill(g.get("source")),
         ] if t)
 
     if not pro:
