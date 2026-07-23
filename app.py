@@ -223,6 +223,32 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   [data-testid="stVerticalBlockBorderWrapper"]:has(.gr-new){animation:none}
   .gr-onb-hit{animation:none}
 }
+/* --- The reply we already wrote ------------------------------------------
+   This was the best thing in the product and it was hidden behind a collapsed
+   row on every card, so nobody ever saw it. Shown, it's the moment people
+   screenshot. */
+.gr-draft{margin:2px 0 6px;border:1px solid rgba(232,147,58,.34);border-radius:16px;
+  overflow:hidden;background:linear-gradient(180deg,rgba(232,147,58,.07),rgba(232,147,58,.02))}
+.gr-draft-hd{padding:14px 18px 13px;border-bottom:1px solid rgba(232,147,58,.20);
+  display:flex;flex-direction:column;gap:5px}
+.gr-draft-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+  letter-spacing:.16em;text-transform:uppercase;color:#eaa662;font-weight:700}
+.gr-draft-t{font-size:17px;font-weight:650;color:#f2f4f7;line-height:1.3;letter-spacing:-.2px}
+.gr-draft-m{display:flex;gap:7px;flex-wrap:wrap;margin-top:2px}
+/* Real paragraphs, not pre-wrap: the template's blank lines rendered as
+   full-height gaps and the text ran the whole window. A message needs a
+   readable measure, same as any other prose. */
+.gr-draft-body{padding:16px 18px 17px;font-size:14px;line-height:1.62;color:#cbd2db;
+  font-family:inherit;max-width:70ch}
+.gr-draft-body p{margin:0 0 11px}
+.gr-draft-body p:last-child{margin-bottom:0}
+.gr-draft-lock{padding:20px 18px;text-align:center;color:#98a0ab;font-size:14px;line-height:1.6}
+.gr-draft-lock b{color:#eaa662}
+@media (max-width:640px){
+  .gr-draft-t{font-size:15.5px}
+  .gr-draft-body{padding:14px 15px 15px;font-size:13.5px;line-height:1.6}
+  .gr-draft-hd{padding:12px 15px 11px}
+}
 /* --- Early-access capture card --- */
 .gr-cap{max-width:640px;margin:0 auto 14px;padding:20px 22px 18px;text-align:center;
   background:linear-gradient(180deg,rgba(232,147,58,.09),rgba(232,147,58,.03));
@@ -811,6 +837,66 @@ def arrivals_pill():
         st.rerun()
 
 
+def draft_showcase(pro):
+    """
+    Show, don't tell.
+
+    A ready-to-send reply, already written for the single best-matching gig,
+    sitting in the open. It was the strongest thing in the product and it lived
+    behind a collapsed row on every card, which is where features go to die.
+    """
+    if df.empty or not prof.get("skills"):
+        return
+    srcs = sorted(df["source"].unique())
+    top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
+                               srcs, False, ""))
+    if top.empty:
+        return
+    g = top.iloc[0].to_dict()
+    gid = str(g["id"])
+    pills_html = "".join(
+        f'<span class="gr-pill {c}">{html.escape(str(t))}</span>' for t, c in [
+            (f"🎯 {int(g['_score'])}% match", "match") if g.get("_score") is not None else ("", ""),
+            (g.get("job_type", ""), ""), (f"{g.get('size_tier','')} budget", ""),
+            (config.source_label((g.get("source") or "").lower()), ""),
+        ] if t)
+
+    if not pro:
+        st.markdown(
+            '<div class="gr-draft"><div class="gr-draft-hd">'
+            '<div class="gr-draft-k">🔒 Pro · we write the reply for you</div>'
+            f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div></div>'
+            '<div class="gr-draft-lock">On <b>Pro</b> this box already contains a '
+            'ready-to-send reply for this exact gig, written from your profile — '
+            'so you answer in seconds instead of staring at a blank message.</div>'
+            '</div>', unsafe_allow_html=True)
+        return
+
+    text = drafts.load(gid) or pitch.draft_pitch(g, prof)
+    body = "".join(
+        "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
+        for block in text.split("\n\n") if block.strip())
+    st.markdown(
+        '<div class="gr-draft"><div class="gr-draft-hd">'
+        '<div class="gr-draft-k">✍️ We already wrote your reply</div>'
+        f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div>'
+        f'<div class="gr-draft-m">{pills_html}</div></div>'
+        f'<div class="gr-draft-body">{body}</div></div>',
+        unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.link_button("Open the gig  ↗", g.get("url") or "#", use_container_width=True)
+    with c2:
+        if st.button("✍️  Edit this reply", use_container_width=True, key="showcase_edit"):
+            st.session_state["_manualnav"] = _TABS.index("Gigs")
+            st.session_state["quickfilter"] = "mine"
+            note("click", "showcase:edit")
+            st.rerun()
+    st.caption("Written from your profile and this exact gig. Edit it on the Gigs tab, "
+               "or send it as it stands.")
+
+
 def view_dashboard(pro):
     n = len(df)
     eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
@@ -840,6 +926,7 @@ def view_dashboard(pro):
 
     st.divider()
     arrivals_pill()
+    draft_showcase(pro)
     if prof.get("skills"):
         st.markdown("### 🎯 Picked for you")
         srcs = sorted(df["source"].unique())
