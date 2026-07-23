@@ -849,9 +849,9 @@ def gig_card(r, pro):
                 st.text_area("Your draft", height=240, key=key,
                              label_visibility="collapsed")
                 bc1, bc2 = st.columns(2)
-                bc1.button("💾 Save draft", key=f"save_{gid}", use_container_width=True,
+                bc1.button("💾 Save draft", key=f"save_{gid}", width="stretch",
                            on_click=_save_draft, args=(gid, key))
-                bc2.button("🔄 Start fresh", key=f"regen_{gid}", use_container_width=True,
+                bc2.button("🔄 Start fresh", key=f"regen_{gid}", width="stretch",
                            on_click=_regen_draft, args=(r, key),
                            help="Replace your edits with a new auto-draft")
                 if st.session_state.pop(f"_saved_{gid}", False):
@@ -865,7 +865,7 @@ def gig_card(r, pro):
                            "gig — so you can fire back first, without staring at a blank "
                            "message. Upgrade any time from your **Profile**.")
                 st.button("⭐ Upgrade to Pro", key=f"up_{r['id']}",
-                          disabled=True, use_container_width=True)
+                          disabled=True, width="stretch")
 
 
 # ---------------------------------------------------------------------------
@@ -959,7 +959,7 @@ def skills_search():
     # so a returning person whose skills are already set sees a clean board,
     # not a redundant call to action.
     if picked and set(picked) != set(have):
-        if st.button("Show me these  →", type="primary", use_container_width=True):
+        if st.button("Show me these  →", type="primary", width="stretch"):
             prof["skills"] = picked
             profile_mod.save(prof)
             note("click", "search:skills")
@@ -989,7 +989,7 @@ def arrivals_pill():
     if not n:
         return
     if st.button(f"⚡  {n} new gig{'s' if n > 1 else ''} landed while you were here  →",
-                 key="arrivals", type="primary", use_container_width=True):
+                 key="arrivals", type="primary", width="stretch"):
         st.session_state["_seen_max_id"] = newest
         note("click", "arrivals")
         st.rerun()
@@ -1044,9 +1044,9 @@ def draft_showcase(pro):
 
     c1, c2 = st.columns(2)
     with c1:
-        st.link_button("Open the gig  ↗", g.get("url") or "#", use_container_width=True)
+        st.link_button("Open the gig  ↗", g.get("url") or "#", width="stretch")
     with c2:
-        if st.button("✍️  Edit this reply", use_container_width=True, key="showcase_edit"):
+        if st.button("✍️  Edit this reply", width="stretch", key="showcase_edit"):
             st.session_state["_manualnav"] = _TABS.index("Gigs")
             st.session_state["quickfilter"] = "mine"
             note("click", "showcase:edit")
@@ -1120,7 +1120,7 @@ def view_gigs(pro):
     st.markdown("### 📡 The whole board")
     head = st.columns([1, 2])
     with head[0]:
-        if st.button("🔄 Check for new gigs", use_container_width=True):
+        if st.button("🔄 Check for new gigs", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
             st.rerun()
@@ -1163,7 +1163,7 @@ def view_gigs(pro):
                   "urgent": "urgent only"}.get(qf, qf)
         fc1, fc2 = st.columns([5, 1], vertical_alignment="center")
         fc1.markdown(f'<span class="gr-qf">▸ {qlabel}</span>', unsafe_allow_html=True)
-        if fc2.button("✕ clear", key="clearqf", use_container_width=True):
+        if fc2.button("✕ clear", key="clearqf", width="stretch"):
             st.session_state["quickfilter"] = ""
             st.rerun()
         if qf == "urgent":
@@ -1180,7 +1180,7 @@ def view_gigs(pro):
         cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
         cc1.markdown(f'<span class="gr-qf">▸ {html.escape(cat)}</span>',
                      unsafe_allow_html=True)
-        if cc2.button("✕ clear", key="clearcat", use_container_width=True):
+        if cc2.button("✕ clear", key="clearcat", width="stretch"):
             st.session_state["catfilter"] = ""
             st.rerun()
         view = view[view["job_type"] == cat]
@@ -1189,7 +1189,7 @@ def view_gigs(pro):
         cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
         cc1.markdown(f'<span class="gr-qf">▸ {html.escape(group)}</span>',
                      unsafe_allow_html=True)
-        if cc2.button("✕ clear", key="cleargrp", use_container_width=True):
+        if cc2.button("✕ clear", key="cleargrp", width="stretch"):
             st.session_state["groupfilter"] = ""
             st.rerun()
         view = view[view["job_type"].isin(subs)]
@@ -1259,7 +1259,7 @@ def view_market(pro):
             x=alt.X("Gigs:Q", title=None),
             y=alt.Y("Skill:N", sort="-x", title=None),
             tooltip=["Skill", "Gigs"]).properties(height=300)
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, width="stretch")
     with c2:
         st.markdown("**Typical budget by skill**")
         rr = (pd.DataFrame([{"Skill": s, "Budget": b} for s, b in priced])
@@ -1268,7 +1268,7 @@ def view_market(pro):
             x=alt.X("Budget:Q", title=None, axis=alt.Axis(format="$,d")),
             y=alt.Y("Skill:N", sort="-x", title=None),
             tooltip=["Skill", alt.Tooltip("Budget", format="$,d")]).properties(height=300)
-        st.altair_chart(chart2, use_container_width=True)
+        st.altair_chart(chart2, width="stretch")
 
     st.write("")
     c3, c4 = st.columns(2)
@@ -1281,7 +1281,7 @@ def view_market(pro):
             color=alt.Color("Budget:N", scale=BUDGET_SCALE,
                             legend=alt.Legend(orient="bottom", title=None)),
             tooltip=["Budget", "Gigs"]).properties(height=300)
-        st.altair_chart(donut, use_container_width=True)
+        st.altair_chart(donut, width="stretch")
     with c4:
         st.markdown("**Where the gigs come from**")
         src = df["source"].value_counts().rename_axis("Source").reset_index(name="Gigs")
@@ -1291,7 +1291,7 @@ def view_market(pro):
             color=alt.Color("Source:N", scale=alt.Scale(range=PALETTE),
                             legend=alt.Legend(orient="bottom", title=None)),
             tooltip=["Source", "Gigs"]).properties(height=300)
-        st.altair_chart(src_donut, use_container_width=True)
+        st.altair_chart(src_donut, width="stretch")
 
     st.write("")
     st.markdown("**Where the big budgets sit** — gigs by skill, split by budget")
@@ -1305,7 +1305,7 @@ def view_market(pro):
                         legend=alt.Legend(orient="bottom", title="Budget")),
         order=alt.Order("size_tier:N"),
         tooltip=["job_type", "size_tier", "Gigs"]).properties(height=330)
-    st.altair_chart(stacked, use_container_width=True)
+    st.altair_chart(stacked, width="stretch")
     st.caption("Ballpark — budgets blend project & hourly figures across sources.")
 
 
@@ -1445,11 +1445,11 @@ def view_alerts(pro):
 
     cols = st.columns(2)
     with cols[0]:
-        if st.button("💾 Save my alerts", use_container_width=True):
+        if st.button("💾 Save my alerts", width="stretch"):
             alerts.save_prefs(crit)
             st.success("Saved — your alert preferences are set. 🔔")
     with cols[1]:
-        if st.button("🔔 Send a test ping", use_container_width=True):
+        if st.button("🔔 Send a test ping", width="stretch"):
             res = alerts.send_test(crit)
             if not res:
                 st.warning("No channels are set up yet, so there was nothing to send to. "
@@ -1476,7 +1476,7 @@ def view_profile(pro):
         _who, _out = st.columns([3, 1], vertical_alignment="center")
         _who.caption(f"Signed in as **{ACCESS['email']}**")
         with _out:
-            if st.button("Sign out", use_container_width=True, key="signout"):
+            if st.button("Sign out", width="stretch", key="signout"):
                 # Drop our own session first, then Google's if it owns this
                 # login, otherwise st.logout() reruns and we never get here.
                 st.session_state.pop("_tok", None)
@@ -1494,7 +1494,7 @@ def view_profile(pro):
     # Location pre-fill: detect once, the form below uses it as the default.
     geo = st.session_state.get("_geo", {})
     dcol, mcol = st.columns([1, 3], vertical_alignment="center")
-    if dcol.button("📍 Detect my location", use_container_width=True):
+    if dcol.button("📍 Detect my location", width="stretch"):
         st.session_state["_geo"] = location.geo_from_ip()
         st.rerun()
     if geo:
@@ -1543,7 +1543,7 @@ def view_profile(pro):
         f_bio = st.text_area("A line about you (we'll use it in your replies)",
                              value=prof.get("bio", ""),
                              placeholder="10+ yrs designing brand identities for small businesses.")
-        if st.form_submit_button("💾 Save", use_container_width=True):
+        if st.form_submit_button("💾 Save", width="stretch"):
             _saved = {
                 "name": f_name.strip(), "headline": f_headline.strip(),
                 "skills": f_skills, "rate_floor": f_floor, "rate_unit": f_unit,
@@ -1633,7 +1633,7 @@ def signup_card(where="dashboard"):
                                         (a3, "No", "no")):
                     with col:
                         if st.button(label, key=f"pay_{val}_{where}",
-                                     use_container_width=True):
+                                     width="stretch"):
                             people.set_pay(a["email"], val)
                             st.session_state["_pay_answered"] = True
                             note("click", f"pay:{val}")
@@ -1662,7 +1662,7 @@ def signup_card(where="dashboard"):
                 _u1, _u2, _u3 = st.columns([1, 2, 1])
                 with _u2:
                     if st.button("I want Pro", type="primary",
-                                 use_container_width=True, key=f"up_{where}"):
+                                 width="stretch", key=f"up_{where}"):
                         people.set_pay(a["email"], "yes")
                         st.session_state["_upgrade_noted"] = True
                         note("click", f"upgrade:{where}")
@@ -1673,7 +1673,7 @@ def signup_card(where="dashboard"):
             _g1, _g2, _g3 = st.columns([1, 2, 1])
             with _g2:
                 if st.button("Continue with Google", type="primary",
-                             use_container_width=True, key=f"goog_{where}"):
+                             width="stretch", key=f"goog_{where}"):
                     note("click", f"google:{where}")
                     st.login("google")
             st.markdown('<div class="gr-cta-fine">No card · no password · we only '
@@ -1686,7 +1686,7 @@ def signup_card(where="dashboard"):
                                           label_visibility="collapsed")
                 with c2:
                     sent = st.form_submit_button("Start", type="primary",
-                                                 use_container_width=True)
+                                                 width="stretch")
             if sent:
                 ok, msg = start_trial(email, where)
                 if ok:
@@ -1744,7 +1744,7 @@ def view_about():
 
     _b1, _b2, _b3 = st.columns([1, 1.4, 1])
     with _b2:
-        if st.button("← Back to the board", use_container_width=True):
+        if st.button("← Back to the board", width="stretch"):
             st.query_params["nav"] = "dashboard"
             st.rerun()
 
@@ -1779,7 +1779,7 @@ def feedback_card(where="dashboard"):
                                   index=None)
             with c2:
                 sent = st.form_submit_button("Send", type="primary",
-                                             use_container_width=True)
+                                             width="stretch")
         if sent:
             code = {"Useful": "good", "It's ok": "ok", "Not for me": "bad"}.get(rating, "")
             if people.add_feedback(msg, email=ACCESS.get("email", ""),
@@ -1809,14 +1809,14 @@ def view_admin():
         st.markdown("#### Views opened")
         if s["views"]:
             st.dataframe(pd.DataFrame(s["views"], columns=["View", "Opens"]),
-                         use_container_width=True, hide_index=True)
+                         width="stretch", hide_index=True)
         else:
             st.caption("Nothing yet.")
     with c2:
         st.markdown("#### Things clicked")
         if s["clicks"]:
             st.dataframe(pd.DataFrame(s["clicks"], columns=["What", "Clicks"]),
-                         use_container_width=True, hide_index=True)
+                         width="stretch", hide_index=True)
         else:
             st.caption("Nothing yet.")
 
@@ -1862,7 +1862,7 @@ def view_admin():
         cols = ["created", "email", "pay", "name", "headline", "skills",
                 "rate_floor", "rate_unit", "country", "city", "portfolio", "source"]
         table = pd.DataFrame(rows)[[c for c in cols if c in rows[0]]]
-        st.dataframe(table, use_container_width=True, hide_index=True)
+        st.dataframe(table, width="stretch", hide_index=True)
         st.download_button("⬇️  Download people CSV", table.to_csv(index=False),
                            file_name="nabbly-people.csv", mime="text/csv")
     else:
