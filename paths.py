@@ -70,6 +70,40 @@ def user_file(name: str, scope: str | None = None) -> Path:
     return d / name
 
 
+def read_user_json(name: str, default):
+    """
+    Load one of this person's JSON files, healing a wiped disk.
+
+    If the local file is gone but the durable mirror has a copy (which is what a
+    Render redeploy looks like: fresh disk, data still in Supabase), pull it
+    back, rewrite it locally so the rest of the run is fast, and return it.
+    """
+    import json
+    import store
+    p = user_file(name)
+    if p.exists():
+        try:
+            return json.loads(p.read_text())
+        except Exception:
+            pass
+    obj = store.get(get_scope(), name)
+    if obj is not None:
+        try:
+            p.write_text(json.dumps(obj, indent=2))
+        except Exception:
+            pass
+        return obj
+    return default
+
+
+def write_user_json(name: str, obj):
+    """Save one of this person's JSON files locally and to the durable mirror."""
+    import json
+    import store
+    user_file(name).write_text(json.dumps(obj, indent=2))
+    store.put(get_scope(), name, obj)
+
+
 def all_scopes() -> list[str]:
     """
     Every signed-in person's directory.

@@ -29,10 +29,16 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import people
+import store
 from paths import data_file
 
 DB_PATH = data_file("nabbly_people.db")   # same file as people.py
 TRIAL_DAYS = 14
+
+_ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
+_COLS = ("email", "token", "created", "last_seen", "trial_start",
+         "plan", "last_alert_id", "visits")
+_rehydrated = False
 
 
 def _now() -> str:
@@ -79,6 +85,54 @@ def init():
     conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_token ON accounts(token)")
     conn.commit()
     conn.close()
+    _rehydrate()
+
+
+def _mirror(email: str):
+    """
+    Copy one account row to the durable store.
+
+    Only the fields that must survive a wipe are worth mirroring; we skip the
+    per-view visit bump so a busy tester doesn't cause a write on every page
+    load, but token, trial_start, plan and last_alert_id all go through here so
+    a redeploy can't reset someone's trial or make their alerts re-flood.
+    """
+    if not store.enabled():
+        return
+    conn = _connect()
+    row = conn.execute("SELECT * FROM accounts WHERE email=?",
+                       (email.strip().lower(),)).fetchone()
+    conn.close()
+    if row:
+        store.put(_ACCT_SCOPE, email.strip().lower(), dict(row))
+
+
+def _rehydrate():
+    """
+    After a wiped disk, refill an empty accounts table from the durable store.
+
+    Runs once per process, and only when the local table is empty, so a normal
+    boot with data already on disk touches nothing.
+    """
+    global _rehydrated
+    if _rehydrated or not store.enabled():
+        return
+    _rehydrated = True
+    try:
+        conn = _connect()
+        empty = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 0
+        if empty:
+            saved = store.list_scope(_ACCT_SCOPE)
+            for row in saved.values():
+                conn.execute(
+                    "INSERT OR IGNORE INTO accounts "
+                    "(email, token, created, last_seen, trial_start, plan, "
+                    "last_alert_id, visits) VALUES (?,?,?,?,?,?,?,?)",
+                    tuple(row.get(c) for c in _COLS))
+            conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +181,7 @@ def sign_in(email: str, source: str = "signin") -> tuple[dict | None, bool]:
     acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
                             (email,)).fetchone())
     conn.close()
+    _mirror(email)
     try:
         people.add_person(email, source=source)
     except Exception:
@@ -198,6 +253,7 @@ def set_plan(email: str, plan: str):
                      (plan, email.strip().lower()))
     conn.commit()
     conn.close()
+    _mirror(email)
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +273,7 @@ def set_last_alert_id(email: str, gig_id: int):
                  (int(gig_id), email.strip().lower()))
     conn.commit()
     conn.close()
+    _mirror(email)
 
 
 def all_accounts() -> list[dict]:

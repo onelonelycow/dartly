@@ -5,22 +5,11 @@ When a Pro user tweaks a drafted reply, we keep their edited version so they can
 come back and refine it later instead of losing it to a fresh auto-draft. Stored
 in drafts.json (keyed by gig id) via the shared DATA_DIR.
 """
-import json
-
-from paths import user_file
-
-def _path():
-    return user_file("drafts.json")
+from paths import read_user_json, write_user_json
 
 
 def _all() -> dict:
-    PATH = _path()
-    if PATH.exists():
-        try:
-            return json.loads(PATH.read_text())
-        except Exception:
-            pass
-    return {}
+    return read_user_json("drafts.json", {})
 
 
 def load(gig_id) -> str:
@@ -31,14 +20,14 @@ def load(gig_id) -> str:
 def save(gig_id, text: str):
     d = _all()
     d[str(gig_id)] = text
-    _path().write_text(json.dumps(d, indent=2))
+    write_user_json("drafts.json", d)
 
 
 def delete(gig_id):
     d = _all()
     if str(gig_id) in d:
         del d[str(gig_id)]
-        _path().write_text(json.dumps(d, indent=2))
+        write_user_json("drafts.json", d)
 
 
 def has(gig_id) -> bool:

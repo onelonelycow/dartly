@@ -7,14 +7,8 @@ Stores who you are and what you want, in profile.json:
   - keywords:   comma-separated words you care about (used for fit scores)
   - name, portfolio: used to personalize drafted pitches
 """
-import json
+from paths import read_user_json, write_user_json
 
-from paths import user_file
-
-# Resolved per call, not at import: which file this is depends on who is
-# looking, and that is only known once the request is being served.
-def _path():
-    return user_file("profile.json")
 DEFAULT = {
     "name": "",         # for pitches
     "headline": "",     # e.g. "Brand & logo designer" — used in pitches
@@ -35,13 +29,7 @@ COMPLETENESS_FIELDS = ["name", "headline", "skills", "rate_floor",
 
 
 def load() -> dict:
-    PATH = _path()
-    if PATH.exists():
-        try:
-            return {**DEFAULT, **json.loads(PATH.read_text())}
-        except Exception:
-            pass
-    return dict(DEFAULT)
+    return {**DEFAULT, **read_user_json("profile.json", {})}
 
 
 def completeness(p: dict) -> int:
@@ -51,4 +39,4 @@ def completeness(p: dict) -> int:
 
 
 def save(p: dict):
-    _path().write_text(json.dumps({**DEFAULT, **p}, indent=2))
+    write_user_json("profile.json", {**DEFAULT, **p})

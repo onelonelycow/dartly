@@ -24,11 +24,8 @@ from email.message import EmailMessage
 import requests
 
 import db
-from paths import data_file, user_file
+from paths import data_file, read_user_json, write_user_json
 
-def _prefs_path():
-    """Per person: these hold a phone number and webhook URLs."""
-    return user_file("alert_prefs.json")
 DEFAULT_PREFS = {
     "skills": [], "budgets": [], "keyword": "",
     "discord_webhook": "", "ntfy_topic": "", "telegram_token": "",
@@ -56,17 +53,11 @@ def valid_phone(number: str) -> bool:
 
 
 def load_prefs() -> dict:
-    PREFS_PATH = _prefs_path()
-    if PREFS_PATH.exists():
-        try:
-            return {**DEFAULT_PREFS, **json.loads(PREFS_PATH.read_text())}
-        except Exception:
-            pass
-    return dict(DEFAULT_PREFS)
+    return {**DEFAULT_PREFS, **read_user_json("alert_prefs.json", {})}
 
 
 def save_prefs(prefs: dict):
-    _prefs_path().write_text(json.dumps({**DEFAULT_PREFS, **prefs}, indent=2))
+    write_user_json("alert_prefs.json", {**DEFAULT_PREFS, **prefs})
 
 
 def matches(post: dict, prefs: dict) -> bool:
