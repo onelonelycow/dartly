@@ -1850,6 +1850,9 @@ def view_admin():
         else:
             st.error("Durable backup: **configured but unreachable**. Check the "
                      "DATABASE_URL value in Render.")
+            _err = store.last_error()
+            if _err:
+                st.caption(f"Reason: `{_err}`")
     else:
         st.warning("Durable backup: **off**. Set DATABASE_URL (Supabase) in "
                    "Render, or profiles reset on every deploy.")

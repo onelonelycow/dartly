@@ -35,6 +35,7 @@ DB_URL = os.environ.get("DATABASE_URL", "").strip()
 _TIMEOUT_S = 8
 _lock = threading.Lock()
 _ready = False
+_last_error = ""      # sanitised reason the mirror is unreachable, for the admin page
 
 
 def _is_pg(url: str) -> bool:
@@ -153,13 +154,32 @@ def delete(scope: str, name: str):
         pass
 
 
+def _sanitise(msg: str) -> str:
+    """
+    A connection error, safe to show on the admin page.
+
+    Postgres auth/host errors don't echo the password, but strip any DSN just
+    in case, and cap the length.
+    """
+    import re
+    msg = re.sub(r"postgres(?:ql)?://\S+", "postgresql://…", str(msg))
+    return msg[:280]
+
+
 def healthy() -> bool:
     """For the admin page: is the durable mirror actually reachable right now?"""
+    global _last_error
     if not enabled():
         return False
     try:
         _init()
         _run("SELECT 1", fetch=True)
+        _last_error = ""
         return True
-    except Exception:
+    except Exception as e:
+        _last_error = f"{type(e).__name__}: {_sanitise(e)}"
         return False
+
+
+def last_error() -> str:
+    return _last_error
