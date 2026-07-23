@@ -9,14 +9,39 @@ Given a gig post's title + body, decide:
 
 Keyword rules only (no API key, no cost). We can upgrade to an AI classifier later.
 """
+import functools
 import re
+
 import config
 
 _MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*)")
 
 
 def _contains_any(text, phrases):
+    """Plain substring test. Right for budget/urgent signals, which are often
+    fragments glued to numbers ('/month', 'k/yr', '$20') that word boundaries
+    would break."""
     return any(p in text for p in phrases)
+
+
+@functools.lru_cache(maxsize=8192)
+def _skill_re(keyword: str):
+    """
+    Whole-word matcher for a skill keyword.
+
+    Substring matching is what wrecked job-type accuracy: 'bot' matched inside
+    'both'/'about', and 'api' inside 'capital'/'therapist', so unrelated roles
+    (a bank sales manager) piled up under Development/tech. This requires the
+    keyword to sit on word boundaries, so 'bot' matches only 'bot'/'bots'.
+    re.escape keeps punctuation keywords like 'ui/ux' and 'full-stack' working;
+    .strip() drops the hand-rolled spacing hacks (' ml ', ' va ', ' sql') the
+    old list used as makeshift boundaries.
+    """
+    return re.compile(r"(?<!\w)" + re.escape(keyword.strip()) + r"(?!\w)")
+
+
+def _matches_skill(text: str, keywords) -> bool:
+    return any(_skill_re(k).search(text) for k in keywords)
 
 
 def _budget_amounts(text):
@@ -45,12 +70,12 @@ def classify(title: str, body: str, source: str) -> dict:
     # often mentions other skills in passing, so only fall back to it. ---
     job_type = "Other / general"
     for skill, keywords in config.JOB_TYPES.items():
-        if _contains_any(title_l, keywords):
+        if _matches_skill(title_l, keywords):
             job_type = skill
             break
     else:
         for skill, keywords in config.JOB_TYPES.items():
-            if _contains_any(text, keywords):
+            if _matches_skill(text, keywords):
                 job_type = skill
                 break
 

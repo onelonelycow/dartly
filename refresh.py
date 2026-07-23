@@ -37,6 +37,14 @@ def _loop():
     # on the server reads. (watch.py, the local single-user poller, still uses
     # the global path and does its own baselining.)
     paths.prune_scratch()
+    # Re-tag the existing board once, so a classifier change reaches gigs that
+    # are already stored (new ingests are classified correctly on the way in).
+    # Cheap and idempotent: a second pass finds nothing to change.
+    try:
+        import db
+        _state["reclassified"] = db.reclassify_all()
+    except Exception:
+        pass
     last_alert = 0.0
 
     while True:

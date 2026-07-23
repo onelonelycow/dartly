@@ -79,6 +79,36 @@ def upsert_post(post: dict) -> bool:
         conn.close()
 
 
+def reclassify_all() -> int:
+    """
+    Re-run the classifier over every stored post, updating any whose tags moved.
+
+    upsert_post() never touches a row it has already seen, so a classifier
+    improvement would otherwise only reach new gigs while the existing board
+    kept its old (often wrong) tags. This re-tags what's already stored. Only
+    changed rows are written, so a second run is a cheap no-op.
+    """
+    import classify
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, title, body, source, job_type, size_tier, urgency FROM posts"
+        ).fetchall()
+        changed = 0
+        for r in rows:
+            t = classify.classify(r["title"], r["body"], r["source"])
+            if (t["job_type"] != r["job_type"] or t["size_tier"] != r["size_tier"]
+                    or t["urgency"] != r["urgency"]):
+                conn.execute(
+                    "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
+                    (t["job_type"], t["size_tier"], t["urgency"], r["id"]))
+                changed += 1
+        conn.commit()
+        return changed
+    finally:
+        conn.close()
+
+
 def all_posts(demand_only: bool = True):
     """Return every stored post, newest first."""
     conn = connect()
