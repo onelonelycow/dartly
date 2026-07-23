@@ -220,20 +220,107 @@ div[data-testid="stForm"]{border:0;padding:0}
   transition:color .13s ease,text-decoration-color .13s ease}
 [data-testid="stMarkdownContainer"] a:not([class*="gr-"]):hover{
   color:#E8933A;text-decoration-color:#E8933A}
-/* --- Mobile (phones): scale the hero down, tidy the stacked top bar --- */
+/* ===========================================================================
+   MOBILE (phones)
+
+   Not a shrunk desktop. Three things were wrong at 375px and they're fixed as
+   a system rather than one-off overrides:
+
+   1. THE TOP BAR ate 152px — 19% of the screen — because Streamlit gives each
+      column width:343px, so all three wrapped onto their own line (logo, then
+      nav, then a lonely avatar). Content didn't start until y=222px, a quarter
+      of the way down. It's a grid now: logo and avatar share row one, nav gets
+      row two full-width.
+   2. TYPE was still desktop-sized (h3 at 28px), so headings wrapped to two
+      lines and everything felt oversized. There's a real mobile ramp below.
+   3. TAP TARGETS were under 44px in places, and the Gigs location filter
+      rendered as three ragged different-width rows.
+   =========================================================================== */
 @media (max-width:640px){
-  .gr-h1{font-size:30px!important;letter-spacing:-.7px!important;line-height:1.12!important;margin-bottom:13px!important}
-  .gr-sub{font-size:15px!important;line-height:1.55!important}
-  .gr-hero{padding:6px 4px 4px;margin-top:0}
-  .gr-eyebrow{margin-bottom:15px;font-size:10px;letter-spacing:.4px;padding:4px 11px}
-  .gr-stats{gap:9px}
-  .gr-stat{min-width:calc(50% - 5px)}          /* two stat cards per row */
-  .gr-stat .n{font-size:26px}
-  /* pull the stacked logo / nav / avatar rows together and right-align account */
-  div[data-testid="stHorizontalBlock"]:has(.gr-home){gap:.15rem!important}
-  .gr-home svg{margin:0 auto;width:132px}
+
+  /* --- 0. Vertical rhythm: reclaim the space above the fold ------------- */
+  /* Streamlit ships desktop spacing: 20.8px of container padding, a 16px gap
+     between every block, and 16px of margin on each divider. On a 812px-tall
+     phone that's a lot of nothing before anything is read. */
+  [data-testid="stMainBlockContainer"]{padding-top:.7rem!important;
+    padding-left:1rem!important;padding-right:1rem!important}
+  [data-testid="stVerticalBlock"]{gap:11px!important}
+  hr{margin:2px 0 9px!important}
+
+  /* --- 1. Top bar: three rows down to two ------------------------------- */
+  /* Scoped by what the row CONTAINS. Never :first-of-type — that also matches
+     the first column row inside the profile form and wrecks it. */
+  div[data-testid="stHorizontalBlock"]:has(.gr-home){
+    display:grid!important;
+    grid-template-columns:1fr auto;
+    grid-template-areas:"logo avatar" "nav nav";
+    align-items:center;
+    gap:10px 12px!important}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]{
+    width:auto!important;min-width:0!important}   /* defeat Streamlit's 343px */
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(1){
+    grid-area:logo}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(2){
+    grid-area:nav}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(3){
+    grid-area:avatar}
+  .gr-home svg{width:124px;margin:0}
   .gr-acct{justify-content:flex-end}
-  .gr-menu{top:44px}
+  .gr-menu{top:44px;right:0}
+
+  /* --- 2. Mobile type ramp ---------------------------------------------- */
+  .gr-h1{font-size:26px!important;letter-spacing:-.6px!important;
+    line-height:1.16!important;margin-bottom:11px!important}
+  .gr-sub{font-size:14.5px!important;line-height:1.55!important}
+  .gr-hero{padding:4px 2px 2px;margin-top:0}
+  .gr-eyebrow{margin-bottom:13px;font-size:9.5px;letter-spacing:.4px;padding:4px 10px}
+  h3{font-size:21px!important;letter-spacing:-.5px!important;line-height:1.2!important}
+  h4{font-size:17px!important;letter-spacing:-.3px!important}
+  a.gr-title{font-size:16.5px!important;line-height:1.35}
+  .gr-cap-h{font-size:17px}
+  .gr-cap-s{font-size:13.5px}
+  .gr-ch-h{font-size:16px}
+
+  /* --- 3. Cards, controls, tap targets ---------------------------------- */
+  .gr-stats{gap:9px;align-items:stretch}
+  .gr-stat{min-width:calc(50% - 5px);padding:13px 13px 14px;
+    display:flex;flex-direction:column;justify-content:space-between}
+  .gr-stat .l{min-height:2.5em}          /* a wrapped label can't skew a row */
+  .gr-stat .n{font-size:24px}
+  .gr-cap{padding:17px 16px 15px}
+  .gr-pill{font-size:11px}
+
+  /* Anything you tap gets a thumb-sized target. Streamlit ships text inputs at
+     36px and selects at 38px, which is fine with a mouse and fiddly with a
+     thumb. (Tooltip "?" icons are left alone — they're markers, not targets.) */
+  .stButton button, [data-testid="stFormSubmitButton"] button,
+  [data-testid="stButtonGroup"] button[role="radio"],
+  [data-testid="stRadioGroup"] label{min-height:44px!important}
+  [data-testid="stTextInputRootElement"],
+  [data-testid="stTextInputRootElement"] input,
+  [data-testid="stNumberInputContainer"],
+  [data-testid="stSelectbox"] > div > div{min-height:44px!important}
+  [data-testid="stTextInputRootElement"] input{font-size:16px!important}  /* iOS
+     zooms the page on focus for anything under 16px — this prevents that. */
+
+  /* The Gigs location filter (st.segmented_control) rendered as three ragged
+     different-width rows. It's a stButtonGroup > [role=radiogroup] of
+     button[role=radio] — one full-width column so they read as a set. */
+  /* Its container is a flex item with flex:0 1 auto, so it shrinks to content
+     and width:100% below resolves against that shrunken box. Stretch it. */
+  [data-testid="stElementContainer"]:has([data-testid="stButtonGroup"]){
+    width:100%!important;align-self:stretch!important}
+  [data-testid="stButtonGroup"]{width:100%!important;max-width:none!important}
+  /* max-width:fit-content is what pinned this to 190px and dragged the whole
+     container chain narrow with it. */
+  [data-testid="stButtonGroup"] > [role="radiogroup"]{
+    display:grid!important;grid-template-columns:1fr!important;
+    gap:7px!important;width:100%!important;max-width:none!important}
+  [data-testid="stButtonGroup"] button[role="radio"]{
+    width:100%!important;max-width:none!important;justify-content:center}
+  /* the label inside truncates at a fixed width — let it use the room */
+  [data-testid="stButtonGroup"] button[role="radio"] > *{
+    width:auto!important;overflow:visible!important;text-overflow:clip!important}
 }
 </style>
 """, unsafe_allow_html=True)
