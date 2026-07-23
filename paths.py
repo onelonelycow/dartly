@@ -86,13 +86,18 @@ def read_user_json(name: str, default):
             return json.loads(p.read_text())
         except Exception:
             pass
-    obj = store.get(get_scope(), name)
-    if obj is not None:
-        try:
-            p.write_text(json.dumps(obj, indent=2))
-        except Exception:
-            pass
-        return obj
+    # Only a signed-in person has durable data worth restoring. A not-signed-in
+    # visitor's scope is a per-session scratch space that's never mirrored, so
+    # don't hit the database for it — otherwise every anonymous page load makes
+    # a needless round-trip (and, with a bad password, a needless auth failure).
+    if not _is_scratch(get_scope()):
+        obj = store.get(get_scope(), name)
+        if obj is not None:
+            try:
+                p.write_text(json.dumps(obj, indent=2))
+            except Exception:
+                pass
+            return obj
     return default
 
 
@@ -101,7 +106,8 @@ def write_user_json(name: str, obj):
     import json
     import store
     user_file(name).write_text(json.dumps(obj, indent=2))
-    store.put(get_scope(), name, obj)
+    if not _is_scratch(get_scope()):
+        store.put(get_scope(), name, obj)
 
 
 _SCRATCH_PREFIXES = ("free-", "guest-")   # "guest-" is the pre-rename name
