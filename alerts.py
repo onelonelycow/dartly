@@ -107,18 +107,45 @@ def send_desktop(title: str, message: str) -> bool:
 
 
 def send_discord(webhook: str, gigs: list[dict], total: int | None = None) -> bool:
+    """
+    One channel alert, formatted for whichever service the webhook belongs to.
+
+    Discord and Slack take DIFFERENT payloads: Discord wants {"content": ...}
+    with **double-asterisk** bold, Slack wants {"text": ...} with *single*
+    bold and <url|label> links. Sending Discord's shape to a Slack webhook
+    returns 400 invalid_payload and drops the alert with no sign anything went
+    wrong, which is how Slack alerts had been failing silently. The webhook host
+    tells us which one it is, so we format to match.
+    """
     if not webhook:
         return False
-    lines = [f"**{g['title']}**\n{g['job_type']} · {g['size_tier']} budget · "
-             f"{g['source']}\n{g['url']}" for g in gigs[:8]]
     n = total if total is not None else len(gigs)
-    head = f"⚡ **{n} new matching gig{'s' if n != 1 else ''} on Nabbly:**"
-    if n > len(gigs):
-        lines.append(f"…and {n - len(gigs)} more: {board_url(gigs, n)}")
-    content = head + "\n\n" + "\n\n".join(lines)
+    plural = "s" if n != 1 else ""
+    slack = "hooks.slack.com" in webhook
+
+    if slack:
+        # Slack mrkdwn: *bold*, <url|text>, and it auto-links bare URLs anyway.
+        lines = [f"*{g['title']}*\n{g['job_type']} · {g['size_tier']} budget · "
+                 f"{g['source']}\n{g['url']}" for g in gigs[:8]]
+        head = f"⚡ *{n} new matching gig{plural} on Nabbly:*"
+        if n > len(gigs):
+            lines.append(f"…and {n - len(gigs)} more: {board_url(gigs, n)}")
+        payload = {"text": (head + "\n\n" + "\n\n".join(lines))[:3900]}
+    else:
+        lines = [f"**{g['title']}**\n{g['job_type']} · {g['size_tier']} budget · "
+                 f"{g['source']}\n{g['url']}" for g in gigs[:8]]
+        head = f"⚡ **{n} new matching gig{plural} on Nabbly:**"
+        if n > len(gigs):
+            lines.append(f"…and {n - len(gigs)} more: {board_url(gigs, n)}")
+        payload = {"content": (head + "\n\n" + "\n\n".join(lines))[:1900]}
+
     try:
-        r = requests.post(webhook, json={"content": content[:1900]}, timeout=15)
-        return r.status_code in (200, 204)
+        r = requests.post(webhook, json=payload, timeout=15)
+        ok = r.status_code in (200, 204)
+        if not ok:
+            print(f"  {'slack' if slack else 'discord'} webhook returned "
+                  f"{r.status_code}: {r.text[:120]}")
+        return ok
     except Exception as e:
         print("  discord/slack failed:", e)
         return False
@@ -190,6 +217,39 @@ def sms_ready() -> bool:
                ("TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM"))
 
 
+# A text is 160 characters per segment, but ONLY in the GSM-7 alphabet. One
+# emoji or curly quote flips the whole message to UCS-2, where a segment is 70
+# characters, so a title with a "–" could double the bill without changing its
+# length. We map the common offenders back to plain ASCII and keep the whole
+# body inside one segment.
+_SMS_MAP = {"–": "-", "—": "-", "‑": "-", "·": "-", "•": "-", "→": "->",
+            "…": "...", "“": '"', "”": '"', "‘": "'", "’": "'", " ": " "}
+_SMS_LIMIT = 160
+
+
+def _gsm7(text: str) -> str:
+    for bad, good in _SMS_MAP.items():
+        text = text.replace(bad, good)
+    # Anything still outside the basic Latin range would force UCS-2; drop it
+    # rather than let one stray glyph halve the segment size.
+    return "".join(c for c in text if ord(c) < 128)
+
+
+def _sms_body(top: dict, total: int) -> str:
+    """One gig, one link, guaranteed to fit a single 160-char SMS segment."""
+    url = (top.get("url") or "").strip()
+    more = f" (+{total - 1} more)" if total > 1 else ""
+    prefix = "Nabbly: "
+    # Whatever room is left after the fixed parts goes to the title.
+    budget = _SMS_LIMIT - len(prefix) - len(more) - 1 - len(url)  # 1 = newline
+    title = _gsm7((top.get("title") or "").strip())
+    if budget < 12:                       # a URL long enough to crowd out the title
+        return f"{prefix}{total} new gig{'s' if total != 1 else ''}\n{url}"[:_SMS_LIMIT]
+    if len(title) > budget:
+        title = title[:budget - 1].rstrip() + "."
+    return f"{prefix}{title}{more}\n{url}"
+
+
 def send_sms(to_number: str, gigs: list[dict], total: int | None = None) -> bool:
     """
     Text message via Twilio.
@@ -208,9 +268,7 @@ def send_sms(to_number: str, gigs: list[dict], total: int | None = None) -> bool
     frm = os.environ["TWILIO_FROM"].strip()
     if total is None:
         total = len(gigs)
-    top = gigs[0]
-    more = f" (+{total - 1} more)" if total > 1 else ""
-    body = f"Nabbly: {top['title'][:80]}{more}\n{top.get('url', '')}"
+    body = _sms_body(gigs[0], total)
     try:
         r = requests.post(
             f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json",

@@ -41,6 +41,7 @@ import people
 import paths
 import auth
 import accounts
+import store
 import profile as profile_mod
 
 BASE = Path(__file__).parent
@@ -1694,6 +1695,27 @@ def view_admin():
     if _pay:
         st.caption(f"Would pay $12/month — yes: **{_pay.get('yes', 0)}** · "
                    f"maybe: **{_pay.get('maybe', 0)}** · no: **{_pay.get('no', 0)}**")
+
+    acc = accounts.stats()
+    st.markdown("#### Accounts & trials")
+    stat_cards([
+        ("Accounts", f"{acc['accounts']:,}", "#E8933A"),
+        ("On a live trial", f"{acc['on_trial']:,}", "#5b9dff"),
+        ("Trial ended", f"{acc['expired']:,}", "#e5675f"),
+        ("Came back", f"{acc['returning']:,}", "#35b37e"),
+    ])
+    # Whether profiles will actually survive the next redeploy. This is the one
+    # signal that tells you if the Supabase connection string is really wired.
+    if store.enabled():
+        if store.healthy():
+            st.success("Durable backup: **connected**. Profiles and accounts "
+                       "survive redeploys.")
+        else:
+            st.error("Durable backup: **configured but unreachable**. Check the "
+                     "DATABASE_URL value in Render.")
+    else:
+        st.warning("Durable backup: **off**. Set DATABASE_URL (Supabase) in "
+                   "Render, or profiles reset on every deploy.")
 
     rows = people.people_rows()
     if rows:

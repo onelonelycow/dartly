@@ -104,6 +104,13 @@ def write_user_json(name: str, obj):
     store.put(get_scope(), name, obj)
 
 
+_SCRATCH_PREFIXES = ("free-", "guest-")   # "guest-" is the pre-rename name
+
+
+def _is_scratch(name: str) -> bool:
+    return name == _ANON or name.startswith(_SCRATCH_PREFIXES)
+
+
 def all_scopes() -> list[str]:
     """
     Every signed-in person's directory.
@@ -116,5 +123,32 @@ def all_scopes() -> list[str]:
     if not USERS_DIR.exists():
         return []
     return sorted(p.name for p in USERS_DIR.iterdir()
-                  if p.is_dir() and p.name != _ANON
-                  and not p.name.startswith("free-"))
+                  if p.is_dir() and not _is_scratch(p.name))
+
+
+def prune_scratch(max_age_hours: float = 48) -> int:
+    """
+    Delete stale not-signed-in scratch directories.
+
+    Every anonymous visitor mints a "free-" (or, before the rename, "guest-")
+    directory. They're keyed to a browser session that's long gone, so without
+    a sweep they pile up on the disk forever. A signed-in person's directory is
+    named from their email hash and is never touched here. Returns how many
+    were removed.
+    """
+    import shutil
+    import time
+    if not USERS_DIR.exists():
+        return 0
+    cutoff = time.time() - max_age_hours * 3600
+    removed = 0
+    for p in USERS_DIR.iterdir():
+        if not (p.is_dir() and _is_scratch(p.name)):
+            continue
+        try:
+            if p.stat().st_mtime < cutoff:
+                shutil.rmtree(p, ignore_errors=True)
+                removed += 1
+        except OSError:
+            pass
+    return removed

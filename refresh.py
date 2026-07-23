@@ -24,30 +24,19 @@ _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
 
 
-def _baseline():
-    """
-    Mark everything already on the board as old news, silently.
-
-    The bundled seed ships ~1,500 gigs and none are flagged as alerted, so
-    without this the very first pass would treat the whole board as brand new
-    and fire one alert announcing thousands of gigs. That's wrong, and on SMS
-    it costs real money. After this runs, only genuinely new arrivals can
-    trigger anything.
-    """
-    import db
-    try:
-        db.mark_alerted([p["id"] for p in db.unalerted()])
-    except Exception:
-        pass
-
-
 def _loop():
     import ingest
     import alerts
     import accounts
     import paths
     time.sleep(_FIRST_DELAY_S)
-    _baseline()
+    # Old news is handled per person now: each account remembers the highest
+    # gig id it has been alerted about, and a new account starts that marker at
+    # the current top of the board. So there's no global "mark everything
+    # alerted" step to run here any more — it would have written a flag nothing
+    # on the server reads. (watch.py, the local single-user poller, still uses
+    # the global path and does its own baselining.)
+    paths.prune_scratch()
     last_alert = 0.0
 
     while True:
