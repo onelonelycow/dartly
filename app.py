@@ -111,7 +111,9 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-sub{display:inline-block;font-size:17px;line-height:1.6;color:#99a1ac;
   max-width:600px;margin:0;text-align:center;text-wrap:pretty}
 .gr-sub b{color:#ced4dc;font-weight:600}
-.gr-stats{justify-content:center;max-width:940px;margin:6px auto 4px}
+/* Fill the content column so the stat row's edges line up with the feed cards
+   below it, rather than sitting in a narrower band of its own. */
+.gr-stats{justify-content:center;max-width:none;margin:6px 0 4px}
 .gr-stat{transition:transform .15s ease,border-color .15s ease,background .15s ease}
 .gr-stat:hover{transform:translateY(-3px);border-color:#3b4250;background:#181c22}
 a.gr-stat{text-decoration:none;color:inherit;cursor:pointer;display:block}
@@ -205,7 +207,13 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
 .gr-acct{position:relative;display:flex;align-items:center;height:38px;
   margin-top:auto;margin-bottom:auto}   /* auto margins centre it in the bar */
 section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{display:none!important}
-.block-container,div[data-testid="stMainBlockContainer"]{padding-top:1.3rem!important}
+/* One centred content column for the whole app. Without a cap, the top (hero,
+   search, stats) reads as a tidy column but the feed below sprawls edge-to-edge
+   and loses the alignment — this keeps everything in the same ~1040px column so
+   the page stays sharp all the way down, and the feed lines up with the stats. */
+.block-container,div[data-testid="stMainBlockContainer"]{
+  padding-top:1.3rem!important;max-width:1040px!important;
+  margin-left:auto!important;margin-right:auto!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
 header[data-testid="stHeader"]{height:0;background:transparent}
 /* Hide Streamlit's own chrome so it reads as a real product, not a demo. */
