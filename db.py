@@ -102,6 +102,65 @@ def upsert_post(post: dict) -> bool:
         conn.close()
 
 
+def upsert_many(records) -> int:
+    """
+    Insert many gigs in one connection, skipping any we already have.
+
+    upsert_post() opens a connection per row, which is fine for a fetch of a few
+    hundred but not for rehydrating thousands from the durable mirror at boot.
+    This does the whole batch in one transaction. INSERT OR IGNORE means gigs the
+    local board already holds (e.g. from the seed) are kept, and only the missing
+    ones are filled in. Returns how many rows were actually added.
+    """
+    records = [r for r in (records or []) if r.get("source") and r.get("source_id")]
+    if not records:
+        return 0
+    cols = ("source", "source_id", "url", "title", "body", "posted_at",
+            "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner")
+    defaults = {"is_demand": 1, "owner": ""}
+    conn = connect()
+    try:
+        before = conn.total_changes
+        conn.executemany(
+            f"INSERT OR IGNORE INTO posts ({', '.join(cols)}) "
+            f"VALUES ({', '.join('?' * len(cols))})",
+            [tuple(r.get(c, defaults.get(c, "")) for c in cols) for r in records])
+        conn.commit()
+        return conn.total_changes - before
+    finally:
+        conn.close()
+
+
+_board_rehydrated = False
+
+
+def rehydrate_board():
+    """
+    After a wiped disk, refill the board from the durable Supabase mirror.
+
+    Runs once per process, at boot, before the first page renders — the only
+    time the whole board crosses the network (every later read is local). No-op
+    when the mirror is disabled or already done, so it's safe to call on the
+    app's module load even though that re-executes on every rerun.
+    """
+    global _board_rehydrated
+    if _board_rehydrated:
+        return
+    _board_rehydrated = True
+    try:
+        import board_store
+        if not board_store.enabled():
+            return
+        rows = board_store.pull()
+        if rows:
+            init_db()
+            added = upsert_many(rows)
+            if added:
+                print(f"  board: rehydrated {added} gigs from the durable mirror")
+    except Exception as e:
+        print(f"  ! board rehydrate: {type(e).__name__}: {e}")
+
+
 def reclassify_all() -> int:
     """
     Re-run the classifier over every stored post, updating any whose tags moved.

@@ -796,7 +796,9 @@ def load_feed():
     return df.copy(), dropped
 
 
-db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
+db.ensure_seeded()      # first run on a fresh deploy loads the bundled seed.db
+db.rehydrate_board()    # then top it up from the durable mirror, so a redeploy
+                        # doesn't reset the board to the seed (no-op without Supabase)
 refresh.start()     # background fetcher: grows the feed while the app is in use
 analytics.init()    # visit counting, in its own database file
 people.init()       # who signed up, their profile, and their feedback
@@ -1020,7 +1022,9 @@ def live_stats():
              "?nav=gigs&qf=recent"),
             ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
              "?nav=gigs&qf=urgent"),
-            ("Live sources", f"{cur['source'].nunique()}", "#35B37E", "?nav=gigs"),
+            # Not "sources" — no need to advertise where the gigs come from. Breadth
+            # of fields is the more useful, and more discreet, fourth number.
+            ("Fields hiring", f"{cur['job_type'].nunique()}", "#35B37E", "?nav=gigs"),
         ])
 
 
@@ -1073,13 +1077,8 @@ def hero_search():
             st.session_state["_profile"] = st.session_state["_about"] = False
             note("click", "search:text")
             st.rerun()
-        # Personalisation still needs to know what you do; it just isn't the
-        # front door any more. One quiet line, and only until it's answered.
-        if not prof.get("skills"):
-            st.markdown(
-                '<div class="gr-search-hint">or <a href="?nav=profile" '
-                'target="_self">tell us what you do</a> and the board sorts '
-                'itself around you</div>', unsafe_allow_html=True)
+        # (The old "or tell us what you do" line lived here. Removed: people set
+        # up their profile anyway, so it just cluttered the search area.)
 
 
 @st.fragment(run_every=45)
@@ -1770,7 +1769,12 @@ def view_profile(pro):
     if ACCESS["plan"] == "pro":
         st.success("You're on **Pro** — instant pings, drafted replies, ranked picks & "
                    "market rates. Thanks for backing us. 🧡")
-    elif ACCESS["pro"]:            # an active trial
+    elif ACCESS["pro"] and ACCESS.get("founding"):   # founding member gift
+        _d = ACCESS["days_left"]
+        st.success(f"You're a **founding member** 🧡 — {_d} day{'s' if _d != 1 else ''} "
+                   "of Pro on us, for taking the early chance. Ranked picks, drafted "
+                   "replies, market rates and instant alerts, all yours.")
+    elif ACCESS["pro"]:            # an active opt-in trial
         _d = ACCESS["days_left"]
         st.info(f"You're on a **Pro trial** — {_d} day{'s' if _d != 1 else ''} left. "
                 "Ranked picks, drafted replies, market rates and instant alerts, "
@@ -1839,7 +1843,7 @@ def signup_card(where="dashboard"):
                 st.markdown(
                     '<span class="gr-cta-mark"></span>'
                     '<div class="gr-cta-h">Quick one while you\'re here</div>'
-                    '<div class="gr-cta-s">When the trial ends, would you pay '
+                    '<div class="gr-cta-s">When your Pro ends, would you pay '
                     '<b>$12/mo</b> to keep ranked picks, drafted replies and '
                     'instant alerts?</div>', unsafe_allow_html=True)
                 a1, a2, a3 = st.columns(3)
@@ -1854,8 +1858,9 @@ def signup_card(where="dashboard"):
                             st.rerun()
         else:
             d = a["days_left"]
-            st.markdown(f'<div class="gr-mini">✨ <b>{d} day{"s" if d != 1 else ""}</b>'
-                        ' of Pro left on your trial</div>', unsafe_allow_html=True)
+            _lbl = "of founding Pro left" if a.get("founding") else "of Pro left on your trial"
+            st.markdown(f'<div class="gr-mini">✨ <b>{d} day{"s" if d != 1 else ""}</b> '
+                        f'{_lbl}</div>', unsafe_allow_html=True)
         return
 
     # Signed in, on Free, never trialed: offer Pro as a choice, not a default.
@@ -1975,9 +1980,10 @@ def view_about():
         '<p><b>Free</b> gives you the whole board: every gig, every source, '
         'search and browse as much as you like. <b>Pro</b> adds the edge, the '
         'parts that help you reply first: gigs ranked by fit, drafted replies, '
-        'market rate intelligence, and instant alerts. Pro is free to try for '
-        '14 days whenever you want to feel the difference — you choose if and '
-        'when to start it.</p>'
+        'market rate intelligence, and instant alerts. The first 50 members get '
+        'two months of Pro free, a thank-you for taking the early chance. After '
+        'that, Pro is free to try for 14 days whenever you want it, and you '
+        'choose if and when to start.</p>'
 
         '<h2>Where we\'re at</h2>'
         '<p>Nabbly is an early preview, built in the open by one person who was '
@@ -2311,7 +2317,8 @@ with _rcol:
             _plan = "Pro"
         elif ACCESS["pro"]:
             _d = ACCESS["days_left"]
-            _plan = f"Pro trial · {_d} day{'s' if _d != 1 else ''} left"
+            _tag = "Founding Pro" if ACCESS.get("founding") else "Pro trial"
+            _plan = f"{_tag} · {_d} day{'s' if _d != 1 else ''} left"
         else:
             _plan = "Free"
         _last = '<a href="?signout=1" target="_self">Sign out</a>'

@@ -24,6 +24,7 @@ def run() -> dict:
     now = datetime.now(timezone.utc).isoformat()
     new_count = 0
     demand_count = 0
+    fresh = []          # newly-stored gigs, mirrored to the durable board below
 
     for post in raw_posts:
         tags = classify.classify(post["title"], post["body"], post["source"])
@@ -38,6 +39,17 @@ def run() -> dict:
         if db.upsert_post(record):
             new_count += 1
             demand_count += tags["is_demand"]
+            fresh.append(record)
+
+    # Back up this cycle's new gigs to Supabase so the board survives a redeploy
+    # or idle spin-down instead of resetting to the seed. Best-effort and a no-op
+    # when the mirror isn't configured.
+    if fresh:
+        try:
+            import board_store
+            board_store.push(fresh)
+        except Exception:
+            pass
 
     print("\n──────────────────────────────")
     print(f"  Pulled {len(raw_posts)} posts total")

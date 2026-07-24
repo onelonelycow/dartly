@@ -152,6 +152,16 @@ JOB_TYPES = {
                           "ui design", "ux design", "ux/ui", "photoshop", "packaging",
                           "wordmark", "product design", "creative director", "art director",
                           "web design"],
+    # Sits AFTER Design/Video on purpose: the classifier scans the body as a
+    # fallback and takes the first category that matches, so a design or video
+    # lead whose write-up merely mentions a photo stays put, and only gigs whose
+    # own title/text is really about photography land here. Keywords are photo-
+    # specific — never bare "photo", never "photoshop" (a designer's tool).
+    "Photography": ["photographer", "photography", "photo editor", "photo editing",
+                    "photo retoucher", "photo retouching", "photoshoot", "photo shoot",
+                    "headshot", "headshots", "lightroom", "product photography",
+                    "real estate photography", "event photographer",
+                    "wedding photographer", "portrait photograph"],
     "QA / testing": ["quality assurance", "qa engineer", "qa tester", "tester",
                     "test manager", "test engineer", "manual testing", "automation test",
                     "qa analyst", "test automation"],
@@ -227,8 +237,8 @@ JOB_TYPES = {
 CATEGORY_GROUPS = {
     "Tech & Data":        ["Development / tech", "Data / analytics", "QA / testing",
                            "IT / support"],
-    "Design & Media":     ["Design / creative", "Video / animation", "Audio / music",
-                           "Architecture / 3D"],
+    "Design & Media":     ["Design / creative", "Video / animation", "Photography",
+                           "Audio / music", "Architecture / 3D"],
     "Writing & Language": ["Writing / content", "Translation / language",
                            "Teaching / tutoring"],
     "Marketing & Sales":  ["Marketing / SEO", "Sales / outreach"],

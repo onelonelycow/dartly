@@ -35,11 +35,13 @@ import store
 from paths import data_file
 
 DB_PATH = data_file("nabbly_people.db")   # same file as people.py
-TRIAL_DAYS = 14
+TRIAL_DAYS = 14               # the opt-in trial anyone can start
+FOUNDING_DAYS = 60           # ~2 months, the thank-you for the first backers
+FOUNDING_LIMIT = 50          # how many of them get it
 
 _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
-_COLS = ("email", "token", "created", "last_seen", "trial_start",
-         "plan", "last_alert_id", "visits")
+_COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
+         "founding", "plan", "last_alert_id", "visits")
 _rehydrated = False
 
 
@@ -78,6 +80,8 @@ def init():
             created       TEXT NOT NULL,
             last_seen     TEXT,
             trial_start   TEXT,
+            pro_until     TEXT,                  -- time-boxed Pro ends here (trial or founding grant)
+            founding      INTEGER DEFAULT 0,     -- 1 = one of the first FOUNDING_LIMIT members
             plan          TEXT DEFAULT 'free',   -- free | trial | pro
             last_alert_id INTEGER DEFAULT 0,     -- highest gig id we've pinged them about
             visits        INTEGER DEFAULT 0
@@ -85,6 +89,12 @@ def init():
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_token ON accounts(token)")
+    # Safe migration for tables created before these columns existed.
+    for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0")):
+        try:
+            conn.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
     _rehydrate()
@@ -125,11 +135,13 @@ def _rehydrate():
         empty = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 0
         if empty:
             saved = store.list_scope(_ACCT_SCOPE)
+            # Built from _COLS so adding a column (pro_until, founding, …) can't
+            # leave this INSERT out of sync with the tuple below it.
+            cols = ", ".join(_COLS)
+            marks = ", ".join("?" * len(_COLS))
             for row in saved.values():
                 conn.execute(
-                    "INSERT OR IGNORE INTO accounts "
-                    "(email, token, created, last_seen, trial_start, plan, "
-                    "last_alert_id, visits) VALUES (?,?,?,?,?,?,?,?)",
+                    f"INSERT OR IGNORE INTO accounts ({cols}) VALUES ({marks})",
                     tuple(row.get(c) for c in _COLS))
             conn.commit()
         conn.close()
@@ -174,12 +186,21 @@ def sign_in(email: str, source: str = "signin") -> tuple[dict | None, bool]:
         watermark = _db.max_post_id()
     except Exception:
         watermark = 0
-    # Land on Free. The trial is theirs to start when they choose (start_trial),
-    # so trial_start is left empty here rather than stamped with 'now'.
+    # The first FOUNDING_LIMIT people to sign up get ~2 months of Pro as a
+    # thank-you for taking the early chance — not because they asked, but as a
+    # gift. Everyone after that lands on Free and can start the opt-in trial when
+    # they choose. (The count is a snapshot; a rare simultaneous signup could put
+    # us a hair over 50, which is fine — erring generous.)
+    existing = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+    founding = 1 if existing < FOUNDING_LIMIT else 0
+    pro_until = (datetime.now(timezone.utc)
+                 + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
+        if founding else ""
     conn.execute(
         "INSERT INTO accounts (email, token, created, last_seen, trial_start, "
-        "plan, last_alert_id, visits) VALUES (?,?,?,?,'','free',?,1)",
-        (email, token, now, now, watermark))
+        "pro_until, founding, plan, last_alert_id, visits) "
+        "VALUES (?,?,?,?,'',?,?,'free',?,1)",
+        (email, token, now, now, pro_until, founding, watermark))
     conn.commit()
     acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
                             (email,)).fetchone())
@@ -221,41 +242,53 @@ def status(acc: dict | None) -> dict:
     if not acc:
         return {"signed_in": False, "pro": False, "plan": "anon",
                 "days_left": 0, "expired": False, "email": "",
-                "trialed": False, "can_trial": False}
+                "trialed": False, "can_trial": False, "founding": False}
 
     plan = (acc.get("plan") or "free").lower()
-    trialed = bool(acc.get("trial_start"))   # has a trial ever been started?
+    founding = bool(acc.get("founding"))
+    deadline = _pro_deadline(acc)            # when time-boxed Pro ends, or None
+    trialed = deadline is not None           # has had some time-boxed Pro grant
     base = {"signed_in": True, "plan": plan, "email": acc.get("email", ""),
             "days_left": 0, "expired": False, "trialed": trialed,
-            # can_trial: signed in, on Free, and has never used the trial. This
-            # is what gates the "Try Pro" offer so it shows once, to the right
-            # people, and never nags someone whose trial already ran.
-            "can_trial": (plan == "free" and not trialed)}
+            "founding": founding, "can_trial": False}
 
-    if plan == "pro":
-        return {**base, "pro": True, "can_trial": False}
-    if plan == "free":
-        return {**base, "pro": False}
+    if plan == "pro":                        # a manual/permanent grant
+        return {**base, "pro": True}
+    if deadline:                             # founding gift or an opted-in trial
+        left = deadline - datetime.now(timezone.utc)
+        if left.total_seconds() > 0:
+            days = int(max(0, -(-left.total_seconds() // 86400)))   # round up
+            return {**base, "pro": True, "days_left": days}
+        return {**base, "pro": False, "expired": True}
+    # Never had a grant → Free, and the opt-in trial is theirs to start.
+    return {**base, "pro": False, "can_trial": True}
 
+
+def _pro_deadline(acc: dict):
+    """
+    When this account's time-boxed Pro ends, or None if it never had any.
+
+    Prefers pro_until (founding grants and new opt-in trials both write it);
+    falls back to trial_start + TRIAL_DAYS for accounts created before pro_until
+    existed, so an in-flight older trial keeps counting down correctly.
+    """
+    until = _parse(acc.get("pro_until"))
+    if until:
+        return until
     start = _parse(acc.get("trial_start"))
-    if not start:
-        # plan says 'trial' but no start recorded — treat as free rather than
-        # locking them out; can_trial stays true so they can still begin one.
-        return {**base, "pro": False, "plan": "free", "can_trial": True}
-    ends = start + timedelta(days=TRIAL_DAYS)
-    left = ends - datetime.now(timezone.utc)
-    days = max(0, -(-left.total_seconds() // 86400))   # round up; 0.1 days left is still "1"
-    return {**base, "pro": left.total_seconds() > 0, "days_left": int(days),
-            "expired": left.total_seconds() <= 0, "can_trial": False}
+    if start:
+        return start + timedelta(days=TRIAL_DAYS)
+    return None
 
 
 def start_trial(email: str) -> tuple[bool, str]:
     """
     Begin the 14-day Pro trial — only when the person chooses to.
 
-    Signing in no longer starts this; Pro is opt-in. Guarded so it can be used
-    once: already-Pro or already-trialed accounts are turned away here (the
-    admin can still restart via set_plan). Returns (started, message).
+    Signing in no longer starts this; Pro is opt-in. Guarded so it's used once:
+    anyone already on Pro, mid-grant, or with an expired grant (founders
+    included) is turned away here. The admin can still grant via set_plan.
+    Returns (started, message).
     """
     email = (email or "").strip().lower()
     init()
@@ -268,11 +301,13 @@ def start_trial(email: str) -> tuple[bool, str]:
     if (acc.get("plan") or "") == "pro":
         conn.close()
         return False, "You're already on Pro."
-    if acc.get("trial_start"):
+    if _pro_deadline(acc) is not None:
         conn.close()
-        return False, "Your free trial has already been used."
-    conn.execute("UPDATE accounts SET plan='trial', trial_start=? WHERE email=?",
-                 (_now(), email))
+        return False, "You've already had your free Pro."
+    until = (datetime.now(timezone.utc)
+             + timedelta(days=TRIAL_DAYS)).isoformat(timespec="seconds")
+    conn.execute("UPDATE accounts SET plan='trial', trial_start=?, pro_until=? "
+                 "WHERE email=?", (_now(), until, email))
     conn.commit()
     conn.close()
     _mirror(email)
