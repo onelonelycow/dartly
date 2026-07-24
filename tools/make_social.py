@@ -87,6 +87,46 @@ def make_avatar(size=1000):
     print("avatar-1000.png, avatar-tight-1000.png")
 
 
+# ── profile picture: full-bleed amber, built for a CIRCULAR crop ──────────
+def make_pfp(size=1080, ss=3):
+    """
+    The social profile picture. Every platform masks a PFP to a circle, so this
+    fills the whole frame with the amber gradient (no rounded corners, no dark
+    background) — cropped to a circle it becomes a clean amber disc — and centres
+    the mark well inside the safe zone so nothing clips, even at avatar size.
+    """
+    s = size * ss
+    img = Image.new("RGB", (s, s))
+    px = img.load()
+    for y in range(s):                       # full-bleed diagonal amber gradient
+        for x in range(s):
+            px[x, y] = _lerp(AMBER_L, AMBER_D, min(1, (x / s * 0.5 + y / s * 0.5)))
+    # a soft top-left sheen for depth, like the app icon
+    sheen = Image.new("RGB", (s, s))
+    sd = sheen.load()
+    for y in range(int(s * 0.55)):
+        for x in range(int(s * 0.55)):
+            dist = (((x) / (s * 0.55)) ** 2 + ((y) / (s * 0.55)) ** 2) ** 0.5
+            sd[x, y] = _lerp((255, 255, 255), AMBER_L, min(1, dist)) if dist < 1 else AMBER_L
+    img = Image.blend(img, sheen, 0.0)       # (kept subtle; gradient already lights top-left)
+    d = ImageDraw.Draw(img, "RGBA")
+
+    # radar ping ring + dot, upper-right but inside the circle
+    cx, cy, rr = s * 0.695, s * 0.30, s * 0.093
+    d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(255, 255, 255, 120),
+              width=int(s * 0.011))
+    lw = int(s * 0.076)
+    # the "N": a left leg, then the check that rises to the ping
+    d.line([(s * 0.315, s * 0.70), (s * 0.315, s * 0.375)],
+           fill=(255, 255, 255, 205), width=lw)
+    d.line([(s * 0.315, s * 0.375), (s * 0.505, s * 0.655), (s * 0.675, s * 0.335)],
+           fill=(255, 255, 255, 255), width=lw, joint="curve")
+    d.ellipse([cx - rr * 0.44, cy - rr * 0.44, cx + rr * 0.44, cy + rr * 0.44],
+              fill=(255, 255, 255, 255))
+    img.resize((size, size), Image.LANCZOS).save(OUT / "avatar-pfp-1080.png")
+    print("avatar-pfp-1080.png (circle-optimized profile picture)")
+
+
 # ── banner ───────────────────────────────────────────────────────────────
 def make_banner(w, h, name, tagline_y_shift=0):
     img = Image.new("RGB", (w, h), BG)
@@ -125,5 +165,6 @@ def make_banner(w, h, name, tagline_y_shift=0):
 
 
 make_avatar()
+make_pfp()
 make_banner(1584, 396, "linkedin-banner.png")
 make_banner(1500, 500, "social-banner.png", tagline_y_shift=-10)
