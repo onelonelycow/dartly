@@ -240,6 +240,10 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   gap:6px!important}
 .gr-search-lbl{text-align:center;font-size:13.5px;font-weight:600;color:#98a0ab;
   letter-spacing:.01em;margin:0 0 2px}
+.gr-search-hint{text-align:center;font-size:13px;color:#7c838d;margin:8px 0 0}
+.gr-search-hint a{color:#98a0ab!important;text-decoration:none!important;
+  font-weight:600;border-bottom:1px solid rgba(232,147,58,.35)}
+.gr-search-hint a:hover{color:#eaa662!important}
 .gr-onb-hit{max-width:620px;margin:10px auto 2px;text-align:center;font-size:15px;
   color:#b9c0c9;animation:gr-count .32s ease-out}
 .gr-onb-hit b{color:#E8933A;font-size:21px;font-weight:750;font-variant-numeric:tabular-nums}
@@ -997,44 +1001,39 @@ def category_strip():
     st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
 
 
-def skills_search():
+def hero_search():
     """
-    The one control on the front page: pick what you do, the board re-sorts.
+    The front door: type what you're looking for.
 
-    Lives directly under the headline. For a returning person it's pre-filled
-    with their saved skills, so the live count already reflects them; editing it
-    and hitting the button re-personalises everything below. The count updating
-    as you pick, before you commit to anything, is the hook.
+    This was a skills dropdown, which is a filter wearing a search box's
+    clothes — people type words, not categories. Free text searches every gig's
+    title and body, so "figma" or "shopify" finds work no category could. The
+    fixed categories are still there, as the browse chips below and as a filter
+    on the Gigs page, which is where filtering belongs.
     """
-    have = prof.get("skills") or []
     with st.container():
-        st.markdown('<span class="gr-search-mark"></span>'
-                    '<div class="gr-search-lbl">What do you do?</div>',
-                    unsafe_allow_html=True)
-        picked = st.multiselect(
-            "Your skills", ALL_SKILLS, default=have, label_visibility="collapsed",
-            placeholder="Start typing a skill — design, writing, development…")
-
-        if picked:
-            srcs = sorted(df["source"].unique())
-            hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs,
-                                False, "")
-            fresh = recent_count(hit, 24)
-            bits = f"<b>{len(hit):,}</b> gigs fit you"
-            if fresh:
-                bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
-            st.markdown(f'<div class="gr-onb-hit">{bits}</div>',
-                        unsafe_allow_html=True)
-
-        # Only offer the commit button when the picks differ from what's saved,
-        # so a returning person whose skills are already set sees a clean board,
-        # not a redundant call to action.
-        if picked and set(picked) != set(have):
-            if st.button("Show me these  →", type="primary", width="stretch"):
-                prof["skills"] = picked
-                profile_mod.save(prof)
-                note("click", "search:skills")
-                st.rerun()
+        st.markdown('<span class="gr-search-mark"></span>', unsafe_allow_html=True)
+        with st.form("herosearch", clear_on_submit=False, border=False):
+            c1, c2 = st.columns([4, 1], vertical_alignment="bottom")
+            with c1:
+                q = st.text_input(
+                    "Search gigs", label_visibility="collapsed",
+                    placeholder="Search gigs — figma, shopify, copywriting…")
+            with c2:
+                go = st.form_submit_button("Search", type="primary", width="stretch")
+        if go and q.strip():
+            st.session_state["searchq"] = q.strip()
+            st.session_state["_navidx"] = _TABS.index("Gigs")
+            st.session_state["_profile"] = st.session_state["_about"] = False
+            note("click", "search:text")
+            st.rerun()
+        # Personalisation still needs to know what you do; it just isn't the
+        # front door any more. One quiet line, and only until it's answered.
+        if not prof.get("skills"):
+            st.markdown(
+                '<div class="gr-search-hint">or <a href="?nav=profile" '
+                'target="_self">tell us what you do</a> and the board sorts '
+                'itself around you</div>', unsafe_allow_html=True)
 
 
 @st.fragment(run_every=45)
@@ -1146,7 +1145,7 @@ def view_dashboard(pro):
 
     # The search sits right under the headline: pick what you do, and the
     # numbers below rearrange around you.
-    skills_search()
+    hero_search()
 
     st.write("")
     live_stats()
@@ -1197,6 +1196,16 @@ def view_gigs(pro):
         st.info("Nothing here yet — hit **Check for new gigs** and we'll grab the latest.")
         return
 
+    # Search sits at the top, pre-filled when someone arrived here by searching
+    # from the dashboard. It used to be buried in the "Narrow it down" drawer,
+    # which is a strange place for the thing people reach for first.
+    _sq = st.text_input("Search gigs", value=st.session_state.get("searchq", ""),
+                        placeholder="Search titles and descriptions — figma, shopify…",
+                        label_visibility="collapsed", key="gigsearch")
+    kw = (_sq or "").strip().lower()
+    if kw != st.session_state.get("searchq", ""):
+        st.session_state["searchq"] = kw
+
     # Prominent location lens — the first cut most people want to make.
     _all, _rem, _loc = location_counts(df)
     _CITY = (prof.get("city") or "").strip()
@@ -1218,12 +1227,32 @@ def view_gigs(pro):
         srcs = sorted(df["source"].unique())
         sources = st.multiselect("Source", srcs, default=srcs)
         urgent = st.checkbox("🔥 Urgent only")
-        kw = st.text_input("Contains keyword").strip().lower()
+        if skills and set(skills) != set(ALL_SKILLS) and set(skills) != set(prof.get("skills") or []):
+            if st.button("Save these as my skills", key="savefilterskills"):
+                prof["skills"] = skills
+                profile_mod.save(prof)
+                note("click", "filter:saveskills")
+                st.rerun()
 
     view = apply_filters(df, skills, sizes, sources, urgent, kw)
     view = apply_location(view, loc_mode)
     if pro:
         view = scored(view)
+
+    # Answer the search plainly, including when it finds nothing — an empty
+    # board with no explanation reads as broken rather than as "no matches".
+    if kw:
+        sc1, sc2 = st.columns([5, 1], vertical_alignment="center")
+        sc1.markdown(f'<span class="gr-qf">▸ {len(view):,} result'
+                     f'{"" if len(view) == 1 else "s"} for '
+                     f'<b>{html.escape(kw)}</b></span>', unsafe_allow_html=True)
+        if sc2.button("✕ clear", key="clearsearch", width="stretch"):
+            st.session_state["searchq"] = ""
+            st.session_state.pop("gigsearch", None)
+            st.rerun()
+        if view.empty:
+            st.info(f"Nothing matches **{kw}** right now. Try a broader word, or "
+                    "browse by category from the dashboard.")
 
     # Quick-filter arriving from a Dashboard stat click
     qf = st.session_state.get("quickfilter", "")
