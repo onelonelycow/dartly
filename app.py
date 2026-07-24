@@ -121,8 +121,7 @@ a.gr-stat{text-decoration:none;color:inherit;cursor:pointer;display:block}
 .gr-qf{display:inline-block;font-size:13px;font-weight:500;color:#eaa662;
   background:rgba(232,147,58,.1);border:1px solid rgba(232,147,58,.28);
   border-radius:999px;padding:4px 13px}
-.gr-cats{display:flex;flex-wrap:wrap;gap:9px;margin:2px 0 2px;
-  max-width:980px;margin-left:auto;margin-right:auto;justify-content:center}
+.gr-cats{display:flex;flex-wrap:wrap;gap:9px;margin:2px 0 6px}
 a.gr-cat{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:500;
   color:#cdd3dc!important;text-decoration:none!important;background:#191c22;
   border:1px solid #2b3039;border-radius:999px;padding:7px 8px 7px 14px;
@@ -1040,9 +1039,9 @@ def category_strip():
     groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
     if not groups:
         return
-    st.markdown('<div style="text-align:center;color:#8a919c;font-size:13px;'
-                'font-weight:600;letter-spacing:.02em;margin:2px 0 10px">'
-                'Or browse by category</div>', unsafe_allow_html=True)
+    st.markdown('<div style="color:#8a919c;font-size:12.5px;'
+                'font-weight:600;letter-spacing:.02em;margin:2px 0 8px">'
+                'Browse by field</div>', unsafe_allow_html=True)
     chips = "".join(
         f'<a class="gr-cat" href="?nav=gigs&group={quote(g)}" target="_self">'
         f'{html.escape(g)}<span class="n">{n:,}</span></a>'
@@ -1196,9 +1195,8 @@ def view_dashboard(pro):
     st.write("")
     live_stats()
 
-    st.write("")
-    category_strip()
-
+    # Category browsing moved to the Gigs page (where people are actually
+    # looking), so the dashboard top stays a clean headline + search + stats.
     st.divider()
     arrivals_pill()
     draft_showcase(pro)
@@ -1256,6 +1254,10 @@ def view_gigs(pro):
     kw = (_sq or "").strip().lower()
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
+
+    # Browse-by-field chips live here now, where people are looking, instead of
+    # crowding the dashboard's search area.
+    category_strip()
 
     # Prominent location lens — the first cut most people want to make.
     _all, _rem, _loc = location_counts(df)
@@ -1944,6 +1946,62 @@ def signup_card(where="dashboard"):
                             'field</div>', unsafe_allow_html=True)
 
 
+def view_signin():
+    """
+    A focused sign-in page. The account menu's "Sign in" used to point at the
+    dashboard, where the actual sign-in card sits far down the page — so it read
+    as "nothing happened, back to home". This gives the click a real destination.
+    """
+    if ACCESS["signed_in"]:
+        st.markdown('### You\'re <span class="gr-accent">signed in</span>',
+                    unsafe_allow_html=True)
+        st.success(f"Signed in as **{ACCESS['email']}**.")
+        _l, _c, _r = st.columns([1, 1.6, 1])
+        with _c:
+            if st.button("Go to your account", type="primary", width="stretch"):
+                st.query_params["nav"] = "profile"
+                st.rerun()
+        return
+
+    st.markdown('### Sign in to <span class="gr-accent">Nabbly</span>',
+                unsafe_allow_html=True)
+    st.caption("Save your profile and picks, get alerts, and keep your board "
+               "across visits. No password.")
+    _l, _c, _r = st.columns([1, 2, 1])
+    with _c:
+        with st.container(border=True):
+            st.markdown('<span class="gr-cta-mark"></span>'
+                        '<div class="gr-cta-h">Welcome</div>'
+                        '<div class="gr-cta-s">Your board, saved and sorted to you.'
+                        '</div>', unsafe_allow_html=True)
+            if auth.enabled():
+                if st.button("Continue with Google", type="primary",
+                             width="stretch", key="signin_google"):
+                    note("click", "google:signin")
+                    st.login("google")
+                st.markdown('<div class="gr-cta-fine">No card · no password · we only '
+                            'see your email &amp; name</div>', unsafe_allow_html=True)
+            else:
+                with st.form("signin_page_form", clear_on_submit=False, border=False):
+                    email = st.text_input("Email", placeholder="you@example.com",
+                                          label_visibility="collapsed")
+                    sent = st.form_submit_button("Sign in", type="primary",
+                                                 width="stretch")
+                if sent:
+                    ok, msg = sign_in_here(email, "signin")
+                    if ok:
+                        # Just rerun — do NOT set ?nav here. sign_in_here put the
+                        # token in the URL (?u=), and the nav dispatch clears the
+                        # query string; setting nav would wipe the token that
+                        # keeps them signed in on a later reload. On this rerun
+                        # they're signed in and see the signed-in state below.
+                        st.rerun()
+                    st.warning(msg)
+                st.markdown('<div class="gr-cta-fine">No card · no password · one '
+                            'field. Keep the link we put in your address bar to sign '
+                            'back in.</div>', unsafe_allow_html=True)
+
+
 def view_about():
     """
     The company story, moved off the front page so the hero can stay a headline.
@@ -2249,7 +2307,8 @@ def view_admin():
 _TABS = ["Dashboard", "Gigs", "Market", "Alerts"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
-_SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ"}
+_SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
+               "signin": "Sign in"}
 
 # The admin panel replaces the whole page — nothing else needs to render.
 if analytics.ADMIN_KEY and st.query_params.get("admin", "") == analytics.ADMIN_KEY:
@@ -2325,7 +2384,7 @@ with _rcol:
         _last = '<a href="?signout=1" target="_self">Sign out</a>'
     else:
         _who, _plan = _name or "Your account", "Not signed in"
-        _last = '<a href="?nav=dashboard" target="_self">Sign in</a>'
+        _last = '<a href="?nav=signin" target="_self">Sign in</a>'
     _init = (_who[:1].upper() if _who != "Your account" else "") or "•"
     st.markdown(
         f'<div style="display:flex;justify-content:flex-end;padding-right:2px">'
@@ -2367,6 +2426,8 @@ elif active == "About":
     view_about()
 elif active == "FAQ":
     view_faq()
+elif active == "Sign in":
+    view_signin()
 
 st.markdown(
     '<div class="gr-footer">'
