@@ -2079,8 +2079,9 @@ def feedback_card(where="dashboard"):
         st.markdown(
             '<span class="gr-fb-mark"></span>'
             '<div class="gr-cta-h">What would make this better?</div>'
-            '<div class="gr-cta-s">Missing a source? Wrong gigs? Something broken? '
-            'Tell us straight, no email needed.</div>', unsafe_allow_html=True)
+            '<div class="gr-cta-s">Not seeing the gigs you want? Wrong category? '
+            'Something broken? Tell us straight, no email needed.</div>',
+            unsafe_allow_html=True)
         with st.form(f"fb_{where}", clear_on_submit=False, border=False):
             msg = st.text_area("Feedback", height=90, label_visibility="collapsed",
                                placeholder="The gigs are all remote, I wanted local ones…")
