@@ -365,6 +365,14 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-about ol{margin:0 0 16px;padding-left:0;counter-reset:step;list-style:none}
 .gr-about ol li{position:relative;padding:2px 0 12px 40px;font-size:15px;color:#b8bfc9}
 .gr-about ol li b{color:#eef1f5}
+.gr-faq-a{font-size:14.5px;color:#b8bfc9;line-height:1.65;padding:2px 2px 6px;
+  max-width:70ch}
+.gr-footer .foot-links{display:flex;gap:16px;align-items:center}
+/* Keep the FAQ's heading and its rows in one column — the heading sat in a
+   centred 680px block while the expanders ran the full width. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-faq-mark){
+  max-width:680px!important;margin-left:auto!important;margin-right:auto!important}
+.gr-about h2{text-align:center}
 .gr-about ol li::before{counter-increment:step;content:counter(step);
   position:absolute;left:0;top:0;width:27px;height:27px;border-radius:8px;
   background:rgba(232,147,58,.14);border:1px solid rgba(232,147,58,.3);
@@ -1134,8 +1142,6 @@ def view_dashboard(pro):
         '<div class="gr-hero gr-hero-tight">'
         '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
         'You just <span class="accent">reply first.</span></h1>'
-        '<a class="gr-about-link" href="?nav=about" target="_self">'
-        'What is Nabbly? →</a>'
         "</div>", unsafe_allow_html=True)
 
     if df.empty:
@@ -1847,6 +1853,68 @@ def view_about():
             st.rerun()
 
 
+_FAQ = [
+    ("Where do the gigs come from?",
+     "Public job boards and hiring communities: We Work Remotely, RemoteOK, "
+     "Remotive, Jobicy, Arbeitnow, Freelancer.com and the hiring subreddits. "
+     "We read them continuously and put everything in one place, so you're not "
+     "keeping ten tabs open."),
+    ("How fresh are they?",
+     "The board refreshes itself every couple of minutes, around the clock. "
+     "Most gigs show up here within minutes of being posted, which is the "
+     "whole point — the person who answers first usually gets the work."),
+    ("Do I have to sign up?",
+     "No. The entire board is free to search and browse without an account. "
+     "Signing in saves your profile so the board can sort itself around you, "
+     "and starts a 14-day Pro trial."),
+    ("What's the difference between Free and Pro?",
+     "Free gives you every gig from every source, search and browse. Pro adds "
+     "the parts that help you reply first: gigs ranked by how well they fit "
+     "you, drafted replies, market rate data, and instant alerts."),
+    ("How do the alerts work?",
+     "You pick the channel — phone push, Slack or Discord, Telegram, SMS or "
+     "email — plus how often you'll tolerate being pinged, which sources "
+     "count, and how many gigs per message. Then new matches come to you "
+     "instead of you refreshing a page."),
+    ("Do you really write the reply for me?",
+     "Yes, on Pro. It reads the actual post and your profile and drafts a "
+     "reply you can send or edit. It's a starting point that beats staring at "
+     "a blank message, not a promise you'll never touch it."),
+    ("Are the gigs verified?",
+     "No, and be careful. These are public postings gathered as they were "
+     "written; we classify and rank them, we don't vet the people behind "
+     "them. Treat anything asking for money up front or unpaid \"test work\" "
+     "the way you would anywhere else."),
+    ("What do you do with my data?",
+     "We keep your email so you can sign back in, plus the profile you fill "
+     "in so we can match gigs to you. Analytics are counted on our own server "
+     "with no third-party trackers and no advertising cookies. Nothing is "
+     "sold, and nothing is shared."),
+    ("Why is a gig in the wrong category?",
+     "Categories are worked out from the words in each post, so it gets most "
+     "of them right and occasionally gets one wrong. If you spot a bad one, "
+     "the feedback box on the dashboard goes straight to the person building "
+     "this."),
+]
+
+
+def view_faq():
+    """Common questions, in their own place rather than cluttering the board."""
+    with st.container():
+        st.markdown('<span class="gr-faq-mark"></span>'
+                    '<div class="gr-about"><h2>Questions, answered.</h2></div>',
+                    unsafe_allow_html=True)
+        for q, a in _FAQ:
+            with st.expander(q):
+                st.markdown(f'<div class="gr-faq-a">{a}</div>',
+                            unsafe_allow_html=True)
+        _b1, _b2, _b3 = st.columns([1, 1.4, 1])
+        with _b2:
+            if st.button("← Back to the board", width="stretch", key="faqback"):
+                st.query_params["nav"] = "dashboard"
+                st.rerun()
+
+
 def feedback_card(where="dashboard"):
     """
     Ask what's wrong with it.
@@ -1915,7 +1983,7 @@ def view_admin():
                 tooltip=[alt.Tooltip("day:T", title="Day"),
                          alt.Tooltip("sessions:Q", title="Visitors")],
             ).properties(height=170),
-            use_container_width=True)
+            width="stretch")
         st.caption(f"{tr['total_sessions']:,} visitors over {tr['days_kept']} "
                    f"day(s) of history.")
     else:
@@ -2031,6 +2099,9 @@ def view_admin():
 # Top nav bar (+ stat-card click navigation via query params)
 # ---------------------------------------------------------------------------
 _TABS = ["Dashboard", "Gigs", "Market", "Alerts"]
+# Pages that live outside the tab strip: reachable by ?nav=, linked from the
+# footer and the account menu, and they never light up a tab.
+_SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ"}
 
 # The admin panel replaces the whole page — nothing else needs to render.
 if analytics.ADMIN_KEY and st.query_params.get("admin", "") == analytics.ADMIN_KEY:
@@ -2039,17 +2110,12 @@ if analytics.ADMIN_KEY and st.query_params.get("admin", "") == analytics.ADMIN_K
 
 if "nav" in st.query_params:
     _nav = st.query_params.get("nav", "").lower()
-    if _nav == "profile":
-        st.session_state["_profile"] = True
-        st.session_state["_about"] = False
-    elif _nav == "about":
-        st.session_state["_about"] = True
-        st.session_state["_profile"] = False
+    if _nav in _SIDE_PAGES:
+        st.session_state["_page"] = _nav
     else:
         _idx = {t.lower(): i for i, t in enumerate(_TABS)}.get(_nav)
         if _idx is not None:
             st.session_state["_navidx"] = _idx
-            st.session_state["_about"] = False
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
             st.session_state["catfilter"] = st.query_params.get("cat", "")
             st.session_state["groupfilter"] = st.query_params.get("group", "")
@@ -2060,7 +2126,7 @@ if "nav" in st.query_params:
                 if _val:
                     analytics.track("click", f"{_kind}:{_val}", SID)
                     break
-        st.session_state["_profile"] = False
+        st.session_state["_page"] = ""      # a real tab leaves any info page
     st.query_params.clear()
 
 _bcol, _ncol, _rcol = st.columns([2.0, 4.9, 1.3], vertical_alignment="center")
@@ -2076,19 +2142,19 @@ with _bcol:
 # click land in the same place — no more manual_select juggling.
 selected = _TABS[st.session_state.get("_navidx", 0)]
 with _ncol:
-    _side = st.session_state.get("_profile") or st.session_state.get("_about")
+    _side = bool(st.session_state.get("_page"))
     _links = "".join(
         f'<a class="{"on" if t == selected and not _side else ""}" '
         f'href="?nav={t.lower()}" target="_self">{t}</a>'
         for t in _TABS)
     st.markdown(f'<div class="gr-nav">{_links}</div>', unsafe_allow_html=True)
 
-# Leaving Profile / About is handled where ?nav= is dispatched: a tab link
-# clears both flags there, so the old "did the component's value change?"
-# bookkeeping (_omprev) that the iframe menu needed is gone.
-_on_profile = bool(st.session_state.get("_profile"))
-_on_about = bool(st.session_state.get("_about"))
-active = "About" if _on_about else ("Profile" if _on_profile else selected)
+# Leaving an info page is handled where ?nav= is dispatched: a tab link clears
+# _page there, so the old "did the component's value change?" bookkeeping the
+# iframe menu needed is gone.
+_page = st.session_state.get("_page", "")
+_on_profile = _page == "profile"
+active = _SIDE_PAGES.get(_page) or selected
 
 with _rcol:
     _name = (prof.get("name") or "").strip()
@@ -2150,11 +2216,16 @@ elif active == "Profile":
     view_profile(PRO)
 elif active == "About":
     view_about()
+elif active == "FAQ":
+    view_faq()
 
 st.markdown(
     '<div class="gr-footer">'
     '<span class="brand">Nabbly</span>'
     '<span class="tag">Every gig. The moment it drops.</span>'
+    '<div class="foot-links">'
     '<a class="foot-link" href="?nav=about" target="_self">About</a>'
+    '<a class="foot-link" href="?nav=faq" target="_self">FAQ</a>'
+    '</div>'
     '<span class="meta">An early preview, built in the open · © 2026</span>'
     '</div>', unsafe_allow_html=True)

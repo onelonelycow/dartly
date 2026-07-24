@@ -1,4 +1,8 @@
-streamlit>=1.42          # st.login / st.user need 1.42+
+# PINNED ON PURPOSE. Render installs the newest match on every build, so an
+# unbounded range means an upstream release can break a deploy on a commit
+# that changed nothing. 1.59 is the floor we test against (st.login/st.user
+# need >=1.42; width="stretch" needs a recent one); <2 keeps a major out.
+streamlit>=1.59,<2
 pandas>=2.0
 altair>=5.0
 requests>=2.31
