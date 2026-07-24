@@ -24,6 +24,11 @@ ENABLE_SOURCES = [
     # Config-only boards (see RSS_SOURCES below)
     "dribbble", "himalayas", "nodesk", "pythonjobs", "larajobs", "wpjobs",
     "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
+    # vertical backfill
+    "jobicy_health", "jobicy_legal", "jobicy_finance", "jobicy_edu",
+    "jobicy_writing", "jobicy_hr", "jobicy_admin", "jobicy_support",
+    "jobicy_design", "jobicy_pm", "jobicy_business", "jobicy_mgmt",
+    "jobicy_marketing", "wwr_fullstack", "wwr_product",
 ]
 
 # ---------------------------------------------------------------------------
@@ -66,6 +71,41 @@ RSS_SOURCES = {
                     "label": "We Work Remotely", "source": "weworkremotely"},
     "wwr_other":  {"url": "https://weworkremotely.com/categories/all-other-remote-jobs.rss",
                    "label": "We Work Remotely", "source": "weworkremotely"},
+
+    # --- Vertical backfill (slow cadence; see sources._SLOW_EVERY) ------------
+    # Healthcare, legal, finance, education, HR and admin barely appear in the
+    # general boards. These category feeds are where those verticals actually
+    # live, and they fold into their parent source so they dedupe against it.
+    "jobicy_health": {"url": "https://jobicy.com/?feed=job_feed&job_categories=healthcare",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_legal": {"url": "https://jobicy.com/?feed=job_feed&job_categories=legal",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_finance": {"url": "https://jobicy.com/?feed=job_feed&job_categories=accounting-finance",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_edu": {"url": "https://jobicy.com/?feed=job_feed&job_categories=education",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_writing": {"url": "https://jobicy.com/?feed=job_feed&job_categories=copywriting",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_hr": {"url": "https://jobicy.com/?feed=job_feed&job_categories=hr",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_admin": {"url": "https://jobicy.com/?feed=job_feed&job_categories=admin",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_support": {"url": "https://jobicy.com/?feed=job_feed&job_categories=technical-support",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_design": {"url": "https://jobicy.com/?feed=job_feed&job_categories=design-multimedia",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_pm": {"url": "https://jobicy.com/?feed=job_feed&job_categories=project-management",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_business": {"url": "https://jobicy.com/?feed=job_feed&job_categories=business",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_mgmt": {"url": "https://jobicy.com/?feed=job_feed&job_categories=management",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "jobicy_marketing": {"url": "https://jobicy.com/?feed=job_feed&job_categories=marketing",
+                   "label": "Jobicy", "source": "jobicy", "slow": True},
+    "wwr_fullstack": {"url": "https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss",
+                   "label": "We Work Remotely", "source": "weworkremotely", "slow": True},
+    "wwr_product": {"url": "https://weworkremotely.com/categories/remote-product-jobs.rss",
+                   "label": "We Work Remotely", "source": "weworkremotely", "slow": True},
 }
 
 # Subreddits where CLIENTS post gigs. slavelabour = small/micro paid tasks.

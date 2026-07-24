@@ -349,11 +349,25 @@ _FETCHERS = {
 }
 
 
+# Category feeds are breadth, not freshness: the main board feed already brings
+# the newest rows, and these backfill the verticals it under-reports. Polling 20
+# of them on the 2-minute ingest loop would be several hundred requests an hour
+# at one host, which is both rude and a good way to get blocked, so anything
+# marked "slow" is fetched once every _SLOW_EVERY passes instead.
+_SLOW_EVERY = 15          # ~every 30 min against a 2-minute loop
+_cycle = 0
+
+
 def fetch_all() -> list[dict]:
+    global _cycle
+    _cycle += 1
     out = []
     for name in config.ENABLE_SOURCES:
         fetcher = _FETCHERS.get(name)
-        if fetcher is None and name in config.RSS_SOURCES:
+        spec = config.RSS_SOURCES.get(name)
+        if fetcher is None and spec is not None:
+            if spec.get("slow") and _cycle % _SLOW_EVERY != 1:
+                continue
             fetcher = functools.partial(fetch_rss, name)
         if not fetcher:
             continue
