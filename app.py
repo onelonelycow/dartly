@@ -169,14 +169,14 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
    and set a ~117px floor under the header that nothing outside could fix.
    These are ordinary anchors using the same ?nav= routing the rest of the app
    already uses, so media queries reach them and the row stays one line. */
-.gr-nav{display:flex;justify-content:center;align-items:center;gap:4px;
+.gr-nav{display:flex;justify-content:center;align-items:center;gap:8px;
   flex-wrap:nowrap}
 /* Streamlit paints markdown links its own accent colour, which washed out the
    active pill's label and made the inactive tabs read as links, so the colours
    here have to win outright. */
-.gr-nav a,.gr-nav a:link,.gr-nav a:visited{font-size:14px;font-weight:600;
-  color:#c3cad3!important;text-decoration:none!important;padding:9px 16px;
-  border-radius:8px;white-space:nowrap;letter-spacing:-.1px;
+.gr-nav a,.gr-nav a:link,.gr-nav a:visited{font-size:15.5px;font-weight:600;
+  color:#c3cad3!important;text-decoration:none!important;padding:10px 22px;
+  border-radius:9px;white-space:nowrap;letter-spacing:-.1px;
   transition:background .15s,color .15s}
 .gr-nav a:hover{background:rgba(232,147,58,.12);color:#eaa662!important}
 .gr-nav a.on,.gr-nav a.on:link,.gr-nav a.on:visited,.gr-nav a.on:hover{
@@ -185,6 +185,17 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
   transition:opacity .14s ease}
 .gr-home:hover{opacity:.8}
 .gr-home svg{width:150px;height:auto;display:block}
+/* The content sits in a centred column, but the TOP BAR spans the full width:
+   the logo anchors the far-left corner and the avatar the far-right, the way a
+   real app bar reads. It breaks out of the container's max-width with symmetric
+   negative margins, then pads itself back off the very edges. */
+div[data-testid="stHorizontalBlock"]:has(.gr-home){
+  margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);
+  width:100vw;max-width:100vw;box-sizing:border-box;
+  padding:0 clamp(22px, 4vw, 64px) 12px;
+  border-bottom:1px solid #23272f}   /* a full-width bar rule, so the divider below it goes */
+/* 100vw includes the scrollbar, so clip the hair of overflow it would add. */
+[data-testid="stAppViewContainer"],[data-testid="stMain"]{overflow-x:hidden}
 /* The avatar's wrappers were pinned to a 22px line box, so a 38px avatar
    overflowed downward instead of the column growing to hold it. */
 [data-testid="stColumn"]:has(.gr-acct)
@@ -2414,7 +2425,9 @@ with _rcol:
         f'{_last}'
         f'</div></div></div>', unsafe_allow_html=True)
 
-st.divider()
+# (No st.divider here any more — the full-width top bar carries its own bottom
+# border, so a second centred rule under it would just look like a stray line.)
+st.write("")
 
 # A quick-filter / category (from a Dashboard click) only lives while on Gigs.
 if active != "Gigs":
