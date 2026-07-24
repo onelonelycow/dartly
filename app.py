@@ -2385,7 +2385,14 @@ with _rcol:
     else:
         _who, _plan = _name or "Your account", "Not signed in"
         _last = '<a href="?nav=signin" target="_self">Sign in</a>'
-    _init = (_who[:1].upper() if _who != "Your account" else "") or "•"
+    # Signed in (or a local name filled in) → their initial. Anonymous → a small
+    # person icon rather than a lone dot that reads as a stray period.
+    _user_icon = ('<svg width="18" height="18" viewBox="0 0 24 24" '
+                  'style="opacity:.75" xmlns="http://www.w3.org/2000/svg">'
+                  '<circle cx="12" cy="8.2" r="3.7" fill="currentColor"/>'
+                  '<path d="M4.8 20c0-3.7 3.2-5.7 7.2-5.7s7.2 2 7.2 5.7z" '
+                  'fill="currentColor"/></svg>')
+    _init = _who[:1].upper() if _who != "Your account" else _user_icon
     st.markdown(
         f'<div style="display:flex;justify-content:flex-end;padding-right:2px">'
         f'<div class="gr-acct">'
