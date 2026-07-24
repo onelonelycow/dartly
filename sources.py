@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from urllib.parse import quote_plus
 
 import requests
+import functools
+
 import feedparser
 
 import config
@@ -300,6 +302,42 @@ def fetch_weworkremotely() -> list[dict]:
 # ---------------------------------------------------------------------------
 # registry + orchestration
 # ---------------------------------------------------------------------------
+def fetch_rss(key: str) -> list[dict]:
+    """
+    Any board that publishes an RSS feed, driven entirely by config.
+
+    Every other fetcher here is bespoke code for one site, which is fine for
+    seven boards and hopeless for seventy. This one reads config.RSS_SOURCES,
+    so adding a board is a line of config rather than a new function to write
+    and keep alive.
+    """
+    spec = config.RSS_SOURCES.get(key) or {}
+    url = spec.get("url")
+    if not url:
+        return []
+    # Several feeds can belong to one board (per-category feeds), in which case
+    # they share a source name and dedupe against each other on source_id.
+    src = spec.get("source", key)
+    r = _get(url)
+    if r.status_code != 200:
+        print(f"  ! {key}: HTTP {r.status_code}")
+        return []
+    out = []
+    for e in feedparser.parse(r.content).entries:
+        link = e.get("link", "")
+        if not link:
+            continue
+        out.append({
+            "source": src,
+            "source_id": e.get("id") or link,
+            "url": link,
+            "title": _strip(e.get("title", "")),
+            "body": _strip(e.get("summary", "") or e.get("description", "")),
+            "posted_at": str(e.get("published") or e.get("updated") or ""),
+        })
+    return out
+
+
 _FETCHERS = {
     "reddit": fetch_reddit,
     "freelancer": fetch_freelancer,
@@ -315,6 +353,8 @@ def fetch_all() -> list[dict]:
     out = []
     for name in config.ENABLE_SOURCES:
         fetcher = _FETCHERS.get(name)
+        if fetcher is None and name in config.RSS_SOURCES:
+            fetcher = functools.partial(fetch_rss, name)
         if not fetcher:
             continue
         print(f"Fetching {name}…")

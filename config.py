@@ -21,7 +21,52 @@ ENABLE_SOURCES = [
     "arbeitnow",       # Arbeitnow — remote/EU jobs
     "jobicy",          # Jobicy — remote jobs
     "weworkremotely",  # We Work Remotely — remote jobs
+    # Config-only boards (see RSS_SOURCES below)
+    "dribbble", "himalayas", "nodesk", "pythonjobs", "larajobs", "wpjobs",
+    "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
 ]
+
+# ---------------------------------------------------------------------------
+# Boards added by CONFIG rather than code.
+#
+# Every source above needed a bespoke fetcher, which does not scale to "a board
+# for every career" — each new one is code to write and maintain. Anything that
+# publishes an RSS feed can be switched on with one line here instead, so the
+# bottleneck becomes finding good feeds rather than writing scrapers.
+#
+# Each entry was probed before being added; a feed that returned nothing or an
+# article list instead of jobs was left out. "source" lets several feeds fold
+# into one board (We Work Remotely publishes per-category feeds that carry rows
+# its main feed misses; they dedupe against it because they share a source).
+#
+# WORTH KNOWING: the verticals people ask for most (media, journalism, video,
+# nonprofit) publish no feeds at all — ProductionHUB, Mandy, Stage32, Poynter,
+# Idealist and Video Consortium were all checked and none expose one. Their
+# demand lives in Slack rooms and listservs, which no crawler can reach. That
+# gap is an inbox problem, not a scraping one.
+# ---------------------------------------------------------------------------
+RSS_SOURCES = {
+    "dribbble":   {"url": "https://dribbble.com/jobs.rss",
+                   "label": "Dribbble"},
+    "himalayas":  {"url": "https://himalayas.app/jobs/rss",
+                   "label": "Himalayas"},
+    "nodesk":     {"url": "https://nodesk.co/remote-jobs/index.xml",
+                   "label": "NoDesk"},
+    "pythonjobs": {"url": "https://www.python.org/jobs/feed/rss/",
+                   "label": "Python.org"},
+    "larajobs":   {"url": "https://larajobs.com/feed",
+                   "label": "LaraJobs"},
+    "wpjobs":     {"url": "https://jobs.wordpress.net/feed/",
+                   "label": "WordPress Jobs"},
+    "wwr_design": {"url": "https://weworkremotely.com/categories/remote-design-jobs.rss",
+                   "label": "We Work Remotely", "source": "weworkremotely"},
+    "wwr_devops": {"url": "https://weworkremotely.com/categories/remote-devops-sysadmin-jobs.rss",
+                   "label": "We Work Remotely", "source": "weworkremotely"},
+    "wwr_support": {"url": "https://weworkremotely.com/categories/remote-customer-support-jobs.rss",
+                    "label": "We Work Remotely", "source": "weworkremotely"},
+    "wwr_other":  {"url": "https://weworkremotely.com/categories/all-other-remote-jobs.rss",
+                   "label": "We Work Remotely", "source": "weworkremotely"},
+}
 
 # Subreddits where CLIENTS post gigs. slavelabour = small/micro paid tasks.
 SUBREDDITS = ["forhire", "freelance_forhire", "jobbit", "slavelabour"]
@@ -164,5 +209,9 @@ SOURCE_LABELS = {
 
 def source_label(key: str) -> str:
     """Pretty name for a source, falling back to the raw key."""
-    return SOURCE_LABELS.get((key or "").lower(), key or "")
+    key = (key or "").lower()
+    if key in SOURCE_LABELS:
+        return SOURCE_LABELS[key]
+    spec = RSS_SOURCES.get(key)
+    return (spec or {}).get("label") or key
 
