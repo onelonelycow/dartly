@@ -57,7 +57,10 @@ st.markdown("""
 .gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
   border-radius:14px;padding:15px 16px 16px;position:relative;overflow:hidden}
-.gr-stat .accent{position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 4px 4px 0}
+/* Four saturated bars competing for attention read as noise. Keep the colour
+   as a quiet cue, not a stripe: thinner, dimmer, shorter. */
+.gr-stat .accent{position:absolute;left:0;top:18px;bottom:18px;width:2px;
+  border-radius:0 3px 3px 0;opacity:.55}
 .gr-stat .l{font-size:12.5px;color:#98a0ab;font-weight:500;margin:0 0 9px}
 .gr-stat .n{font-size:31px;font-weight:600;color:#f2f4f7;line-height:1;
   font-variant-numeric:tabular-nums}
@@ -227,12 +230,17 @@ header[data-testid="stHeader"]{height:0;background:transparent}
    The old first-run experience was a banner telling you to go to another tab.
    This asks the one question that matters and answers it live, before you
    commit to anything. */
-.gr-onb{max-width:640px;margin:0 auto 4px;padding:20px 22px 8px;text-align:center;
-  background:linear-gradient(180deg,rgba(232,147,58,.10),rgba(232,147,58,.03));
-  border:1px solid rgba(232,147,58,.30);border-radius:16px}
-.gr-onb-h{font-size:20px;font-weight:700;color:#f2f4f7;letter-spacing:-.35px;margin-bottom:5px}
-.gr-onb-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:48ch;margin:0 auto}
-.gr-onb-hit{max-width:640px;margin:12px auto 2px;text-align:center;font-size:15.5px;
+/* --- The one control on the front page -------------------------------------
+   This used to be an amber banner with the input escaping full-bleed beneath
+   it — two disconnected pieces, and the only element on the page not sharing
+   the centre column. It's one quiet, centred control now: a small label and
+   the field, both bounded to the same width as everything else. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-search-mark){
+  max-width:620px!important;margin-left:auto!important;margin-right:auto!important;
+  gap:6px!important}
+.gr-search-lbl{text-align:center;font-size:13.5px;font-weight:600;color:#98a0ab;
+  letter-spacing:.01em;margin:0 0 2px}
+.gr-onb-hit{max-width:620px;margin:10px auto 2px;text-align:center;font-size:15px;
   color:#b9c0c9;animation:gr-count .32s ease-out}
 .gr-onb-hit b{color:#E8933A;font-size:21px;font-weight:750;font-variant-numeric:tabular-nums}
 @keyframes gr-count{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -747,7 +755,17 @@ people.init()       # who signed up, their profile, and their feedback
 # this every scroll and click would look like a brand-new visitor.
 if "_sid" not in st.session_state:
     st.session_state["_sid"] = uuid.uuid4().hex[:12]
-    analytics.track("session", "", st.session_state["_sid"])
+    _sid = st.session_state["_sid"]
+    analytics.track("session", "", _sid)
+    # Where did they come from, and on what? Read once, from the request that
+    # opened the session. We keep only the referring host and a coarse device
+    # bucket — never the full URL, never anything identifying.
+    try:
+        _h = st.context.headers or {}
+        analytics.track("ref", analytics.referrer_label(_h.get("Referer", "")), _sid)
+        analytics.track("device", analytics.device_label(_h.get("User-Agent", "")), _sid)
+    except Exception:
+        pass          # header access must never break a page load
 SID = st.session_state["_sid"]
 
 
@@ -989,33 +1007,34 @@ def skills_search():
     as you pick, before you commit to anything, is the hook.
     """
     have = prof.get("skills") or []
-    sub = ("" if have else
-           '<div class="gr-onb-s">Pick a couple and the whole board re-sorts '
-           'around you.</div>')
-    st.markdown('<div class="gr-onb"><div class="gr-onb-h">What do you do?</div>'
-                + sub + '</div>', unsafe_allow_html=True)
-    picked = st.multiselect(
-        "Your skills", ALL_SKILLS, default=have, label_visibility="collapsed",
-        placeholder="Start typing — e.g. Design / creative, Writing / content")
+    with st.container():
+        st.markdown('<span class="gr-search-mark"></span>'
+                    '<div class="gr-search-lbl">What do you do?</div>',
+                    unsafe_allow_html=True)
+        picked = st.multiselect(
+            "Your skills", ALL_SKILLS, default=have, label_visibility="collapsed",
+            placeholder="Start typing a skill — design, writing, development…")
 
-    if picked:
-        srcs = sorted(df["source"].unique())
-        hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs, False, "")
-        fresh = recent_count(hit, 24)
-        bits = f"<b>{len(hit):,}</b> gigs fit you"
-        if fresh:
-            bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
-        st.markdown(f'<div class="gr-onb-hit">{bits}</div>', unsafe_allow_html=True)
+        if picked:
+            srcs = sorted(df["source"].unique())
+            hit = apply_filters(df, picked, ["Small", "Medium", "Large"], srcs,
+                                False, "")
+            fresh = recent_count(hit, 24)
+            bits = f"<b>{len(hit):,}</b> gigs fit you"
+            if fresh:
+                bits += f" &nbsp;·&nbsp; <b>{fresh:,}</b> posted today"
+            st.markdown(f'<div class="gr-onb-hit">{bits}</div>',
+                        unsafe_allow_html=True)
 
-    # Only offer the commit button when the picks differ from what's saved,
-    # so a returning person whose skills are already set sees a clean board,
-    # not a redundant call to action.
-    if picked and set(picked) != set(have):
-        if st.button("Show me these  →", type="primary", width="stretch"):
-            prof["skills"] = picked
-            profile_mod.save(prof)
-            note("click", "search:skills")
-            st.rerun()
+        # Only offer the commit button when the picks differ from what's saved,
+        # so a returning person whose skills are already set sees a clean board,
+        # not a redundant call to action.
+        if picked and set(picked) != set(have):
+            if st.button("Show me these  →", type="primary", width="stretch"):
+                prof["skills"] = picked
+                profile_mod.save(prof)
+                note("click", "search:skills")
+                st.rerun()
 
 
 @st.fragment(run_every=45)
@@ -1853,6 +1872,41 @@ def view_admin():
         ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
     ])
+
+    # --- Traffic: where it comes from and whether it's growing ---------------
+    tr = analytics.traffic_summary(30)
+    st.markdown("#### Traffic")
+    if tr["daily"]:
+        _d = pd.DataFrame(tr["daily"])
+        _d["day"] = pd.to_datetime(_d["day"])
+        st.altair_chart(
+            alt.Chart(_d).mark_bar(size=14, color="#E8933A", opacity=.85).encode(
+                x=alt.X("day:T", title=None, axis=alt.Axis(format="%b %d", grid=False)),
+                y=alt.Y("sessions:Q", title="Visitors", axis=alt.Axis(grid=True)),
+                tooltip=[alt.Tooltip("day:T", title="Day"),
+                         alt.Tooltip("sessions:Q", title="Visitors")],
+            ).properties(height=170),
+            use_container_width=True)
+        st.caption(f"{tr['total_sessions']:,} visitors over {tr['days_kept']} "
+                   f"day(s) of history.")
+    else:
+        st.caption("No traffic recorded yet.")
+
+    t1, t2 = st.columns(2)
+    with t1:
+        st.markdown("**Where they came from**")
+        if tr["refs"]:
+            st.dataframe(pd.DataFrame(tr["refs"], columns=["Source", "Visits"]),
+                         width="stretch", hide_index=True)
+        else:
+            st.caption("Nothing yet.")
+    with t2:
+        st.markdown("**What they're on**")
+        if tr["devices"]:
+            st.dataframe(pd.DataFrame(tr["devices"], columns=["Device", "Visits"]),
+                         width="stretch", hide_index=True)
+        else:
+            st.caption("Nothing yet.")
 
     c1, c2 = st.columns(2)
     with c1:

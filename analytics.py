@@ -100,6 +100,43 @@ def track(event: str, detail: str = "", session: str = ""):
         pass  # analytics must never take the app down
 
 
+# ---------------------------------------------------------------------------
+# Where the traffic came from
+# ---------------------------------------------------------------------------
+# Referrers arrive as full URLs; we only keep the host, and only long enough to
+# answer "is anyone actually coming from Reddit". No paths, no query strings,
+# nothing that could identify a person.
+_OWN_HOSTS = ("nabbly.co", "localhost", "127.0.0.1", "onrender.com")
+
+
+def referrer_label(referer: str) -> str:
+    """'https://www.reddit.com/r/forhire/x' -> 'reddit.com'. '' -> 'Direct'."""
+    ref = (referer or "").strip()
+    if not ref:
+        return "Direct"
+    try:
+        from urllib.parse import urlparse
+        host = (urlparse(ref).hostname or "").lower().lstrip("www.")
+    except Exception:
+        return "Other"
+    if not host:
+        return "Direct"
+    if any(host.endswith(h) for h in _OWN_HOSTS):
+        return "Direct"          # a click from one Nabbly page to another
+    return host[:60]
+
+
+def device_label(user_agent: str) -> str:
+    ua = (user_agent or "").lower()
+    if not ua:
+        return "Unknown"
+    if any(k in ua for k in ("iphone", "android", "ipod", "mobile")):
+        return "Mobile"
+    if "ipad" in ua or "tablet" in ua:
+        return "Tablet"
+    return "Desktop"
+
+
 def valid_email(email: str) -> bool:
     return bool(_EMAIL_RE.match((email or "").strip()))
 
@@ -189,6 +226,101 @@ def stats() -> dict:
     except sqlite3.Error:
         pass
     return out
+
+
+# ---------------------------------------------------------------------------
+# Surviving a redeploy
+# ---------------------------------------------------------------------------
+# The events table lives on Render's disk, which is wiped on every deploy, so
+# raw traffic history would reset each time you ship. Rather than write every
+# page view straight to Supabase (a network round trip per view would slow the
+# page down), we roll each day up into one small record and mirror that. Days
+# are immutable once past, so re-sending today's rollup repeatedly is cheap and
+# always correct.
+_ANALYTICS_SCOPE = "_analytics"
+
+
+def _day_bounds(day: str):
+    return f"{day}T00:00:00+00:00", f"{day}T23:59:59+00:00"
+
+
+def day_rollup(day: str) -> dict:
+    """Everything that happened on one UTC day, as a small dict."""
+    lo, hi = _day_bounds(day)
+    out = {"sessions": 0, "views": {}, "clicks": {}, "refs": {}, "devices": {}}
+    try:
+        conn = _connect()
+        out["sessions"] = _count(
+            conn, "SELECT COUNT(DISTINCT session) FROM events "
+                  "WHERE event='session' AND ts BETWEEN ? AND ?", lo, hi)
+        for key, ev in (("views", "view"), ("clicks", "click"),
+                        ("refs", "ref"), ("devices", "device")):
+            out[key] = {r["detail"]: r["n"] for r in conn.execute(
+                "SELECT detail, COUNT(*) n FROM events WHERE event=? "
+                "AND ts BETWEEN ? AND ? GROUP BY detail ORDER BY n DESC LIMIT 25",
+                (ev, lo, hi))}
+        conn.close()
+    except sqlite3.Error:
+        pass
+    return out
+
+
+def flush(days_back: int = 2) -> int:
+    """
+    Mirror recent days to the durable store. Returns how many days were sent.
+
+    Covers a couple of days rather than just today so a deploy that happens
+    right after midnight doesn't strand yesterday's numbers on the dead disk.
+    """
+    import store
+    if not store.enabled():
+        return 0
+    sent = 0
+    today = datetime.now(timezone.utc).date()
+    for back in range(days_back):
+        day = (today - timedelta(days=back)).isoformat()
+        roll = day_rollup(day)
+        if roll["sessions"] or roll["views"]:
+            if store.put(_ANALYTICS_SCOPE, day, roll):
+                sent += 1
+    return sent
+
+
+def history(days: int = 30) -> list:
+    """
+    [(day, rollup)] oldest-first, merging the durable store with today's live
+    local numbers so the newest day is never stale.
+    """
+    import store
+    saved = store.list_scope(_ANALYTICS_SCOPE) or {}
+    today = datetime.now(timezone.utc).date()
+    live = day_rollup(today.isoformat())
+    if live["sessions"] or live["views"]:
+        saved[today.isoformat()] = live
+    cutoff = (today - timedelta(days=days)).isoformat()
+    return sorted(((d, r) for d, r in saved.items() if d >= cutoff),
+                  key=lambda x: x[0])
+
+
+def traffic_summary(days: int = 30) -> dict:
+    """Totals across the retained history — what the admin panel charts."""
+    hist = history(days)
+    refs, devices, daily = {}, {}, []
+    total = 0
+    for day, r in hist:
+        total += r.get("sessions", 0)
+        daily.append({"day": day, "sessions": r.get("sessions", 0)})
+        for k, v in (r.get("refs") or {}).items():
+            refs[k] = refs.get(k, 0) + v
+        for k, v in (r.get("devices") or {}).items():
+            devices[k] = devices.get(k, 0) + v
+    return {
+        "daily": daily,
+        "total_sessions": total,
+        "refs": sorted(refs.items(), key=lambda x: -x[1]),
+        "devices": sorted(devices.items(), key=lambda x: -x[1]),
+        "days_kept": len(daily),
+    }
 
 
 def signup_rows() -> list:

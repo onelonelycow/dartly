@@ -68,6 +68,14 @@ def _loop():
                 gap = (min(gaps) if gaps else 15) * 60
             except Exception:
                 gap = _ALERT_MIN_GAP_S
+            # Mirror traffic to the durable store each cycle. Cheap (one small
+            # record per day) and it means a redeploy can't wipe the history.
+            try:
+                import analytics
+                analytics.flush()
+            except Exception:
+                pass
+
             if time.time() - last_alert >= gap:
                 # One pass per signed-in person, each against their own skills
                 # and their own channels. notify_new() is the single-user path
