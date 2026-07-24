@@ -396,15 +396,25 @@ def notify_everyone(desktop: bool = False) -> int:
     import db as _db
 
     pinged = 0
-    rows = _db.all_posts(demand_only=True)
-    if not rows:
+    public = _db.all_posts(demand_only=True)
+    # The marker has to run off the true top of the table, not the top of the
+    # public board — a forwarded gig with a higher id would otherwise stay above
+    # every marker and re-alert on every cycle.
+    newest = _db.max_post_id()
+    if not newest:
         return 0
-    newest = max(int(r["id"]) for r in rows)
 
     for acc in accounts.all_accounts():
         if not accounts.status(acc)["pro"]:
             continue                      # trial over: alerts are a Pro feature
-        paths.set_scope(paths.scope_for(acc["email"]))
+        scope = paths.scope_for(acc["email"])
+        paths.set_scope(scope)
+        # Their own forwarded gigs count as theirs to be alerted about, and are
+        # often the most valuable ones on their board.
+        mine = _db.owned_posts(scope)
+        rows = sorted(public + mine,
+                      key=lambda r: str(r.get("posted_at") or r.get("fetched_at") or ""),
+                      reverse=True) if mine else public
         prefs = load_prefs()
         if not any(prefs.get(k) for k in
                    ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):

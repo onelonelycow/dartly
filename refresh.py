@@ -53,6 +53,19 @@ def _loop():
             _state["runs"] += 1
             _state["last"] = time.time()
 
+            # Read anything people forwarded to their Nabbly address. Runs right
+            # after the fetch so forwarded gigs are on the board before the
+            # alert pass below decides who to ping. No-op unless the mailbox is
+            # configured.
+            try:
+                import inbox
+                if inbox.enabled():
+                    got = inbox.poll()
+                    _state["inbox_gigs"] = _state.get("inbox_gigs", 0) + got["gigs"]
+                    _state["inbox_last"] = time.time()
+            except Exception:
+                pass
+
             # Batch anything that landed since the last ping. The fetch runs
             # every 2 minutes, but pinging that often all day is how people end
             # up muting you, so the gap is the user's call now — read fresh

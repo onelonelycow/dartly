@@ -35,6 +35,7 @@ import score
 import location
 import drafts
 import refresh
+import inbox
 import analytics
 import people
 import paths
@@ -54,6 +55,10 @@ st.set_page_config(page_title="Nabbly",
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
 st.markdown("""
 <style>
+/* Section headings speak the wordmark's language: the last word in amber, the
+   way "ly" is amber in Nabbly. Replaces the scattered emoji prefixes so every
+   heading reads as one family. */
+.gr-accent{color:#E8933A}
 .gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
   border-radius:14px;padding:15px 16px 16px;position:relative;overflow:hidden}
@@ -491,6 +496,21 @@ div[data-testid="stForm"]{border:0;padding:0}
   [data-testid="stButtonGroup"] button[role="radio"] > *{
     width:auto!important;overflow:visible!important;text-overflow:clip!important}
 }
+
+/* "New gigs arrived" nudge — a small, centred outline chip, not a full-width
+   amber slab. Outline instead of fill, amber only in the text, so it invites a
+   tap without breaking the calm of the page. Scoped to this one button by its
+   key (Streamlit tags the container .st-key-arrivals). */
+.st-key-arrivals{display:flex;justify-content:center;margin:0 0 12px}
+.st-key-arrivals button{
+  width:auto!important;min-height:0!important;
+  background:#171a20!important;border:1px solid rgba(232,147,58,.28)!important;
+  color:#e0a35f!important;border-radius:999px!important;
+  padding:6px 15px!important;box-shadow:none!important;transition:.15s}
+.st-key-arrivals button:hover{
+  background:#1c2027!important;border-color:rgba(232,147,58,.55)!important;
+  transform:none!important}
+.st-key-arrivals button p{font-size:13px!important;font-weight:500!important;margin:0!important}
 </style>
 """, unsafe_allow_html=True)
 
@@ -742,8 +762,15 @@ def source_pill(src: str):
 # ---------------------------------------------------------------------------
 # Shared data
 # ---------------------------------------------------------------------------
-def load_feed():
-    posts = db.all_posts(demand_only=True)
+@st.cache_data(ttl=45, max_entries=64, show_spinner=False)
+def _feed_for_scope(scope: str):
+    """
+    Build the de-duplicated board for one viewer. Cached, because this is the
+    expensive bit: reading every row from SQLite, tokenising each title and
+    dropping near-duplicates. It used to run three times on every rerun — every
+    keystroke in the search box — which is exactly why searching felt slow.
+    """
+    posts = db.all_posts(demand_only=True, owner=scope)
     if not posts:
         return pd.DataFrame(), 0
     df = pd.DataFrame(posts)
@@ -756,6 +783,17 @@ def load_feed():
     before = len(df)
     df = df[df["_key"] != ""].drop_duplicates(subset="_key", keep="first")
     return df, before - len(df)
+
+
+def load_feed():
+    # Scoped to whoever is looking: the public board, plus anything they
+    # forwarded to their own Nabbly address. Never anyone else's forwards.
+    # The 45s cache keeps rapid interactions instant while staying fresh against
+    # the ~2-minute background fetch; "Check for new gigs" clears it on demand.
+    # We hand back a copy so a caller filtering the frame can't corrupt the
+    # shared cached object.
+    df, dropped = _feed_for_scope(paths.get_scope())
+    return df.copy(), dropped
 
 
 db.ensure_seeded()  # first run on a fresh deploy loads the bundled seed.db
@@ -1066,8 +1104,11 @@ def arrivals_pill():
     n = len(newer)
     if not n:
         return
-    if st.button(f"⚡  {n} new gig{'s' if n > 1 else ''} landed while you were here  →",
-                 key="arrivals", type="primary", width="stretch"):
+    # A quiet, centred chip (styled via .st-key-arrivals) rather than a bright
+    # full-width bar. It should read as a gentle "there's more" nudge inside the
+    # flow, not an alert shouting over the page.
+    if st.button(f"↻  Show {n} new gig{'s' if n > 1 else ''}",
+                 key="arrivals", type="secondary"):
         st.session_state["_seen_max_id"] = newest
         note("click", "arrivals")
         st.rerun()
@@ -1163,12 +1204,14 @@ def view_dashboard(pro):
     arrivals_pill()
     draft_showcase(pro)
     if prof.get("skills"):
-        st.markdown("### 🎯 Picked for you")
+        st.markdown('### Picked for <span class="gr-accent">you</span>',
+                    unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
                                    srcs, False, "")).head(5)
     else:
-        st.markdown("### 🔥 Fresh off the boards")
+        st.markdown('### Fresh off the <span class="gr-accent">boards</span>',
+                    unsafe_allow_html=True)
         top = df.head(5)
 
     if top.empty:
@@ -1191,23 +1234,26 @@ def view_dashboard(pro):
 
 
 def view_gigs(pro):
-    st.markdown("### 📡 The whole board")
+    st.markdown('### The whole <span class="gr-accent">board</span>',
+                unsafe_allow_html=True)
     head = st.columns([1, 2])
     with head[0]:
         if st.button("🔄 Check for new gigs", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
+            _feed_for_scope.clear()      # new gigs should show at once, not in 45s
             st.rerun()
     if df.empty:
         st.info("Nothing here yet — hit **Check for new gigs** and we'll grab the latest.")
         return
 
     # Search sits at the top, pre-filled when someone arrived here by searching
-    # from the dashboard. It used to be buried in the "Narrow it down" drawer,
-    # which is a strange place for the thing people reach for first.
-    _sq = st.text_input("Search gigs", value=st.session_state.get("searchq", ""),
-                        placeholder="Search titles and descriptions — figma, shopify…",
-                        label_visibility="collapsed", key="gigsearch")
+    # from the dashboard. Kept to a readable width rather than stretched across
+    # the page — a search box doesn't need to be a metre wide to be found.
+    _sc, _ = st.columns([3, 2])
+    _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
+                         placeholder="Search gigs — figma, shopify, medical…",
+                         label_visibility="collapsed", key="gigsearch")
     kw = (_sq or "").strip().lower()
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
@@ -1240,10 +1286,11 @@ def view_gigs(pro):
                 note("click", "filter:saveskills")
                 st.rerun()
 
-    view = apply_filters(df, skills, sizes, sources, urgent, kw)
-    view = apply_location(view, loc_mode)
-    if pro:
-        view = scored(view)
+    with st.spinner(f"Searching for “{kw}”…" if kw else "Loading the board…"):
+        view = apply_filters(df, skills, sizes, sources, urgent, kw)
+        view = apply_location(view, loc_mode)
+        if pro:
+            view = scored(view)
 
     # Answer the search plainly, including when it finds nothing — an empty
     # board with no explanation reads as broken rather than as "no matches".
@@ -1327,7 +1374,8 @@ def view_gigs(pro):
 
 
 def view_market(pro):
-    st.markdown("### 📊 What gigs like yours are paying")
+    st.markdown('### What gigs like yours are <span class="gr-accent">paying</span>',
+                unsafe_allow_html=True)
     if not pro:
         st.info("🔒 This one's a **Pro** perk. See what work like yours actually pays, "
                 "what's hot this week, and which posts are lowballing — pulled from "
@@ -1435,7 +1483,8 @@ def _chan_status(ui_value, env_key):
 
 
 def view_alerts(pro):
-    st.markdown("### 🔔 We'll tap you on the shoulder")
+    st.markdown('### We\'ll tap you on the <span class="gr-accent">shoulder</span>',
+                unsafe_allow_html=True)
     if not pro:
         st.info("🔒 A **Pro** perk. The moment a gig that fits you lands, we'll ping you — "
                 "so you're first to reply. Turn it on by upgrading in your **Profile**.")
@@ -1572,8 +1621,42 @@ def view_alerts(pro):
                "**Send a test ping** to confirm your channels are wired up.")
 
 
+def inbox_card():
+    """
+    Someone's private forwarding address.
+
+    The best work in a lot of fields never touches a job board — it goes out on
+    a listserv or a paid newsletter that no crawler can reach. This is the way
+    in: forward it once and the gigs land on your board like any other.
+    """
+    st.markdown('#### Forward your <span class="gr-accent">newsletters</span>',
+                unsafe_allow_html=True)
+    if not inbox.enabled():
+        st.caption("Coming shortly — your own address for forwarding the "
+                   "mailing lists and newsletters the job boards never see.")
+        return
+    if not ACCESS["signed_in"]:
+        st.caption("Sign in and you get your own address to forward mailing "
+                   "lists and newsletters to. Whatever you send lands on your "
+                   "board, and only yours.")
+        return
+    st.markdown("A lot of the best work goes out on a listserv or a paid "
+                "newsletter, never a job board. Forward one here and we'll "
+                "pull the gigs out of it for you.")
+    st.code(inbox.address_for(ACCESS["email"]), language=None)
+    mine = db.owned_posts(paths.get_scope())
+    if mine:
+        st.caption(f"**{len(mine)}** gig{'' if len(mine) == 1 else 's'} in from "
+                   "your inbox so far, on your board only — nobody else sees them.")
+    else:
+        st.caption("Nothing forwarded yet. Send your next one through, or set a "
+                   "rule in your mail app to forward them automatically. "
+                   "Whatever arrives stays private to you.")
+
+
 def view_profile(pro):
-    st.markdown("### 👋 Tell us about you")
+    st.markdown('### Tell us about <span class="gr-accent">you</span>',
+                unsafe_allow_html=True)
     st.caption("The more we know, the better the gigs we surface for you.")
 
     if ACCESS["signed_in"]:
@@ -1589,9 +1672,8 @@ def view_profile(pro):
                     st.logout()
                 st.rerun()
     else:
-        st.info("You're on **Nabbly Free**. Fill this in and we'll use it "
-                "straight away, and signing in from the **Dashboard** keeps it "
-                "for next time, plus 14 days of Pro.")
+        st.caption("We'll use this right away. Sign in from the **Dashboard** to "
+                   "keep it for next time.")
     pct = profile_mod.completeness(prof)
     st.progress(pct / 100, text=f"You're {pct}% set up")
 
@@ -1609,18 +1691,28 @@ def view_profile(pro):
         else:
             mcol.caption("Couldn't place you automatically — just pick your country below.")
 
+    # Everything past the three essentials lives in an optional section so a
+    # fresh profile isn't a wall of ten inputs. It opens on its own for anyone
+    # who already has details saved (or just detected their location), so we
+    # never hide someone's own data from them.
+    _has_extra = bool(geo) or any(prof.get(k) for k in
+        ("rate_floor", "keywords", "mute", "portfolio", "country", "city", "bio"))
+
     with st.form("profile_form"):
-        fc1, fc2 = st.columns(2)
-        with fc1:
-            f_name = st.text_input("Your name", value=prof.get("name", ""))
-            f_headline = st.text_input("What you do", value=prof.get("headline", ""),
-                                       placeholder="e.g. Brand & logo designer")
-            f_skills = st.multiselect("Your skills", ALL_SKILLS,
-                                      default=prof.get("skills", []))
-            f_portfolio = st.text_input("Where's your work?",
-                                        value=prof.get("portfolio", ""),
-                                        placeholder="your portfolio link")
-        with fc2:
+        st.markdown("**The essentials**")
+        f_name = st.text_input("Your name", value=prof.get("name", ""),
+                               placeholder="First name is plenty")
+        f_headline = st.text_input("What you do", value=prof.get("headline", ""),
+                                   placeholder="e.g. Brand & logo designer")
+        f_skills = st.multiselect("Your skills", ALL_SKILLS,
+                                  default=prof.get("skills", []),
+                                  help="The board sorts itself around these, so "
+                                       "this is the one that matters most.")
+
+        with st.expander("Fine-tune your matches   ·   optional",
+                         expanded=_has_extra):
+            st.caption("Rates, filters, and a couple of details for your replies. "
+                       "Skip anything — you can come back to it whenever.")
             rc1, rc2 = st.columns([2, 1])
             with rc1:
                 f_floor = st.number_input("Won't work below ($)", min_value=0, step=25,
@@ -1633,20 +1725,24 @@ def view_profile(pro):
                                        placeholder="logo, figma, brand")
             f_mute = st.text_input("Never show me", value=prof.get("mute", ""),
                                    placeholder="unpaid, commission only, crypto")
-        lc1, lc2 = st.columns(2)
-        with lc1:
-            _country = prof.get("country") or geo.get("country") or "Other / elsewhere"
-            _opts = location.COUNTRIES
-            f_country = st.selectbox("Where are you based?", _opts,
-                                     index=_opts.index(_country) if _country in _opts else len(_opts) - 1,
-                                     help="Used to hide remote gigs locked to other regions.")
-        with lc2:
-            f_city = st.text_input("Your city (for local, hands-on gigs)",
-                                   value=prof.get("city") or geo.get("city", ""),
-                                   placeholder="e.g. Portland")
-        f_bio = st.text_area("A line about you (we'll use it in your replies)",
-                             value=prof.get("bio", ""),
-                             placeholder="10+ yrs designing brand identities for small businesses.")
+            lc1, lc2 = st.columns(2)
+            with lc1:
+                _country = prof.get("country") or geo.get("country") or "Other / elsewhere"
+                _opts = location.COUNTRIES
+                f_country = st.selectbox("Where are you based?", _opts,
+                                         index=_opts.index(_country) if _country in _opts else len(_opts) - 1,
+                                         help="Used to hide remote gigs locked to other regions.")
+            with lc2:
+                f_city = st.text_input("Your city (for local, hands-on gigs)",
+                                       value=prof.get("city") or geo.get("city", ""),
+                                       placeholder="e.g. Portland")
+            f_portfolio = st.text_input("Where's your work?",
+                                        value=prof.get("portfolio", ""),
+                                        placeholder="your portfolio link")
+            f_bio = st.text_area("A line about you (we'll use it in your replies)",
+                                 value=prof.get("bio", ""),
+                                 placeholder="10+ yrs designing brand identities for small businesses.")
+
         if st.form_submit_button("💾 Save", width="stretch"):
             _saved = {
                 "name": f_name.strip(), "headline": f_headline.strip(),
@@ -1667,21 +1763,32 @@ def view_profile(pro):
             st.rerun()
 
     st.divider()
+    inbox_card()
+
+    st.divider()
     st.markdown("#### Your plan")
-    if pro:
+    if ACCESS["plan"] == "pro":
         st.success("You're on **Pro** — instant pings, drafted replies, ranked picks & "
                    "market rates. Thanks for backing us. 🧡")
-        if st.button("Switch back to Free"):
-            st.session_state.plan = "Free"
-            st.rerun()
+    elif ACCESS["pro"]:            # an active trial
+        _d = ACCESS["days_left"]
+        st.info(f"You're on a **Pro trial** — {_d} day{'s' if _d != 1 else ''} left. "
+                "Ranked picks, drafted replies, market rates and instant alerts, "
+                "then you drop back to Free unless you upgrade.")
     else:
         st.info("You're on **Free** — the whole board, filters, your profile, and a "
                 "daily digest. All yours, no catch.")
-        st.caption("Want the edge? **Pro** adds instant pings, drafted replies, picks "
-                   "ranked for you, and what-it-pays market rates.")
-        if st.button("⭐ Upgrade to Pro", type="primary"):
-            st.session_state.plan = "Pro"
-            st.rerun()
+        st.caption("**Pro** adds instant pings, drafted replies, picks ranked for "
+                   "you, and what-it-pays market rates.")
+        if ACCESS.get("can_trial"):
+            if st.button("Try Pro free for 14 days", type="primary", key="trial_profile"):
+                ok, msg = accounts.start_trial(ACCESS["email"])
+                if ok:
+                    st.rerun()
+                st.warning(msg)
+        elif ACCESS.get("trialed"):
+            st.caption("Your 14-day Pro trial has been used. We'll email you the "
+                       "moment paid Pro opens.")
 
     st.divider()
     feedback_card("profile")
@@ -1690,12 +1797,14 @@ def view_profile(pro):
 # ---------------------------------------------------------------------------
 # Early access: an email, then the only question that really matters
 # ---------------------------------------------------------------------------
-def start_trial(email: str, where: str):
+def sign_in_here(email: str, where: str):
     """
-    Sign someone in and put their token in the URL.
+    Sign someone in and put their token in the URL. Lands them on Free.
 
     The token in the address bar is what makes them the same person tomorrow.
     We tell them to keep the link rather than pretending a cookie will hold.
+    Starting Pro is a separate, deliberate choice (accounts.start_trial), so
+    signing in never drops anyone into a trial they didn't ask for.
     """
     acc, is_new = accounts.sign_in(email, source=where)
     if not acc:
@@ -1712,10 +1821,11 @@ _FEAT = ('<div class="gr-feat"><span>Ranked picks</span><span>Drafted replies</s
 
 def signup_card(where="dashboard"):
     """
-    The trial / upgrade card. One cohesive, on-brand block whose look adapts to
-    where the person is: not signed in (start a trial), on a trial (a quiet
-    day-count plus the one willingness-to-pay question), or trial over (a clean
-    Pro upsell). Pro members see nothing here; there's nothing to sell them.
+    The sign-in / trial / upgrade card. One cohesive, on-brand block whose look
+    adapts to where the person is: not signed in (sign in, free), signed in on
+    Free (an optional Pro trial they can start), on a trial (a quiet day-count
+    plus the one willingness-to-pay question), or trial over (a clean Pro
+    upsell). Pro members see nothing here; there's nothing to sell them.
     """
     a = ACCESS
     if a["signed_in"] and a["plan"] == "pro":
@@ -1748,16 +1858,39 @@ def signup_card(where="dashboard"):
                         ' of Pro left on your trial</div>', unsafe_allow_html=True)
         return
 
-    # Not signed in, or a lapsed trial: the conversion card.
-    signed = a["signed_in"]
-    heading = "Keep Pro after your trial" if signed else "Start free — 14 days of Pro"
-    with st.container(border=True):
-        st.markdown(f'<span class="gr-cta-mark"></span>'
-                    f'<div class="gr-cta-h">{heading}</div>{_FEAT}',
-                    unsafe_allow_html=True)
+    # Signed in, on Free, never trialed: offer Pro as a choice, not a default.
+    # Low-key — one button, no countdown, and an explicit "keep browsing free".
+    if a["signed_in"] and a.get("can_trial"):
+        with st.container(border=True):
+            st.markdown('<span class="gr-cta-mark"></span>'
+                        '<div class="gr-cta-h">Want to try Pro?</div>'
+                        f'{_FEAT}'
+                        '<div class="gr-cta-s">Free for 14 days, whenever you like. '
+                        'No card, nothing charged, and you drop back to Free on your '
+                        'own if you don\'t upgrade.</div>', unsafe_allow_html=True)
+            _t1, _t2, _t3 = st.columns([1, 2, 1])
+            with _t2:
+                if st.button("Try Pro free for 14 days", type="primary",
+                             width="stretch", key=f"trial_{where}"):
+                    ok, msg = accounts.start_trial(a["email"])
+                    if ok:
+                        note("click", f"trial_start:{where}")
+                        st.rerun()
+                    else:
+                        st.warning(msg)
+            st.markdown('<div class="gr-cta-fine">Or keep browsing on Free — the '
+                        'whole board is yours either way</div>', unsafe_allow_html=True)
+        return
 
+    # Signed in with a lapsed trial → keep-Pro interest. Not signed in → sign in
+    # (which lands on Free; the trial above is where Pro gets chosen).
+    signed = a["signed_in"]
+    with st.container(border=True):
         if signed:
-            # No billing is wired yet, so "upgrade" honestly records interest.
+            st.markdown('<span class="gr-cta-mark"></span>'
+                        '<div class="gr-cta-h">Keep Pro after your trial</div>'
+                        f'{_FEAT}', unsafe_allow_html=True)
+            # No billing is wired yet, so "I want Pro" honestly records interest.
             if st.session_state.get("_upgrade_noted"):
                 st.markdown('<div class="gr-mini">Noted — we\'ll email you the '
                             'moment Pro opens. <b>Thanks.</b></div>',
@@ -1773,31 +1906,37 @@ def signup_card(where="dashboard"):
                         st.rerun()
                 st.markdown('<div class="gr-cta-fine">$12/mo when it launches · '
                             'nothing charged now</div>', unsafe_allow_html=True)
-        elif auth.enabled():
-            _g1, _g2, _g3 = st.columns([1, 2, 1])
-            with _g2:
-                if st.button("Continue with Google", type="primary",
-                             width="stretch", key=f"goog_{where}"):
-                    note("click", f"google:{where}")
-                    st.login("google")
-            st.markdown('<div class="gr-cta-fine">No card · no password · we only '
-                        'see your email &amp; name</div>', unsafe_allow_html=True)
         else:
-            with st.form(f"signup_{where}", clear_on_submit=False, border=False):
-                c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-                with c1:
-                    email = st.text_input("Email", placeholder="you@example.com",
-                                          label_visibility="collapsed")
-                with c2:
-                    sent = st.form_submit_button("Start", type="primary",
-                                                 width="stretch")
-            if sent:
-                ok, msg = start_trial(email, where)
-                if ok:
-                    st.rerun()
-                st.warning(msg)
-            st.markdown('<div class="gr-cta-fine">No card · no password · one field'
+            st.markdown('<span class="gr-cta-mark"></span>'
+                        '<div class="gr-cta-h">Sign in to save your board</div>'
+                        '<div class="gr-cta-s">Keeps your profile and picks for next '
+                        'time. Free, and Pro is there to try whenever you want it.'
                         '</div>', unsafe_allow_html=True)
+            if auth.enabled():
+                _g1, _g2, _g3 = st.columns([1, 2, 1])
+                with _g2:
+                    if st.button("Continue with Google", type="primary",
+                                 width="stretch", key=f"goog_{where}"):
+                        note("click", f"google:{where}")
+                        st.login("google")
+                st.markdown('<div class="gr-cta-fine">No card · no password · we only '
+                            'see your email &amp; name</div>', unsafe_allow_html=True)
+            else:
+                with st.form(f"signup_{where}", clear_on_submit=False, border=False):
+                    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+                    with c1:
+                        email = st.text_input("Email", placeholder="you@example.com",
+                                              label_visibility="collapsed")
+                    with c2:
+                        sent = st.form_submit_button("Sign in", type="primary",
+                                                     width="stretch")
+                if sent:
+                    ok, msg = sign_in_here(email, where)
+                    if ok:
+                        st.rerun()
+                    st.warning(msg)
+                st.markdown('<div class="gr-cta-fine">No card · no password · one '
+                            'field</div>', unsafe_allow_html=True)
 
 
 def view_about():
@@ -1836,8 +1975,9 @@ def view_about():
         '<p><b>Free</b> gives you the whole board: every gig, every source, '
         'search and browse as much as you like. <b>Pro</b> adds the edge, the '
         'parts that help you reply first: gigs ranked by fit, drafted replies, '
-        'market rate intelligence, and instant alerts. Every new account starts '
-        'with 14 days of Pro so you can feel the difference.</p>'
+        'market rate intelligence, and instant alerts. Pro is free to try for '
+        '14 days whenever you want to feel the difference — you choose if and '
+        'when to start it.</p>'
 
         '<h2>Where we\'re at</h2>'
         '<p>Nabbly is an early preview, built in the open by one person who was '
@@ -1865,8 +2005,9 @@ _FAQ = [
      "whole point — the person who answers first usually gets the work."),
     ("Do I have to sign up?",
      "No. The entire board is free to search and browse without an account. "
-     "Signing in saves your profile so the board can sort itself around you, "
-     "and starts a 14-day Pro trial."),
+     "Signing in saves your profile so the board can sort itself around you. "
+     "Pro is free to try for 14 days whenever you want it; you choose if and "
+     "when to start, so you're never dropped into a trial you didn't ask for."),
     ("What's the difference between Free and Pro?",
      "Free gives you every gig from every source, search and browse. Pro adds "
      "the parts that help you reply first: gigs ranked by how well they fit "

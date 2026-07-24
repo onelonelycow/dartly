@@ -1,0 +1,5 @@
+# nabbly.co
+User-agent: *
+Allow: /
+
+Sitemap: https://nabbly.co/sitemap.xml

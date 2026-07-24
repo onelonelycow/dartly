@@ -30,3 +30,19 @@ services:
     #   name: gig-radar-data
     #   mountPath: /var/data
     #   sizeGB: 1
+
+  # The marketing front door: a plain static site served at nabbly.co.
+  # Streamlit renders everything in JavaScript, so search engines and link
+  # previews see almost nothing — this page is real HTML they can read, and it
+  # loads instantly instead of waiting on the app's cold start. It links across
+  # to the app (app.nabbly.co). Nothing to build; it's hand-written HTML.
+  - type: web
+    name: nabbly-site
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: ./site
+    headers:
+      # Long-cache the images; keep the HTML fresh so edits show up fast.
+      - path: /*.png
+        name: Cache-Control
+        value: "public, max-age=86400"

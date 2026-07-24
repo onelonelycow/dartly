@@ -29,6 +29,8 @@ ENABLE_SOURCES = [
     "jobicy_writing", "jobicy_hr", "jobicy_admin", "jobicy_support",
     "jobicy_design", "jobicy_pm", "jobicy_business", "jobicy_mgmt",
     "jobicy_marketing", "wwr_fullstack", "wwr_product",
+    # unique boards filling thin verticals (3D, no-code, healthcare, events)
+    "blenderartists", "threejs", "bubble", "nurserecruiter", "entcareers",
 ]
 
 # ---------------------------------------------------------------------------
@@ -106,6 +108,22 @@ RSS_SOURCES = {
                    "label": "We Work Remotely", "source": "weworkremotely", "slow": True},
     "wwr_product": {"url": "https://weworkremotely.com/categories/remote-product-jobs.rss",
                    "label": "We Work Remotely", "source": "weworkremotely", "slow": True},
+
+    # --- Unique boards that fill verticals the big feeds barely touch --------
+    # Each verified live (fresh 2026 items) before adding, and each is its own
+    # board rather than another remote-jobs aggregator, so they diversify away
+    # from Freelancer.com instead of duplicating it. All "slow": niche backfill,
+    # not freshness-critical — fetched on the ~30-min cadence.
+    "blenderartists": {"url": "https://blenderartists.org/c/jobs/paid-work/53.rss",
+                   "label": "Blender Artists", "slow": True},      # 3D / animation, paid gigs
+    "threejs": {"url": "https://discourse.threejs.org/c/jobs/9.rss",
+                   "label": "three.js", "slow": True},             # 3D / WebGL, freelance-heavy
+    "bubble": {"url": "https://forum.bubble.io/c/jobs-freelance/13.rss",
+                   "label": "Bubble Forum", "slow": True},         # no-code app dev, freelance
+    "nurserecruiter": {"url": "https://www.nurserecruiter.com/rss",
+                   "label": "NurseRecruiter", "slow": True},       # healthcare, travel/contract RN
+    "entcareers": {"url": "https://www.entertainmentcareers.net/ecnjcat124",
+                   "label": "EntertainmentCareers", "slow": True}, # events / film / live production
 }
 
 # Subreddits where CLIENTS post gigs. slavelabour = small/micro paid tasks.
@@ -244,6 +262,7 @@ SOURCE_LABELS = {
     "jobicy": "Jobicy",
     "freelancer": "Freelancer.com",
     "reddit": "Reddit",
+    "inbox": "Forwarded",     # a gig this person emailed in themselves
 }
 
 

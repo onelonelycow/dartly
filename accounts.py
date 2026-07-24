@@ -19,10 +19,12 @@ anyone holding it is that person. That is an acceptable trade for an invited
 beta and not acceptable for a public launch with billing attached, at which
 point this table already has the columns real accounts would need.
 
-THE TRIAL: early testers get the full product for TRIAL_DAYS so they can judge
-it at full strength, then drop to free unless upgraded. plan is the override:
-'trial' obeys the clock, 'pro' is unlimited (a thank-you, or a paying user),
-'free' is no trial at all.
+THE TRIAL: Pro is a lane people opt into, not one they're dropped into. Signing
+in lands you on 'free'; you can then start a 14-day Pro trial whenever you want
+to judge the product at full strength, once. plan is the override: 'free' is the
+default and no trial, 'trial' obeys the clock from trial_start, 'pro' is
+unlimited (a thank-you, or a paying user). Starting a trial is a deliberate
+click (start_trial), so nobody feels forced down one path.
 """
 import secrets
 import sqlite3
@@ -76,7 +78,7 @@ def init():
             created       TEXT NOT NULL,
             last_seen     TEXT,
             trial_start   TEXT,
-            plan          TEXT DEFAULT 'trial',  -- trial | pro | free
+            plan          TEXT DEFAULT 'free',   -- free | trial | pro
             last_alert_id INTEGER DEFAULT 0,     -- highest gig id we've pinged them about
             visits        INTEGER DEFAULT 0
         )
@@ -169,14 +171,15 @@ def sign_in(email: str, source: str = "signin") -> tuple[dict | None, bool]:
     # Joining today means hearing about gigs that land from today.
     try:
         import db as _db
-        rows = _db.all_posts(demand_only=True)
-        watermark = max((int(r["id"]) for r in rows), default=0)
+        watermark = _db.max_post_id()
     except Exception:
         watermark = 0
+    # Land on Free. The trial is theirs to start when they choose (start_trial),
+    # so trial_start is left empty here rather than stamped with 'now'.
     conn.execute(
         "INSERT INTO accounts (email, token, created, last_seen, trial_start, "
-        "plan, last_alert_id, visits) VALUES (?,?,?,?,?,'trial',?,1)",
-        (email, token, now, now, now, watermark))
+        "plan, last_alert_id, visits) VALUES (?,?,?,?,'','free',?,1)",
+        (email, token, now, now, watermark))
     conn.commit()
     acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
                             (email,)).fetchone())
@@ -217,25 +220,63 @@ def status(acc: dict | None) -> dict:
     """
     if not acc:
         return {"signed_in": False, "pro": False, "plan": "anon",
-                "days_left": 0, "expired": False, "email": ""}
+                "days_left": 0, "expired": False, "email": "",
+                "trialed": False, "can_trial": False}
 
-    plan = (acc.get("plan") or "trial").lower()
+    plan = (acc.get("plan") or "free").lower()
+    trialed = bool(acc.get("trial_start"))   # has a trial ever been started?
     base = {"signed_in": True, "plan": plan, "email": acc.get("email", ""),
-            "days_left": 0, "expired": False}
+            "days_left": 0, "expired": False, "trialed": trialed,
+            # can_trial: signed in, on Free, and has never used the trial. This
+            # is what gates the "Try Pro" offer so it shows once, to the right
+            # people, and never nags someone whose trial already ran.
+            "can_trial": (plan == "free" and not trialed)}
 
     if plan == "pro":
-        return {**base, "pro": True}
+        return {**base, "pro": True, "can_trial": False}
     if plan == "free":
         return {**base, "pro": False}
 
     start = _parse(acc.get("trial_start"))
     if not start:
-        return {**base, "pro": False, "expired": True}
+        # plan says 'trial' but no start recorded — treat as free rather than
+        # locking them out; can_trial stays true so they can still begin one.
+        return {**base, "pro": False, "plan": "free", "can_trial": True}
     ends = start + timedelta(days=TRIAL_DAYS)
     left = ends - datetime.now(timezone.utc)
     days = max(0, -(-left.total_seconds() // 86400))   # round up; 0.1 days left is still "1"
     return {**base, "pro": left.total_seconds() > 0, "days_left": int(days),
-            "expired": left.total_seconds() <= 0}
+            "expired": left.total_seconds() <= 0, "can_trial": False}
+
+
+def start_trial(email: str) -> tuple[bool, str]:
+    """
+    Begin the 14-day Pro trial — only when the person chooses to.
+
+    Signing in no longer starts this; Pro is opt-in. Guarded so it can be used
+    once: already-Pro or already-trialed accounts are turned away here (the
+    admin can still restart via set_plan). Returns (started, message).
+    """
+    email = (email or "").strip().lower()
+    init()
+    conn = _connect()
+    row = conn.execute("SELECT * FROM accounts WHERE email=?", (email,)).fetchone()
+    if not row:
+        conn.close()
+        return False, "Sign in first."
+    acc = dict(row)
+    if (acc.get("plan") or "") == "pro":
+        conn.close()
+        return False, "You're already on Pro."
+    if acc.get("trial_start"):
+        conn.close()
+        return False, "Your free trial has already been used."
+    conn.execute("UPDATE accounts SET plan='trial', trial_start=? WHERE email=?",
+                 (_now(), email))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+    return True, ""
 
 
 def set_plan(email: str, plan: str):
