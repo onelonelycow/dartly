@@ -20,7 +20,6 @@ from email.utils import parsedate_to_datetime
 import pandas as pd
 import altair as alt
 import streamlit as st
-from streamlit_option_menu import option_menu
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -89,12 +88,6 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   border-radius:999px;padding:2px 10px}
 .gr-hero{text-align:center;max-width:860px;margin:2px auto 6px;padding:14px 16px 6px;
   background:radial-gradient(ellipse 640px 260px at 50% -8%,rgba(232,147,58,.11),transparent 72%)}
-.gr-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;
-  letter-spacing:.6px;text-transform:uppercase;color:#eaa662;
-  background:rgba(232,147,58,.09);border:1px solid rgba(232,147,58,.18);
-  border-radius:999px;padding:5px 14px;margin-bottom:22px}
-.gr-eyebrow .dot{width:7px;height:7px;border-radius:50%;background:#37c689;
-  animation:gr-ping 2s ease-in-out infinite}
 @keyframes gr-ping{
   0%{box-shadow:0 0 0 0 rgba(55,198,137,.5)}
   70%{box-shadow:0 0 0 6px rgba(55,198,137,0)}
@@ -161,6 +154,24 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
 div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0}
 /* The logo is a link home. line-height:0 stops the anchor's line box adding
    phantom height under the mark and knocking the bar out of line again. */
+/* --- Top nav ---------------------------------------------------------------
+   Plain links, deliberately. The old menu rendered inside an iframe, which put
+   its CSS out of reach: at phone widths it stacked each icon above its label
+   and set a ~117px floor under the header that nothing outside could fix.
+   These are ordinary anchors using the same ?nav= routing the rest of the app
+   already uses, so media queries reach them and the row stays one line. */
+.gr-nav{display:flex;justify-content:center;align-items:center;gap:4px;
+  flex-wrap:nowrap}
+/* Streamlit paints markdown links its own accent colour, which washed out the
+   active pill's label and made the inactive tabs read as links, so the colours
+   here have to win outright. */
+.gr-nav a,.gr-nav a:link,.gr-nav a:visited{font-size:14px;font-weight:600;
+  color:#c3cad3!important;text-decoration:none!important;padding:9px 16px;
+  border-radius:8px;white-space:nowrap;letter-spacing:-.1px;
+  transition:background .15s,color .15s}
+.gr-nav a:hover{background:rgba(232,147,58,.12);color:#eaa662!important}
+.gr-nav a.on,.gr-nav a.on:link,.gr-nav a.on:visited,.gr-nav a.on:hover{
+  background:#E8933A;color:#141414!important}
 .gr-home{display:block;line-height:0;text-decoration:none!important;
   transition:opacity .14s ease}
 .gr-home:hover{opacity:.8}
@@ -412,8 +423,7 @@ div[data-testid="stForm"]{border:0;padding:0}
     line-height:1.16!important;margin-bottom:11px!important}
   .gr-sub{font-size:14.5px!important;line-height:1.55!important}
   .gr-hero{padding:4px 2px 2px;margin-top:0}
-  .gr-eyebrow{margin-bottom:13px;font-size:9.5px;letter-spacing:.4px;padding:4px 10px}
-  h3{font-size:21px!important;letter-spacing:-.5px!important;line-height:1.2!important}
+    h3{font-size:21px!important;letter-spacing:-.5px!important;line-height:1.2!important}
   h4{font-size:17px!important;letter-spacing:-.3px!important}
   a.gr-title{font-size:16.5px!important;line-height:1.35}
   .gr-cap-h{font-size:17px}
@@ -490,6 +500,17 @@ def _resolve_account():
         st.session_state.pop("_tok", None)   # stale or forged token
     return None
 
+
+# The account menu is raw HTML, so its "Sign out" can't call Python directly.
+# It links back as ?signout=1 and we handle it here, before the account is
+# resolved, so the cleared token actually takes effect on this run.
+if st.query_params.get("signout"):
+    _was_google = bool(auth.google_email(st))
+    st.session_state.pop("_tok", None)
+    st.query_params.clear()
+    if _was_google:
+        st.logout()          # reruns on its own
+    st.rerun()
 
 ACCOUNT = _resolve_account()
 if ACCOUNT:
@@ -611,12 +632,43 @@ def _strip_tag_tail(text):
     return " ".join(words[:i]) if len(words) - i >= 5 else text
 
 
+# Job-board feeds open the description with the company's own metadata before a
+# word of the actual role, which is pure noise in the card's most valuable spot
+# (365 posts on the current board start this way). Two shapes:
+#   "Headquarters: Brazil URL: http://x.com  <description>"   — clean to cut
+#   "Headquarters: State College, PA  <description>"          — no delimiter
+_HQ_LABEL = re.compile(r"^\s*headquarters\s*:\s*", re.I)
+_HQ_URL = re.compile(r".*?\burl\s*:\s*\S+\s*", re.I)
+_FEED_LOC = re.compile(r"^\s*(?:location|company)\s*:\s*[^\n]{0,60}?\s{2,}", re.I)
+
+
+def _strip_feed_head(text: str) -> str:
+    """
+    Drop a leading 'Headquarters: …' metadata block.
+
+    The "URL:" form is cut entirely — it ends at a known marker, so there's no
+    guesswork. The bare form ("Headquarters: State College, PA <description>")
+    has nothing separating the place list from the prose; a heuristic that
+    guessed where the sentence began ate a real word ("At Nextcloud…" became
+    "Nextcloud…") and missed several others, so we only remove the label and
+    leave the location text alone. Losing copy is worse than a little noise.
+    """
+    m = _HQ_LABEL.match(text)
+    if not m:
+        return text
+    rest = text[m.end():]
+    u = _HQ_URL.match(rest)
+    return rest[u.end():] if u else rest
+
+
 def display_body(raw):
     """The half of a post a human should actually read (see sources._body)."""
     text = (raw or "").split(_HINT_SEP)[0].strip()
     # Rows fetched before sources._strip learned to drop it still carry
     # RemoteOK's "please mention the word …" scraper bait.
     text = sources.BOILERPLATE.sub("", text).strip()
+    text = _strip_feed_head(text)
+    text = _FEED_LOC.sub("", text, count=1).strip()
     for _ in range(3):  # a budget can sit behind the tags, so peel a few times
         before = text
         text = _strip_tag_tail(_BUDGET_TAIL.sub("", text))
@@ -1047,7 +1099,8 @@ def draft_showcase(pro):
         st.link_button("Open the gig  ↗", g.get("url") or "#", width="stretch")
     with c2:
         if st.button("✍️  Edit this reply", width="stretch", key="showcase_edit"):
-            st.session_state["_manualnav"] = _TABS.index("Gigs")
+            st.session_state["_navidx"] = _TABS.index("Gigs")
+            st.session_state["_profile"] = st.session_state["_about"] = False
             st.session_state["quickfilter"] = "mine"
             note("click", "showcase:edit")
             st.rerun()
@@ -1056,14 +1109,11 @@ def draft_showcase(pro):
 
 
 def view_dashboard(pro):
-    n = len(df)
-    eyebrow = "Live · new gigs land here in real time" if n else "Live · scanning the boards"
     # The hero is a headline and nothing else. The old paragraph explaining the
     # company moved to the About page: a landing page should sell the value in a
     # line, not lecture. A single quiet link points anyone who wants the story.
     st.markdown(
         '<div class="gr-hero gr-hero-tight">'
-        f'<span class="gr-eyebrow"><span class="dot"></span>{eyebrow}</span>'
         '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
         'You just <span class="accent">reply first.</span></h1>'
         '<a class="gr-about-link" href="?nav=about" target="_self">'
@@ -1915,7 +1965,7 @@ if "nav" in st.query_params:
     else:
         _idx = {t.lower(): i for i, t in enumerate(_TABS)}.get(_nav)
         if _idx is not None:
-            st.session_state["_manualnav"] = _idx
+            st.session_state["_navidx"] = _idx
             st.session_state["_about"] = False
             st.session_state["quickfilter"] = st.query_params.get("qf", "")
             st.session_state["catfilter"] = st.query_params.get("cat", "")
@@ -1937,56 +1987,59 @@ with _bcol:
     st.markdown(f'<a class="gr-home" href="?nav=dashboard" target="_self" '
                 f'title="Back to the dashboard">{LOGO_SVG}</a>',
                 unsafe_allow_html=True)
+# Which tab is live is ours to track now, rather than something we read back
+# out of a component. ?nav= (set by the links below, and by every stat card and
+# category chip) writes _navidx during dispatch above, so a deep link and a tab
+# click land in the same place — no more manual_select juggling.
+selected = _TABS[st.session_state.get("_navidx", 0)]
 with _ncol:
-    selected = option_menu(
-        None, _TABS,
-        icons=["speedometer2", "broadcast", "graph-up-arrow", "bell"],
-        orientation="horizontal", key="topnav",
-        # Remember where we are. manual_select only forces the tab for one run,
-        # so without this any click after arriving via a link (a stat card, a
-        # category chip) fell back to index 0 and threw you to the Dashboard.
-        default_index=st.session_state.get("_navidx", 0),
-        manual_select=st.session_state.pop("_manualnav", None),
-        styles={
-            "container": {"padding": "0", "background-color": "transparent"},
-            "icon": {"font-size": "15px"},
-            "nav-link": {"font-size": "14px", "text-align": "center", "margin": "0 2px",
-                         "padding": "9px 15px", "border-radius": "8px",
-                         "--hover-color": "rgba(232,147,58,0.12)"},
-            "nav-link-selected": {"background-color": "#E8933A", "color": "#141414",
-                                  "font-weight": "600"},
-        },
-    )
+    _side = st.session_state.get("_profile") or st.session_state.get("_about")
+    _links = "".join(
+        f'<a class="{"on" if t == selected and not _side else ""}" '
+        f'href="?nav={t.lower()}" target="_self">{t}</a>'
+        for t in _TABS)
+    st.markdown(f'<div class="gr-nav">{_links}</div>', unsafe_allow_html=True)
 
-if selected in _TABS:
-    st.session_state["_navidx"] = _TABS.index(selected)
-
-# Clicking a main tab (a real change) leaves the Profile / About views.
-if "_omprev" in st.session_state and selected != st.session_state["_omprev"]:
-    st.session_state["_profile"] = False
-    st.session_state["_about"] = False
-st.session_state["_omprev"] = selected
+# Leaving Profile / About is handled where ?nav= is dispatched: a tab link
+# clears both flags there, so the old "did the component's value change?"
+# bookkeeping (_omprev) that the iframe menu needed is gone.
 _on_profile = bool(st.session_state.get("_profile"))
 _on_about = bool(st.session_state.get("_about"))
 active = "About" if _on_about else ("Profile" if _on_profile else selected)
 
 with _rcol:
     _name = (prof.get("name") or "").strip()
-    _init = _name[:1].upper() or "•"
     _acls = "gr-avatar active" if _on_profile else "gr-avatar"
     _href = f"?nav={selected.lower()}" if _on_profile else "?nav=profile"
-    _plan = st.session_state.get("plan", "Free")
+    # The plan shown here used to read a session key that no longer exists, so
+    # it said "Free plan" to everyone — including people mid-trial. Read the
+    # real entitlement instead.
+    if ACCESS["signed_in"]:
+        _email = ACCESS.get("email", "")
+        _who = _name or _email.split("@")[0] or "Your account"
+        if ACCESS["plan"] == "pro":
+            _plan = "Pro"
+        elif ACCESS["pro"]:
+            _d = ACCESS["days_left"]
+            _plan = f"Pro trial · {_d} day{'s' if _d != 1 else ''} left"
+        else:
+            _plan = "Free"
+        _last = '<a href="?signout=1" target="_self">Sign out</a>'
+    else:
+        _who, _plan = _name or "Your account", "Not signed in"
+        _last = '<a href="?nav=dashboard" target="_self">Sign in</a>'
+    _init = (_who[:1].upper() if _who != "Your account" else "") or "•"
     st.markdown(
         f'<div style="display:flex;justify-content:flex-end;padding-right:2px">'
         f'<div class="gr-acct">'
         f'<a class="{_acls}" href="{_href}" target="_self" title="Your account">{_init}</a>'
         f'<div class="gr-menu">'
-        f'<div class="gr-menu-hd">{html.escape(_name or "Your account")}'
-        f'<span>{_plan} plan</span></div>'
+        f'<div class="gr-menu-hd">{html.escape(_who)}'
+        f'<span>{html.escape(_plan)}</span></div>'
         f'<a href="?nav=profile" target="_self">Your profile</a>'
         f'<a href="?nav=profile" target="_self">Location &amp; settings</a>'
         f'<div class="gr-menu-sep"></div>'
-        f'<span class="gr-mi muted">Sign out</span>'
+        f'{_last}'
         f'</div></div></div>', unsafe_allow_html=True)
 
 st.divider()
