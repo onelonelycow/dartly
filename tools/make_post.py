@@ -144,6 +144,46 @@ glow = glow.filter(ImageFilter.GaussianBlur(radius=11 * SS))
 ov = Image.alpha_composite(glow, ov)
 img = Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB")
 
+
+def nabbly_mark(size, ss=3):
+    """
+    The logo mark: amber rounded square, the check/N stroke, and the ping ring.
+    Same geometry as assets/icon.svg so it matches the app and the avatar.
+    """
+    s = size * ss
+    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    grad = Image.new("RGB", (s, s))
+    gp = grad.load()
+    for y in range(s):
+        for x in range(s):
+            t = min(1.0, x / s * 0.5 + y / s * 0.5)
+            gp[x, y] = tuple(int(AMBER_L[i] + (203, 111, 22)[i] * 0 +
+                                 ((203, 111, 22)[i] - AMBER_L[i]) * t) for i in range(3))
+    mask = Image.new("L", (s, s), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1],
+                                           radius=int(s * 0.23), fill=255)
+    tile.paste(grad, (0, 0), mask)
+    td = ImageDraw.Draw(tile)
+    td.rounded_rectangle([s * .022, s * .022, s - s * .022, s - s * .022],
+                         radius=int(s * 0.23 - s * .022),
+                         outline=(255, 255, 255, 62), width=max(2, int(s * .009)))
+    cxx, cyy, rr = s * .715, s * .238, s * .098
+    td.ellipse([cxx - rr, cyy - rr, cxx + rr, cyy + rr],
+               outline=(255, 255, 255, 92), width=max(2, int(s * .011)))
+    lw = int(s * .072)
+    td.line([(s * .29, s * .70), (s * .29, s * .355)],
+            fill=(255, 255, 255, 132), width=lw)
+    td.line([(s * .29, s * .355), (s * .48, s * .645), (s * .67, s * .30)],
+            fill=(255, 255, 255, 255), width=lw, joint="curve")
+    td.ellipse([cxx - rr * .44, cyy - rr * .44, cxx + rr * .44, cyy + rr * .44],
+               fill=(255, 255, 255, 255))
+    return tile.resize((size, size), Image.LANCZOS)
+
+
+# (The mark was tried at the centre of the dish: it needed a dark pad to sit on,
+# which read as a smudge, and a solid amber square became the loudest thing in a
+# deliberately quiet picture. It signs off at the bottom instead — see below.)
+
 img = img.resize((S, S), Image.LANCZOS)
 
 # ---------------------------------------------------------------------------
@@ -161,9 +201,20 @@ SOFT_AMBER = (214, 152, 88)           # the accent, pulled back from full streng
 d.text((S * 0.5, S * 0.782), "Every gig,", font=f_h, fill=(226, 229, 234), anchor="mm")
 d.text((S * 0.5, S * 0.845), "the moment it drops.", font=f_h, fill=SOFT_AMBER,
        anchor="mm")
-d.text((S * 0.5, S * 0.908), "One feed for every freelance board", font=f_sub,
+d.text((S * 0.5, S * 0.905), "One feed for every freelance board", font=f_sub,
        fill=(126, 133, 143), anchor="mm")
-d.text((S * 0.5, S * 0.947), "nabbly.co", font=f_url, fill=(190, 140, 92), anchor="mm")
+
+# Sign-off lockup: the mark beside the domain, centred as one unit. Small enough
+# to read as a signature rather than a second focal point.
+MK = 36
+GAP = 11
+_t = "nabbly.co"
+_tw = d.textlength(_t, font=f_url)
+_x0 = (S - (MK + GAP + _tw)) / 2
+_y = S * 0.949
+mark = nabbly_mark(MK)
+img.paste(mark, (int(_x0), int(_y - MK / 2)), mark)
+d.text((_x0 + MK + GAP, _y), _t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
 path = OUT / "week-01-radar.png"
 img.save(path, "PNG", optimize=True)
