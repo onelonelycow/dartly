@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · Nabbly</title>
+<meta name="description" content="That page isn't here. Head back to Nabbly and find your next freelance gig.">
+<link rel="icon" type="image/png" href="/favicon.png">
+<!-- A 404 should never be indexed, but it must not block the crawler from
+     following the links out of it back into the real site. -->
+<meta name="robots" content="noindex, follow">
+<style>
+  :root{--bg:#0B0D10;--ink:#ECEEF1;--mute:#98A0AB;--faint:#6C737E;
+        --amber:#E8933A;--amber-l:#F7B569;--amber-d:#CB6F16;--line:#232830;--panel:#12151a}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+    display:flex;flex-direction:column;
+    font:17px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:680px;margin:0 auto;padding:0 24px;width:100%}
+  header{border-bottom:1px solid var(--line);padding:18px 0}
+  .brand{display:inline-flex;align-items:center;gap:10px;font-weight:700;font-size:20px;
+    letter-spacing:-.3px}
+  .brand img{width:30px;height:30px;border-radius:8px;display:block}
+  .ly{color:var(--amber)}
+  main{flex:1;display:flex;align-items:center;padding:56px 0}
+  /* The dish: a quiet nod to the product's radar, empty because nothing was
+     found here. Pure CSS so the page stays a single file with no requests. */
+  .dish{width:132px;height:132px;margin:0 auto 30px;position:relative;
+    border-radius:50%;border:1px solid rgba(232,147,58,.22);
+    background:radial-gradient(circle at 50% 50%,rgba(232,147,58,.10),transparent 68%)}
+  .dish::before,.dish::after{content:"";position:absolute;border-radius:50%;
+    border:1px solid rgba(232,147,58,.16)}
+  .dish::before{inset:26px}
+  .dish::after{inset:52px}
+  .ping{position:absolute;top:50%;left:50%;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;
+    border-radius:50%;background:var(--amber-l);box-shadow:0 0 16px 5px rgba(232,147,58,.35)}
+  h1{font-size:40px;line-height:1.12;letter-spacing:-.7px;margin:0 0 12px;text-wrap:balance}
+  h1 .amber{color:var(--amber)}
+  p.lead{color:#c9cfd8;margin:0 auto 30px;max-width:30em}
+  .center{text-align:center}
+  .btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:34px}
+  .btn{display:inline-flex;align-items:center;font-weight:600;font-size:15px;
+    border-radius:11px;padding:12px 20px;transition:.15s;border:1px solid transparent}
+  .btn-primary{background:linear-gradient(180deg,var(--amber-l),var(--amber-d));color:#2a1806;
+    box-shadow:0 1px 0 rgba(255,255,255,.25) inset,0 6px 18px rgba(203,111,22,.26)}
+  .btn-primary:hover{filter:brightness(1.06);transform:translateY(-1px)}
+  .btn-ghost{border-color:var(--line);background:var(--panel);color:var(--ink)}
+  .btn-ghost:hover{border-color:var(--faint)}
+  .more{border-top:1px solid var(--line);padding-top:20px;color:var(--faint);font-size:14px}
+  .more a{color:var(--mute);margin:0 9px}
+  .more a:hover{color:var(--amber)}
+  footer{border-top:1px solid var(--line);padding:20px 0 34px;color:var(--faint);font-size:13.5px}
+  footer a{color:var(--mute)}
+  footer a:hover{color:var(--ink)}
+  @media (max-width:640px){h1{font-size:31px}main{padding:36px 0}.dish{width:108px;height:108px}
+    .dish::before{inset:21px}.dish::after{inset:42px}}
+</style>
+</head><body>
+
+<header><div class="wrap">
+  <!-- The wordmark must be ONE flex item: .brand has gap:10px, and a bare text
+       node becomes its own anonymous item, which wedged 10px into "Nabb|ly". -->
+  <a class="brand" href="/"><img src="/favicon.png" alt=""><span>Nabb<span class="ly">ly</span></span></a>
+</div></header>
+
+<main><div class="wrap center">
+  <div class="dish"><span class="ping"></span></div>
+  <h1>Nothing on the radar <span class="amber">here</span>.</h1>
+  <p class="lead">That page doesn't exist, or it moved. The gigs are all still
+    where you left them.</p>
+  <div class="btns">
+    <a class="btn btn-primary" href="https://nabbly.co/">Open the board</a>
+    <a class="btn btn-ghost" href="/">Back to home</a>
+  </div>
+  <div class="more">
+    <a href="/">Home</a>·<a href="https://nabbly.co/?nav=about">About</a>·<a href="https://nabbly.co/?nav=faq">FAQ</a>·<a href="/privacy.html">Privacy</a>·<a href="/terms.html">Terms</a>
+  </div>
+</div></main>
+
+<footer><div class="wrap center">© 2026 Nabbly · <a href="/">nabbly.co</a></div></footer>
+
+</body></html>

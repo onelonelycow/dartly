@@ -107,7 +107,7 @@ PAGE = """<!doctype html>
 </style>
 </head><body>
 <header><div class="wrap">
-  <a class="brand" href="/"><img src="/favicon.png" alt="">Nabb<span class="ly">ly</span></a>
+  <a class="brand" href="/"><img src="/favicon.png" alt=""><span>Nabb<span class="ly">ly</span></span></a>
   <nav><a href="/privacy.html">Privacy</a><a href="/terms.html">Terms</a><a href="/">Home</a></nav>
 </div></header>
 <main><div class="wrap">
