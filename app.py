@@ -812,6 +812,11 @@ def _feed_for_scope(scope: str):
     df["_key"] = df["title"].map(_key)
     before = len(df)
     df = df[df["_key"] != ""].drop_duplicates(subset="_key", keep="first")
+    # Lowercased text, computed once here inside the cache rather than on every
+    # keystroke in apply_filters. Searching used to re-lower ~9,000 titles and
+    # bodies per character typed.
+    df["_t"] = df["title"].fillna("").str.lower()
+    df["_b"] = df["body"].fillna("").str.lower()
     return df, before - len(df)
 
 
@@ -827,8 +832,11 @@ def load_feed():
 
 
 db.ensure_seeded()      # first run on a fresh deploy loads the bundled seed.db
-db.rehydrate_board()    # then top it up from the durable mirror, so a redeploy
-                        # doesn't reset the board to the seed (no-op without Supabase)
+# NOTE: rehydrate_board() used to run HERE, synchronously, before the first
+# paint. On a cold start that meant pulling thousands of gigs from Supabase over
+# the network while the visitor stared at a blank page. It now runs inside the
+# background thread: the board renders immediately from the seed and fills in a
+# moment later. Never put network work on the first-render path.
 refresh.start()     # background fetcher: grows the feed while the app is in use
 analytics.init()    # visit counting, in its own database file
 people.init()       # who signed up, their profile, and their feedback
@@ -872,15 +880,60 @@ def apply_filters(data, skills, sizes, sources, urgent_only, keyword):
             & data["source"].isin(sources))
     if urgent_only:
         mask &= data["urgency"] == "Urgent"
+    t_l, b_l = _search_cols(data)
     if keyword:
-        mask &= (data["title"].str.lower().str.contains(keyword, na=False)
-                 | data["body"].str.lower().str.contains(keyword, na=False))
+        # EVERY word has to appear, in the title or the body, in any order.
+        # This used to be one substring match on the whole phrase, so "figma
+        # designer" found nothing unless those two words sat adjacent in that
+        # exact order — which is why searching more than one word felt broken.
+        for term in str(keyword).lower().split():
+            esc = re.escape(term)
+            mask &= (t_l.str.contains(esc, na=False, regex=True)
+                     | b_l.str.contains(esc, na=False, regex=True))
     mutes = [m.strip().lower() for m in (prof.get("mute", "") or "").split(",") if m.strip()]
     if mutes:
-        text_l = (data["title"].fillna("") + " " + data["body"].fillna("")).str.lower()
         for m in mutes:
-            mask &= ~text_l.str.contains(re.escape(m), na=False)
+            esc = re.escape(m)
+            mask &= ~(t_l.str.contains(esc, na=False, regex=True)
+                      | b_l.str.contains(esc, na=False, regex=True))
     return data[mask]
+
+
+def _search_cols(data):
+    """
+    The lowercased title/body columns, built by the feed cache. Falls back to
+    computing them for any frame that didn't come through load_feed (the admin
+    page builds its own), so callers never have to care.
+    """
+    t_l = data["_t"] if "_t" in data else data["title"].fillna("").str.lower()
+    b_l = data["_b"] if "_b" in data else data["body"].fillna("").str.lower()
+    return t_l, b_l
+
+
+def rank_by_relevance(data, keyword: str):
+    """
+    Put the best matches first when someone searches.
+
+    Results were returned newest-first, so a gig whose TITLE is exactly what you
+    typed could sit below a hundred gigs that merely mention the word somewhere
+    in the body. Scores title hits above body hits, whole words above fragments,
+    and keeps recency as the tie-breaker (the frame arrives newest-first).
+    """
+    terms = [t for t in str(keyword or "").lower().split() if t]
+    if not terms or data.empty:
+        return data
+    t_l, b_l = _search_cols(data)
+    score = pd.Series(0, index=data.index, dtype="int32")
+    for term in terms:
+        esc = re.escape(term)
+        word = r"(?<!\w)" + esc + r"(?!\w)"
+        score += t_l.str.contains(word, na=False, regex=True).astype("int32") * 6
+        score += t_l.str.contains(esc, na=False, regex=True).astype("int32") * 3
+        score += b_l.str.contains(word, na=False, regex=True).astype("int32") * 2
+    # A title that starts with the query is almost always the thing you meant.
+    score += t_l.str.startswith(" ".join(terms)).astype("int32") * 5
+    return data.assign(_score=score).sort_values(
+        "_score", ascending=False, kind="stable").drop(columns="_score")
 
 
 def location_counts(data):
@@ -1323,6 +1376,10 @@ def view_gigs(pro):
         view = apply_location(view, loc_mode)
         if pro:
             view = scored(view)
+        if kw:
+            # Best matches first — after scoring, so relevance to what they
+            # actually typed wins over a generic fit score.
+            view = rank_by_relevance(view, kw)
 
     # Answer the search plainly, including when it finds nothing — an empty
     # board with no explanation reads as broken rather than as "no matches".

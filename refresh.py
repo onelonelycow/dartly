@@ -29,6 +29,14 @@ def _loop():
     import alerts
     import accounts
     import paths
+    # Top the board up from the durable mirror BEFORE the first fetch, but off
+    # the request path — app.py used to do this synchronously at import, which
+    # put a multi-thousand-row network read in front of the first page render.
+    try:
+        import db as _db
+        _db.rehydrate_board()
+    except Exception:
+        pass
     time.sleep(_FIRST_DELAY_S)
     # Old news is handled per person now: each account remembers the highest
     # gig id it has been alerted about, and a new account starts that marker at
