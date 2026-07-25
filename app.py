@@ -529,6 +529,17 @@ div[data-testid="stForm"]{border:0;padding:0}
   background:#1c2027!important;border-color:rgba(232,147,58,.55)!important;
   transform:none!important}
 .st-key-arrivals button p{font-size:13px!important;font-weight:500!important;margin:0!important}
+
+/* Sign-in page: the quiet "or" between email and Google */
+.gr-or{display:flex;align-items:center;gap:12px;margin:14px 0 10px;color:#7c828d;
+  font-size:12.5px;font-weight:600;letter-spacing:.03em}
+.gr-or::before,.gr-or::after{content:"";flex:1;height:1px;background:#262b33}
+/* Google's four-colour G in front of the "Continue with Google" label, drawn
+   as an inline data-URI so nothing loads from a third party. */
+.st-key-signin_google button p::before,
+[class*="st-key-goog_"] button p::before{
+  content:"";display:inline-block;width:17px;height:17px;margin:0 9px -3px 0;
+  background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center/contain}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1938,31 +1949,30 @@ def signup_card(where="dashboard"):
                         '<div class="gr-cta-s">Keeps your profile and picks for next '
                         'time. Free, and Pro is there to try whenever you want it.'
                         '</div>', unsafe_allow_html=True)
+            # Email first — any provider, their choice — with Google as a
+            # one-tap option beneath when it's configured.
+            with st.form(f"signup_{where}", clear_on_submit=False, border=False):
+                c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
+                with c1:
+                    email = st.text_input("Email", placeholder="you@example.com",
+                                          label_visibility="collapsed")
+                with c2:
+                    sent = st.form_submit_button("Sign in", type="primary",
+                                                 width="stretch")
+            if sent:
+                ok, msg = sign_in_here(email, where)
+                if ok:
+                    st.rerun()
+                st.warning(msg)
             if auth.enabled():
                 _g1, _g2, _g3 = st.columns([1, 2, 1])
                 with _g2:
-                    if st.button("Continue with Google", type="primary",
-                                 width="stretch", key=f"goog_{where}"):
+                    if st.button("Continue with Google", width="stretch",
+                                 key=f"goog_{where}"):
                         note("click", f"google:{where}")
                         st.login("google")
-                st.markdown('<div class="gr-cta-fine">No card · no password · we only '
-                            'see your email &amp; name</div>', unsafe_allow_html=True)
-            else:
-                with st.form(f"signup_{where}", clear_on_submit=False, border=False):
-                    c1, c2 = st.columns([3, 1], vertical_alignment="bottom")
-                    with c1:
-                        email = st.text_input("Email", placeholder="you@example.com",
-                                              label_visibility="collapsed")
-                    with c2:
-                        sent = st.form_submit_button("Sign in", type="primary",
-                                                     width="stretch")
-                if sent:
-                    ok, msg = sign_in_here(email, where)
-                    if ok:
-                        st.rerun()
-                    st.warning(msg)
-                st.markdown('<div class="gr-cta-fine">No card · no password · one '
-                            'field</div>', unsafe_allow_html=True)
+            st.markdown('<div class="gr-cta-fine">No card · no password · any '
+                        'email works</div>', unsafe_allow_html=True)
 
 
 def view_signin():
@@ -1993,32 +2003,35 @@ def view_signin():
                         '<div class="gr-cta-h">Welcome</div>'
                         '<div class="gr-cta-s">Your board, saved and sorted to you.'
                         '</div>', unsafe_allow_html=True)
+            # Any email, any provider — people keep full say over how they sign
+            # up. Google sits below as a one-tap option, not the only door.
+            with st.form("signin_page_form", clear_on_submit=False, border=False):
+                email = st.text_input("Email", placeholder="you@example.com",
+                                      label_visibility="collapsed")
+                sent = st.form_submit_button("Continue with email", type="primary",
+                                             width="stretch")
+            if sent:
+                ok, msg = sign_in_here(email, "signin")
+                if ok:
+                    # Just rerun — do NOT set ?nav here. sign_in_here put the
+                    # token in the URL (?u=), and the nav dispatch clears the
+                    # query string; setting nav would wipe the token that
+                    # keeps them signed in on a later reload. On this rerun
+                    # they're signed in and see the signed-in state below.
+                    st.rerun()
+                st.warning(msg)
+            st.markdown('<div class="gr-cta-fine">Works with any email · keep the '
+                        'link we put in your address bar to sign back in</div>',
+                        unsafe_allow_html=True)
             if auth.enabled():
-                if st.button("Continue with Google", type="primary",
-                             width="stretch", key="signin_google"):
+                st.markdown('<div class="gr-or"><span>or</span></div>',
+                            unsafe_allow_html=True)
+                if st.button("Continue with Google", width="stretch",
+                             key="signin_google"):
                     note("click", "google:signin")
                     st.login("google")
-                st.markdown('<div class="gr-cta-fine">No card · no password · we only '
-                            'see your email &amp; name</div>', unsafe_allow_html=True)
-            else:
-                with st.form("signin_page_form", clear_on_submit=False, border=False):
-                    email = st.text_input("Email", placeholder="you@example.com",
-                                          label_visibility="collapsed")
-                    sent = st.form_submit_button("Sign in", type="primary",
-                                                 width="stretch")
-                if sent:
-                    ok, msg = sign_in_here(email, "signin")
-                    if ok:
-                        # Just rerun — do NOT set ?nav here. sign_in_here put the
-                        # token in the URL (?u=), and the nav dispatch clears the
-                        # query string; setting nav would wipe the token that
-                        # keeps them signed in on a later reload. On this rerun
-                        # they're signed in and see the signed-in state below.
-                        st.rerun()
-                    st.warning(msg)
-                st.markdown('<div class="gr-cta-fine">No card · no password · one '
-                            'field. Keep the link we put in your address bar to sign '
-                            'back in.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="gr-cta-fine">We only see your email &amp; '
+                            'name</div>', unsafe_allow_html=True)
 
 
 def view_about():
