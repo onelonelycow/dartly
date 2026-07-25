@@ -26,6 +26,8 @@ default and no trial, 'trial' obeys the clock from trial_start, 'pro' is
 unlimited (a thank-you, or a paying user). Starting a trial is a deliberate
 click (start_trial), so nobody feels forced down one path.
 """
+import hashlib
+import os
 import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -350,6 +352,27 @@ def set_last_alert_id(email: str, gig_id: int):
     conn.commit()
     conn.close()
     _mirror(email)
+
+
+# Owner accounts get the admin panel just by being signed in, no ?admin= key.
+# Stored as SHA-256 rather than plaintext because this repo is public and an
+# email in source is an email in every scraper's list. Add more via the
+# ADMIN_EMAILS env var (comma separated) without touching code.
+_OWNER_HASHES = {
+    "d0aca616576886f35178b7693756b1aa408ce73e1d585d474009a54cc6e2569d",
+}
+
+
+def is_owner(email: str | None) -> bool:
+    """True if this address may see the admin panel."""
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    extra = {x.strip().lower()
+             for x in os.environ.get("ADMIN_EMAILS", "").split(",") if x.strip()}
+    if e in extra:
+        return True
+    return hashlib.sha256(e.encode()).hexdigest() in _OWNER_HASHES
 
 
 def all_accounts() -> list[dict]:

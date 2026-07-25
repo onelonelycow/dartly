@@ -36,6 +36,7 @@ import location
 import drafts
 import refresh
 import inbox
+import legal
 import analytics
 import people
 import paths
@@ -1975,6 +1976,18 @@ def signup_card(where="dashboard"):
                         'email works</div>', unsafe_allow_html=True)
 
 
+def view_legal(which: str):
+    """The privacy policy or the terms, rendered from legal.py."""
+    st.markdown(f'<div class="gr-about">{""}</div>', unsafe_allow_html=True)
+    st.markdown(legal.PRIVACY if which == "privacy" else legal.TERMS)
+    st.divider()
+    _b1, _b2, _b3 = st.columns([1, 1.4, 1])
+    with _b2:
+        if st.button("← Back to the board", width="stretch", key=f"back_{which}"):
+            st.query_params["nav"] = "dashboard"
+            st.rerun()
+
+
 def view_signin():
     """
     A focused sign-in page. The account menu's "Sign in" used to point at the
@@ -2340,10 +2353,22 @@ _TABS = ["Dashboard", "Gigs", "Market", "Alerts"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
-               "signin": "Sign in"}
+               "signin": "Sign in", "admin": "Admin",
+               "privacy": "Privacy", "terms": "Terms"}
 
 # The admin panel replaces the whole page — nothing else needs to render.
-if analytics.ADMIN_KEY and st.query_params.get("admin", "") == analytics.ADMIN_KEY:
+# Two ways in: the secret ?admin= key (works signed out), or simply being signed
+# in as an owner account, so the founder doesn't have to keep a URL around.
+IS_ADMIN = ((analytics.ADMIN_KEY
+             and st.query_params.get("admin", "") == analytics.ADMIN_KEY)
+            or (ACCESS["signed_in"] and accounts.is_owner(ACCESS.get("email"))))
+# This gate runs BEFORE the ?nav= dispatch below, so check the raw query param
+# as well as the page already in session — otherwise the first click on the
+# Admin link would fall through and render nothing.
+if IS_ADMIN and (st.query_params.get("admin") is not None
+                 or st.query_params.get("nav", "").lower() == "admin"
+                 or st.session_state.get("_page") == "admin"):
+    st.session_state["_page"] = "admin"
     view_admin()
     st.stop()
 
@@ -2434,6 +2459,8 @@ with _rcol:
         f'<span>{html.escape(_plan)}</span></div>'
         f'<a href="?nav=profile" target="_self">Your profile</a>'
         f'<a href="?nav=profile" target="_self">Location &amp; settings</a>'
+        # Owners only — everyone else never sees this link exists.
+        + (f'<a href="?nav=admin" target="_self">Admin</a>' if IS_ADMIN else '') +
         f'<div class="gr-menu-sep"></div>'
         f'{_last}'
         f'</div></div></div>', unsafe_allow_html=True)
@@ -2469,6 +2496,10 @@ elif active == "FAQ":
     view_faq()
 elif active == "Sign in":
     view_signin()
+elif active == "Privacy":
+    view_legal("privacy")
+elif active == "Terms":
+    view_legal("terms")
 
 st.markdown(
     '<div class="gr-footer">'
@@ -2477,6 +2508,8 @@ st.markdown(
     '<div class="foot-links">'
     '<a class="foot-link" href="?nav=about" target="_self">About</a>'
     '<a class="foot-link" href="?nav=faq" target="_self">FAQ</a>'
+    '<a class="foot-link" href="?nav=privacy" target="_self">Privacy</a>'
+    '<a class="foot-link" href="?nav=terms" target="_self">Terms</a>'
     '</div>'
     '<span class="meta">An early preview, built in the open · © 2026</span>'
     '</div>', unsafe_allow_html=True)
