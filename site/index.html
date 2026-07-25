@@ -33,6 +33,16 @@
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="apple-touch-icon" href="/favicon.png">
 
+<!-- ── Wake the app while they're reading ───────────────────────────
+     The app sleeps after ~15 min idle and takes 30-60s to wake, so clicking
+     "Open the board" cold means staring at a blank screen. Nobody reads this
+     page in under ten seconds, so we spend that time warming the instance:
+     resolve DNS + TLS up front, then fire one throwaway request that starts
+     the wake. By the time they click, it's usually already up.
+     no-cors because we don't need the response, only the side effect. -->
+<link rel="preconnect" href="https://app.nabbly.co" crossorigin>
+<link rel="dns-prefetch" href="https://app.nabbly.co">
+
 <!-- ── Structured data: search engines read this to build rich
      results (site name + sitelinks search box, the app card, and the
      FAQ accordion straight in Google). ───────────────────────────── -->
@@ -444,5 +454,24 @@
     </div>
   </div>
 </footer>
+
+<script>
+  // Start waking the app the moment this page loads, and again if they linger.
+  // One call is usually enough; the retry covers a visitor who reads for a
+  // while and would otherwise let it drift back to sleep before clicking.
+  (function () {
+    var URL_ = 'https://app.nabbly.co/';
+    var warm = function () {
+      try { fetch(URL_, { mode: 'no-cors', cache: 'no-store' }); } catch (e) {}
+    };
+    warm();
+    setTimeout(warm, 45000);
+    // Hovering or tapping the CTA is the strongest signal they're about to go.
+    document.querySelectorAll('a[href^="https://app.nabbly.co"]').forEach(function (a) {
+      a.addEventListener('pointerenter', warm, { once: true });
+      a.addEventListener('touchstart', warm, { once: true, passive: true });
+    });
+  })();
+</script>
 </body>
 </html>
