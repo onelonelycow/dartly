@@ -154,23 +154,16 @@ d = ImageDraw.Draw(img)
 f_h = font(58, "Semibold")            # smaller and a shade lighter than Bold
 f_sub = font(27, "Regular", ARIAL)
 f_url = font(24, "Semibold", ARIAL_B)
-f_kick = font(20, "Semibold", ARIAL_B)
 SOFT_AMBER = (214, 152, 88)           # the accent, pulled back from full strength
 
-# eyebrow, letterspaced by hand for a considered look
-kick, kx, ky = "LIVE FREELANCE DEMAND", S * 0.5, S * 0.722
-kw = sum(d.textlength(ch, font=f_kick) + 4.0 for ch in kick) - 4.0
-x = kx - kw / 2
-for ch in kick:
-    d.text((x, ky), ch, font=f_kick, fill=(118, 100, 80), anchor="lm")
-    x += d.textlength(ch, font=f_kick) + 4.0
-
-d.text((S * 0.5, S * 0.790), "Every gig,", font=f_h, fill=(226, 229, 234), anchor="mm")
-d.text((S * 0.5, S * 0.853), "the moment it drops.", font=f_h, fill=SOFT_AMBER,
+# No eyebrow label — the headline says it, and the empty space above it does
+# more for the composition than a second line of type would.
+d.text((S * 0.5, S * 0.782), "Every gig,", font=f_h, fill=(226, 229, 234), anchor="mm")
+d.text((S * 0.5, S * 0.845), "the moment it drops.", font=f_h, fill=SOFT_AMBER,
        anchor="mm")
-d.text((S * 0.5, S * 0.916), "One feed for every freelance board", font=f_sub,
+d.text((S * 0.5, S * 0.908), "One feed for every freelance board", font=f_sub,
        fill=(126, 133, 143), anchor="mm")
-d.text((S * 0.5, S * 0.955), "nabbly.co", font=f_url, fill=(190, 140, 92), anchor="mm")
+d.text((S * 0.5, S * 0.947), "nabbly.co", font=f_url, fill=(190, 140, 92), anchor="mm")
 
 path = OUT / "week-01-radar.png"
 img.save(path, "PNG", optimize=True)
