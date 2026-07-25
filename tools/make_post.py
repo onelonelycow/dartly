@@ -66,10 +66,11 @@ ang = np.arctan2(dy, dx)             # -pi..pi
 base = np.zeros((W, W, 3), np.float32)
 base[:] = BG
 
-# warm bloom, strongest at the centre and gone by the outer ring
+# warm bloom, strongest at the centre and gone by the outer ring. Kept faint —
+# it should feel like the page is quietly lit, not like a spotlight.
 bloom = np.clip(1.0 - rad / (R * 1.55), 0, 1) ** 2.2
 for i, c in enumerate(AMBER):
-    base[:, :, i] += bloom * (c - BG[i]) * 0.22
+    base[:, :, i] += bloom * (c - BG[i]) * 0.10
 
 # ---------------------------------------------------------------------------
 # 2. The sweep: a wedge trailing behind the leading edge, fading as it goes
@@ -81,8 +82,14 @@ TAIL = math.radians(115)
 sweep = np.clip(1.0 - trail / TAIL, 0, 1) ** 2.6      # angular falloff
 sweep *= np.clip(1.0 - rad / R, 0, 1) ** 0.45          # dimmer toward the rim
 sweep *= (rad < R)                                     # clipped to the dish
+# Blur the beam so its leading edge is a soft gradient rather than a hard blade.
+# The knife edge was most of what made this read as loud.
+sweep = np.asarray(
+    Image.fromarray((sweep * 255).astype(np.uint8), "L")
+         .filter(ImageFilter.GaussianBlur(radius=7 * SS))
+).astype(np.float32) / 255.0
 for i, c in enumerate(AMBER_L):
-    base[:, :, i] += sweep * (c - BG[i]) * 0.55
+    base[:, :, i] += sweep * (c - BG[i]) * 0.26
 
 img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), "RGB")
 
@@ -95,27 +102,29 @@ d = ImageDraw.Draw(ov)
 for k in (0.28, 0.52, 0.76, 1.0):                      # concentric rings
     r = R * k
     d.ellipse([cx - r, cy - r, cx + r, cy + r],
-              outline=(232, 147, 58, 46), width=max(1, int(2.0 * SS)))
+              outline=(232, 147, 58, 30), width=max(1, int(1.6 * SS)))
 
 for a in range(0, 360, 30):                            # faint spokes
     t = math.radians(a)
     d.line([(cx, cy), (cx + R * math.cos(t), cy + R * math.sin(t))],
-           fill=(232, 147, 58, 20), width=max(1, int(1.2 * SS)))
+           fill=(232, 147, 58, 12), width=max(1, int(1.0 * SS)))
 
 # Gigs on the board. Polar (angle°, radius fraction, size, hot?) — the ones near
 # the leading edge read as "just found", which is the whole story of the brand.
+# Only ONE gig is "just found" — a single point of emphasis reads as confident;
+# three competing highlights read as busy.
 BLIPS = [
-    (-52, 0.62, 12, True),    # right on the beam
-    (-38, 0.40, 8,  True),
-    (-70, 0.83, 7,  True),
-    (-95, 0.55, 6,  False),
-    (-14, 0.74, 6,  False),
-    (18,  0.47, 5,  False),
-    (58,  0.68, 5,  False),
-    (104, 0.35, 4,  False),
-    (140, 0.60, 4,  False),
-    (176, 0.79, 4,  False),
-    (-130, 0.70, 4, False),
+    (-52, 0.62, 9, True),     # right on the beam
+    (-38, 0.40, 5,  False),
+    (-70, 0.83, 5,  False),
+    (-95, 0.55, 4,  False),
+    (-14, 0.74, 4,  False),
+    (18,  0.47, 4,  False),
+    (58,  0.68, 4,  False),
+    (104, 0.35, 3,  False),
+    (140, 0.60, 3,  False),
+    (176, 0.79, 3,  False),
+    (-130, 0.70, 3, False),
     (-166, 0.45, 3, False),
 ]
 glow = Image.new("RGBA", (W, W), (0, 0, 0, 0))
@@ -124,13 +133,14 @@ for a_deg, rf, size, hot in BLIPS:
     t = math.radians(a_deg)
     x, y = cx + R * rf * math.cos(t), cy + R * rf * math.sin(t)
     s = size * SS
-    halo = s * (4.6 if hot else 3.0)
+    halo = s * (3.4 if hot else 2.4)
     gd.ellipse([x - halo, y - halo, x + halo, y + halo],
-               fill=(232, 147, 58, 130 if hot else 55))
+               fill=(232, 147, 58, 78 if hot else 30))
+    # warm, never pure white — white is what made these pop like flashbulbs
     d.ellipse([x - s, y - s, x + s, y + s],
-              fill=(255, 240, 224, 255) if hot else (240, 190, 130, 190))
+              fill=(252, 228, 198, 235) if hot else (226, 176, 122, 140))
 
-glow = glow.filter(ImageFilter.GaussianBlur(radius=9 * SS))
+glow = glow.filter(ImageFilter.GaussianBlur(radius=11 * SS))
 ov = Image.alpha_composite(glow, ov)
 img = Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB")
 
@@ -141,24 +151,26 @@ img = img.resize((S, S), Image.LANCZOS)
 # ---------------------------------------------------------------------------
 d = ImageDraw.Draw(img)
 
-f_h = font(70, "Bold")
-f_sub = font(29, "Regular", ARIAL)
-f_url = font(26, "Semibold", ARIAL_B)
-f_kick = font(23, "Semibold", ARIAL_B)
+f_h = font(58, "Semibold")            # smaller and a shade lighter than Bold
+f_sub = font(27, "Regular", ARIAL)
+f_url = font(24, "Semibold", ARIAL_B)
+f_kick = font(20, "Semibold", ARIAL_B)
+SOFT_AMBER = (214, 152, 88)           # the accent, pulled back from full strength
 
 # eyebrow, letterspaced by hand for a considered look
-kick, kx, ky = "LIVE FREELANCE DEMAND", S * 0.5, S * 0.715
-kw = sum(d.textlength(ch, font=f_kick) + 3.4 for ch in kick) - 3.4
+kick, kx, ky = "LIVE FREELANCE DEMAND", S * 0.5, S * 0.722
+kw = sum(d.textlength(ch, font=f_kick) + 4.0 for ch in kick) - 4.0
 x = kx - kw / 2
 for ch in kick:
-    d.text((x, ky), ch, font=f_kick, fill=(150, 120, 88), anchor="lm")
-    x += d.textlength(ch, font=f_kick) + 3.4
+    d.text((x, ky), ch, font=f_kick, fill=(118, 100, 80), anchor="lm")
+    x += d.textlength(ch, font=f_kick) + 4.0
 
-d.text((S * 0.5, S * 0.785), "Every gig,", font=f_h, fill=INK, anchor="mm")
-d.text((S * 0.5, S * 0.858), "the moment it drops.", font=f_h, fill=AMBER, anchor="mm")
-d.text((S * 0.5, S * 0.921), "One feed for every freelance board", font=f_sub,
-       fill=MUTE, anchor="mm")
-d.text((S * 0.5, S * 0.957), "nabbly.co", font=f_url, fill=AMBER_L, anchor="mm")
+d.text((S * 0.5, S * 0.790), "Every gig,", font=f_h, fill=(226, 229, 234), anchor="mm")
+d.text((S * 0.5, S * 0.853), "the moment it drops.", font=f_h, fill=SOFT_AMBER,
+       anchor="mm")
+d.text((S * 0.5, S * 0.916), "One feed for every freelance board", font=f_sub,
+       fill=(126, 133, 143), anchor="mm")
+d.text((S * 0.5, S * 0.955), "nabbly.co", font=f_url, fill=(190, 140, 92), anchor="mm")
 
 path = OUT / "week-01-radar.png"
 img.save(path, "PNG", optimize=True)
