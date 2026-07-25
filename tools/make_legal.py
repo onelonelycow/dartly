@@ -19,48 +19,9 @@ sys.path.insert(0, str(ROOT))          # legal.py lives at the project root
 import legal  # noqa: E402
 
 
-def md_to_html(md: str) -> str:
-    """A small markdown subset: ##/### headings, **bold**, - lists, paragraphs."""
-    out, buf, in_list = [], [], False
-
-    def bold(text: str) -> str:
-        # Applied to the JOINED paragraph, never per line: the source wraps at
-        # ~79 columns, so **…** frequently straddles a newline and a per-line
-        # substitution would leave the asterisks sitting in the page.
-        return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text, flags=re.S)
-
-    def flush():
-        nonlocal buf
-        if buf:
-            out.append("<p>" + bold(" ".join(buf)) + "</p>")
-            buf = []
-
-    def close_list():
-        nonlocal in_list
-        if in_list:
-            out.append("</ul>")
-            in_list = False
-
-    for raw in md.strip().splitlines():
-        line = raw.rstrip()
-        if not line.strip():
-            flush()
-            close_list()
-            continue
-        esc = html.escape(line.strip())
-        if esc.startswith("### "):
-            flush(); close_list(); out.append(f"<h3>{bold(esc[4:])}</h3>")
-        elif esc.startswith("## "):
-            flush(); close_list(); out.append(f"<h2>{bold(esc[3:])}</h2>")
-        elif esc.startswith("- "):
-            flush()
-            if not in_list:
-                out.append("<ul>"); in_list = True
-            out.append(f"<li>{bold(esc[2:])}</li>")
-        else:
-            close_list(); buf.append(esc)
-    flush(); close_list()
-    return "\n".join(out)
+# One renderer, shared with the in-app pages, so the static site and the app
+# can never drift apart in how they interpret the same source.
+md_to_html = legal.to_html
 
 
 PAGE = """<!doctype html>

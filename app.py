@@ -391,6 +391,34 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 .gr-about ol li b{color:#eef1f5}
 .gr-faq-a{font-size:14.5px;color:#b8bfc9;line-height:1.65;padding:2px 2px 6px;
   max-width:70ch}
+
+/* ── Long-form documents: Privacy, Terms ────────────────────────────────────
+   These rendered as raw Streamlit markdown while About and FAQ had a proper
+   type treatment, so they read like a different product. Same column width,
+   colours and rhythm as .gr-about, but left-aligned headings and real list
+   styling, because a policy is read top-to-bottom rather than scanned. */
+.gr-doc{max-width:680px;margin:2px auto 0;line-height:1.68}
+.gr-doc .gr-doc-title{font-size:31px;font-weight:700;letter-spacing:-.6px;
+  color:#f4f6f9;margin:2px 0 4px;line-height:1.15}
+.gr-doc .gr-doc-sub{font-size:13.5px;color:#7c828d;margin:0 0 26px;
+  padding-bottom:18px;border-bottom:1px solid #262b33}
+.gr-doc h2{font-size:22px;font-weight:650;letter-spacing:-.4px;color:#f2f4f7;
+  margin:34px 0 10px;text-align:left;text-wrap:balance}
+.gr-doc h3{font-size:16.5px;font-weight:650;letter-spacing:-.2px;color:#e7ebf1;
+  margin:26px 0 8px;text-wrap:balance}
+.gr-doc p{font-size:15.5px;color:#b8bfc9;margin:0 0 14px}
+.gr-doc strong{color:#eef1f5;font-weight:600}
+.gr-doc ul{margin:0 0 16px;padding-left:20px}
+.gr-doc li{font-size:15.5px;color:#b8bfc9;margin:7px 0;padding-left:2px}
+.gr-doc li::marker{color:#E8933A}
+.gr-doc a{color:#eaa662!important;text-decoration:none;
+  border-bottom:1px solid rgba(232,147,58,.35)}
+.gr-doc a:hover{border-bottom-color:#E8933A}
+@media (max-width:640px){
+  .gr-doc .gr-doc-title{font-size:25px}
+  .gr-doc h2{font-size:19px;margin-top:28px}
+  .gr-doc h3{font-size:15.5px}
+  .gr-doc p,.gr-doc li{font-size:15px}}
 .gr-footer .foot-links{display:flex;gap:16px;align-items:center}
 /* Keep the FAQ's heading and its rows in one column — the heading sat in a
    centred 680px block while the expanders ran the full width. */
@@ -2085,9 +2113,26 @@ def signup_card(where="dashboard"):
 
 
 def view_legal(which: str):
-    """The privacy policy or the terms, rendered from legal.py."""
-    st.markdown(f'<div class="gr-about">{""}</div>', unsafe_allow_html=True)
-    st.markdown(legal.PRIVACY if which == "privacy" else legal.TERMS)
+    """
+    The privacy policy or the terms.
+
+    Rendered through legal.to_html() into the shared .gr-doc treatment — the
+    same column width, colours and rhythm as About and FAQ — rather than as raw
+    Streamlit markdown, which made these two pages look like a different site.
+    """
+    body = legal.PRIVACY if which == "privacy" else legal.TERMS
+    title = "Privacy Policy" if which == "privacy" else "Terms of Service"
+    # The source starts with its own "## Title" and a "Last updated" line; both
+    # are re-set here as the page header, so drop them from the body.
+    trimmed = "\n".join(
+        ln for ln in body.strip().splitlines()
+        if not ln.startswith("## ") and not ln.startswith("**Last updated"))
+    st.markdown(
+        f'<div class="gr-doc">'
+        f'<div class="gr-doc-title">{title}</div>'
+        f'<div class="gr-doc-sub">Last updated {legal.UPDATED}</div>'
+        f'{legal.to_html(trimmed)}'
+        f'</div>', unsafe_allow_html=True)
     st.divider()
     _b1, _b2, _b3 = st.columns([1, 1.4, 1])
     with _b2:

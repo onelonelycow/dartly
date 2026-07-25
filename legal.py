@@ -14,6 +14,57 @@ not having one.
 UPDATED = "24 July 2026"
 CONTACT = "hello@nabbly.co"
 
+
+def to_html(md: str) -> str:
+    """
+    The small markdown subset these documents use: ##/### headings, **bold**,
+    - lists, paragraphs.
+
+    Lives here rather than in the site generator because BOTH consumers need it
+    — the in-app pages and the static site — and two implementations would
+    drift. Bold is substituted after a paragraph is joined, never per line: the
+    source wraps at ~79 columns, so **…** frequently straddles a newline and a
+    per-line pass would leave asterisks sitting in the page.
+    """
+    import html as _html
+    import re as _re
+
+    out, buf, in_list = [], [], False
+
+    def bold(text):
+        return _re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text, flags=_re.S)
+
+    def flush():
+        nonlocal buf
+        if buf:
+            out.append("<p>" + bold(" ".join(buf)) + "</p>")
+            buf = []
+
+    def close_list():
+        nonlocal in_list
+        if in_list:
+            out.append("</ul>")
+            in_list = False
+
+    for raw in (md or "").strip().splitlines():
+        line = raw.strip()
+        if not line:
+            flush(); close_list(); continue
+        esc = _html.escape(line)
+        if esc.startswith("### "):
+            flush(); close_list(); out.append(f"<h3>{bold(esc[4:])}</h3>")
+        elif esc.startswith("## "):
+            flush(); close_list(); out.append(f"<h2>{bold(esc[3:])}</h2>")
+        elif esc.startswith("- "):
+            flush()
+            if not in_list:
+                out.append("<ul>"); in_list = True
+            out.append(f"<li>{bold(esc[2:])}</li>")
+        else:
+            close_list(); buf.append(esc)
+    flush(); close_list()
+    return "\n".join(out)
+
 PRIVACY = f"""
 ## Privacy Policy
 
