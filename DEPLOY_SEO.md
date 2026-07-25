@@ -24,20 +24,54 @@ push it yourself. Once it's on `main`, Render can see it.
 
 ---
 
+> **Your DNS lives at Namecheap.** The nameservers are `dns1/dns2.registrar-servers.com`,
+> so every DNS record below is added in **Namecheap → Domain List → Manage
+> nabbly.co → Advanced DNS**.
+>
+> **Your email forwarding is safe.** `hello@nabbly.co` works through the MX
+> records on the domain. Nothing in this guide touches MX, so forwarding keeps
+> working throughout. Only add or change the records Render asks for; leave every
+> `eforward*` MX record alone.
+
+---
+
 ## Step 1 — make `app.nabbly.co` work first
 
 So the landing page's buttons have somewhere to go *before* we move `nabbly.co`.
 
 1. Render dashboard → your existing app service (**gig-radar**) → **Settings → Custom Domains**.
 2. Click **Add Custom Domain**, enter `app.nabbly.co`.
-3. Render shows a **CNAME** record to add. Go to your domain registrar (wherever
-   you bought nabbly.co) and add it: a CNAME for `app` pointing to the value
-   Render gives you.
+3. Render shows a **CNAME** record to add. In **Namecheap → Advanced DNS**, add a
+   CNAME record with Host `app` and Value set to what Render shows.
 4. Wait for Render to show **Verified** + a green certificate (usually minutes,
    sometimes up to an hour).
 5. Test: open `https://app.nabbly.co` — you should see the app. ✅
 
 At this point both `nabbly.co` and `app.nabbly.co` show the app. Nothing's broken.
+
+---
+
+## Step 1b — point Google sign-in at the new address ⚠️
+
+**Do not skip this, or Google sign-in breaks the moment Step 3 lands.**
+
+The app tells Google where to send people back after they sign in. That address
+has to be the app's real home, which is about to become `app.nabbly.co`.
+
+1. Render → **gig-radar** service → **Environment**.
+2. Set `OAUTH_REDIRECT_URI` to:
+   ```
+   https://app.nabbly.co/oauth2callback
+   ```
+3. Save and let it redeploy.
+
+Google's side is already done: both `https://nabbly.co/oauth2callback` and
+`https://app.nabbly.co/oauth2callback` are registered as authorised redirect
+URIs, so this switch needs no change in Google Cloud Console.
+
+Test by signing in with Google at `https://app.nabbly.co`. If you get
+`redirect_uri_mismatch`, the env var and the Console entry disagree — compare
+them character for character.
 
 ---
 
@@ -71,6 +105,27 @@ Now the swap. This is the only step that changes what visitors to `nabbly.co` se
 5. Test `https://nabbly.co` → landing page. Click **Open the board** → app. ✅
 
 Done. `nabbly.co` is now the fast, crawlable front door; the app lives one click in.
+
+**Straight after the swap, check these three:**
+- `https://nabbly.co` shows the landing page, and **Open the board** reaches the app.
+- **Google sign-in still works** at `app.nabbly.co` (this is what Step 1b protects).
+- Send a test to `hello@nabbly.co` — email forwarding should be untouched.
+
+---
+
+## Step 3b — put the app back in the sitemap
+
+`app.nabbly.co` was removed from `site/sitemap.xml` while it didn't exist, because
+a sitemap entry pointing at a dead host is a crawl error every time Google looks.
+Now that it's real, tell me and I'll add it back and push:
+
+```xml
+<url>
+  <loc>https://app.nabbly.co/</loc>
+  <changefreq>hourly</changefreq>
+  <priority>0.9</priority>
+</url>
+```
 
 ---
 
