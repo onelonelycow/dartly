@@ -569,6 +569,15 @@ div[data-testid="stForm"]{border:0;padding:0}
   [data-testid="stApp"][data-test-script-state="rerunRequested"]::before{
     animation:none;background-position:50% 0}}
 
+/* Dashboard header for the no-hero variant: a working title, not a billboard.
+   The pitch already did its job on nabbly.co; once you're inside, the page
+   should get out of the way. */
+.gr-dash-head{margin:2px 0 16px}
+.gr-dash-head h2{font-size:25px;font-weight:600;letter-spacing:-.4px;color:#ECEEF1;
+  margin:0 0 5px}
+.gr-dash-head p{font-size:14.5px;color:#8a919c;margin:0}
+@media (max-width:640px){.gr-dash-head h2{font-size:21px}}
+
 /* Streamlit prints "Press Enter to apply / submit form" under every text box.
    It explains a convention people already know and leaves a line of grey noise
    under the search field. (Confirmed test id from Streamlit's own bundle.) */
@@ -1290,14 +1299,24 @@ def draft_showcase(pro):
 
 
 def view_dashboard(pro):
-    # The hero is a headline and nothing else. The old paragraph explaining the
-    # company moved to the About page: a landing page should sell the value in a
-    # line, not lecture. A single quiet link points anyone who wants the story.
-    st.markdown(
-        '<div class="gr-hero gr-hero-tight">'
-        '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
-        'You just <span class="accent">reply first.</span></h1>'
-        "</div>", unsafe_allow_html=True)
+    # The headline is a PITCH, and a pitch is only worth screen space to someone
+    # who hasn't bought yet. Signed-out visitors may have landed here directly
+    # without ever seeing nabbly.co, so they still get it. Signed-in members are
+    # here to work: they get a quiet working header instead, which puts the
+    # search ~124px higher and a second gig above the fold.
+    if not ACCESS["signed_in"]:
+        st.markdown(
+            '<div class="gr-hero gr-hero-tight">'
+            '<h1 class="gr-h1">Every gig, the moment it drops.<br>'
+            'You just <span class="accent">reply first.</span></h1>'
+            "</div>", unsafe_allow_html=True)
+    else:
+        _who = (prof.get("name") or "").strip().split(" ")[0]
+        st.markdown(
+            f'<div class="gr-dash-head">'
+            f'<h2>{"Welcome back, " + html.escape(_who) if _who else "Your board"}</h2>'
+            f'<p>Search everything, or pick up where the board left off.</p>'
+            f'</div>', unsafe_allow_html=True)
 
     if df.empty:
         st.info("Nothing loaded yet. Pop over to **Gigs** and hit *Check for new gigs* — "
