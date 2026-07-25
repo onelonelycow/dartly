@@ -1,152 +1,195 @@
 """
-make_og.py — the 1200x630 social-preview card for nabbly.co.
+make_og.py — the 1200x630 social preview card for nabbly.co.
 
 This is the image that shows when a Nabbly link is dropped in Slack, iMessage,
-LinkedIn, X or a Google result. Drawn to match the app: amber mark on a dark
-ground, the wordmark, one true line about what it does. Regenerate with:
+LinkedIn or a Google result. Same visual language as the weekly posts: a soft
+radar sweep finding one live gig, warm amber on near-black, restrained rather
+than loud. Type sits left, the dish bleeds off the right edge.
 
-    .venv/bin/python tools/make_og.py
+Run:  .venv/bin/python tools/make_og.py
+Out:  site/og-image.png
 """
+import math
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+ROOT = Path(__file__).resolve().parent.parent
+OUT = ROOT / "site" / "og-image.png"
 
 W, H = 1200, 630
-OUT = Path(__file__).resolve().parent.parent / "site" / "og-image.png"
+SS = 2                      # supersample for the vector work
+BW, BH = W * SS, H * SS
 
-# Brand palette (from the app + logo.svg)
-BG      = (18, 20, 24)       # #121418, a touch darker than the app for contrast
-CARD    = (21, 24, 29)       # #15181d
-BORDER  = (38, 42, 49)       # #262a31
-INK     = (236, 238, 241)    # #ECEEF1
-MUTE    = (150, 157, 167)
-AMBER   = (232, 147, 58)     # #E8933A
-AMBER_L = (247, 181, 105)    # #F7B569
-AMBER_D = (203, 111, 22)     # #CB6F16
+BG      = (11, 13, 16)
+AMBER   = (232, 147, 58)
+AMBER_L = (247, 181, 105)
+AMBER_D = (203, 111, 22)
+INK     = (226, 229, 234)
+MUTE    = (126, 133, 143)
+SOFT_AMBER = (214, 152, 88)     # accent pulled back from full strength
+
+SF = "/System/Library/Fonts/SFNS.ttf"
+ARIAL_B = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+ARIAL = "/System/Library/Fonts/Supplemental/Arial.ttf"
 
 
-def _font(paths, size, variation=None):
-    for p in paths:
+def font(size, variation="Semibold", fallback=ARIAL_B):
+    for p in (SF, fallback):
         try:
             f = ImageFont.truetype(p, size)
-            if variation:
-                try:
-                    f.set_variation_by_name(variation)
-                except Exception:
-                    pass
+            try:
+                f.set_variation_by_name(variation)
+            except Exception:
+                pass
             return f
         except Exception:
             continue
     return ImageFont.load_default()
 
 
-SF = "/System/Library/Fonts/SFNS.ttf"
-ARIAL = "/System/Library/Fonts/Supplemental/Arial.ttf"
-ARIAL_B = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+# ---------------------------------------------------------------------------
+# 1. Ground + the dish, sitting right of centre and bleeding off the edge
+# ---------------------------------------------------------------------------
+cx, cy = BW * 0.775, BH * 0.50
+R = BH * 0.46
 
-f_word = _font([SF, ARIAL_B], 62, "Bold")
-f_head = _font([SF, ARIAL_B], 68, "Bold")
-f_head2 = _font([SF, ARIAL_B], 68, "Semibold")
-f_sub  = _font([SF, ARIAL], 33, "Regular")
-f_pill = _font([SF, ARIAL], 26, "Medium")
-f_url  = _font([SF, ARIAL_B], 30, "Semibold")
+yy, xx = np.mgrid[0:BH, 0:BW].astype(np.float32)
+dx, dy = xx - cx, yy - cy
+rad = np.sqrt(dx * dx + dy * dy)
+ang = np.arctan2(dy, dx)
 
+base = np.zeros((BH, BW, 3), np.float32)
+base[:] = BG
 
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+bloom = np.clip(1.0 - rad / (R * 1.6), 0, 1) ** 2.2
+for i, c in enumerate(AMBER):
+    base[:, :, i] += bloom * (c - BG[i]) * 0.10
 
+# The sweep, blurred so its leading edge is a gradient rather than a blade.
+LEAD = math.radians(-46)
+trail = (LEAD - ang) % (2 * math.pi)
+TAIL = math.radians(112)
+sweep = np.clip(1.0 - trail / TAIL, 0, 1) ** 2.6
+sweep *= np.clip(1.0 - rad / R, 0, 1) ** 0.45
+sweep *= (rad < R)
+sweep = np.asarray(
+    Image.fromarray((sweep * 255).astype(np.uint8), "L")
+         .filter(ImageFilter.GaussianBlur(radius=7 * SS))
+).astype(np.float32) / 255.0
+for i, c in enumerate(AMBER_L):
+    base[:, :, i] += sweep * (c - BG[i]) * 0.26
 
-def rounded(draw, box, r, fill=None, outline=None, width=1):
-    draw.rounded_rectangle(box, radius=r, fill=fill, outline=outline, width=width)
+img = Image.fromarray(np.clip(base, 0, 255).astype(np.uint8), "RGB")
 
+# ---------------------------------------------------------------------------
+# 2. Rings, spokes, and the one gig the beam just found
+# ---------------------------------------------------------------------------
+ov = Image.new("RGBA", (BW, BH), (0, 0, 0, 0))
+d = ImageDraw.Draw(ov)
 
-def amber_tile(size, radius):
-    """The rounded-square icon with the diagonal amber gradient, drawn crisp
-    via 3x supersampling."""
-    s = size * 3
+for k in (0.30, 0.55, 0.78, 1.0):
+    r = R * k
+    d.ellipse([cx - r, cy - r, cx + r, cy + r],
+              outline=(232, 147, 58, 28), width=max(1, int(1.6 * SS)))
+for a in range(0, 360, 30):
+    t = math.radians(a)
+    d.line([(cx, cy), (cx + R * math.cos(t), cy + R * math.sin(t))],
+           fill=(232, 147, 58, 11), width=max(1, int(1.0 * SS)))
+
+BLIPS = [
+    (-46, 0.60, 9, True),
+    (-30, 0.38, 5, False),
+    (-66, 0.82, 5, False),
+    (-100, 0.52, 4, False),
+    (-8,  0.72, 4, False),
+    (26,  0.45, 4, False),
+    (64,  0.66, 4, False),
+    (112, 0.34, 3, False),
+    (150, 0.58, 3, False),
+    (-140, 0.68, 3, False),
+]
+glow = Image.new("RGBA", (BW, BH), (0, 0, 0, 0))
+gd = ImageDraw.Draw(glow)
+for a_deg, rf, size, hot in BLIPS:
+    t = math.radians(a_deg)
+    x, y = cx + R * rf * math.cos(t), cy + R * rf * math.sin(t)
+    s = size * SS
+    halo = s * (3.4 if hot else 2.4)
+    gd.ellipse([x - halo, y - halo, x + halo, y + halo],
+               fill=(232, 147, 58, 78 if hot else 30))
+    d.ellipse([x - s, y - s, x + s, y + s],
+              fill=(252, 228, 198, 235) if hot else (226, 176, 122, 140))
+glow = glow.filter(ImageFilter.GaussianBlur(radius=11 * SS))
+ov = Image.alpha_composite(glow, ov)
+img = Image.alpha_composite(img.convert("RGBA"), ov).convert("RGB")
+
+# A soft fade on the left so the dish never competes with the headline.
+fade = np.clip((np.linspace(0, 1, BW) - 0.13) / 0.30, 0, 1).astype(np.float32)
+arr = np.asarray(img).astype(np.float32)
+for i in range(3):
+    arr[:, :, i] = BG[i] + (arr[:, :, i] - BG[i]) * fade[None, :]
+img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
+
+img = img.resize((W, H), Image.LANCZOS)
+
+# ---------------------------------------------------------------------------
+# 3. The mark, drawn to match assets/icon.svg
+# ---------------------------------------------------------------------------
+def nabbly_mark(size, ss=3):
+    s = size * ss
     tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     grad = Image.new("RGB", (s, s))
-    gd = grad.load()
+    gp = grad.load()
     for y in range(s):
         for x in range(s):
-            t = (x / s * 0.5 + y / s * 0.5)          # diagonal 0..1
-            gd[x, y] = _lerp(AMBER_L, AMBER_D, min(1, t))
+            t = min(1.0, x / s * 0.5 + y / s * 0.5)
+            gp[x, y] = tuple(int(AMBER_L[i] + (AMBER_D[i] - AMBER_L[i]) * t)
+                             for i in range(3))
     mask = Image.new("L", (s, s), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * 3, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1],
+                                           radius=int(s * 0.23), fill=255)
     tile.paste(grad, (0, 0), mask)
-    d = ImageDraw.Draw(tile)
-    # inner hairline
-    d.rounded_rectangle([4, 4, s - 5, s - 5], radius=radius * 3 - 4,
-                        outline=(255, 255, 255, 70), width=3)
-    # the radar ping ring, top-right
-    cx, cy, rr = s * 0.72, s * 0.24, s * 0.10
-    d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(255, 255, 255, 95), width=4)
-    # the check / "N" stroke
-    lw = int(s * 0.075)
-    d.line([(s * 0.28, s * 0.70), (s * 0.28, s * 0.35)], fill=(255, 255, 255, 130), width=lw)
-    d.line([(s * 0.28, s * 0.35), (s * 0.48, s * 0.64), (s * 0.67, s * 0.29)],
-           fill=(255, 255, 255, 255), width=lw, joint="curve")
-    # ping dot fill
-    d.ellipse([cx - rr * 0.42, cy - rr * 0.42, cx + rr * 0.42, cy + rr * 0.42],
-              fill=(255, 255, 255, 255))
+    td = ImageDraw.Draw(tile)
+    td.rounded_rectangle([s * .022, s * .022, s - s * .022, s - s * .022],
+                         radius=int(s * 0.23 - s * .022),
+                         outline=(255, 255, 255, 62), width=max(2, int(s * .009)))
+    mx, my, rr = s * .715, s * .238, s * .098
+    td.ellipse([mx - rr, my - rr, mx + rr, my + rr],
+               outline=(255, 255, 255, 92), width=max(2, int(s * .011)))
+    lw = int(s * .072)
+    td.line([(s * .29, s * .70), (s * .29, s * .355)],
+            fill=(255, 255, 255, 132), width=lw)
+    td.line([(s * .29, s * .355), (s * .48, s * .645), (s * .67, s * .30)],
+            fill=(255, 255, 255, 255), width=lw, joint="curve")
+    td.ellipse([mx - rr * .44, my - rr * .44, mx + rr * .44, my + rr * .44],
+               fill=(255, 255, 255, 255))
     return tile.resize((size, size), Image.LANCZOS)
 
 
-def pill(draw, x, y, text, font):
-    tw = draw.textlength(text, font=font)
-    pad = 20
-    h = 46
-    rounded(draw, [x, y, x + tw + pad * 2, y + h], 23,
-            fill=(26, 30, 36), outline=BORDER, width=2)
-    draw.text((x + pad, y + h / 2), text, font=font, fill=MUTE, anchor="lm")
-    return x + tw + pad * 2 + 12
-
-
-img = Image.new("RGB", (W, H), BG)
+# ---------------------------------------------------------------------------
+# 4. Type, set at final scale so it stays crisp
+# ---------------------------------------------------------------------------
 d = ImageDraw.Draw(img)
+X = int(W * 0.068)                  # left margin, well inside any crop
 
-# faint amber glow, top-left, so it isn't a flat rectangle
-glow = Image.new("RGB", (W, H), BG)
-gd = glow.load()
-for y in range(0, 300):
-    for x in range(0, 460):
-        dist = ((x / 460) ** 2 + (y / 300) ** 2) ** 0.5
-        if dist < 1:
-            t = (1 - dist) * 0.10
-            gd[x, y] = _lerp(BG, AMBER, t)
-img = Image.blend(img, glow, 0.6)
-d = ImageDraw.Draw(img)
+f_h = font(56, "Semibold")
+f_sub = font(24, "Regular", ARIAL)
+f_url = font(23, "Semibold", ARIAL_B)
 
-M = 84  # margin
+d.text((X, H * 0.335), "Every freelance gig,", font=f_h, fill=INK, anchor="lm")
+d.text((X, H * 0.445), "the moment it drops.", font=f_h, fill=SOFT_AMBER, anchor="lm")
+d.text((X, H * 0.565), "One feed for every freelance board,", font=f_sub,
+       fill=MUTE, anchor="lm")
+d.text((X, H * 0.625), "so you reply first.", font=f_sub, fill=MUTE, anchor="lm")
 
-# --- brand lockup, top ---
-tile = amber_tile(84, 24)
-img.paste(tile, (M, M), tile)
-d.text((M + 104, M + 42), "Nabb", font=f_word, fill=INK, anchor="lm")
-w_nabb = d.textlength("Nabb", font=f_word)
-d.text((M + 104 + w_nabb, M + 42), "ly", font=f_word, fill=AMBER, anchor="lm")
+# Sign-off lockup: the mark beside the domain, same as the weekly posts.
+MK = 34
+mark = nabbly_mark(MK)
+my = int(H * 0.755)
+img.paste(mark, (X, my - MK // 2), mark)
+d.text((X + MK + 11, my), "nabbly.co", font=f_url, fill=(190, 140, 92), anchor="lm")
 
-# --- headline ---
-hy = 250
-d.text((M, hy), "Every freelance gig,", font=f_head, fill=INK, anchor="lm")
-d.text((M, hy + 84), "the moment it drops.", font=f_head, fill=AMBER, anchor="lm")
-
-# --- subhead ---
-d.text((M, hy + 168),
-       "Real-time demand from every board and community,",
-       font=f_sub, fill=MUTE, anchor="lm")
-d.text((M, hy + 168 + 44),
-       "in one place — so you reply first.",
-       font=f_sub, fill=MUTE, anchor="lm")
-
-# --- vertical pills ---
-py = 545
-x = M
-for label in ("Design", "Writing", "Dev", "Video", "Marketing", "+17 more"):
-    x = pill(d, x, py, label, f_pill)
-
-# --- url, bottom-right ---
-d.text((W - M, H - M + 20), "nabbly.co", font=f_url, fill=AMBER_L, anchor="rm")
-
-OUT.parent.mkdir(parents=True, exist_ok=True)
-img.save(OUT, "PNG")
+img.save(OUT, "PNG", optimize=True)
 print("wrote", OUT, img.size)
