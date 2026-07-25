@@ -90,6 +90,12 @@ to:
 
 We will also disclose information if the law genuinely requires it.
 
+### Where your data is held
+
+Nabbly is operated from the United States, and the services we rely on store
+data there. If you use Nabbly from elsewhere, including the UK or the EU, your
+information is transferred to and processed in the United States.
+
 ### How long we keep it
 
 We keep your account and profile for as long as your account exists, so you can
@@ -239,6 +245,17 @@ Nothing here excludes liability that cannot legally be excluded.
 You can stop using Nabbly whenever you like and ask us to delete your account at
 **{CONTACT}**. We may suspend or close an account that breaches these terms or
 puts the service or its users at risk.
+
+### Governing law
+
+These terms are governed by the laws of the State of Oregon, United States,
+without regard to its conflict of law rules. You and we agree that any dispute
+arising out of these terms or your use of Nabbly will be brought in the state or
+federal courts located in Oregon, and we each consent to those courts having
+jurisdiction.
+
+If you use Nabbly from outside the United States, you do so on your own
+initiative and are responsible for complying with your own local laws.
 
 ### Changes
 
