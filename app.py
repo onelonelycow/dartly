@@ -541,6 +541,38 @@ div[data-testid="stForm"]{border:0;padding:0}
 [class*="st-key-goog_"] button p::before{
   content:"";display:inline-block;width:17px;height:17px;margin:0 9px -3px 0;
   background:url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><path fill="%23EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="%234285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="%23FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="%2334A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>') no-repeat center/contain}
+
+/* ── Loading: a sweep, not a dimmer ──────────────────────────────────────────
+   Streamlit's only "we're working" signal is fading the whole page down, which
+   reads as the screen going dark for no reason rather than as progress. Two
+   changes: keep the content at full brightness, and run a thin amber sweep
+   across the top — the same radar language as the mark, and a pattern people
+   already know from GitHub/YouTube. Driven by Streamlit's own
+   data-test-script-state attribute, so it's exact rather than guessed timing. */
+[data-testid="stApp"] [data-stale="true"]{opacity:1!important}
+/* The bar is only CREATED while the script runs — no base rule to be overridden
+   and left showing a static strip when idle. */
+[data-testid="stApp"][data-test-script-state="running"]::before,
+[data-testid="stApp"][data-test-script-state="rerunRequested"]::before{
+  content:"";position:fixed;top:0;left:0;right:0;height:2.5px;z-index:99999;
+  pointer-events:none;
+  background-image:linear-gradient(90deg,
+    rgba(232,147,58,0) 0%, rgba(232,147,58,.18) 28%,
+    #F7B569 50%, rgba(232,147,58,.18) 72%, rgba(232,147,58,0) 100%);
+  background-size:45% 100%;background-repeat:no-repeat;
+  animation:nb-sweep 1.15s cubic-bezier(.45,.05,.35,1) infinite}
+@keyframes nb-sweep{
+  0%{background-position:-45% 0}
+  100%{background-position:145% 0}}
+@media (prefers-reduced-motion:reduce){
+  [data-testid="stApp"][data-test-script-state="running"]::before,
+  [data-testid="stApp"][data-test-script-state="rerunRequested"]::before{
+    animation:none;background-position:50% 0}}
+
+/* Streamlit prints "Press Enter to apply / submit form" under every text box.
+   It explains a convention people already know and leaves a line of grey noise
+   under the search field. (Confirmed test id from Streamlit's own bundle.) */
+[data-testid="InputInstructions"]{display:none!important}
 </style>
 """, unsafe_allow_html=True)
 
