@@ -606,6 +606,30 @@ div[data-testid="stForm"]{border:0;padding:0}
 .gr-dash-head p{font-size:14.5px;color:#8a919c;margin:0}
 @media (max-width:640px){.gr-dash-head h2{font-size:21px}}
 
+/* ── Gigs toolbar ───────────────────────────────────────────────────────────
+   "Check for new gigs" was a full-width boxy button in its own half-width row
+   above everything, and the "clear" buttons were parked at the far right edge,
+   miles from the label they belong to. Both now read as quiet controls beside
+   the thing they act on. */
+.st-key-checknew button{
+  min-height:0!important;background:#171a20!important;
+  border:1px solid #2f343d!important;color:#c3cad3!important;
+  border-radius:10px!important;padding:9px 14px!important;box-shadow:none!important}
+.st-key-checknew button:hover{
+  border-color:rgba(232,147,58,.55)!important;color:#eaa662!important;
+  background:#1c2027!important;transform:none!important}
+.st-key-checknew button p{font-size:13.5px!important;font-weight:600!important;margin:0!important}
+
+/* The "clear this filter" chips: small, quiet, and adjacent to their label. */
+[class*="st-key-clear"] button{
+  min-height:0!important;background:transparent!important;
+  border:1px solid #2f343d!important;color:#8a919c!important;
+  border-radius:999px!important;padding:4px 12px!important;box-shadow:none!important}
+[class*="st-key-clear"] button:hover{
+  border-color:rgba(232,147,58,.5)!important;color:#eaa662!important;
+  background:#181c22!important;transform:none!important}
+[class*="st-key-clear"] button p{font-size:12.5px!important;font-weight:500!important;margin:0!important}
+
 /* Streamlit prints "Press Enter to apply / submit form" under every text box.
    It explains a convention people already know and leaves a line of grey noise
    under the search field. (Confirmed test id from Streamlit's own bundle.) */
@@ -1428,24 +1452,23 @@ def view_dashboard(pro):
 def view_gigs(pro):
     st.markdown('### The whole <span class="gr-accent">board</span>',
                 unsafe_allow_html=True)
-    head = st.columns([1, 2])
-    with head[0]:
-        if st.button("🔄 Check for new gigs", width="stretch"):
-            with st.spinner("Scanning the web for fresh gigs…"):
-                ingest.run()
-            _public_feed.clear()         # new gigs should show at once, not in 45s
-            st.rerun()
     if df.empty:
         st.info("Nothing here yet — hit **Check for new gigs** and we'll grab the latest.")
         return
 
-    # Search sits at the top, pre-filled when someone arrived here by searching
-    # from the dashboard. Kept to a readable width rather than stretched across
-    # the page — a search box doesn't need to be a metre wide to be found.
-    _sc, _ = st.columns([3, 2])
+    # Search and refresh share one row: the box people reach for first, and the
+    # action that feeds it, sitting together instead of the refresh floating in
+    # its own half-width box above everything.
+    _sc, _rc, _ = st.columns([3, 1.15, 1.1], vertical_alignment="center")
     _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
                          placeholder="Search gigs — figma, shopify, medical…",
                          label_visibility="collapsed", key="gigsearch")
+    with _rc:
+        if st.button("Check for new gigs", key="checknew", width="stretch"):
+            with st.spinner("Scanning the web for fresh gigs…"):
+                ingest.run()
+            _public_feed.clear()         # new gigs should show at once, not in 45s
+            st.rerun()
     kw = (_sq or "").strip().lower()
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
@@ -1495,11 +1518,11 @@ def view_gigs(pro):
     # Answer the search plainly, including when it finds nothing — an empty
     # board with no explanation reads as broken rather than as "no matches".
     if kw:
-        sc1, sc2 = st.columns([5, 1], vertical_alignment="center")
+        sc1, sc2, _ = st.columns([3.1, 1, 5.9], vertical_alignment="center")
         sc1.markdown(f'<span class="gr-qf">▸ {len(view):,} result'
                      f'{"" if len(view) == 1 else "s"} for '
                      f'<b>{html.escape(kw)}</b></span>', unsafe_allow_html=True)
-        if sc2.button("✕ clear", key="clearsearch", width="stretch"):
+        if sc2.button("Clear", key="clearsearch", width="stretch"):
             st.session_state["searchq"] = ""
             st.session_state.pop("gigsearch", None)
             st.rerun()
@@ -1512,9 +1535,9 @@ def view_gigs(pro):
     if qf:
         qlabel = {"recent": "posted in the last 24h", "mine": "in your skills",
                   "urgent": "urgent only"}.get(qf, qf)
-        fc1, fc2 = st.columns([5, 1], vertical_alignment="center")
+        fc1, fc2, _ = st.columns([3.1, 1, 5.9], vertical_alignment="center")
         fc1.markdown(f'<span class="gr-qf">▸ {qlabel}</span>', unsafe_allow_html=True)
-        if fc2.button("✕ clear", key="clearqf", width="stretch"):
+        if fc2.button("Clear", key="clearqf", width="stretch"):
             st.session_state["quickfilter"] = ""
             st.rerun()
         if qf == "urgent":
@@ -1528,19 +1551,19 @@ def view_gigs(pro):
     cat = st.session_state.get("catfilter", "")
     group = st.session_state.get("groupfilter", "")
     if cat:
-        cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
+        cc1, cc2, _ = st.columns([3.1, 1, 5.9], vertical_alignment="center")
         cc1.markdown(f'<span class="gr-qf">▸ {html.escape(cat)}</span>',
                      unsafe_allow_html=True)
-        if cc2.button("✕ clear", key="clearcat", width="stretch"):
+        if cc2.button("Clear", key="clearcat", width="stretch"):
             st.session_state["catfilter"] = ""
             st.rerun()
         view = view[view["job_type"] == cat]
     elif group and group in config.CATEGORY_GROUPS:
         subs = config.CATEGORY_GROUPS[group]
-        cc1, cc2 = st.columns([5, 1], vertical_alignment="center")
+        cc1, cc2, _ = st.columns([3.1, 1, 5.9], vertical_alignment="center")
         cc1.markdown(f'<span class="gr-qf">▸ {html.escape(group)}</span>',
                      unsafe_allow_html=True)
-        if cc2.button("✕ clear", key="cleargrp", width="stretch"):
+        if cc2.button("Clear", key="cleargrp", width="stretch"):
             st.session_state["groupfilter"] = ""
             st.rerun()
         view = view[view["job_type"].isin(subs)]
