@@ -224,6 +224,27 @@ def owned_posts(owner: str, demand_only: bool = True):
     return [dict(r) for r in rows]
 
 
+def posts_since(min_id: int, demand_only: bool = True, owner: str | None = None):
+    """
+    Only the posts newer than a watermark.
+
+    Alerting used to pull the WHOLE board every cycle to find the few rows above
+    each person's marker — ~10,000 rows as Python dicts, about 45MB, every pass,
+    all night. Python hands that memory back to its own allocator rather than the
+    OS, so RSS crept up until Render killed the instance. This asks the database
+    for the handful of rows that can possibly matter instead.
+    """
+    conn = connect()
+    clause, params = _owner_clause(owner)
+    where = f"WHERE id > ? AND {clause}" + (" AND is_demand = 1" if demand_only else "")
+    rows = conn.execute(
+        f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
+        [int(min_id)] + params,
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def max_post_id() -> int:
     """
     Highest id on the whole table, private rows included.

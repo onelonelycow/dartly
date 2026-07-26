@@ -926,7 +926,10 @@ def _build_feed(posts):
     return df, before - len(df)
 
 
-@st.cache_resource(ttl=45, show_spinner=False)
+# 120s rather than 45s: each rebuild allocates the whole board again, and the
+# background fetch only runs every 2 minutes anyway, so a shorter window just
+# churned memory without showing anything sooner.
+@st.cache_resource(ttl=120, show_spinner=False)
 def _public_feed():
     """
     The public board, built ONCE and shared by every visitor.

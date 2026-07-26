@@ -396,7 +396,6 @@ def notify_everyone(desktop: bool = False) -> int:
     import db as _db
 
     pinged = 0
-    public = _db.all_posts(demand_only=True)
     # The marker has to run off the true top of the table, not the top of the
     # public board — a forwarded gig with a higher id would otherwise stay above
     # every marker and re-alert on every cycle.
@@ -404,21 +403,36 @@ def notify_everyone(desktop: bool = False) -> int:
     if not newest:
         return 0
 
-    for acc in accounts.all_accounts():
-        if not accounts.status(acc)["pro"]:
-            continue                      # trial over: alerts are a Pro feature
+    # Work out who we might actually ping BEFORE touching the posts table, then
+    # fetch only the rows newer than the earliest watermark among them. This
+    # used to load the entire board (~10,000 rows, ~45MB) on every pass, all
+    # night, which is what ate the instance's memory. Nobody to alert means no
+    # query at all.
+    live = [a for a in accounts.all_accounts() if accounts.status(a)["pro"]]
+    if not live:
+        return 0
+    floor = min(int(a.get("last_alert_id") or 0) for a in live)
+    if floor >= newest:
+        return 0                          # nothing new since the earliest marker
+    public = _db.posts_since(floor, demand_only=True)
+
+    for acc in live:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
-        # Their own forwarded gigs count as theirs to be alerted about, and are
-        # often the most valuable ones on their board.
-        mine = _db.owned_posts(scope)
-        rows = sorted(public + mine,
-                      key=lambda r: str(r.get("posted_at") or r.get("fetched_at") or ""),
-                      reverse=True) if mine else public
         prefs = load_prefs()
         if not any(prefs.get(k) for k in
                    ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):
-            continue                      # nothing configured, nothing to send
+            # Still advance the marker so they don't bank a backlog that fires
+            # the moment they switch a channel on.
+            accounts.set_last_alert_id(acc["email"], newest)
+            continue
+        # Their own forwarded gigs count as theirs to be alerted about, and are
+        # often the most valuable ones on their board.
+        mine = _db.posts_since(floor, demand_only=True, owner=scope)
+        mine = [r for r in mine if (r.get("owner") or "") == scope]
+        rows = sorted(public + mine,
+                      key=lambda r: str(r.get("posted_at") or r.get("fetched_at") or ""),
+                      reverse=True) if mine else public
         since = int(acc.get("last_alert_id") or 0)
         fresh = [r for r in rows if int(r["id"]) > since and matches(r, prefs)]
         if fresh:
