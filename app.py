@@ -862,14 +862,8 @@ def source_pill(src: str):
 # Shared data
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=45, max_entries=64, show_spinner=False)
-def _feed_for_scope(scope: str):
-    """
-    Build the de-duplicated board for one viewer. Cached, because this is the
-    expensive bit: reading every row from SQLite, tokenising each title and
-    dropping near-duplicates. It used to run three times on every rerun — every
-    keystroke in the search box — which is exactly why searching felt slow.
-    """
-    posts = db.all_posts(demand_only=True, owner=scope)
+def _build_feed(posts):
+    """Rows -> a de-duplicated frame with the lowercased search columns."""
     if not posts:
         return pd.DataFrame(), 0
     df = pd.DataFrame(posts)
@@ -881,23 +875,61 @@ def _feed_for_scope(scope: str):
     df["_key"] = df["title"].map(_key)
     before = len(df)
     df = df[df["_key"] != ""].drop_duplicates(subset="_key", keep="first")
-    # Lowercased text, computed once here inside the cache rather than on every
-    # keystroke in apply_filters. Searching used to re-lower ~9,000 titles and
-    # bodies per character typed.
+    # Lowercased text, computed once here rather than on every keystroke in
+    # apply_filters, which used to re-lower ~9,000 titles and bodies per
+    # character typed.
     df["_t"] = df["title"].fillna("").str.lower()
     df["_b"] = df["body"].fillna("").str.lower()
     return df, before - len(df)
 
 
+@st.cache_resource(ttl=45, show_spinner=False)
+def _public_feed():
+    """
+    The public board, built ONCE and shared by every visitor.
+
+    THIS CAUSED AN OUTAGE: it was previously cached per storage scope with
+    max_entries=64. Every anonymous visitor gets a unique scratch scope, so each
+    new browser session allocated its own ~29MB copy of the identical public
+    board — up to 1.9GB against a 512MB instance, which tripped Render's memory
+    limit and forced restarts. The public board is the same for everyone, so it
+    is cached once, under one key.
+
+    cache_resource rather than cache_data because it returns THE SAME object
+    instead of a fresh copy per call, which is the other half of the saving.
+    Safe because nothing mutates it: apply_filters and rank_by_relevance return
+    new frames, and scored() copies before it writes.
+    """
+    return _build_feed(db.all_posts(demand_only=True, owner=None))
+
+
+def _sort_key(df):
+    """Newest first, matching the SQL COALESCE(posted_at, fetched_at)."""
+    return df["posted_at"].fillna("").where(
+        df["posted_at"].fillna("") != "", df.get("fetched_at", ""))
+
+
 def load_feed():
-    # Scoped to whoever is looking: the public board, plus anything they
-    # forwarded to their own Nabbly address. Never anyone else's forwards.
-    # The 45s cache keeps rapid interactions instant while staying fresh against
-    # the ~2-minute background fetch; "Check for new gigs" clears it on demand.
-    # We hand back a copy so a caller filtering the frame can't corrupt the
-    # shared cached object.
-    df, dropped = _feed_for_scope(paths.get_scope())
-    return df.copy(), dropped
+    """
+    The public board, plus anything this viewer forwarded to their own Nabbly
+    address. Never anyone else's forwards.
+
+    The common case returns the shared frame untouched — no copy, no extra
+    memory. Only someone who has actually forwarded gigs pays for a merged
+    frame, and they have a handful of rows, not thousands.
+    """
+    df, dropped = _public_feed()
+    scope = paths.get_scope()
+    # Anonymous scratch scopes can never own rows, so skip the query entirely.
+    if not scope or scope.startswith(("free-", "guest-", "_")):
+        return df, dropped
+    owned = db.owned_posts(scope)
+    if not owned:
+        return df, dropped
+    odf, _ = _build_feed(owned)
+    merged = pd.concat([odf, df], ignore_index=True)
+    return merged.assign(_s=_sort_key(merged)).sort_values(
+        "_s", ascending=False, kind="stable").drop(columns="_s"), dropped
 
 
 db.ensure_seeded()      # first run on a fresh deploy loads the bundled seed.db
@@ -1401,7 +1433,7 @@ def view_gigs(pro):
         if st.button("🔄 Check for new gigs", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
-            _feed_for_scope.clear()      # new gigs should show at once, not in 45s
+            _public_feed.clear()         # new gigs should show at once, not in 45s
             st.rerun()
     if df.empty:
         st.info("Nothing here yet — hit **Check for new gigs** and we'll grab the latest.")
