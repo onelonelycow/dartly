@@ -643,6 +643,12 @@ div[data-testid="stForm"]{border:0;padding:0}
   background:#181c22!important;transform:none!important}
 [class*="st-key-clear"] button p{font-size:12.5px!important;font-weight:500!important;margin:0!important}
 
+/* Streamlit's chart toolbar ships a "Show data" toggle that swaps the chart for
+   a raw dataframe — internal column names and all (job_type, size_tier). That's
+   our plumbing, not something a freelancer needs to see. Fullscreen stays, and
+   the Market page offers a proper CSV export with readable headings instead. */
+[data-testid="stElementToolbar"] button[aria-label="Show data"]{display:none!important}
+
 /* Streamlit prints "Press Enter to apply / submit form" under every text box.
    It explains a convention people already know and leaves a line of grey noise
    under the search field. (Confirmed test id from Streamlit's own bundle.) */
@@ -1701,6 +1707,18 @@ def view_market(pro):
         tooltip=["job_type", "size_tier", "Gigs"]).properties(height=330)
     st.altair_chart(stacked, width="stretch")
     st.caption("Ballpark — budgets blend project & hourly figures across sources.")
+
+    # The chart toolbar's own export only appeared inside the raw-data view we
+    # just hid, so this replaces it: the same numbers, with headings a person
+    # can read rather than our internal column names.
+    _csv = (sk.rename(columns={"job_type": "Field", "size_tier": "Budget"})
+              .sort_values(["Field", "Budget"]))
+    _d1, _d2, _ = st.columns([1.4, 1, 3.6])
+    with _d1:
+        st.download_button("Download this data (CSV)",
+                           _csv.to_csv(index=False).encode("utf-8"),
+                           file_name="nabbly-market.csv", mime="text/csv",
+                           key="mktcsv", width="stretch")
 
 
 def _channel(name, blurb):
