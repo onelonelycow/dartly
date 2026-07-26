@@ -606,6 +606,19 @@ div[data-testid="stForm"]{border:0;padding:0}
 .gr-dash-head p{font-size:14.5px;color:#8a919c;margin:0}
 @media (max-width:640px){.gr-dash-head h2{font-size:21px}}
 
+/* ── Gigs page: make the controls read as ONE toolbar ───────────────────────
+   Streamlit puts a 16px gap between every block, so six stacked control rows
+   became six separate bars floating in space. Tightening the gap inside the
+   toolbar region groups them, and the page reaches an actual gig far sooner.
+   Scoped by a marker span so it can't touch the rest of the app. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-tools){
+  gap:.55rem!important}
+/* The "Narrow it down" expander was a heavy full-width bar competing with the
+   search. Quieter border, tighter padding, so it reads as a secondary option. */
+[data-testid="stExpander"]{border-color:#22262e!important;background:transparent!important}
+[data-testid="stExpander"] summary{padding:7px 12px!important;font-size:13.5px!important}
+[data-testid="stExpander"] summary p{font-size:13.5px!important;color:#98a0ab!important}
+
 /* ── Gigs toolbar ───────────────────────────────────────────────────────────
    "Check for new gigs" was a full-width boxy button in its own half-width row
    above everything, and the "clear" buttons were parked at the far right edge,
@@ -1450,25 +1463,31 @@ def view_dashboard(pro):
 
 
 def view_gigs(pro):
-    st.markdown('### The whole <span class="gr-accent">board</span>',
-                unsafe_allow_html=True)
-    if df.empty:
-        st.info("Nothing here yet — hit **Check for new gigs** and we'll grab the latest.")
-        return
-
-    # Search and refresh share one row: the box people reach for first, and the
-    # action that feeds it, sitting together instead of the refresh floating in
-    # its own half-width box above everything.
-    _sc, _rc, _ = st.columns([3, 1.15, 1.1], vertical_alignment="center")
-    _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
-                         placeholder="Search gigs — figma, shopify, medical…",
-                         label_visibility="collapsed", key="gigsearch")
-    with _rc:
-        if st.button("Check for new gigs", key="checknew", width="stretch"):
+    # The page used to open with SEVEN stacked control rows of different shapes
+    # before a single gig appeared: heading, a boxy refresh button, search,
+    # browse chips, location pills, a full-width expander, then the result count.
+    # Refresh belongs with the title, not in the reading path — it's a
+    # maintenance action, not something you do before every search.
+    _h, _r = st.columns([3.4, 1], vertical_alignment="center")
+    # The marker span goes AFTER the heading: a markdown "###" only parses at the
+    # very start of the line, so leading HTML turns it into literal text.
+    _h.markdown('### The whole <span class="gr-accent">board</span>'
+                '<span class="gr-tools"></span>', unsafe_allow_html=True)
+    with _r:
+        if st.button("↻  Refresh", key="checknew", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
             _public_feed.clear()         # new gigs should show at once, not in 45s
             st.rerun()
+
+    if df.empty:
+        st.info("Nothing here yet — hit **Refresh** and we'll grab the latest.")
+        return
+
+    _sc, _ = st.columns([3, 2])
+    _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
+                         placeholder="Search gigs — figma, shopify, medical…",
+                         label_visibility="collapsed", key="gigsearch")
     kw = (_sq or "").strip().lower()
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
