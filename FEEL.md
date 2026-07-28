@@ -177,7 +177,54 @@ founding member.
 - Confirm selectors against Streamlit's own bundle
   (`.venv/.../streamlit/static/`) before styling — don't guess test-ids.
 
-## 9. The checklist before shipping any UI change
+## 9. Benchmarks — the three sites to measure against
+
+Not for copying. They are the calibration reference when a change is "fine but
+not sharp": open one, look at the same element there, and ask what it does that
+we don't. All three are dark-native, single-accent, restrained products — the
+same territory Nabbly is in — and all three read as expensive.
+
+### Linear — linear.app · the standard for restraint
+Near-black grounds, accents used strategically rather than decoratively, and a
+type scale with real range: generous display sizes against compact UI labels.
+Cards are defined by understated borders and crisp edges, no ornament. It is
+**premium through omission** — deliberately anti-trend.
+
+*Steal:* the type-scale range. Nabbly's headings and body sit too close
+together; Linear's confidence comes from a bigger jump between display and
+label. Also its refusal to decorate — every element earns its place.
+
+### Vercel — vercel.com · the standard for spacing and neutrals
+Near-black, never pure black. Extreme colour restraint. What carries it is
+**spacing discipline**: generous, consistent whitespace that compartmentalises
+sections so the page breathes. Cards use subtle borders and layered depth
+rather than heavy frames. Buttons are high-contrast with restrained ornament.
+
+*Steal:* section rhythm. Our density problem was never the components, it was
+that everything sat at the same vertical distance. Vercel varies the gap
+between *sections* far more than the gap between *items*, and that alone reads
+as designed.
+
+### Raycast — raycast.com · the standard for presenting lists
+Closest to Nabbly's actual job: rows and rows of items that must stay scannable.
+Dark neutral base, accents strategic, cards on a consistent grid with icon →
+title → description left, preview right. Gentle differentiation between rows,
+never stark separators.
+
+*Steal:* row structure. A gig card is Raycast's extension card. Consistent
+internal alignment across every row is what makes a long list feel calm rather
+than endless.
+
+**Where we currently fall short of all three (ranked):**
+1. **Vertical rhythm is flat** — sections, groups and items are spaced too
+   alike. Vary section gaps deliberately.
+2. **Type scale is compressed** — headings should be further from body.
+3. **Gig cards repeat a lot** — 60 near-identical blocks; they need clearer
+   internal hierarchy (title dominant, meta recessive) so the eye can skim.
+4. **Borders are doing too much work** — several full-width bordered bars
+   stacked. Prefer spacing and background shifts over more outlines.
+
+## 10. The checklist before shipping any UI change
 
 1. One primary action on screen? One amber focal point?
 2. Does it read as ONE surface (grouped, consistent radii/borders), not
