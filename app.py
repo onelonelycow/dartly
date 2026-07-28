@@ -904,12 +904,24 @@ def source_pill(src: str):
 # ---------------------------------------------------------------------------
 # Shared data
 # ---------------------------------------------------------------------------
-@st.cache_data(ttl=45, max_entries=64, show_spinner=False)
 def _build_feed(posts):
-    """Rows -> a de-duplicated frame with the lowercased search columns."""
-    if not posts:
+    """
+    Rows -> a de-duplicated frame with the lowercased search columns.
+
+    DELIBERATELY NOT CACHED. This was @st.cache_data(ttl=45, max_entries=64),
+    which is the same shape as the bug that took the site down once already, one
+    level further in:
+      - cache_data HASHES its argument, and the argument was a list of ~13,000
+        dicts, so every call walked the whole board just to build a cache key;
+      - cache_data returns a COPY on every hit, so each call minted a fresh
+        ~41MB frame even when nothing had changed;
+      - max_entries=64 meant up to 64 board-sized frames could be resident.
+    Caching belongs one level up, on the finished board, keyed by whether the
+    board actually changed — see _public_feed().
+    """
+    if posts is None or len(posts) == 0:
         return pd.DataFrame(), 0
-    df = pd.DataFrame(posts)
+    df = posts.copy() if isinstance(posts, pd.DataFrame) else pd.DataFrame(posts)
 
     def _key(title):
         toks = [w for w in re.findall(r"[a-z0-9]+", str(title).lower()) if len(w) > 2]
@@ -926,10 +938,17 @@ def _build_feed(posts):
     return df, before - len(df)
 
 
-# 120s rather than 45s: each rebuild allocates the whole board again, and the
-# background fetch only runs every 2 minutes anyway, so a shorter window just
-# churned memory without showing anything sooner.
-@st.cache_resource(ttl=120, show_spinner=False)
+# Keyed on the board's fingerprint, not on a clock. A timer rebuilds the whole
+# 41MB frame every N seconds whether or not a single gig arrived; ingest usually
+# adds nothing, so nearly all of that work was churn. max_entries=1 is the point:
+# the previous frame is evicted as the new one lands, so two can't be resident.
+# The ttl is only a backstop for edits that don't move the fingerprint (the
+# one-off reclassify at boot).
+@st.cache_resource(max_entries=1, ttl=900, show_spinner=False)
+def _public_feed_at(version):
+    return _build_feed(db.posts_frame(demand_only=True, owner=None))
+
+
 def _public_feed():
     """
     The public board, built ONCE and shared by every visitor.
@@ -945,8 +964,12 @@ def _public_feed():
     instead of a fresh copy per call, which is the other half of the saving.
     Safe because nothing mutates it: apply_filters and rank_by_relevance return
     new frames, and scored() copies before it writes.
+
+    The board's fingerprint is the cache key, so this rebuilds when gigs
+    actually arrive rather than every N seconds. board_version() is two integers
+    off an index — cheap enough to ask on every rerun.
     """
-    return _build_feed(db.all_posts(demand_only=True, owner=None))
+    return _public_feed_at(db.board_version())
 
 
 def _sort_key(df):

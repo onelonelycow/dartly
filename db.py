@@ -210,6 +210,44 @@ def all_posts(demand_only: bool = True, owner: str | None = None):
     return [dict(r) for r in rows]
 
 
+def posts_frame(demand_only: bool = True, owner: str | None = None):
+    """
+    The same rows as all_posts(), but built straight into a DataFrame.
+
+    all_posts() materialises ~13,000 Python dicts (about 45MB) purely so pandas
+    can copy them into columns and throw them away. On a 512MB instance that
+    transient spike is most of a rebuild's cost. read_sql_query goes from the
+    cursor to the frame with no dict list in between.
+    """
+    import pandas as pd
+    conn = connect()
+    clause, params = _owner_clause(owner)
+    where = f"WHERE {clause}" + (" AND is_demand = 1" if demand_only else "")
+    try:
+        return pd.read_sql_query(
+            f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
+            conn, params=params)
+    finally:
+        conn.close()
+
+
+def board_version() -> tuple[int, int]:
+    """
+    A cheap fingerprint of the board: (highest id, row count).
+
+    Lets the app cache the built feed until the board ACTUALLY changes, instead
+    of rebuilding it on a timer. Two integers from an index, not a table scan.
+    """
+    conn = connect()
+    try:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(id), 0), COUNT(*) FROM posts WHERE is_demand = 1"
+        ).fetchone()
+        return int(row[0]), int(row[1])
+    finally:
+        conn.close()
+
+
 def owned_posts(owner: str, demand_only: bool = True):
     """Just the gigs one person forwarded in — none of the public board."""
     if not owner:
