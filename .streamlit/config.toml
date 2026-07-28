@@ -10,6 +10,12 @@ headless = true
 address = "0.0.0.0"
 enableCORS = false
 enableXsrfProtection = false
+# Streamlit's own default is 200MB per upload. Nothing capped that until now,
+# which meant the resume uploader (added today) would accept anything up to
+# 200MB and hold the whole thing in memory during parsing — on a small
+# instance that's a plausible one-shot cause of an OOM restart, not just the
+# slow overnight leak. A resume is a document, not a video; 10MB is generous.
+maxUploadSize = 10
 
 [browser]
 gatherUsageStats = false

@@ -13,19 +13,28 @@ import io
 import re
 
 MAX_CHARS = 6000   # roughly two pages — enough signal, keeps the prompt cheap
+# Belt and suspenders on top of .streamlit/config.toml's server-level
+# maxUploadSize=10. That config caps what the browser can even SEND; this caps
+# what this function will bother to PARSE, so a future caller that skips the
+# config (a different entry point, a test harness) still can't hand pypdf a
+# huge byte string on a small instance.
+MAX_BYTES = 10 * 1024 * 1024
 
 
 def extract_text(uploaded_file) -> str:
     """
     Best-effort plain text from a Streamlit UploadedFile.
 
-    '' on anything unreadable (a scanned/image-only PDF, a corrupt file) —
-    callers should treat that as "nothing changed" and let drafting continue
-    without it, never as an error that blocks the feature.
+    '' on anything unreadable OR too large (a scanned/image-only PDF, a
+    corrupt file, something oversized) — callers should treat that as
+    "nothing changed" and let drafting continue without it, never as an
+    error that blocks the feature.
     """
     name = (uploaded_file.name or "").lower()
     try:
         data = uploaded_file.getvalue()
+        if len(data) > MAX_BYTES:
+            return ""
         text = _from_pdf(data) if name.endswith(".pdf") else data.decode(
             "utf-8", errors="ignore")
     except Exception:
