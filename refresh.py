@@ -50,6 +50,11 @@ def _loop():
     # Cheap and idempotent: a second pass finds nothing to change.
     try:
         import db
+        # Dates BEFORE anything else reads the board: posted_at arrived from
+        # feeds in RFC 2822 and the sort is a text sort, so until these are one
+        # format "newest first" is really "weekday name, Z to A".
+        _state["dates_fixed"] = db.normalize_dates()
+        _state["archived"] = db.archive_stale()
         _state["reclassified"] = db.reclassify_all()
     except Exception:
         pass

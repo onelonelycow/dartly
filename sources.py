@@ -105,6 +105,54 @@ def _epoch_to_iso(epoch):
         return None
 
 
+def to_iso(value):
+    """
+    Any date a feed hands us -> one ISO 8601 string (or '').
+
+    THIS IS NOT COSMETIC. posted_at is a TEXT column and the board sorts with
+    "ORDER BY COALESCE(posted_at, fetched_at) DESC", which on text is an
+    alphabetical sort. Feeds hand back RFC 2822 ("Wed, 24 Jun 2026 22:25:04
+    +0000"), and sorting those strings sorts by the WEEKDAY NAME: every "Wed"
+    gig outranks every "Thu" one, whatever year it's from. The live board had a
+    January 2024 post sitting at the top of "Fresh off the boards" because of
+    it, and people were clicking through to listings that closed months ago.
+
+    Everything goes through here now, so the column holds one comparable
+    format and the sort means what it says.
+    """
+    if not value:
+        return ""
+    if isinstance(value, (int, float)):
+        return _epoch_to_iso(value) or ""
+    s = str(value).strip()
+    if not s:
+        return ""
+    # Already ISO-ish (what our own rows and a few APIs use).
+    try:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
+    except ValueError:
+        pass
+    # RFC 2822, the RSS default: "Wed, 24 Jun 2026 22:25:04 +0000".
+    try:
+        from email.utils import parsedate_to_datetime
+        d = parsedate_to_datetime(s)
+        if d:
+            return (d if d.tzinfo else d.replace(tzinfo=timezone.utc)).isoformat()
+    except Exception:
+        pass
+    # A few feeds send a bare date, or an epoch as a string.
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc).isoformat()
+        except ValueError:
+            continue
+    try:
+        return _epoch_to_iso(float(s)) or ""
+    except (TypeError, ValueError):
+        return ""
+
+
 def _get(url):
     r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
     # These APIs serve UTF-8 JSON; force it so responses that omit their charset
@@ -145,7 +193,7 @@ def fetch_reddit() -> list[dict]:
                 "source": "reddit", "source_id": sid, "url": link,
                 "title": _strip(e.get("title", "")),
                 "body": _strip(e.get("summary", "")),
-                "posted_at": str(e.get("updated") or e.get("published") or ""),
+                "posted_at": to_iso(e.get("updated") or e.get("published")),
             }
         if i < len(config.SUBREDDITS) - 1:
             time.sleep(18)
@@ -172,7 +220,7 @@ def fetch_remoteok() -> list[dict]:
             "url": it.get("url") or it.get("apply_url", ""),
             "title": f"{it.get('position','')} — {it.get('company','')}".strip(" —"),
             "body": _body(it.get("description", ""), tags, salary),
-            "posted_at": it.get("date"),
+            "posted_at": to_iso(it.get("date")),
         })
     return out
 
@@ -192,7 +240,7 @@ def fetch_remotive() -> list[dict]:
             "title": f"{it.get('title','')} — {it.get('company_name','')}".strip(" —"),
             "body": _body(it.get("description", ""), it.get("category", ""),
                           it.get("salary", ""), " ".join(it.get("tags", []) or [])),
-            "posted_at": it.get("publication_date"),
+            "posted_at": to_iso(it.get("publication_date")),
         })
     return out
 
@@ -236,7 +284,7 @@ def fetch_jobicy() -> list[dict]:
             "title": f"{it.get('jobTitle','')} — {it.get('companyName','')}".strip(" —"),
             "body": _body(f"{it.get('jobExcerpt','')} {it.get('jobDescription','')}",
                           " ".join(it.get("jobIndustry", []) or []), salary),
-            "posted_at": it.get("pubDate"),
+            "posted_at": to_iso(it.get("pubDate")),
         })
     return out
 
@@ -294,7 +342,7 @@ def fetch_weworkremotely() -> list[dict]:
             "url": e.get("link", ""),
             "title": _strip(e.get("title", "")),
             "body": _strip(e.get("summary", "")),
-            "posted_at": str(e.get("published") or ""),
+            "posted_at": to_iso(e.get("published")),
         })
     return out
 
@@ -333,7 +381,7 @@ def fetch_rss(key: str) -> list[dict]:
             "url": link,
             "title": _strip(e.get("title", "")),
             "body": _strip(e.get("summary", "") or e.get("description", "")),
-            "posted_at": str(e.get("published") or e.get("updated") or ""),
+            "posted_at": to_iso(e.get("published") or e.get("updated")),
         })
     return out
 

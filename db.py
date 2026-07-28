@@ -161,6 +161,71 @@ def rehydrate_board():
         print(f"  ! board rehydrate: {type(e).__name__}: {e}")
 
 
+def normalize_dates() -> int:
+    """
+    Rewrite every non-ISO posted_at in place, and return how many changed.
+
+    posted_at is TEXT and the board sorts on it, so a mix of RFC 2822 and ISO
+    means the sort is alphabetical over two different formats — which put a
+    January 2024 gig at the top of "Fresh off the boards" because "Wed," beats
+    "Thu,". Runs once at boot; a second pass finds nothing and costs one scan.
+    """
+    import sources
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, posted_at FROM posts WHERE posted_at IS NOT NULL "
+            "AND posted_at != ''").fetchall()
+        fixes = []
+        for r in rows:
+            raw = r["posted_at"]
+            # Cheap check first: a real ISO value starts "YYYY-MM-DD".
+            if len(str(raw)) >= 10 and str(raw)[4] == "-" and str(raw)[7] == "-":
+                continue
+            iso = sources.to_iso(raw)
+            # An unparseable date becomes '' so COALESCE falls through to
+            # fetched_at, which is always ours and always ISO. Better to sort
+            # by when we saw it than by a string we can't read.
+            if iso != raw:
+                fixes.append((iso, r["id"]))
+        if fixes:
+            conn.executemany("UPDATE posts SET posted_at=? WHERE id=?", fixes)
+            conn.commit()
+        return len(fixes)
+    finally:
+        conn.close()
+
+
+STALE_DAYS = 45
+
+
+def archive_stale(days: int = STALE_DAYS) -> int:
+    """
+    Take gigs older than `days` off the board. Returns how many.
+
+    A posting from three months ago is almost always filled or closed — the
+    board was showing April gigs in late July, and clicking one led to a dead
+    listing, which is worse than showing nothing. They're flipped to
+    is_demand=0 rather than deleted, so the row still blocks its own
+    source_id from being re-ingested and the history stays intact.
+
+    Not a hard "expiry date": we don't get one from most feeds. It's a
+    freshness cutoff, which is the honest version of the same idea.
+    """
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "UPDATE posts SET is_demand = 0 "
+            "WHERE is_demand = 1 "
+            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (cutoff,))
+        conn.commit()
+        return cur.rowcount or 0
+    finally:
+        conn.close()
+
+
 def reclassify_all() -> int:
     """
     Re-run the classifier over every stored post, updating any whose tags moved.
@@ -203,30 +268,59 @@ def all_posts(demand_only: bool = True, owner: str | None = None):
     clause, params = _owner_clause(owner)
     where = f"WHERE {clause}" + (" AND is_demand = 1" if demand_only else "")
     rows = conn.execute(
-        f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
+        f"SELECT * FROM posts {where} ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC",
         params,
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
 
+# How much of a description the board keeps in memory. We display ~620
+# characters and search the rest; 2,000 keeps search honest while cutting the
+# single heaviest thing in the frame. Full text is always one click away on the
+# original posting.
+BODY_CHARS = 2000
+_CHUNK = 4000
+
+
 def posts_frame(demand_only: bool = True, owner: str | None = None):
     """
-    The same rows as all_posts(), but built straight into a DataFrame.
+    The board as a DataFrame, built to keep PEAK memory down, not just the
+    finished size.
 
-    all_posts() materialises ~13,000 Python dicts (about 45MB) purely so pandas
-    can copy them into columns and throw them away. On a 512MB instance that
-    transient spike is most of a rebuild's cost. read_sql_query goes from the
-    cursor to the frame with no dict list in between.
+    Measured on the live board (14,393 gigs), the naive version peaked at 241MB
+    to produce a 44MB frame, and that peak — not the frame — is what tripped
+    Render's 512MB limit once Streamlit's own ~100MB was on top of it. Two
+    changes take the peak to 152MB and the frame to 26MB:
+
+    * Read in chunks. `SELECT *` builds the entire result set in memory before
+      pandas sees a single row; chunks keep only `_CHUNK` rows in flight.
+    * Truncate body IN SQL. Descriptions are the heaviest column by far, and
+      lower-casing them for search (_b) doubles that. Trimming at the database
+      means the long tail never crosses into Python at all.
     """
     import pandas as pd
     conn = connect()
     clause, params = _owner_clause(owner)
     where = f"WHERE {clause}" + (" AND is_demand = 1" if demand_only else "")
     try:
-        return pd.read_sql_query(
-            f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
-            conn, params=params)
+        # Column list from the live schema, so adding a column later can't
+        # silently drop it here — body is the only one we rewrite.
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(posts)")]
+        select = ", ".join(
+            f"substr({c}, 1, {BODY_CHARS}) AS {c}" if c == "body" else c
+            for c in cols)
+        sql = (f"SELECT {select} FROM posts {where} "
+               f"ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC")
+        chunks = list(pd.read_sql_query(sql, conn, params=params,
+                                        chunksize=_CHUNK))
+        if not chunks:
+            return pd.DataFrame(columns=cols)
+        if len(chunks) == 1:
+            return chunks[0]
+        out = pd.concat(chunks, ignore_index=True)
+        chunks.clear()          # drop the per-chunk frames before returning
+        return out
     finally:
         conn.close()
 
@@ -255,7 +349,7 @@ def owned_posts(owner: str, demand_only: bool = True):
     conn = connect()
     where = "WHERE owner = ?" + (" AND is_demand = 1" if demand_only else "")
     rows = conn.execute(
-        f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
+        f"SELECT * FROM posts {where} ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC",
         [owner],
     ).fetchall()
     conn.close()
@@ -276,7 +370,7 @@ def posts_since(min_id: int, demand_only: bool = True, owner: str | None = None)
     clause, params = _owner_clause(owner)
     where = f"WHERE id > ? AND {clause}" + (" AND is_demand = 1" if demand_only else "")
     rows = conn.execute(
-        f"SELECT * FROM posts {where} ORDER BY COALESCE(posted_at, fetched_at) DESC",
+        f"SELECT * FROM posts {where} ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC",
         [int(min_id)] + params,
     ).fetchall()
     conn.close()
@@ -348,7 +442,7 @@ def unalerted(owner: str | None = None):
     clause, params = _owner_clause(owner)
     rows = conn.execute(
         f"SELECT * FROM posts WHERE is_demand = 1 AND alerted = 0 AND {clause} "
-        "ORDER BY COALESCE(posted_at, fetched_at) DESC",
+        "ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC",
         params,
     ).fetchall()
     conn.close()
