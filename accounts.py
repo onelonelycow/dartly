@@ -324,6 +324,28 @@ def start_trial(email: str) -> tuple[bool, str]:
     return True, ""
 
 
+def downgrade(email: str) -> bool:
+    """
+    Move someone back to Free, at their own request.
+
+    Clears pro_until and the founding flag as well as the plan, because
+    status() reads the deadline first — leaving a live pro_until behind would
+    keep handing them Pro after they asked to leave it, which is the kind of
+    "we heard you and did nothing" bug people don't report, they just distrust.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET plan='free', pro_until=NULL, founding=0 "
+                 "WHERE email=?", (email,))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+    return True
+
+
 def set_plan(email: str, plan: str):
     """Grant Pro, drop to free, or restart a trial. Used from the admin page."""
     plan = (plan or "trial").lower()

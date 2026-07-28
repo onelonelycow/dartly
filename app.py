@@ -50,8 +50,21 @@ BASE = Path(__file__).parent
 # Inlined rather than st.image() so the mark can be wrapped in a link home.
 LOGO_SVG = (BASE / "assets" / "logo.svg").read_text()
 
-st.set_page_config(page_title="Nabbly",
-                   page_icon=str(BASE / "assets" / "favicon.png"), layout="wide",
+# page_icon was a str(path). Streamlit treats a plain string as an emoji or
+# shortcode first, so a filesystem path silently fell through to the stock
+# Streamlit crown — confirmed by fetching app.nabbly.co/favicon.png and getting
+# their 32x32 default back, not ours. Handing it a real image object is the
+# unambiguous form. Pillow ships as a Streamlit dependency, so this adds
+# nothing to the install.
+def _page_icon():
+    try:
+        from PIL import Image
+        return Image.open(BASE / "assets" / "favicon.png")
+    except Exception:
+        return "🧭"      # never let a missing asset break the whole page render
+
+
+st.set_page_config(page_title="Nabbly", page_icon=_page_icon(), layout="wide",
                    initial_sidebar_state="collapsed")
 
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
@@ -800,6 +813,52 @@ a.gr-title{font-weight:650}
   [data-testid="stCaptionContainer"] p{
   font-size:12px!important;color:var(--faint)!important}
 
+/* ── Card body: same height every time, expandable in place ────────────────
+   Cards ran from two lines to twelve depending on the post, so a column of
+   them looked ragged and unfinished. Three lines for everyone, with the rest
+   one click away. The gap above sits here (not on the pills) so a card with
+   NO description gets the identical gap before its date — that mismatch was
+   what made the two card shapes look like different components. */
+.gr-bodywrap{margin-top:10px}
+.gr-bodywrap.gr-nobody{margin-top:8px}
+.gr-body{font-size:14.5px;line-height:1.55;color:var(--mute);
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
+  overflow:hidden;white-space:pre-line}
+.gr-more-cb{display:none}
+.gr-more-cb:checked ~ .gr-body{-webkit-line-clamp:unset}
+/* The label only earns its place when the text is actually cut off. We can't
+   measure that in CSS, so it's always present but reads as a quiet link. */
+.gr-more-lbl{display:inline-block;margin-top:5px;font-size:12.5px;font-weight:600;
+  color:var(--mute);cursor:pointer;user-select:none;transition:color .13s}
+.gr-more-lbl::after{content:"See more"}
+.gr-more-cb:checked ~ .gr-more-lbl::after{content:"Show less"}
+.gr-more-lbl:hover{color:var(--amber)}
+.gr-posted{font-size:12px;color:var(--faint);margin-top:9px}
+
+/* ── Plan card ─────────────────────────────────────────────────────────────
+   Replaces a stock st.success/st.info banner. Those use Streamlit's own green
+   and blue, which are the only colours on the page that answer to nothing in
+   FEEL.md §2 — a bright green slab in the middle of a near-black column read
+   as someone else's component dropped into ours. */
+/* "Coming soon" beside a section heading — same quiet amber chip the landing
+   page uses, so a not-yet-live feature reads identically in both places. */
+.gr-soon{display:inline-block;margin-left:10px;font-size:10.5px;font-weight:650;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--amber);
+  background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.26);
+  border-radius:100px;padding:3px 9px;vertical-align:4px}
+.gr-plan{background:var(--bg2);border:1px solid var(--line);border-radius:14px;
+  padding:16px 18px}
+.gr-plan-top{display:flex;justify-content:space-between;align-items:flex-start;
+  gap:16px;flex-wrap:wrap}
+.gr-plan-name{font-size:17px;font-weight:650;color:var(--ink);letter-spacing:-.2px}
+.gr-plan-note{font-size:13px;color:var(--mute);margin-top:3px;line-height:1.5}
+.gr-plan-price{text-align:right;font-size:15px;font-weight:600;color:var(--amber);
+  white-space:nowrap}
+.gr-plan-price span{display:block;font-size:12px;font-weight:500;
+  color:var(--faint);margin-top:3px}
+@media (max-width:640px){
+  .gr-plan-price{text-align:left;white-space:normal}}
+
 /* ── 4. Fewer borders ───────────────────────────────────────────────────────
    "Draft my reply" was a bordered box inside a bordered card — a frame around a
    frame on every single row. Streamlit hangs that border on the inner <details>,
@@ -886,6 +945,9 @@ prof = profile_mod.load()
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 FEED_CAP = 60
 PAGE_SIZE = 25   # a couple of screens of scroll, not sixty cards in one column
+# The dashboard showed five gigs and then stopped, which made a board of
+# thousands feel thin — the point of the page is that there's always more.
+DASH_FEED = 12
 
 
 # ---------------------------------------------------------------------------
@@ -1441,11 +1503,34 @@ def gig_card(r, pro):
                 st.markdown('<div class="gr-why"><span class="lead">why</span>'
                             + chips + "</div>", unsafe_allow_html=True)
 
-        body = smart_trim(display_body(r.get("body")))
+        # Body clamped to three lines so every card is the same height whether
+        # its post is two sentences or twenty — a column of ragged cards is the
+        # thing that made the board look unfinished. "See more" is a pure CSS
+        # checkbox toggle rather than an st.button: a button would rerun the
+        # whole script (25 cards, a full board rebuild) just to reveal a
+        # paragraph that is already in the DOM.
+        # A longer trim than the old 230-char preview: the CSS clamp now
+        # controls how tall the card is, so the server no longer has to keep
+        # the text short to keep the layout tidy. It also means "See more" has
+        # something real to reveal instead of one extra sentence.
+        body = smart_trim(display_body(r.get("body")), target=620, hard=1200)
+        posted = html.escape(f"Posted {human_time(r.get('posted_at'))}")
         if body:
-            # escape $ so "$30 - $250" isn't rendered as a LaTeX formula
-            st.write(body.replace("$", "\\$"))
-        st.caption(f"Posted {human_time(r.get('posted_at'))}")
+            cb = f"gm{r['id']}"
+            st.markdown(
+                f'<div class="gr-bodywrap">'
+                f'<input type="checkbox" id="{cb}" class="gr-more-cb">'
+                f'<div class="gr-body">{html.escape(body)}</div>'
+                f'<label class="gr-more-lbl" for="{cb}"></label>'
+                f'<div class="gr-posted">{posted}</div>'
+                f'</div>', unsafe_allow_html=True)
+        else:
+            # No description: the date still needs the same gap above it that a
+            # card WITH a description gets, otherwise it rides up against the
+            # pills and the two card shapes read as different components.
+            st.markdown(f'<div class="gr-bodywrap gr-nobody">'
+                        f'<div class="gr-posted">{posted}</div></div>',
+                        unsafe_allow_html=True)
 
         gid = r["id"]
         saved_exists = drafts.has(gid)
@@ -1734,11 +1819,11 @@ def view_dashboard(pro):
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                                   srcs, False, "")).head(5)
+                                   srcs, False, "")).head(DASH_FEED)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
-        top = df.head(5)
+        top = df.head(DASH_FEED)
 
     if top.empty:
         st.caption("Nothing's clicking yet — try adding a few more skills on the Profile "
@@ -1746,17 +1831,14 @@ def view_dashboard(pro):
     for r in top.to_dict("records"):
         gig_card(r, pro)
 
-    st.divider()
-    # A Pro member has no trial card to show, so feedback takes the full width
-    # rather than leaving a lopsided empty column beside it.
-    if ACCESS["signed_in"] and ACCESS["plan"] == "pro":
-        feedback_card("dashboard")
-    else:
-        _sc, _fc = st.columns(2)
-        with _sc:
-            signup_card("dashboard")
-        with _fc:
-            feedback_card("dashboard")
+    # The feedback box used to sit here, directly under the gigs. A form asking
+    # "what would make this better?" at the end of the reading path interrupts
+    # the one thing someone came to do — read gigs. It lives on the Profile page
+    # now, where settings and account things belong, and a quiet line points at
+    # it from here instead.
+    if not (ACCESS["signed_in"] and ACCESS["plan"] == "pro"):
+        st.divider()
+        signup_card("dashboard")
 
 
 def view_gigs(pro):
@@ -1809,11 +1891,11 @@ def view_gigs(pro):
                    "these to your area.")
 
     with st.expander("Narrow it down"):
-        skills = st.multiselect("Skill", ALL_SKILLS, default=ALL_SKILLS)
+        skills = st.multiselect("Skill", ALL_SKILLS, default=ALL_SKILLS, placeholder="")
         sizes = st.multiselect("Budget", ["Small", "Medium", "Large"],
-                               default=["Small", "Medium", "Large"])
+                               default=["Small", "Medium", "Large"], placeholder="")
         srcs = sorted(df["source"].unique())
-        sources = st.multiselect("Source", srcs, default=srcs)
+        sources = st.multiselect("Source", srcs, default=srcs, placeholder="")
         urgent = st.checkbox("Urgent only")
         if skills and set(skills) != set(ALL_SKILLS) and set(skills) != set(prof.get("skills") or []):
             if st.button("Save these as my skills", key="savefilterskills"):
@@ -1954,7 +2036,6 @@ def view_market(pro):
     # sequential amber ramp for budget size (light = small, deep = large)
     BUDGET_SCALE = alt.Scale(domain=["Small", "Medium", "Large"],
                              range=["#F3C07A", "#E8933A", "#A85D1B"])
-    PALETTE = ["#E8933A", "#4C8DFF", "#35B37E", "#B889F0", "#E96250", "#38BDF8", "#9AA1AB"]
     st.write("")
 
     c1, c2 = st.columns(2)
@@ -1967,6 +2048,20 @@ def view_market(pro):
             y=alt.Y("Skill:N", sort="-x", title=None),
             tooltip=["Skill", "Gigs"]).properties(height=300)
         st.altair_chart(chart, width="stretch")
+        # A chart that tells you Development is busiest and then leaves you to
+        # go find it is half an answer. These are the same rows, as links.
+        # Deliberately NOT Altair's own click-selection: that routes through a
+        # rerun-on-select round trip, and these are plain anchors using the
+        # ?nav=gigs&cat= routing the category chips already use — no new
+        # mechanism, and they work on a phone where a bar is a poor tap target.
+        _hot = "".join(
+            f'<a class="gr-cat" href="?nav=gigs&cat={quote(row.Skill)}" target="_self">'
+            f'{html.escape(row.Skill)}<span class="n">{row.Gigs:,}</span></a>'
+            for row in dd.itertuples())
+        st.markdown('<div style="font-size:12px;color:#7c828d;margin:10px 0 6px">'
+                    'Open one on the board:</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="gr-cats" style="justify-content:flex-start">'
+                    f'{_hot}</div>', unsafe_allow_html=True)
     with c2:
         st.markdown("**Typical budget by skill**")
         rr = (pd.DataFrame([{"Skill": s, "Budget": b} for s, b in priced])
@@ -1990,15 +2085,23 @@ def view_market(pro):
             tooltip=["Budget", "Gigs"]).properties(height=300)
         st.altair_chart(donut, width="stretch")
     with c4:
-        st.markdown("**Where the gigs come from**")
-        src = df["source"].value_counts().rename_axis("Source").reset_index(name="Gigs")
-        src_donut = alt.Chart(src).mark_arc(innerRadius=58, stroke="#0e1117",
+        # This was a "Where the gigs come from" donut, which put every board we
+        # read on screen with its share of the pie — a labelled map of exactly
+        # where to go instead of us. Same rule that took the sources out of the
+        # FAQ and the landing page (FEEL.md §7): the feed is the product,
+        # provenance is plumbing. Urgency is the thing a freelancer can act on.
+        st.markdown("**How fast you need to move**")
+        urg = (df["urgency"].fillna("").replace("", "Standard")
+               .value_counts().rename_axis("Pace").reset_index(name="Gigs"))
+        urg_donut = alt.Chart(urg).mark_arc(innerRadius=58, stroke="#0e1117",
                                             strokeWidth=2).encode(
             theta=alt.Theta("Gigs:Q"),
-            color=alt.Color("Source:N", scale=alt.Scale(range=PALETTE),
+            color=alt.Color("Pace:N",
+                            scale=alt.Scale(domain=["Standard", "Urgent"],
+                                            range=["#4C8DFF", "#E96250"]),
                             legend=alt.Legend(orient="bottom", title=None)),
-            tooltip=["Source", "Gigs"]).properties(height=300)
-        st.altair_chart(src_donut, width="stretch")
+            tooltip=["Pace", "Gigs"]).properties(height=300)
+        st.altair_chart(urg_donut, width="stretch")
 
     st.write("")
     st.markdown("**Where the big budgets sit** — gigs by skill, split by budget")
@@ -2013,19 +2116,11 @@ def view_market(pro):
         order=alt.Order("size_tier:N"),
         tooltip=["job_type", "size_tier", "Gigs"]).properties(height=330)
     st.altair_chart(stacked, width="stretch")
-    st.caption("Ballpark — budgets blend project & hourly figures across sources.")
-
-    # The chart toolbar's own export only appeared inside the raw-data view we
-    # just hid, so this replaces it: the same numbers, with headings a person
-    # can read rather than our internal column names.
-    _csv = (sk.rename(columns={"job_type": "Field", "size_tier": "Budget"})
-              .sort_values(["Field", "Budget"]))
-    _d1, _d2, _ = st.columns([1.4, 1, 3.6])
-    with _d1:
-        st.download_button("Download this data (CSV)",
-                           _csv.to_csv(index=False).encode("utf-8"),
-                           file_name="nabbly-market.csv", mime="text/csv",
-                           key="mktcsv", width="stretch")
+    # "Ballpark — budgets blend project & hourly figures across sources" was
+    # three hedges and a mention of sources in one line. This says the one
+    # thing a reader needs: treat it as a range, not a quote.
+    st.caption("Treat these as a range to price against, not a fixed rate — "
+               "posts quote by project and by hour, and both are counted here.")
 
 
 def _channel(name, blurb):
@@ -2034,48 +2129,72 @@ def _channel(name, blurb):
                 f'<div class="gr-ch-s">{blurb}</div>', unsafe_allow_html=True)
 
 
-def _status(state, text):
-    """A dot plus a word: on (green), off (grey), warn (amber)."""
-    st.markdown(f'<div class="gr-ch-st {state}">{text}</div>', unsafe_allow_html=True)
+def chan_ready(env_key: str) -> bool:
+    """
+    Is this channel actually usable on this deployment?
+
+    A channel whose server-side credentials are missing can't deliver anything,
+    so we don't show it at all rather than showing it with a "not set up"
+    label. Advertising a switch that cannot be flipped is worse than an absent
+    one: it reads as broken product rather than as a feature we haven't
+    finished wiring.
+    """
+    return bool(os.environ.get(env_key, "").strip())
 
 
-def _chan_status(ui_value, env_key):
-    """Ready if it's filled in here, or set on the server (which outlives deploys)."""
-    if (ui_value or "").strip():
-        _status("on", "Ready")
-    elif os.environ.get(env_key, "").strip():
-        _status("on", "Ready · set on the server")
-    else:
-        _status("off", "Not set up")
+def alerts_section(pro):
+    """
+    Alert channels and cadence.
 
-
-def view_alerts(pro):
-    st.markdown('### We\'ll tap you on the <span class="gr-accent">shoulder</span>',
+    This was its own top-level tab, which put a settings screen next to the
+    three tabs that actually show gigs — and its own copy pointed people back
+    to Profile to turn it on. It's a section of Profile now: one place for
+    everything about you and your account.
+    """
+    st.markdown('#### We\'ll tap you on the <span class="gr-accent">shoulder</span>',
                 unsafe_allow_html=True)
     if not pro:
-        st.info("A **Pro** perk. The moment a gig that fits you lands, we'll ping you — "
-                "so you're first to reply. Turn it on by upgrading in your **Profile**.")
+        st.caption("A **Pro** perk. The moment a gig that fits you lands, we'll ping "
+                   "you — so you're first to reply.")
         return
     st.caption("The faster you hear, the more you win. Switch on as many as you like — "
                "we hit every one the second a gig fits you.")
     p = alerts.load_prefs()
 
-    r1a, r1b = st.columns(2)
-    with r1a:
-        with st.container(border=True):
-            _channel("Text message",
-                     "A text the second a gig fits you. The only channel that reaches "
-                     "you with no app open and the phone in your pocket.")
-            sms = st.text_input("Mobile number", value=p.get("sms_to", ""),
-                                placeholder="+15551234567", label_visibility="collapsed")
-            if not alerts.sms_ready():
-                _status("warn", "Needs Twilio keys on the server")
-            elif sms.strip() and not alerts.valid_phone(sms):
-                _status("warn", "Use the +15551234567 format")
-            else:
-                _status("on" if sms.strip() else "off",
-                        "Ready" if sms.strip() else "Add your number")
-    with r1b:
+    # Only the channels this deployment can actually deliver on. SMS needs
+    # Twilio keys, email needs SMTP, and the desktop pop-up only exists when
+    # the local watcher is running — none of which a visitor can do anything
+    # about, so a row of "not set up" chips was just telling people about
+    # things that don't work. The status chips are gone with them: a field you
+    # filled in is self-evidently filled in.
+    sms = ntfy = webhook = tg_token = tg_chat = ""
+    live = []
+    if alerts.sms_ready():
+        live.append("sms")
+    live += ["ntfy", "chat"]          # ntfy and webhooks need nothing server-side
+
+    _slots = [c for c in live]
+    _cols = st.columns(2)
+    _i = 0
+
+    def _next_col():
+        nonlocal _i
+        col = _cols[_i % 2]
+        _i += 1
+        return col
+
+    if "sms" in _slots:
+        with _next_col():
+            with st.container(border=True):
+                _channel("Text message",
+                         "A text the second a gig fits you. The only channel that reaches "
+                         "you with no app open and the phone in your pocket.")
+                sms = st.text_input("Mobile number", value=p.get("sms_to", ""),
+                                    placeholder="+15551234567",
+                                    label_visibility="collapsed")
+                if sms.strip() and not alerts.valid_phone(sms):
+                    st.caption("Use the +15551234567 format.")
+    with _next_col():
         with st.container(border=True):
             _channel("Phone push",
                      "Free and instant, and it fires even with the site closed. Install "
@@ -2083,10 +2202,7 @@ def view_alerts(pro):
             ntfy = st.text_input("ntfy topic", value=p.get("ntfy_topic", ""),
                                  placeholder="a private topic, e.g. nabbly-alex-9f2",
                                  label_visibility="collapsed")
-            _chan_status(ntfy, "NTFY_TOPIC")
-
-    r2a, r2b = st.columns(2)
-    with r2a:
+    with _next_col():
         with st.container(border=True):
             _channel("Discord or Slack",
                      "Drops matching gigs straight into a channel. Paste a webhook URL, "
@@ -2094,8 +2210,7 @@ def view_alerts(pro):
             webhook = st.text_input("Webhook URL", value=p.get("discord_webhook", ""),
                                     label_visibility="collapsed",
                                     placeholder="paste your webhook URL")
-            _chan_status(webhook, "DISCORD_WEBHOOK_URL")
-    with r2b:
+    with _next_col():
         with st.container(border=True):
             _channel("Telegram",
                      "Message a bot you own. Create one with @BotFather, then paste its "
@@ -2105,22 +2220,6 @@ def view_alerts(pro):
                                      placeholder="bot token")
             tg_chat = st.text_input("Chat ID", value=p.get("telegram_chat", ""),
                                     label_visibility="collapsed", placeholder="chat id")
-            _chan_status(tg_token.strip() and tg_chat.strip(), "TELEGRAM_TOKEN")
-
-    r3a, r3b = st.columns(2)
-    with r3a:
-        with st.container(border=True):
-            _channel("Email",
-                     "A full digest with every match and its link. Configured on the "
-                     "server with your SMTP details.")
-            _status("on" if os.environ.get("SMTP_HOST") else "off",
-                    "Ready" if os.environ.get("SMTP_HOST") else "Needs SMTP settings")
-    with r3b:
-        with st.container(border=True):
-            _channel("Desktop pop-up",
-                     "A notification on your Mac. On automatically whenever the watcher "
-                     "is running, nothing to set up.")
-            _status("on", "Always on")
 
     st.markdown("#### How often, and how many")
     st.caption("The difference between an edge and a nuisance. Start calm — you can "
@@ -2153,6 +2252,10 @@ def view_alerts(pro):
         "Only alert me about these boards",
         _srcs, default=[s for s in (p.get("sources") or []) if s in _srcs],
         format_func=config.source_label,
+        # Not blank like the others: here an empty box genuinely MEANS
+        # something ("every board"), so the placeholder states it rather than
+        # leaving you to guess whether the setting is off or unset.
+        placeholder="Every board",
         help="Leave empty for every board. Narrowing this is the single most "
              "effective way to cut the noise.")
 
@@ -2184,7 +2287,7 @@ def view_alerts(pro):
                     st.error(f"Couldn't reach **{', '.join(failed)}**. Double-check the "
                              "topic, URL or keys for that channel.")
 
-    st.caption("Alerts follow the skills & keywords in your **Profile**. Hit "
+    st.caption("Alerts follow the skills & keywords you set above. Hit "
                "**Send a test ping** to confirm your channels are wired up.")
 
 
@@ -2197,11 +2300,14 @@ def resume_card():
     """
     st.markdown('#### Your <span class="gr-accent">resume</span>',
                 unsafe_allow_html=True)
+    # Names no vendor: on our own surface this should read as Nabbly doing the
+    # work. The privacy policy still discloses the processor in full — that's
+    # the right place for it, and it stays accurate there.
     st.caption("Upload it once and your drafts can name real, specific work "
                "instead of reading like a form letter. **We don't store it** — "
-               "it stays in this browser tab only, sent to Anthropic solely to "
-               "write that one reply, and it's gone the moment you close the "
-               "tab. Re-upload next time you visit.")
+               "it stays in this browser tab only, is used just to write that "
+               "one reply, and it's gone the moment you close the tab. "
+               "Re-upload next time you visit.")
     up = st.file_uploader("Resume (PDF or .txt)", type=["pdf", "txt"],
                           key="resume_upload", label_visibility="collapsed")
     if up is not None and up.name != st.session_state.get("_resume_name"):
@@ -2231,11 +2337,12 @@ def inbox_card():
     a listserv or a paid newsletter that no crawler can reach. This is the way
     in: forward it once and the gigs land on your board like any other.
     """
-    st.markdown('#### Forward your <span class="gr-accent">newsletters</span>',
+    st.markdown('#### Forward your <span class="gr-accent">newsletters</span>'
+                '<span class="gr-soon">Coming soon</span>',
                 unsafe_allow_html=True)
     if not inbox.enabled():
-        st.caption("Coming shortly — your own address for forwarding the "
-                   "mailing lists and newsletters the job boards never see.")
+        st.caption("Your own address for forwarding the mailing lists and "
+                   "newsletters the job boards never see. We're finishing it off.")
         return
     if not ACCESS["signed_in"]:
         st.caption("Sign in and you get your own address to forward mailing "
@@ -2261,23 +2368,15 @@ def view_profile(pro):
                 unsafe_allow_html=True)
     st.caption("The more we know, the better the gigs we surface for you.")
 
-    if ACCESS["signed_in"]:
-        _who, _out = st.columns([3, 1], vertical_alignment="center")
-        _who.caption(f"Signed in as **{ACCESS['email']}**")
-        with _out:
-            if st.button("Sign out", width="stretch", key="signout"):
-                # Drop our own session first, then Google's if it owns this
-                # login, otherwise st.logout() reruns and we never get here.
-                st.session_state.pop("_tok", None)
-                st.query_params.clear()
-                if auth.google_email(st):
-                    st.logout()
-                st.rerun()
-    else:
+    # No "Signed in as …" line and no Sign out button up here: the account menu
+    # in the top bar already shows both, and repeating them at the top of the
+    # page pushed the actual form down for no new information. Sign out now
+    # sits at the very bottom, where a destructive action belongs. The setup
+    # progress bar went with them — a percentage on an optional form reads as
+    # homework, and every field on it is already optional by design.
+    if not ACCESS["signed_in"]:
         st.caption("We'll use this right away. Sign in from the **Dashboard** to "
                    "keep it for next time.")
-    pct = profile_mod.completeness(prof)
-    st.progress(pct / 100, text=f"You're {pct}% set up")
 
     # Location pre-fill: detect once, the form below uses it as the default.
     geo = st.session_state.get("_geo", {})
@@ -2302,12 +2401,13 @@ def view_profile(pro):
 
     with st.form("profile_form"):
         st.markdown("**The essentials**")
-        f_name = st.text_input("Your name", value=prof.get("name", ""),
-                               placeholder="First name is plenty")
+        f_name = st.text_input("Your name", value=prof.get("name", ""))
         f_headline = st.text_input("What you do", value=prof.get("headline", ""),
                                    placeholder="e.g. Brand & logo designer")
+        # placeholder="" kills Streamlit's stock "Choose options" — a dropdown
+        # already looks like a dropdown, so the hint was just grey noise.
         f_skills = st.multiselect("Your skills", ALL_SKILLS,
-                                  default=prof.get("skills", []),
+                                  default=prof.get("skills", []), placeholder="",
                                   help="The board sorts itself around these, so "
                                        "this is the one that matters most.")
 
@@ -2369,26 +2469,77 @@ def view_profile(pro):
         resume_card()
 
     st.divider()
+    alerts_section(pro)
+
+    st.divider()
     inbox_card()
 
     st.divider()
-    st.markdown("#### Your plan")
-    if ACCESS["plan"] == "pro":
-        st.success("You're on **Pro** — instant pings, drafted replies, ranked picks & "
-                   "market rates. Thanks for backing us.")
-    elif ACCESS["pro"] and ACCESS.get("founding"):   # founding member gift
-        _d = ACCESS["days_left"]
-        st.success(f"You're a **founding member** — {_d} day{'s' if _d != 1 else ''} "
-                   "of Pro on us, for taking the early chance. Ranked picks, drafted "
-                   "replies, market rates and instant alerts, all yours.")
-    elif ACCESS["pro"]:            # an active opt-in trial
-        _d = ACCESS["days_left"]
-        st.info(f"You're on a **Pro trial** — {_d} day{'s' if _d != 1 else ''} left. "
-                "Ranked picks, drafted replies, market rates and instant alerts, "
-                "then you drop back to Free unless you upgrade.")
+    plan_card()
+
+    st.divider()
+    feedback_card("profile")
+
+    # Sign out lives at the very bottom: it's the one destructive control on
+    # the page, and nothing below it competes for the click.
+    if ACCESS["signed_in"]:
+        st.divider()
+        _so, _ = st.columns([1, 3])
+        with _so:
+            if st.button("Sign out", width="stretch", key="signout"):
+                # Drop our own session first, then Google's if it owns this
+                # login, otherwise st.logout() reruns and we never get here.
+                st.session_state.pop("_tok", None)
+                st.query_params.clear()
+                if auth.google_email(st):
+                    st.logout()
+                st.rerun()
+
+
+def plan_card():
+    """
+    What you're on, what it costs, when it renews, and the way out.
+
+    This was a coloured st.success/st.info banner — Streamlit's stock alert
+    styling, which is the one surface on the page that ignores the house
+    palette entirely. It's a real card now, and it answers the three questions
+    a plan screen exists to answer (what am I on, when am I next charged, how
+    do I leave) instead of only the first.
+    """
+    st.markdown('#### Your <span class="gr-accent">plan</span>',
+                unsafe_allow_html=True)
+
+    days = ACCESS.get("days_left") or 0
+    renews = ""
+    if ACCESS["pro"] and days:
+        _when = (datetime.now(timezone.utc) + timedelta(days=days))
+        # "Ends", never "renews": nothing is charged today, and implying a
+        # billing date we don't have would be the kind of claim FEEL.md §7
+        # exists to prevent.
+        renews = f"Ends {_when.strftime('%-d %B %Y')}"
+
+    if ACCESS["plan"] == "pro" and not days:
+        name, price, note = "Pro", "On the house", "Thanks for backing us."
+    elif ACCESS["pro"] and ACCESS.get("founding"):
+        name, price, note = ("Pro · founding member", "Free for 60 days",
+                             "Our thank-you to the people who backed it first.")
+    elif ACCESS["pro"]:
+        name, price, note = ("Pro · trial", "Free for 14 days",
+                             "You drop back to Free when it ends, not charged.")
     else:
-        st.info("You're on **Free** — the whole board, filters, your profile, and a "
-                "daily digest. All yours, no catch.")
+        name, price, note = ("Free", "£0 — the whole board",
+                             "Every gig, every field, search and browse.")
+
+    st.markdown(
+        f'<div class="gr-plan">'
+        f'<div class="gr-plan-top">'
+        f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
+        f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
+        f'<div class="gr-plan-price">{html.escape(price)}'
+        + (f'<span>{html.escape(renews)}</span>' if renews else "")
+        + '</div></div></div>', unsafe_allow_html=True)
+
+    if not ACCESS["pro"]:
         st.caption("**Pro** adds instant pings, drafted replies, picks ranked for "
                    "you, and what-it-pays market rates.")
         if ACCESS.get("can_trial"):
@@ -2400,9 +2551,29 @@ def view_profile(pro):
         elif ACCESS.get("trialed"):
             st.caption("Your 14-day Pro trial has been used. We'll email you the "
                        "moment paid Pro opens.")
+        return
 
-    st.divider()
-    feedback_card("profile")
+    # The way out. Owner accounts are permanently Pro (accounts.status), so
+    # there's nothing to downgrade and the control would do nothing.
+    if not accounts.is_owner(ACCESS.get("email")):
+        _d1, _ = st.columns([1, 2])
+        with _d1:
+            if st.button("Switch to Free", width="stretch", key="downgrade"):
+                st.session_state["_confirm_downgrade"] = True
+        if st.session_state.get("_confirm_downgrade"):
+            st.caption("You'll keep the whole board, search and your profile. "
+                       "You'd lose ranked picks, drafted replies, market rates "
+                       "and instant alerts.")
+            _c1, _c2, _ = st.columns([1, 1, 2])
+            with _c1:
+                if st.button("Yes, switch", key="downgrade_yes", width="stretch"):
+                    accounts.downgrade(ACCESS["email"])
+                    st.session_state.pop("_confirm_downgrade", None)
+                    st.rerun()
+            with _c2:
+                if st.button("Keep Pro", key="downgrade_no", width="stretch"):
+                    st.session_state.pop("_confirm_downgrade", None)
+                    st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -2940,7 +3111,11 @@ def view_admin():
 # ---------------------------------------------------------------------------
 # Top nav bar (+ stat-card click navigation via query params)
 # ---------------------------------------------------------------------------
-_TABS = ["Dashboard", "Gigs", "Market", "Alerts"]
+# Alerts is no longer a tab. It's a settings screen, and it sat beside the
+# three tabs that actually show gigs while its own copy told you to go to
+# Profile to switch it on. It's a section of Profile now; ?nav=alerts still
+# resolves there so any existing link or bookmark keeps working.
+_TABS = ["Dashboard", "Gigs", "Market"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
@@ -2965,6 +3140,8 @@ if IS_ADMIN and (st.query_params.get("admin") is not None
 
 if "nav" in st.query_params:
     _nav = st.query_params.get("nav", "").lower()
+    if _nav == "alerts":
+        _nav = "profile"          # alerts moved into Profile; keep old links alive
     if _nav in _SIDE_PAGES:
         st.session_state["_page"] = _nav
     else:
@@ -3077,8 +3254,6 @@ elif active == "Gigs":
     view_gigs(PRO)
 elif active == "Market":
     view_market(PRO)
-elif active == "Alerts":
-    view_alerts(PRO)
 elif active == "Profile":
     view_profile(PRO)
 elif active == "About":
@@ -3102,5 +3277,5 @@ st.markdown(
     '<a class="foot-link" href="?nav=privacy" target="_self">Privacy</a>'
     '<a class="foot-link" href="?nav=terms" target="_self">Terms</a>'
     '</div>'
-    '<span class="meta">An early preview, built in the open · © 2026</span>'
+    '<span class="meta">OneLonelyCow · © 2026</span>'
     '</div>', unsafe_allow_html=True)

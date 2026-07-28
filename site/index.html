@@ -6,7 +6,7 @@
 
 <!-- ── Primary SEO ─────────────────────────────────────────────── -->
 <title>Nabbly — every freelance gig, the moment it drops</title>
-<meta name="description" content="Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post — across 21 fields, from design and writing to video, dev and marketing. Real-time demand, so you reply first.">
+<meta name="description" content="Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post — across 20+ fields, from design and writing to video, dev and marketing. Real-time demand, so you reply first.">
 <link rel="canonical" href="https://nabbly.co/">
 <meta name="theme-color" content="#121418">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -16,7 +16,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Nabbly">
 <meta property="og:title" content="Nabbly — every freelance gig, the moment it drops">
-<meta property="og:description" content="Real-time freelance demand from every board and community, in one place. Across 21 fields, refreshed every couple of minutes — so you reply first.">
+<meta property="og:description" content="Real-time freelance demand from every board and community, in one place. Across 20+ fields, refreshed every couple of minutes — so you reply first.">
 <meta property="og:url" content="https://nabbly.co/">
 <meta property="og:image" content="https://nabbly.co/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -69,9 +69,7 @@
       "url": "https://nabbly.co/",
       "logo": "https://nabbly.co/favicon.png",
       "sameAs": [
-        "https://www.linkedin.com/company/nabbly",
-        "https://www.instagram.com/nabbly.co",
-        "https://www.reddit.com/user/nabbly"
+        "https://www.instagram.com/nabbly.co"
       ]
     },
     {
@@ -201,6 +199,17 @@
   .vpill{font-size:15px;color:var(--ink2);background:var(--bg2);border:1px solid var(--line);
     padding:10px 16px;border-radius:100px;transition:.15s}
   .vpill:hover{border-color:var(--amber-d);color:var(--ink)}
+  /* The open end of the list — reads as "there's more here", not as another
+     field you could pick, so it's dimmer and carries no solid edge. */
+  .vpill.vmore{background:transparent;border-style:dashed;color:var(--mute)}
+  /* "Coming soon" — quiet and factual, not a launch badge shouting for
+     attention. Same amber, pulled well back. */
+  .soon-tag{display:inline-block;font-size:11.5px;font-weight:650;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--amber);background:rgba(232,147,58,.10);
+    border:1px solid rgba(232,147,58,.28);border-radius:100px;padding:5px 12px}
+  .soon-inline{font-size:10.5px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--amber);background:rgba(232,147,58,.10);border-radius:100px;
+    padding:2px 8px;margin-left:6px;vertical-align:1px}
 
   /* feature split */
   .split{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center}
@@ -291,7 +300,10 @@
       <a href="#how">How it works</a>
       <a href="#fields">Fields</a>
       <a href="#forward">Forwarding</a>
-      <a href="#faq">FAQ</a>
+      <!-- Points at the app's FAQ tab now; the duplicate FAQ block that used to
+           live on this page is gone (it restated the same answers, and one of
+           them named every source we read — see the removal note below). -->
+      <a href="https://app.nabbly.co/?nav=faq">FAQ</a>
       <a class="btn btn-ghost" href="https://app.nabbly.co/">Open the board</a>
     </nav>
   </div>
@@ -301,7 +313,6 @@
 <div class="glow">
 <section class="hero">
   <div class="wrap">
-    <span class="eyebrow">One feed for every freelance board</span>
     <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
     <p class="lead">Freelancing is enough of a hustle without refreshing ten job boards all day. Nabbly watches all of them for you and puts every new gig in one place — so you're the one who replies first.</p>
     <div class="cta-row">
@@ -311,9 +322,13 @@
     <p class="microcopy">No account needed to browse · First 50 members get 2 months of Pro free</p>
 
     <div class="stats">
-      <div class="stat"><div class="n">1,500+</div><div class="l">live gigs on the board</div></div>
-      <div class="stat"><div class="n">21</div><div class="l">fields, from design to dev</div></div>
-      <div class="stat"><div class="n">~2 min</div><div class="l">from posted to your feed</div></div>
+      <!-- Ceilings, not exact counts: a hard number on a static page goes stale
+           the moment the board moves, and "6,000+ gigs" already died that death
+           once (FEEL.md §7). These stay true as the board grows. "board", not
+           "feed" — that's the vocabulary the rest of the product uses. -->
+      <div class="stat"><div class="n">10,000+</div><div class="l">live gigs on the board</div></div>
+      <div class="stat"><div class="n">20+</div><div class="l">fields, from design to dev</div></div>
+      <div class="stat"><div class="n">Minutes</div><div class="l">from posted to on your board</div></div>
     </div>
   </div>
 </section>
@@ -323,7 +338,6 @@
 <section id="how">
   <div class="wrap">
     <div class="sec-head">
-      <div class="kicker">The fastest reply usually wins</div>
       <h2>The work is out there. It's just scattered.</h2>
       <p>Good gigs are spread across boards, subreddits and communities, and the person who answers a strong post <b style="color:var(--ink2)">first</b> is usually the one who gets it. Nabbly closes that gap.</p>
     </div>
@@ -340,22 +354,20 @@
 <section id="fields" style="padding-top:20px">
   <div class="wrap">
     <div class="sec-head">
-      <div class="kicker">21 fields, one board</div>
       <h2>Whatever you do, the demand is here</h2>
       <p>From quick $20 tasks to full projects — pick your fields and the board shapes itself around them.</p>
     </div>
+    <!-- Ten, then "and more". Listing all of them said "21" in a header while
+         showing 21 pills, and the real count is already 24 and climbing — so
+         the page contradicted itself the moment a field was added. A sample
+         plus an open end can't go stale, and reads lighter. -->
     <div class="verticals">
       <span class="vpill">Design &amp; creative</span><span class="vpill">Writing &amp; content</span>
       <span class="vpill">Video &amp; animation</span><span class="vpill">Development &amp; tech</span>
       <span class="vpill">Marketing &amp; SEO</span><span class="vpill">Data &amp; analytics</span>
-      <span class="vpill">Audio &amp; music</span><span class="vpill">Sales &amp; outreach</span>
-      <span class="vpill">Admin &amp; VA</span><span class="vpill">Customer support</span>
-      <span class="vpill">Product &amp; PM</span><span class="vpill">Finance &amp; accounting</span>
-      <span class="vpill">HR &amp; recruiting</span><span class="vpill">Legal</span>
-      <span class="vpill">Healthcare</span><span class="vpill">Architecture &amp; 3D</span>
-      <span class="vpill">IT &amp; support</span><span class="vpill">Consulting</span>
-      <span class="vpill">Teaching &amp; tutoring</span><span class="vpill">Translation</span>
-      <span class="vpill">QA &amp; testing</span>
+      <span class="vpill">Audio &amp; music</span><span class="vpill">Product &amp; PM</span>
+      <span class="vpill">Finance &amp; accounting</span><span class="vpill">Healthcare</span>
+      <span class="vpill vmore">and more</span>
     </div>
   </div>
 </section>
@@ -364,9 +376,14 @@
 <section id="forward" style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap split">
     <div>
-      <div class="kicker" style="color:var(--amber);font-weight:650;font-size:13px;letter-spacing:.08em;text-transform:uppercase">Your private inbox</div>
+      <!-- Kept on the page because it's the sharpest idea here, but labelled
+           honestly: the mailbox isn't switched on yet (inbox.enabled() is
+           False in the app, which already says "coming shortly"). Promising it
+           in the present tense on the front page while it doesn't run would be
+           the kind of claim FEEL.md §7 exists to stop. -->
+      <div class="soon-tag">Coming soon</div>
       <h2 style="margin-top:12px">The best gigs never hit a job board</h2>
-      <p>A lot of the best work goes out on a listserv or a paid newsletter no crawler can reach. So Nabbly gives every member a private forwarding address. Forward a newsletter to it once, and we pull the gigs out and file them on your board — visible only to you.</p>
+      <p>A lot of the best work goes out on a listserv or a paid newsletter no crawler can reach. So every member will get a private forwarding address: send a newsletter to it once, and Nabbly pulls the gigs out and files them on your board — visible only to you.</p>
       <div class="addr">gigs+you@nabbly.co</div>
     </div>
     <div class="card-visual">
@@ -383,9 +400,12 @@
 <section>
   <div class="wrap">
     <div class="sec-head">
-      <div class="kicker">Free, and Pro</div>
       <h2>Start free. The whole board's yours.</h2>
-      <p><b>The first 50 members get 2 months of Pro, free.</b> A thank-you for taking the early chance. After that, Pro is free to try for 14 days whenever you want it.</p>
+      <!-- "for taking the early chance" dated itself the moment Nabbly stopped
+           being early, and would read as confusing to anyone arriving later.
+           The offer is stated as what it is — a founding-member thank-you —
+           without implying the reader is early or late. -->
+      <p><b>The first 50 members get 2 months of Pro, free.</b> Our thank-you to the people who back it first. After that, Pro is free to try for 14 days whenever you want it.</p>
     </div>
     <div class="plans">
       <div class="plan">
@@ -393,7 +413,7 @@
         <div class="price">Every gig, no catch</div>
         <ul>
           <li>✓ The whole board — every gig, every source</li>
-          <li>✓ Search and browse all 21 fields</li>
+          <li>✓ Search and browse every field</li>
           <li>✓ Your profile, so the board sorts around you</li>
           <li>✓ A daily digest of what's new</li>
         </ul>
@@ -406,7 +426,7 @@
           <li>✓ Drafted replies from the actual post</li>
           <li>✓ Instant alerts — push, Slack, Telegram, SMS</li>
           <li>✓ Market-rate intelligence, so you price right</li>
-          <li>✓ Forward newsletters into your private board</li>
+          <li>✓ Forward newsletters into your private board <span class="soon-inline">soon</span></li>
         </ul>
       </div>
     </div>
@@ -416,20 +436,12 @@
   </div>
 </section>
 
-<!-- ══ FAQ ══ -->
-<section id="faq" style="padding-top:20px">
-  <div class="wrap">
-    <div class="sec-head"><div class="kicker">Questions</div><h2>Good to know</h2></div>
-    <div class="faq">
-      <details open><summary>Where do the gigs come from?</summary><p>Public job boards and hiring communities — We Work Remotely, RemoteOK, Remotive, Jobicy, Arbeitnow, Freelancer.com and the hiring subreddits — read continuously and gathered in one place, so you're not keeping ten tabs open.</p></details>
-      <details><summary>How fresh are they?</summary><p>The board refreshes itself every couple of minutes, around the clock. Most gigs show up within minutes of being posted — the whole point is that the person who answers first usually gets the work.</p></details>
-      <details><summary>Do I have to sign up?</summary><p>No. The entire board is free to search and browse without an account. Signing in saves your profile so the board can sort itself around you. Pro is free to try for 14 days whenever you want it, and you choose when to start.</p></details>
-      <details><summary>What's the difference between Free and Pro?</summary><p>Free gives you every gig from every source, plus search and browse. Pro adds the parts that help you reply first: gigs ranked by fit, drafted replies, market-rate data, and instant alerts.</p></details>
-      <details><summary>Can I bring in gigs from a newsletter or listserv?</summary><p>Yes. Every signed-in member gets a private forwarding address. Forward a mailing list or newsletter to it and Nabbly pulls the gigs out and files them on your board — privately, visible only to you.</p></details>
-      <details><summary>Are the gigs verified?</summary><p>No, and be careful. These are public postings gathered as they were written; we classify and rank them, we don't vet the people behind them. Treat anything asking for money up front or unpaid "test work" the way you would anywhere else.</p></details>
-    </div>
-  </div>
-</section>
+<!-- The FAQ block that sat here is gone. It duplicated the app's own FAQ tab
+     (now linked from the header), and its first answer listed every board we
+     read by name — We Work Remotely, RemoteOK, Remotive, Jobicy, Arbeitnow,
+     Freelancer.com, the subreddits. FEEL.md §7 is explicit: never advertise
+     sources. The feed is the product; where it comes from is plumbing, and a
+     visitor shouldn't be handed the list of places to go instead of us. -->
 
 <!-- ══ FINAL CTA ══ -->
 <div class="wrap">
@@ -450,15 +462,13 @@
       </a>
       <div class="fine" style="margin-top:12px">Real-time freelance demand, in one place.<br>© <span id="yr">2026</span> Nabbly · <a href="https://app.nabbly.co/?nav=about">About</a> · <a href="https://app.nabbly.co/?nav=faq">FAQ</a> · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a></div>
     </div>
+    <!-- Instagram only for now. The Reddit link pointed at an account we don't
+         own, and the LinkedIn company page isn't built out yet — a dead or
+         wrong profile in the footer costs more trust than an absent one. Both
+         come back when they're real. -->
     <div class="socials">
-      <a href="https://www.linkedin.com/company/nabbly" aria-label="Nabbly on LinkedIn" rel="me">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.42v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.8 0 0 .78 0 1.75v20.5C0 23.2.8 24 1.77 24h20.45c.98 0 1.78-.8 1.78-1.75V1.75C24 .78 23.2 0 22.22 0z"/></svg>
-      </a>
       <a href="https://www.instagram.com/nabbly.co" aria-label="Nabbly on Instagram" rel="me">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23C2.17 15.58 2.16 15.2 2.16 12s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41C8.42 2.17 8.8 2.16 12 2.16zM12 0C8.74 0 8.33.01 7.05.07 5.78.13 4.9.33 4.14.63c-.79.3-1.46.72-2.12 1.38C1.35 2.68.93 3.35.63 4.14.33 4.9.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.01 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.3.79.72 1.46 1.38 2.12.66.66 1.33 1.08 2.12 1.38.76.3 1.64.5 2.91.56C8.33 23.99 8.74 24 12 24s3.67-.01 4.95-.07c1.27-.06 2.15-.26 2.91-.56.79-.3 1.46-.72 2.12-1.38.66-.66 1.08-1.33 1.38-2.12.3-.76.5-1.64.56-2.91.06-1.28.07-1.69.07-4.95s-.01-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91-.3-.79-.72-1.46-1.38-2.12A5.9 5.9 0 0 0 19.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.01 15.26 0 12 0zm0 5.84a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.4-10.85a1.44 1.44 0 1 0 0 2.88 1.44 1.44 0 0 0 0-2.88z"/></svg>
-      </a>
-      <a href="https://www.reddit.com/user/nabbly" aria-label="Nabbly on Reddit" rel="me">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 11.78a2.34 2.34 0 0 0-3.96-1.67c-1.6-1.03-3.7-1.69-6.03-1.77l1.03-4.84 3.37.72a1.67 1.67 0 1 0 .18-1.06L14.9 2.5a.53.53 0 0 0-.63.4l-1.15 5.42c-2.37.07-4.5.72-6.12 1.78a2.34 2.34 0 1 0-2.58 3.83 4.2 4.2 0 0 0-.05.65c0 3.3 3.85 5.98 8.6 5.98s8.6-2.68 8.6-5.98a4.2 4.2 0 0 0-.05-.64A2.34 2.34 0 0 0 24 11.78zM7.6 13.44a1.67 1.67 0 1 1 3.34 0 1.67 1.67 0 0 1-3.34 0zm9.34 4.13c-1.15 1.15-3.35 1.24-4 1.24s-2.85-.09-4-1.24a.43.43 0 0 1 .61-.61c.73.73 2.28.98 3.39.98s2.66-.25 3.39-.98a.43.43 0 1 1 .61.61zm-.28-2.46a1.67 1.67 0 1 1 0-3.34 1.67 1.67 0 0 1 0 3.34z"/></svg>
       </a>
     </div>
   </div>
