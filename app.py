@@ -514,6 +514,25 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   background:rgba(232,147,58,.14);border:1px solid rgba(232,147,58,.3);
   color:#eaa662;font-weight:700;font-size:13px;display:flex;align-items:center;
   justify-content:center;font-family:ui-monospace,Menlo,monospace}
+/* Free vs Pro as two cards. The same information was a single paragraph of
+   bolded fragments — you had to read it to compare two things that a reader
+   wants to scan side by side. Pro carries the one amber edge on the page
+   (FEEL.md §2: one focal point), Free stays neutral. */
+.gr-ab-plans{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 20px}
+.gr-ab-plan{background:var(--bg2);border:1px solid var(--line);
+  border-radius:14px;padding:18px 18px 6px;text-align:left}
+.gr-ab-plan.pro{border-color:rgba(232,147,58,.32);
+  background:linear-gradient(180deg,rgba(232,147,58,.06),rgba(232,147,58,.015))}
+.gr-ab-name{font-size:17px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
+.gr-ab-plan.pro .gr-ab-name{color:var(--amber)}
+.gr-ab-sub{font-size:13.5px;color:var(--mute);margin:3px 0 10px}
+.gr-about .gr-ab-plan ul{margin:0;padding-left:0;list-style:none}
+.gr-about .gr-ab-plan li{font-size:14.5px;color:var(--ink2);margin:0 0 9px;
+  padding-left:20px;position:relative;line-height:1.5}
+.gr-about .gr-ab-plan li::before{content:"";position:absolute;left:2px;top:8px;
+  width:6px;height:6px;border-radius:50%;background:var(--line2)}
+.gr-about .gr-ab-plan.pro li::before{background:var(--amber)}
+@media (max-width:640px){.gr-ab-plans{grid-template-columns:1fr}}
 /* Forms lose Streamlit's chrome so the capture cards read as one block. NOTE:
    this must not constrain width — an earlier max-width here squeezed the
    profile form into the middle of the page and collided its labels. */
@@ -1230,6 +1249,10 @@ def _build_feed(posts):
     # character typed.
     df["_t"] = df["title"].fillna("").str.lower()
     df["_b"] = df["body"].fillna("").str.lower()
+    # Which metro a gig is pinned to, if any. Computed once here because it's a
+    # property of the POST, not of the reader — doing it per-render would mean
+    # regexing 14,000 titles on every rerun for an answer that never changes.
+    df["_city"] = [location.city_lock({"title": t}) for t in df["title"].fillna("")]
     return df, before - len(df)
 
 
@@ -1415,6 +1438,30 @@ def location_counts(data):
         if t["onsite"] or location.is_local(r, city):
             local += 1
     return len(data), remote, local
+
+
+def apply_city_lock(view):
+    """
+    Drop gigs pinned to a metro that isn't yours.
+
+    A title like "… Senior Product Designer in New York City, NY" is work for
+    someone in that metro; showing it to everyone fills the board with jobs
+    most readers can't take. Off-limits gigs come back if you say you'd
+    relocate (Profile), or if the post names your own city.
+    """
+    if view.empty or "_city" not in view.columns:
+        return view
+    if prof.get("open_to_relocate"):
+        return view
+    city = (prof.get("city") or "").strip().lower()
+    locked = view["_city"].fillna("") != ""
+    if not city:
+        return view[~locked]
+    # Their city named anywhere in the post keeps it, so "New York" still
+    # matches "New York City".
+    mine = view["_t"].str.contains(re.escape(city), na=False) | \
+        view["_b"].str.contains(re.escape(city), na=False)
+    return view[~locked | mine]
 
 
 def apply_location(view, mode):
@@ -1818,12 +1865,13 @@ def view_dashboard(pro):
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
-        top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                                   srcs, False, "")).head(DASH_FEED)
+        top = scored(apply_city_lock(
+            apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
+                          srcs, False, ""))).head(DASH_FEED)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
-        top = df.head(DASH_FEED)
+        top = apply_city_lock(df).head(DASH_FEED)
 
     if top.empty:
         st.caption("Nothing's clicking yet — try adding a few more skills on the Profile "
@@ -1906,6 +1954,7 @@ def view_gigs(pro):
 
     with st.spinner(f"Searching for “{kw}”…" if kw else "Loading the board…"):
         view = apply_filters(df, skills, sizes, sources, urgent, kw)
+        view = apply_city_lock(view)
         view = apply_location(view, loc_mode)
         if pro:
             view = scored(view)
@@ -2438,6 +2487,12 @@ def view_profile(pro):
                 f_city = st.text_input("Your city (for local, hands-on gigs)",
                                        value=prof.get("city") or geo.get("city", ""),
                                        placeholder="e.g. Portland")
+            f_relocate = st.toggle(
+                "Show gigs tied to other cities",
+                value=bool(prof.get("open_to_relocate")),
+                help="Off by default: a gig posted as \"… in Austin, TX\" wants "
+                     "someone in that metro, so it stays off your board unless "
+                     "it names your city. Turn this on if you'd travel or move.")
             f_portfolio = st.text_input("Where's your work?",
                                         value=prof.get("portfolio", ""),
                                         placeholder="your portfolio link")
@@ -2453,6 +2508,7 @@ def view_profile(pro):
                 "portfolio": f_portfolio.strip(), "bio": f_bio.strip(),
                 "country": f_country if f_country != "Other / elsewhere" else "",
                 "city": f_city.strip(),
+                "open_to_relocate": bool(f_relocate),
             }
             profile_mod.save(_saved)
             # If they've signed up, keep a copy against their email, so what we
@@ -2841,20 +2897,42 @@ def view_about():
         'answer in seconds instead of staring at a blank message.</li>'
         '</ol>'
 
+        # Two cards, not one paragraph: someone deciding between plans should be
+        # able to compare them at a glance rather than parse a wall of prose.
         '<h2>Free, and Pro</h2>'
-        '<p><b>Free</b> gives you the whole board: every gig, every source, '
-        'search and browse as much as you like. <b>Pro</b> adds the edge, the '
-        'parts that help you reply first: gigs ranked by fit, drafted replies, '
-        'market rate intelligence, and instant alerts. The first 50 members get '
-        'two months of Pro free, a thank-you for taking the early chance. After '
-        'that, Pro is free to try for 14 days whenever you want it, and you '
-        'choose if and when to start.</p>'
+        '<div class="gr-ab-plans">'
+        '<div class="gr-ab-plan">'
+        '<div class="gr-ab-name">Free</div>'
+        '<div class="gr-ab-sub">The whole board, no catch</div>'
+        '<ul>'
+        '<li>Every gig, every field</li>'
+        '<li>Search and browse it all</li>'
+        '<li>Your profile, so the board sorts around you</li>'
+        '<li>A daily digest of what\'s new</li>'
+        '</ul></div>'
+        '<div class="gr-ab-plan pro">'
+        '<div class="gr-ab-name">Pro</div>'
+        '<div class="gr-ab-sub">The edge that helps you reply first</div>'
+        '<ul>'
+        '<li>Gigs ranked by how well they fit you</li>'
+        '<li>Drafted replies written from the actual post</li>'
+        '<li>Instant alerts on the channel you choose</li>'
+        '<li>Market rates, so you price right</li>'
+        '</ul></div>'
+        '</div>'
+        '<p>The first 50 members get two months of Pro free, our thank-you to '
+        'the people who back it first. After that, Pro is free to try for 14 '
+        'days whenever you want it, and you choose if and when to start.</p>'
 
-        '<h2>Where we\'re at</h2>'
-        '<p>Nabbly is an early preview, built in the open by one person who was '
-        'tired of losing good gigs to whoever happened to be online. If '
-        'something is missing or wrong, the feedback box on the dashboard goes '
-        'straight to them. Tell us straight.</p>'
+        # Was "built in the open by one person … goes straight to them" — third
+        # person about ourselves, which reads oddly and ages badly the moment
+        # anyone else joins.
+        '<h2>Where we\'re headed</h2>'
+        '<p>We built Nabbly because we were tired of losing good work to '
+        'whoever happened to be online at the right minute. It\'s early, and '
+        'we\'d rather ship it and hear from you than polish it in private. If '
+        'something\'s missing, wrong, or just annoying, tell us straight — the '
+        'feedback box on your profile comes to us, and we read all of it.</p>'
         '</div>', unsafe_allow_html=True)
 
     _b1, _b2, _b3 = st.columns([1, 1.4, 1])

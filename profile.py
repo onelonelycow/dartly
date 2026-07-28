@@ -21,6 +21,9 @@ DEFAULT = {
     "bio": "",          # one-line intro, used in pitches
     "country": "",      # for eligibility matching (US-only remote, etc.)
     "city": "",         # for surfacing local / on-site gigs near you
+    # Gigs whose title pins them to a metro ("… in Austin, TX") are hidden
+    # unless they name your city. Turn this on if you'd travel or relocate.
+    "open_to_relocate": False,
 }
 
 # Fields that count toward "profile completeness".

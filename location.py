@@ -71,6 +71,74 @@ def tag(gig: dict) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# City-locked gigs
+# ---------------------------------------------------------------------------
+# A title ending "… in New York City, NY" is a tell: that job wants someone in
+# that metro, and showing it to everybody fills the board with work most people
+# can't take. The anchor is a real US state / Canadian province code after a
+# comma, or an explicit "onsite in <Place>" — not a bare capitalised word, which
+# would match company names and wreck the board.
+_STATES = (
+    "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS "
+    "MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV "
+    "WI WY DC AB BC MB NB NL NS ON PE QC SK"
+).split()
+_STATE_TAIL = re.compile(
+    r",\s*(?:" + "|".join(_STATES) + r")\b(?:\s*,?\s*(?:USA|U\.S\.A?\.?|Canada))?\s*$",
+    re.I)
+_IN_PLACE = re.compile(r"\bin\s+([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){0,3})"
+                       r",\s*(?:" + "|".join(_STATES) + r")\b")
+# Titles that end "in Remote" / "in Anywhere" are the opposite of city-locked.
+_NOT_A_PLACE = re.compile(r"^(remote|anywhere|worldwide|global|usa?|uk)$", re.I)
+
+
+def city_lock(gig: dict) -> str:
+    """
+    The city a gig is tied to, or '' if it isn't tied to one.
+
+    Deliberately conservative: it only fires on a comma plus a real state or
+    province code, because a false positive here HIDES a gig, and a board that
+    quietly drops real work is worse than one showing a few it shouldn't.
+    """
+    title = str(gig.get("title") or "")
+    # If the poster put "Remote" in the TITLE, take them at their word —
+    # "Sr. Consultant | Remote, Vancouver, BC" is a remote job that happens to
+    # name an office, not a job that needs you in Vancouver.
+    if _REMOTE.search(title):
+        return ""
+    m = _IN_PLACE.search(title)
+    if m:
+        place = m.group(1).strip()
+        if not _NOT_A_PLACE.match(place):
+            return place
+    if _STATE_TAIL.search(title):
+        # "Company: Role — Austin, TX" with no "in"
+        tail = title.rsplit(",", 1)[0]
+        place = tail.rsplit("—", 1)[-1].rsplit("-", 1)[-1].rsplit(":", 1)[-1].strip()
+        place = place.split()[-1] if place else ""
+        if place and not _NOT_A_PLACE.match(place):
+            return place
+    return ""
+
+
+def city_ok(gig: dict, user_city: str | None, allow_anywhere: bool = False) -> bool:
+    """
+    Should this city-locked gig be on THIS person's board?
+
+    True when it isn't city-locked at all, when they've asked to see them
+    regardless (they'd travel or relocate), or when it names their own city.
+    """
+    place = city_lock(gig)
+    if not place or allow_anywhere:
+        return True
+    city = (user_city or "").strip().lower()
+    if not city:
+        return False
+    hay = f"{gig.get('title','')} {gig.get('body','')}".lower()
+    return city in hay
+
+
 def label(t: dict) -> str:
     """Short pill text for a location tag. '' if nothing to say."""
     if t.get("onsite"):
