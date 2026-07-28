@@ -79,7 +79,7 @@ def _clean_body(text: str) -> str:
     return human[:_MAX_BODY]
 
 
-def _who(profile: dict) -> str:
+def _who(profile: dict, resume_text: str = "") -> str:
     """Everything true about the freelancer, as lines the model can draw from."""
     bits = []
     for key, label in (("name", "Name"), ("headline", "Does"),
@@ -99,14 +99,21 @@ def _who(profile: dict) -> str:
     if floor:
         bits.append(f"Rate floor: ${floor}/{unit} (do not state this unless the "
                     f"post asks for a rate)")
+    # Optional and session-only (see resume.py) — a resume carries specific
+    # projects, clients, years and tools that one bio line can't, which is what
+    # turns a generic draft into one that names relevant work. Never invented:
+    # the SYSTEM prompt's "never invent experience" rule already covers this
+    # text the same as every other field here.
+    if resume_text.strip():
+        bits.append(f"Resume (use only what's actually in it):\n{resume_text.strip()}")
     return "\n".join(bits) or "No profile details on file."
 
 
-def _user_prompt(gig: dict, profile: dict) -> str:
+def _user_prompt(gig: dict, profile: dict, resume_text: str = "") -> str:
     body = _clean_body(gig.get("body"))
     lines = [
         "THE FREELANCER",
-        _who(profile),
+        _who(profile, resume_text),
         "",
         "THE JOB POST",
         f"Title: {gig.get('title', '')}",
@@ -140,24 +147,28 @@ def ai_available() -> bool:
         return False
 
 
-def _cache_key(gig: dict, profile: dict) -> str:
-    """Same gig plus same profile means the same draft, so we only pay once."""
+def _cache_key(gig: dict, profile: dict, resume_text: str = "") -> str:
+    """Same gig plus same profile (and resume) means the same draft, so we only
+    pay once. Hashed rather than embedded raw — a resume can run to thousands
+    of characters and only its identity, not its content, needs to be in the
+    key."""
     blob = json.dumps([gig.get("id"), gig.get("title"),
                        {k: profile.get(k) for k in
                         ("name", "headline", "bio", "portfolio", "skills",
-                         "keywords", "rate_floor")}],
+                         "keywords", "rate_floor")},
+                       hashlib.sha256(resume_text.encode()).hexdigest()],
                       sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:32]
 
 
-def draft_ai(gig: dict, profile: dict) -> str:
+def draft_ai(gig: dict, profile: dict, resume_text: str = "") -> str:
     """
     A reply written from the client's actual words. Raises if the call fails so
     the caller can fall back, rather than showing an empty box.
     """
     import anthropic
 
-    key = _cache_key(gig, profile)
+    key = _cache_key(gig, profile, resume_text)
     if key in _cache:
         return _cache[key]
 
@@ -170,7 +181,7 @@ def draft_ai(gig: dict, profile: dict) -> str:
         model=MODEL,
         max_tokens=1200,
         system=SYSTEM,
-        messages=[{"role": "user", "content": _user_prompt(gig, profile)}],
+        messages=[{"role": "user", "content": _user_prompt(gig, profile, resume_text)}],
     )
     if resp.stop_reason == "refusal":
         raise RuntimeError("declined")
@@ -223,12 +234,19 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     return "\n".join(out)
 
 
-def draft_pitch(gig: dict, profile: dict | None = None) -> str:
-    """The best draft we can produce right now, without ever failing loudly."""
+def draft_pitch(gig: dict, profile: dict | None = None, resume_text: str = "") -> str:
+    """
+    The best draft we can produce right now, without ever failing loudly.
+
+    resume_text is optional and never persisted anywhere — see resume.py. The
+    template engine can't use it (it has no model to read free text with), so
+    it's only passed to the AI path; that's fine, the template was always the
+    generic fallback.
+    """
     profile = profile or {}
     if ai_available():
         try:
-            return draft_ai(gig, profile)
+            return draft_ai(gig, profile, resume_text)
         except Exception:
             pass          # rate limit, no network, bad key: fall through
     return draft_template(gig, profile)

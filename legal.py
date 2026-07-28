@@ -11,7 +11,7 @@ the same commit — a privacy policy that quietly stops being true is worse than
 not having one.
 """
 
-UPDATED = "24 July 2026"
+UPDATED = "28 July 2026"
 CONTACT = "hello@nabbly.co"
 
 
@@ -93,6 +93,15 @@ rate you will not work below, keywords to prioritise, words to mute, a portfolio
 link, a short bio, and your country and city. All of it is optional, and it is
 used to sort the board around you.
 
+**Your resume, if you upload one (Pro).** You can upload a resume so drafted
+replies can cite your real, specific experience instead of a generic bio line.
+**We do not store it.** It is held only in your browser's session — never
+written to our database, never mirrored anywhere — and it disappears the
+moment you close the tab or upload a new one. The one thing that does happen:
+when you ask for a drafted reply, the resume text is sent to Anthropic to
+write that reply, the same as the rest of your profile. It is not retained by
+us before or after that.
+
 **Your alert settings, if you set them up.** Only the channels you choose to
 configure: a phone number for SMS, a notification topic, a Telegram bot token
 and chat ID, or a Slack or Discord webhook address. We need these to send the
@@ -134,8 +143,8 @@ to:
 - **ip-api.com** is queried only if you press "Detect my location", to guess a
   country and city from an IP address.
 - **Anthropic** powers drafted replies where that feature is switched on. When
-  you ask for a draft, the text of that job posting and the relevant parts of
-  your profile are sent to generate it.
+  you ask for a draft, the text of that job posting, the relevant parts of your
+  profile, and your uploaded resume (if you added one) are sent to generate it.
 - **The alert channel you choose** (your SMS provider, Telegram, Slack, Discord,
   or your notification service) receives the alerts you asked us to send.
 

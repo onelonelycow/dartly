@@ -33,6 +33,7 @@ import pitch
 import market
 import score
 import location
+import resume
 import drafts
 import refresh
 import inbox
@@ -234,6 +235,24 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home){
   width:100vw;max-width:100vw;box-sizing:border-box;
   padding:0 clamp(22px, 4vw, 64px) 12px;
   border-bottom:1px solid #23272f}   /* a full-width bar rule, so the divider below it goes */
+/* Streamlit's three columns are ratios 2.0 / 4.9 / 1.3 (set in Python so the
+   logo has room and the avatar doesn't), which measured out to the nav sitting
+   50px right of the page's true centre — unequal flanks push the middle
+   column's own centre off the bar's centre. A symmetric 1fr/auto/1fr grid
+   fixes it regardless of what the flanks weigh: the same two-equal-tracks
+   technique the mobile header already uses (below), just for desktop. */
+@media (min-width:641px){
+  div[data-testid="stHorizontalBlock"]:has(.gr-home){
+    display:grid!important;grid-template-columns:1fr auto 1fr}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]{
+    width:auto!important;min-width:0!important}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(1){
+    justify-self:start}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(2){
+    justify-self:center}
+  div[data-testid="stHorizontalBlock"]:has(.gr-home) > [data-testid="stColumn"]:nth-child(3){
+    justify-self:end}
+}
 /* 100vw includes the scrollbar, so clip the hair of overflow it would add. */
 [data-testid="stAppViewContainer"],[data-testid="stMain"]{overflow-x:hidden}
 /* The avatar's wrappers were pinned to a 22px line box, so a 38px avatar
@@ -1368,7 +1387,8 @@ def _save_draft(gig_id, key):
 
 
 def _regen_draft(gig, key):
-    st.session_state[key] = pitch.draft_pitch(gig, prof)
+    st.session_state[key] = pitch.draft_pitch(
+        gig, prof, resume_text=st.session_state.get("_resume_text", ""))
     st.session_state[f"_saved_{gig['id']}"] = False
 
 
@@ -1439,7 +1459,8 @@ def gig_card(r, pro):
                 key = f"pitch_{gid}"
                 # Seed once: your saved edit if you have one, else a fresh draft.
                 if key not in st.session_state:
-                    st.session_state[key] = drafts.load(gid) or pitch.draft_pitch(r, prof)
+                    st.session_state[key] = drafts.load(gid) or pitch.draft_pitch(
+                        r, prof, resume_text=st.session_state.get("_resume_text", ""))
                 st.text_area("Your draft", height=240, key=key,
                              label_visibility="collapsed")
                 bc1, bc2 = st.columns(2)
@@ -1640,7 +1661,8 @@ def draft_showcase(pro):
             '</div>', unsafe_allow_html=True)
         return
 
-    text = drafts.load(gid) or pitch.draft_pitch(g, prof)
+    text = drafts.load(gid) or pitch.draft_pitch(
+        g, prof, resume_text=st.session_state.get("_resume_text", ""))
     body = "".join(
         "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
         for block in text.split("\n\n") if block.strip())
@@ -2166,6 +2188,41 @@ def view_alerts(pro):
                "**Send a test ping** to confirm your channels are wired up.")
 
 
+def resume_card():
+    """
+    A Pro-only nudge for better drafts: upload once, we draw on it when
+    writing your reply. Session-only, on purpose — see resume.py. Nothing
+    here ever calls profile_mod.save() or people.attach_profile(); the text
+    lives in st.session_state and is gone when the tab closes.
+    """
+    st.markdown('#### Your <span class="gr-accent">resume</span>',
+                unsafe_allow_html=True)
+    st.caption("Upload it once and your drafts can name real, specific work "
+               "instead of reading like a form letter. **We don't store it** — "
+               "it stays in this browser tab only, sent to Anthropic solely to "
+               "write that one reply, and it's gone the moment you close the "
+               "tab. Re-upload next time you visit.")
+    up = st.file_uploader("Resume (PDF or .txt)", type=["pdf", "txt"],
+                          key="resume_upload", label_visibility="collapsed")
+    if up is not None and up.name != st.session_state.get("_resume_name"):
+        text = resume.extract_text(up)
+        if text:
+            st.session_state["_resume_text"] = text
+            st.session_state["_resume_name"] = up.name
+        else:
+            st.warning("Couldn't read that file — try a text-based PDF "
+                       "(not a scan), or upload a .txt instead.")
+    if st.session_state.get("_resume_text"):
+        words = len(st.session_state["_resume_text"].split())
+        rc1, rc2 = st.columns([4, 1], vertical_alignment="center")
+        rc1.caption(f"Loaded **{st.session_state.get('_resume_name', 'your resume')}** "
+                    f"— about {words:,} words, held for this session only.")
+        if rc2.button("Forget it", key="forget_resume", width="stretch"):
+            st.session_state.pop("_resume_text", None)
+            st.session_state.pop("_resume_name", None)
+            st.rerun()
+
+
 def inbox_card():
     """
     Someone's private forwarding address.
@@ -2306,6 +2363,10 @@ def view_profile(pro):
             st.session_state.pop("_geo", None)
             st.success("Got it — we've tuned things to you.")
             st.rerun()
+
+    if pro:
+        st.divider()
+        resume_card()
 
     st.divider()
     inbox_card()

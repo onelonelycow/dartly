@@ -254,6 +254,14 @@ def status(acc: dict | None) -> dict:
             "days_left": 0, "expired": False, "trialed": trialed,
             "founding": founding, "can_trial": False}
 
+    # The founder's own account: Pro for life, not a 60-day clock. Checked
+    # here rather than written once as plan='pro' in the database, so it
+    # holds even if this row is ever recreated (a fresh sign-in token, a
+    # schema reset) instead of depending on a value something else could
+    # overwrite.
+    if is_owner(acc.get("email")):
+        return {**base, "plan": "pro", "pro": True}
+
     if plan == "pro":                        # a manual/permanent grant
         return {**base, "pro": True}
     if deadline:                             # founding gift or an opted-in trial
