@@ -72,15 +72,15 @@ def tag(gig: dict) -> dict:
 
 
 def label(t: dict) -> str:
-    """Short pill text for a location tag (emoji + words). '' if nothing to say."""
+    """Short pill text for a location tag. '' if nothing to say."""
     if t.get("onsite"):
-        return "📍 On-site"
+        return "On-site"
     if t.get("restrict"):
-        return f"🌐 {t['restrict']}-only"
+        return f"{t['restrict']}-only"
     if t.get("worldwide"):
-        return "🌍 Worldwide"
+        return "Worldwide"
     if t.get("remote"):
-        return "🌍 Remote"
+        return "Remote"
     return ""
 
 

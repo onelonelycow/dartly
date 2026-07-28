@@ -56,11 +56,30 @@ st.set_page_config(page_title="Nabbly",
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
 st.markdown("""
 <style>
+/* ── Design tokens (FEEL.md §2) ─────────────────────────────────────────────
+   The site (site/index.html) has carried a :root block since it was built; the
+   app never did, so every colour here is a literal and they drift apart. These
+   are the same names FEEL.md defines, so a change to the palette is one edit in
+   two files rather than forty. New rules use the tokens; the older literals are
+   left alone deliberately, so this stays a design pass and not a rename sweep. */
+:root{
+  --bg:#121418; --bg2:#15181d; --panel:#171a20;
+  --line:#262a31; --line2:#2f343d;
+  --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#6b7280;
+  --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
+  /* Vertical rhythm. The whole point is that these are DIFFERENT from each
+     other — Streamlit ships one flat 16px between everything, which is why the
+     page reads as undesigned no matter how good the individual pieces are. */
+  --s-item:.5rem;      /* between parts of one thing (title, pills, body) */
+  --s-group:1rem;      /* between sibling things (card to card) */
+  --s-section:2.2rem;  /* before a new section heading */
+}
 /* Section headings speak the wordmark's language: the last word in amber, the
    way "ly" is amber in Nabbly. Replaces the scattered emoji prefixes so every
    heading reads as one family. */
 .gr-accent{color:#E8933A}
-.gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 4px}
+.gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 4px;
+  justify-content:center;max-width:none}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
   border-radius:14px;padding:15px 16px 16px;position:relative;overflow:hidden}
 /* Four saturated bars competing for attention read as noise. Keep the colour
@@ -69,8 +88,23 @@ st.markdown("""
   border-radius:0 3px 3px 0;opacity:.55}
 .gr-stat .l{font-size:12.5px;color:#98a0ab;font-weight:500;margin:0 0 9px}
 .gr-stat .n{font-size:31px;font-weight:600;color:#f2f4f7;line-height:1;
-  font-variant-numeric:tabular-nums}
+  font-variant-numeric:tabular-nums;perspective:240px}
 .gr-stat .n.small{font-size:20px}
+/* A departure-board flip when a number lands, instead of it just appearing —
+   each digit rotates down into place, staggered left to right. `animation`
+   (not `transition`) so it self-plays on mount with no JS: Streamlit hands
+   this markup to the browser fresh on every rerun, which IS a mount as far as
+   the DOM is concerned. `backwards` fill-mode holds the 0% frame during each
+   span's own animation-delay, so digits don't flash their final value before
+   their turn. */
+.gr-stat .n span.gr-flip{display:inline-block;transform-origin:50% 100%;
+  animation:gr-flip .38s cubic-bezier(.2,.7,.3,1) backwards}
+@keyframes gr-flip{
+  0%{transform:rotateX(75deg) translateY(-3px);opacity:0}
+  55%{opacity:1}
+  100%{transform:rotateX(0deg) translateY(0);opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .gr-stat .n span.gr-flip{animation:none}}
 a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
   text-decoration:none !important;line-height:1.35;letter-spacing:-.1px}
 a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
@@ -79,16 +113,20 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-transform:uppercase;color:#69d7a1;background:rgba(53,179,126,.13);
   border:1px solid rgba(53,179,126,.32);border-radius:6px;padding:1px 7px;
   vertical-align:2px;margin-right:9px}
-.gr-pills{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 8px}
-.gr-pill{font-size:12px;font-weight:500;padding:3px 11px;border-radius:999px;
-  background:#22262e;color:#cdd3dc;border:1px solid #333845;line-height:1.6}
-.gr-pill.match{background:rgba(232,147,58,.18);color:#f4b374;border-color:rgba(232,147,58,.5)}
-.gr-pill.urgent{background:rgba(233,98,80,.18);color:#f2a08f;border-color:rgba(233,98,80,.5)}
-.gr-pill.low{background:rgba(212,160,60,.16);color:#e2bd7c;border-color:rgba(212,160,60,.4)}
-.gr-pill.loc{background:rgba(76,141,255,.15);color:#8fb6ff;border-color:rgba(76,141,255,.42)}
-.gr-pill.locnear,.gr-pill.remote{background:rgba(94,196,120,.16);color:#84d99b;
-  border-color:rgba(94,196,120,.45)}
-.gr-pill.locoff{background:#1c1f26;color:#7c828d;border-color:#2e333d}
+.gr-pills{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 6px}
+/* Pills are metadata, not controls. Outlined, they put four to six little boxes
+   inside every card, and with sixty cards on screen the board reads as a grid of
+   frames rather than a list of gigs. Tint only: the colour still carries the
+   meaning, but nothing draws an edge except the card itself. (FEEL.md §9.4 —
+   prefer background shifts over more outlines.) */
+.gr-pill{font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;
+  background:#1e222a;color:#aab2bd;border:0;line-height:1.55}
+.gr-pill.match{background:rgba(232,147,58,.15);color:#eaa662}
+.gr-pill.urgent{background:rgba(233,98,80,.15);color:#e8907e}
+.gr-pill.low{background:rgba(212,160,60,.14);color:#ddb478}
+.gr-pill.loc{background:rgba(76,141,255,.13);color:#89b0f5}
+.gr-pill.locnear,.gr-pill.remote{background:rgba(94,196,120,.14);color:#7ecb93}
+.gr-pill.locoff{background:#1a1d23;color:#767c86}
 .gr-why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 11px}
 .gr-why .lead{font-size:10px;font-weight:600;letter-spacing:.8px;
   text-transform:uppercase;color:#6d747f;margin-right:2px}
@@ -113,8 +151,9 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   max-width:600px;margin:0;text-align:center;text-wrap:pretty}
 .gr-sub b{color:#ced4dc;font-weight:600}
 /* Fill the content column so the stat row's edges line up with the feed cards
-   below it, rather than sitting in a narrower band of its own. */
-.gr-stats{justify-content:center;max-width:none;margin:6px 0 4px}
+   below it, rather than sitting in a narrower band of its own. (Merged into the
+   single .gr-stats rule above — this used to be a second declaration whose only
+   live effect was overriding its own margin.) */
 .gr-stat{transition:transform .15s ease,border-color .15s ease,background .15s ease}
 .gr-stat:hover{transform:translateY(-3px);border-color:#3b4250;background:#181c22}
 a.gr-stat{text-decoration:none;color:inherit;cursor:pointer;display:block}
@@ -276,12 +315,17 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 /* --- New gigs landing while you watch ------------------------------------
    A card carrying the "New" badge slides in rather than just appearing, so
    "every gig, the moment it drops" is something you see happen. */
+/* NOTE: this targeted [data-testid="stVerticalBlockBorderWrapper"], which does
+   not exist in Streamlit 1.59 — confirmed against the live DOM, the selector
+   matched nothing and neither the slide-in nor the amber edge ever fired. The
+   border lives on the stVerticalBlock itself (FEEL.md §8 says exactly this). */
 @keyframes gr-land{from{opacity:0;transform:translateY(-9px)}to{opacity:1;transform:none}}
-[data-testid="stVerticalBlockBorderWrapper"]:has(.gr-new){
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-new){
   animation:gr-land .5s cubic-bezier(.22,1,.36,1);
   border-color:rgba(232,147,58,.42)!important}
 @media (prefers-reduced-motion:reduce){
-  [data-testid="stVerticalBlockBorderWrapper"]:has(.gr-new){animation:none}
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-new){
+    animation:none}
   .gr-onb-hit{animation:none}
 }
 /* --- The reply we already wrote ------------------------------------------
@@ -377,6 +421,14 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   margin-top:4px;font-size:13.5px;font-weight:600;color:#8a919c!important;
   text-decoration:none!important;letter-spacing:.01em;transition:color .15s}
 .gr-about-link:hover{color:#eaa662!important}
+
+/* --- Gig-list pager: quiet page controls, top and bottom of the list ------
+   Same two ghost buttons every time, so paging feels like one continuous
+   control rather than a different widget depending on where you are. */
+.gr-page-n{text-align:center;font-size:13px;color:#969da7;line-height:1.3;
+  font-variant-numeric:tabular-nums}
+.gr-page-top{text-align:center;margin-top:3px}
+.gr-page-top .gr-about-link{font-size:12.5px;margin-top:0}
 
 /* --- About page ----------------------------------------------------------- */
 .gr-about{max-width:680px;margin:6px auto 0;line-height:1.68}
@@ -653,6 +705,110 @@ div[data-testid="stForm"]{border:0;padding:0}
    It explains a convention people already know and leaves a line of grey noise
    under the search field. (Confirmed test id from Streamlit's own bundle.) */
 [data-testid="InputInstructions"]{display:none!important}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DESIGN PASS  (FEEL.md §9 — the four gaps against Linear/Vercel/Raycast)
+
+   Measured against the live DOM before writing any of this. The finding that
+   shaped it: three of the four "gaps" were not wrong values, they were surfaces
+   we had never styled at all, still running Streamlit's stock defaults inside an
+   otherwise hand-built app. Specifically, inside one gig card the title was
+   19px, the body 16px and the "Posted…" line 14px — and the body and the
+   caption were BOTH rgb(250,250,250), the same brightness as the title. Nothing
+   receded, so nothing stood out. That is the whole "compressed scale" problem.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Vertical rhythm ── Vercel's lesson ──────────────────────────────────
+   Streamlit puts a flat 16px between every block on the page. The gap INSIDE a
+   gig card was 16px and the gap BETWEEN two gig cards was also 16px, so a card
+   read as four loose rows rather than one object. Sections, groups and items
+   get three different distances now; that difference is the entire effect. */
+/* Opt-in, not blanket. A page TITLE and a SECTION heading are both "###", so a
+   global h3 margin pushed every view's first line 35px down the screen — and a
+   :first-child reset can't catch it, because Streamlit leaves zero-height
+   containers between the top bar and the title. A heading declares itself a
+   section break instead; there are only two of them, and it can't drift. */
+h3:has(.gr-sect){margin-top:var(--s-section)!important}
+.gr-sect{display:none}
+/* Sub-headings ("####") are always mid-page, so they always get the group gap. */
+h4{margin-top:1.4rem!important}
+/* A full-width rule immediately followed by a section gap is the same statement
+   made twice, and the line is the weaker half. Space separates; the border just
+   adds another edge to a page that already has too many (FEEL.md §9.4). */
+[data-testid="stElementContainer"]:has(hr):has(+ [data-testid="stElementContainer"] h3:has(.gr-sect)){
+  display:none}
+
+/* ── 2. Type scale ── Linear's lesson ───────────────────────────────────────
+   Widen the jump between display and body. Most of the compression is at the
+   BOTTOM of the ramp (body and meta nearly matching the title), so pulling meta
+   down and back does more work than pushing headings up. */
+/* Desktop only. This block sits AFTER the mobile media query in the stylesheet,
+   so an unscoped "!important" here would win the cascade on phones too and undo
+   the mobile ramp — which is exactly what it did the first time round: h3 jumped
+   from 21px back to 30px at 375px. Min-width keeps the two ramps independent. */
+@media (min-width:641px){
+  h3{font-size:30px!important;font-weight:700!important;letter-spacing:-.02em!important;
+    line-height:1.2!important;color:var(--ink)}
+  h4{font-size:20px!important;font-weight:650!important;letter-spacing:-.01em!important}
+}
+
+/* ── 3. The gig card ── Raycast's lesson ────────────────────────────────────
+   Sixty near-identical blocks have to be skimmable, which means one dominant
+   thing per row and everything else quietly below it. Scoped by what the block
+   CONTAINS (never :first-of-type — that leaked into the profile form once). */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title){
+  /* 4. …and the card finally gets the house border. It was the most repeated
+     element on the site and the ONLY box still on Streamlit's stock
+     rgba(250,250,250,.2) at 8px radius, while every hand-built card uses
+     #262a31. That mismatch is why the board read as foreign. */
+  border:1px solid var(--line)!important;border-radius:14px!important;
+  background:#14171b!important;
+  padding:15px 18px 13px!important;
+  gap:var(--s-item)!important}          /* items inside < gap between cards */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title):hover{
+  border-color:#30353f!important}
+
+@media (min-width:641px){
+  a.gr-title{font-size:18px!important;font-weight:650!important;letter-spacing:-.2px}
+}
+a.gr-title{font-weight:650}
+/* Body copy steps down and back. It is context for the title, not a peer. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title)
+  > [data-testid="stElementContainer"] > [data-testid="stMarkdown"] p{
+  font-size:14.5px;line-height:1.55;color:var(--mute)}
+/* "Posted Jan 31" is the quietest thing in the card — it was 14px pure white. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title)
+  [data-testid="stCaptionContainer"] p{
+  font-size:12px!important;color:var(--faint)!important}
+
+/* ── 4. Fewer borders ───────────────────────────────────────────────────────
+   "Draft my reply" was a bordered box inside a bordered card — a frame around a
+   frame on every single row. Streamlit hangs that border on the inner <details>,
+   not on [data-testid="stExpander"], which is why the existing border-color rule
+   above it never did anything. It becomes a quiet row on a background shift. */
+[data-testid="stExpander"] details{
+  border:0!important;border-radius:10px!important;background:#191d23!important}
+[data-testid="stExpander"] details summary:hover{background:#1e232a!important}
+[data-testid="stExpander"] details summary p{color:var(--mute)!important}
+/* The one place a real edge still earns its keep: an OPEN expander, where the
+   draft needs to be visibly its own surface. */
+[data-testid="stExpander"] details[open]{
+  background:#171b21!important;box-shadow:inset 0 0 0 1px var(--line)}
+
+/* ── The same system at 375px ───────────────────────────────────────────────
+   Proportional, not a copy: the card breathes less because the screen is
+   narrower, and the section gap shrinks because a phone scroll is cheap while
+   a phone screen is not. */
+@media (max-width:640px){
+  :root{--s-section:1.5rem}
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title){
+    padding:13px 14px 11px!important;border-radius:12px!important}
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title)
+    > [data-testid="stElementContainer"] > [data-testid="stMarkdown"] p{font-size:14px}
+  /* Refresh is styled quiet with min-height:0, which left it at 41.6px — under
+     the 44px thumb target. Quiet is about colour and weight, not hit area. */
+  .st-key-checknew button{min-height:44px!important}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -710,6 +866,7 @@ PRO = ACCESS["pro"]
 prof = profile_mod.load()
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 FEED_CAP = 60
+PAGE_SIZE = 25   # a couple of screens of scroll, not sixty cards in one column
 
 
 # ---------------------------------------------------------------------------
@@ -864,6 +1021,32 @@ def display_body(raw):
     return text
 
 
+def fmt_ceiling(n: int, ceiling: int) -> str:
+    """
+    An honest number that still reads as "there's always more."
+
+    Below the ceiling, the exact count — it changes every fetch, so a precise
+    number is true and worth showing. At or above it, "10,000+" instead of
+    whatever the live figure happens to be: FEEL.md §7 killed one stale claim
+    already ("6,000+ gigs" shipped as a fixed line and drifted the moment a
+    redeploy reset the seed). A live ceiling can't go stale — it's either still
+    true, or the real count has grown past it and it's MORE true.
+    """
+    return f"{ceiling:,}+" if n >= ceiling else f"{n:,}"
+
+
+def _flip_spans(value: str) -> str:
+    """
+    Wrap each character so CSS can stagger a per-digit flip when it lands —
+    the departure-board effect. Streamlit remounts this markup fresh on every
+    rerun (it's not a persistent DOM node Python mutates in place), so a plain
+    CSS `animation` replays on its own each time with no JS and nothing to
+    orchestrate — see .gr-flip in the stylesheet.
+    """
+    return "".join(f'<span class="gr-flip" style="animation-delay:{i*35}ms">'
+                   f'{ch}</span>' for i, ch in enumerate(value))
+
+
 def stat_cards(items):
     html = ('<div class="gr-stats" style="max-width:980px;margin-left:auto;'
             'margin-right:auto;justify-content:center">')
@@ -871,7 +1054,8 @@ def stat_cards(items):
         cls = "n small" if "small" in rest else "n"
         href = next((x for x in rest if x and x != "small"), "")
         inner = (f'<div class="accent" style="background:{accent}"></div>'
-                 f'<div class="l">{label}</div><div class="{cls}">{value}</div>')
+                 f'<div class="l">{label}</div>'
+                 f'<div class="{cls}">{_flip_spans(value)}</div>')
         if href:
             html += (f'<a class="gr-stat" href="{href}" target="_self">{inner}'
                      f'<div class="go">→</div></a>')
@@ -886,6 +1070,36 @@ def pills(items):
     st.markdown(f'<div class="gr-pills">{spans}</div>', unsafe_allow_html=True)
 
 
+def gig_pager(page: int, total_pages: int, key: str, show_top_link: bool = False):
+    """
+    Prev/next between chunks of the board, instead of one long scroll.
+
+    Rendered twice around the same list: once above the first card (jump
+    forward or back without scrolling up first) and once below the last (the
+    moment you actually reach the bottom, keep going or bail back to the top —
+    an ordinary anchor jump, not a rerun, so it's instant).
+    """
+    if total_pages <= 1:
+        return
+    c1, c2, c3 = st.columns([1, 2, 1], vertical_alignment="center")
+    with c1:
+        if st.button("‹ Prev", key=f"pg_{key}_prev", width="stretch",
+                     disabled=(page <= 0)):
+            st.session_state["gigspage"] = page - 1
+            st.rerun()
+    with c2:
+        mid = f'<div class="gr-page-n">Page {page + 1} of {total_pages}</div>'
+        if show_top_link:
+            mid += ('<div class="gr-page-top">'
+                    '<a href="#" class="gr-about-link">Back to top ↑</a></div>')
+        st.markdown(mid, unsafe_allow_html=True)
+    with c3:
+        if st.button("Next ›", key=f"pg_{key}_next", width="stretch",
+                     disabled=(page >= total_pages - 1)):
+            st.session_state["gigspage"] = page + 1
+            st.rerun()
+
+
 def source_pill(src: str):
     """
     (text, css class) for a board's pill.
@@ -897,7 +1111,7 @@ def source_pill(src: str):
     src = (src or "").lower()
     label = config.source_label(src)
     if src in config.REMOTE_ONLY_SOURCES:
-        return f"🌐 {label}", "remote"
+        return label, "remote"      # the pill's own green tint says "remote"
     return label, ""
 
 
@@ -1166,23 +1380,26 @@ def gig_card(r, pro):
         st.markdown(f'{new}<a class="gr-title" href="{url}" target="_blank">{title}</a>',
                     unsafe_allow_html=True)
 
+        # Pills carry their meaning in colour (FEEL.md §2: match is amber,
+        # urgent is red, low is amber-dim, location is blue/green) — an emoji
+        # prefix on top of a tinted pill was saying the same thing twice.
         badge_items = []
         if pro and r.get("_score") is not None:
-            badge_items.append((f"🎯 {int(r['_score'])}% match", "match"))
+            badge_items.append((f"{int(r['_score'])}% match", "match"))
         _src = (r["source"] or "").lower()
         badge_items += [(r["job_type"], ""), (f"{r['size_tier']} budget", ""),
                         source_pill(_src)]
         # where can this be done — and can *you* take it?
         loc = location.tag(r)
         if location.is_local(r, prof.get("city")):
-            badge_items.append((f"📍 Near {prof.get('city')}", "locnear"))
+            badge_items.append((f"Near {prof.get('city')}", "locnear"))
         else:
             loc_lbl = location.label(loc)
             if loc_lbl:
                 ok = location.eligible(loc, location.country_region(prof.get("country")))
                 if not ok:
                     # geo-locked to a region you're not in — make that obvious
-                    badge_items.append((f"🔒 {loc['restrict']}-only · can't apply", "locoff"))
+                    badge_items.append((f"{loc['restrict']}-only · can't apply", "locoff"))
                 # A plain "Remote" pill beside a board called RemoteOK is the
                 # same fact twice. Anything sharper (US-only, worldwide) still
                 # earns its place.
@@ -1190,11 +1407,11 @@ def gig_card(r, pro):
                           and loc_lbl.strip().lower().endswith("remote")):
                     badge_items.append((loc_lbl, "loc"))
         if r.get("urgency") == "Urgent":
-            badge_items.append(("🔥 Urgent", "urgent"))
+            badge_items.append(("Urgent", "urgent"))
         if pro:
             lb, reason = market.lowball(r, stats, prof)
             if lb:
-                badge_items.append((f"💸 {reason}", "low"))
+                badge_items.append((reason, "low"))
         pills(badge_items)
 
         if pro and r.get("_reasons"):
@@ -1212,9 +1429,11 @@ def gig_card(r, pro):
 
         gid = r["id"]
         saved_exists = drafts.has(gid)
-        label = "✍️ Draft my reply" if pro else "✍️ Draft my reply  🔒 Pro"
+        # "Pro" carries the gating on its own in bold amber text — a padlock
+        # glyph next to it was decoration on top of a word already doing the job.
+        label = "Draft my reply" if pro else "Draft my reply  ·  Pro"
         if pro and saved_exists:
-            label += "  ·  📝 saved"
+            label += "  ·  draft saved"
         with st.expander(label):
             if pro:
                 key = f"pitch_{gid}"
@@ -1224,22 +1443,22 @@ def gig_card(r, pro):
                 st.text_area("Your draft", height=240, key=key,
                              label_visibility="collapsed")
                 bc1, bc2 = st.columns(2)
-                bc1.button("💾 Save draft", key=f"save_{gid}", width="stretch",
+                bc1.button("Save draft", key=f"save_{gid}", width="stretch",
                            on_click=_save_draft, args=(gid, key))
-                bc2.button("🔄 Start fresh", key=f"regen_{gid}", width="stretch",
+                bc2.button("Start fresh", key=f"regen_{gid}", width="stretch",
                            on_click=_regen_draft, args=(r, key),
                            help="Replace your edits with a new auto-draft")
                 if st.session_state.pop(f"_saved_{gid}", False):
-                    st.caption("Saved ✓ — your edits will be here when you come back. 🧡")
+                    st.caption("Saved — your edits will be here when you come back.")
                 elif saved_exists:
                     st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
                 else:
-                    st.caption("Tweak it, save it, copy — and you're first in line. 🧡")
+                    st.caption("Tweak it, save it, copy — and you're first in line.")
             else:
-                st.caption("🔒 On **Pro**, we write a ready-to-send reply for this exact "
+                st.caption("On **Pro**, we write a ready-to-send reply for this exact "
                            "gig — so you can fire back first, without staring at a blank "
                            "message. Upgrade any time from your **Profile**.")
-                st.button("⭐ Upgrade to Pro", key=f"up_{r['id']}",
+                st.button("Upgrade to Pro", key=f"up_{r['id']}",
                           disabled=True, width="stretch")
 
 
@@ -1258,6 +1477,12 @@ def live_stats():
     # Signed in with skills → the numbers are about YOU: your matches, your
     # fresh ones, your urgent ones, with one card for whole-board context.
     # Signed out → the board at large, exactly as before.
+    # ONE ceiling, on the board total only. Every other number stays live and
+    # exact, so it visibly climbs as the board grows — that movement is the
+    # point. The board total is the exception because it's the number that runs
+    # away from the others, and "10,000+" reads as scale in a way that a precise
+    # five-digit figure doesn't. A live ceiling also can't go stale the way the
+    # old hard-coded "6,000+ gigs" line did (FEEL.md §7).
     if ACCESS["signed_in"] and skills:
         mine = cur[cur["job_type"].isin(skills)]
         stat_cards([
@@ -1266,11 +1491,13 @@ def live_stats():
              "?nav=gigs&qf=mine"),
             ("Urgent for you", f"{int((mine['urgency'] == 'Urgent').sum()):,}",
              "#E96250", "?nav=gigs&qf=urgent"),
-            ("On the whole board", f"{len(cur):,}", "#35B37E", "?nav=gigs"),
+            ("On the whole board", fmt_ceiling(len(cur), 10_000), "#35B37E",
+             "?nav=gigs"),
         ])
     else:
         stat_cards([
-            ("On the board now", f"{len(cur):,}", "#E8933A", "?nav=gigs"),
+            ("On the board now", fmt_ceiling(len(cur), 10_000), "#E8933A",
+             "?nav=gigs"),
             ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
              "?nav=gigs&qf=recent"),
             ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
@@ -1281,10 +1508,16 @@ def live_stats():
         ])
 
 
-def category_strip():
-    """A few BROAD category buckets (with live counts) so people can browse the
-    board at a glance. Each links to a filtered Gigs view where they can drill
-    into the specific sub-categories."""
+def category_strip(col=None):
+    """
+    Pick a broad field to browse, with live counts.
+
+    This was a wrapping row of chips. Five of them fit one desktop line but
+    stacked into four ragged rows on a phone, and they pushed the first gig most
+    of a screen further down — a whole block of chrome before any actual work.
+    A select puts the same choice in one row beside the search, so the two
+    controls read as one toolbar instead of two stacked bars.
+    """
     if df.empty:
         return
     counts = df["job_type"].value_counts().to_dict()
@@ -1293,15 +1526,21 @@ def category_strip():
     groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
     if not groups:
         return
-    st.markdown('<div style="color:#8a919c;font-size:12.5px;'
-                'font-weight:600;letter-spacing:.02em;margin:2px 0 8px">'
-                'Browse by field</div>', unsafe_allow_html=True)
-    chips = "".join(
-        f'<a class="gr-cat" href="?nav=gigs&group={quote(g)}" target="_self">'
-        f'{html.escape(g)}<span class="n">{n:,}</span></a>'
-        for g, n in groups
-    )
-    st.markdown(f'<div class="gr-cats">{chips}</div>', unsafe_allow_html=True)
+    labels = ["All fields"] + [f"{g} · {n:,}" for g, n in groups]
+    names = [""] + [g for g, _ in groups]
+    current = st.session_state.get("groupfilter", "")
+    target = col if col is not None else st
+    pick = target.selectbox(
+        "Browse by field", labels,
+        index=names.index(current) if current in names else 0,
+        key="groupsel", label_visibility="collapsed")
+    chosen = names[labels.index(pick)]
+    if chosen != current:
+        st.session_state["groupfilter"] = chosen
+        # Picking a field starts a fresh drill-down; a stale sub-category would
+        # otherwise take precedence and show the wrong slice.
+        st.session_state["catfilter"] = ""
+        st.rerun()
 
 
 def hero_search():
@@ -1359,7 +1598,7 @@ def arrivals_pill():
     # A quiet, centred chip (styled via .st-key-arrivals) rather than a bright
     # full-width bar. It should read as a gentle "there's more" nudge inside the
     # flow, not an alert shouting over the page.
-    if st.button(f"↻  Show {n} new gig{'s' if n > 1 else ''}",
+    if st.button(f"Show {n} new gig{'s' if n > 1 else ''}",
                  key="arrivals", type="secondary"):
         st.session_state["_seen_max_id"] = newest
         note("click", "arrivals")
@@ -1385,7 +1624,7 @@ def draft_showcase(pro):
     gid = str(g["id"])
     pills_html = "".join(
         f'<span class="gr-pill {c}">{html.escape(str(t))}</span>' for t, c in [
-            (f"🎯 {int(g['_score'])}% match", "match") if g.get("_score") is not None else ("", ""),
+            (f"{int(g['_score'])}% match", "match") if g.get("_score") is not None else ("", ""),
             (g.get("job_type", ""), ""), (f"{g.get('size_tier','')} budget", ""),
             source_pill(g.get("source")),
         ] if t)
@@ -1393,7 +1632,7 @@ def draft_showcase(pro):
     if not pro:
         st.markdown(
             '<div class="gr-draft"><div class="gr-draft-hd">'
-            '<div class="gr-draft-k">🔒 Pro · we write the reply for you</div>'
+            '<div class="gr-draft-k">Pro · we write the reply for you</div>'
             f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div></div>'
             '<div class="gr-draft-lock">On <b>Pro</b> this box already contains a '
             'ready-to-send reply for this exact gig, written from your profile, '
@@ -1407,7 +1646,7 @@ def draft_showcase(pro):
         for block in text.split("\n\n") if block.strip())
     st.markdown(
         '<div class="gr-draft"><div class="gr-draft-hd">'
-        '<div class="gr-draft-k">✍️ We already wrote your reply</div>'
+        '<div class="gr-draft-k">We already wrote your reply</div>'
         f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div>'
         f'<div class="gr-draft-m">{pills_html}</div></div>'
         f'<div class="gr-draft-body">{body}</div></div>',
@@ -1417,7 +1656,7 @@ def draft_showcase(pro):
     with c1:
         st.link_button("Open the gig  ↗", g.get("url") or "#", width="stretch")
     with c2:
-        if st.button("✍️  Edit this reply", width="stretch", key="showcase_edit"):
+        if st.button("Edit this reply", width="stretch", key="showcase_edit"):
             st.session_state["_navidx"] = _TABS.index("Gigs")
             st.session_state["_profile"] = st.session_state["_about"] = False
             st.session_state["quickfilter"] = "mine"
@@ -1465,14 +1704,18 @@ def view_dashboard(pro):
     arrivals_pill()
     draft_showcase(pro)
     if prof.get("skills"):
-        st.markdown('### Picked for <span class="gr-accent">you</span>',
-                    unsafe_allow_html=True)
+        # .gr-sect marks a heading that STARTS A NEW SECTION mid-page, so it
+        # earns the big gap above it. Page titles deliberately don't carry it —
+        # they'd push the first line of every view down the screen. (Marker goes
+        # after the text: "###" only parses at the start of a line.)
+        st.markdown('### Picked for <span class="gr-accent">you</span>'
+                    '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
                                    srcs, False, "")).head(5)
     else:
-        st.markdown('### Fresh off the <span class="gr-accent">boards</span>',
-                    unsafe_allow_html=True)
+        st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
+                    '<span class="gr-sect"></span>', unsafe_allow_html=True)
         top = df.head(5)
 
     if top.empty:
@@ -1506,7 +1749,7 @@ def view_gigs(pro):
     _h.markdown('### The whole <span class="gr-accent">board</span>'
                 '<span class="gr-tools"></span>', unsafe_allow_html=True)
     with _r:
-        if st.button("↻  Refresh", key="checknew", width="stretch"):
+        if st.button("Refresh", key="checknew", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
             _public_feed.clear()         # new gigs should show at once, not in 45s
@@ -1516,7 +1759,9 @@ def view_gigs(pro):
         st.info("Nothing here yet — hit **Refresh** and we'll grab the latest.")
         return
 
-    _sc, _ = st.columns([3, 2])
+    # Search and field sit on ONE row: they are the same decision ("what work?"),
+    # so they belong together rather than as two stacked full-width bars.
+    _sc, _fc = st.columns([3, 2], vertical_alignment="center")
     _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
                          placeholder="Search gigs — figma, shopify, medical…",
                          label_visibility="collapsed", key="gigsearch")
@@ -1524,19 +1769,18 @@ def view_gigs(pro):
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
 
-    # Browse-by-field chips live here now, where people are looking, instead of
-    # crowding the dashboard's search area.
-    category_strip()
+    category_strip(_fc)
 
     # Prominent location lens — the first cut most people want to make.
     _all, _rem, _loc = location_counts(df)
     _CITY = (prof.get("city") or "").strip()
-    _opts = [f"🌐 Everywhere · {_all}", f"🌍 Remote I can take · {_rem}",
-             f"📍 {'Near ' + _CITY if _CITY else 'On-site / local'} · {_loc}"]
+    _onsite_lbl = "Near " + _CITY if _CITY else "On-site / local"
+    _opts = [f"Everywhere · {_all}", f"Remote I can take · {_rem}",
+             f"{_onsite_lbl} · {_loc}"]
     _pick = st.segmented_control("Where you can work", _opts, default=_opts[0],
                                  key="locseg", label_visibility="collapsed")
     loc_mode = ("Remote I can take" if _pick and "Remote" in _pick
-                else "On-site / local" if _pick and _pick.startswith("📍")
+                else "On-site / local" if _pick and _pick.startswith(_onsite_lbl)
                 else "Everywhere")
     if loc_mode == "On-site / local" and not _CITY:
         st.caption("Showing hands-on gigs everywhere — add your **city** in Profile to pin "
@@ -1548,7 +1792,7 @@ def view_gigs(pro):
                                default=["Small", "Medium", "Large"])
         srcs = sorted(df["source"].unique())
         sources = st.multiselect("Source", srcs, default=srcs)
-        urgent = st.checkbox("🔥 Urgent only")
+        urgent = st.checkbox("Urgent only")
         if skills and set(skills) != set(ALL_SKILLS) and set(skills) != set(prof.get("skills") or []):
             if st.button("Save these as my skills", key="savefilterskills"):
                 prof["skills"] = skills
@@ -1611,12 +1855,9 @@ def view_gigs(pro):
         view = view[view["job_type"] == cat]
     elif group and group in config.CATEGORY_GROUPS:
         subs = config.CATEGORY_GROUPS[group]
-        cc1, cc2, _ = st.columns([3.1, 1, 5.9], vertical_alignment="center")
-        cc1.markdown(f'<span class="gr-qf">▸ {html.escape(group)}</span>',
-                     unsafe_allow_html=True)
-        if cc2.button("Clear", key="cleargrp", width="stretch"):
-            st.session_state["groupfilter"] = ""
-            st.rerun()
+        # No "▸ Design & Media  [Clear]" row here any more: the field select
+        # already shows the active field, and "All fields" already clears it.
+        # Restating it underneath was a third control saying the same thing.
         view = view[view["job_type"].isin(subs)]
         # sub-category chips to narrow into a specific one
         vc = view["job_type"].value_counts().to_dict()
@@ -1633,7 +1874,7 @@ def view_gigs(pro):
 
     note = f"**{len(view):,}** gigs for you"
     if merged:
-        note += f"  ·  🔗 {merged} duplicates tidied up"
+        note += f"  ·  {merged} duplicates tidied up"
     if len(view) > FEED_CAP:
         note += f"  ·  showing the freshest {FEED_CAP}"
     st.caption(note)
@@ -1643,15 +1884,33 @@ def view_gigs(pro):
                 "**Check for new gigs** up top.")
         return
 
-    for r in view.head(FEED_CAP).to_dict("records"):
+    # Reset to page 1 whenever the actual result set changes underneath the
+    # reader. Without this, landing on page 3 of a broad browse and then
+    # typing a narrow search would silently show an empty page instead of
+    # the results that do exist — the same class of bug as a stale cache key.
+    _fp = (kw, tuple(sorted(skills)), tuple(sorted(sizes)), tuple(sorted(sources)),
+           urgent, loc_mode, qf, cat, group)
+    if st.session_state.get("_gigs_fp") != _fp:
+        st.session_state["_gigs_fp"] = _fp
+        st.session_state["gigspage"] = 0
+
+    pool = min(len(view), FEED_CAP)
+    total_pages = max(1, -(-pool // PAGE_SIZE))    # ceiling division, no import
+    page = min(st.session_state.get("gigspage", 0), total_pages - 1)
+    st.session_state["gigspage"] = page
+
+    gig_pager(page, total_pages, "top")
+    start = page * PAGE_SIZE
+    for r in view.iloc[start:start + PAGE_SIZE].to_dict("records"):
         gig_card(r, pro)
+    gig_pager(page, total_pages, "bottom", show_top_link=True)
 
 
 def view_market(pro):
     st.markdown('### What gigs like yours are <span class="gr-accent">paying</span>',
                 unsafe_allow_html=True)
     if not pro:
-        st.info("🔒 This one's a **Pro** perk. See what work like yours actually pays, "
+        st.info("This one's a **Pro** perk. See what work like yours actually pays, "
                 "what's hot this week, and which posts are lowballing — pulled from "
                 "everywhere at once. You can switch to Pro any time from your **Profile**.")
         return
@@ -1772,7 +2031,7 @@ def view_alerts(pro):
     st.markdown('### We\'ll tap you on the <span class="gr-accent">shoulder</span>',
                 unsafe_allow_html=True)
     if not pro:
-        st.info("🔒 A **Pro** perk. The moment a gig that fits you lands, we'll ping you — "
+        st.info("A **Pro** perk. The moment a gig that fits you lands, we'll ping you — "
                 "so you're first to reply. Turn it on by upgrading in your **Profile**.")
         return
     st.caption("The faster you hear, the more you win. Switch on as many as you like — "
@@ -1884,11 +2143,11 @@ def view_alerts(pro):
 
     cols = st.columns(2)
     with cols[0]:
-        if st.button("💾 Save my alerts", width="stretch"):
+        if st.button("Save my alerts", width="stretch"):
             alerts.save_prefs(crit)
-            st.success("Saved — your alert preferences are set. 🔔")
+            st.success("Saved — your alert preferences are set.")
     with cols[1]:
-        if st.button("🔔 Send a test ping", width="stretch"):
+        if st.button("Send a test ping", width="stretch"):
             res = alerts.send_test(crit)
             if not res:
                 st.warning("No channels are set up yet, so there was nothing to send to. "
@@ -1966,13 +2225,13 @@ def view_profile(pro):
     # Location pre-fill: detect once, the form below uses it as the default.
     geo = st.session_state.get("_geo", {})
     dcol, mcol = st.columns([1, 3], vertical_alignment="center")
-    if dcol.button("📍 Detect my location", width="stretch"):
+    if dcol.button("Detect my location", width="stretch"):
         st.session_state["_geo"] = location.geo_from_ip()
         st.rerun()
     if geo:
         found = ", ".join(x for x in [geo.get("city"), geo.get("country")] if x)
         if found:
-            mcol.markdown(f"📍 Looks like you're in **{found}** — check the fields below "
+            mcol.markdown(f"Looks like you're in **{found}** — check the fields below "
                           "and hit **Save**.")
         else:
             mcol.caption("Couldn't place you automatically — just pick your country below.")
@@ -2029,7 +2288,7 @@ def view_profile(pro):
                                  value=prof.get("bio", ""),
                                  placeholder="10+ yrs designing brand identities for small businesses.")
 
-        if st.form_submit_button("💾 Save", width="stretch"):
+        if st.form_submit_button("Save", width="stretch"):
             _saved = {
                 "name": f_name.strip(), "headline": f_headline.strip(),
                 "skills": f_skills, "rate_floor": f_floor, "rate_unit": f_unit,
@@ -2045,7 +2304,7 @@ def view_profile(pro):
             if _who:
                 people.attach_profile(_who, _saved)
             st.session_state.pop("_geo", None)
-            st.success("Got it — we've tuned things to you. 🧡")
+            st.success("Got it — we've tuned things to you.")
             st.rerun()
 
     st.divider()
@@ -2055,10 +2314,10 @@ def view_profile(pro):
     st.markdown("#### Your plan")
     if ACCESS["plan"] == "pro":
         st.success("You're on **Pro** — instant pings, drafted replies, ranked picks & "
-                   "market rates. Thanks for backing us. 🧡")
+                   "market rates. Thanks for backing us.")
     elif ACCESS["pro"] and ACCESS.get("founding"):   # founding member gift
         _d = ACCESS["days_left"]
-        st.success(f"You're a **founding member** 🧡 — {_d} day{'s' if _d != 1 else ''} "
+        st.success(f"You're a **founding member** — {_d} day{'s' if _d != 1 else ''} "
                    "of Pro on us, for taking the early chance. Ranked picks, drafted "
                    "replies, market rates and instant alerts, all yours.")
     elif ACCESS["pro"]:            # an active opt-in trial
@@ -2146,7 +2405,7 @@ def signup_card(where="dashboard"):
         else:
             d = a["days_left"]
             _lbl = "of founding Pro left" if a.get("founding") else "of Pro left on your trial"
-            st.markdown(f'<div class="gr-mini">✨ <b>{d} day{"s" if d != 1 else ""}</b> '
+            st.markdown(f'<div class="gr-mini"><b>{d} day{"s" if d != 1 else ""}</b> '
                         f'{_lbl}</div>', unsafe_allow_html=True)
         return
 
@@ -2586,7 +2845,7 @@ def view_admin():
                 "rate_floor", "rate_unit", "country", "city", "portfolio", "source"]
         table = pd.DataFrame(rows)[[c for c in cols if c in rows[0]]]
         st.dataframe(table, width="stretch", hide_index=True)
-        st.download_button("⬇️  Download people CSV", table.to_csv(index=False),
+        st.download_button("Download people CSV", table.to_csv(index=False),
                            file_name="nabbly-people.csv", mime="text/csv")
     else:
         st.caption("Nobody yet.")
@@ -2604,7 +2863,7 @@ def view_admin():
                 f'<div style="font-size:11.5px;color:#7b828d;margin-top:5px">'
                 f'{html.escape(who)} · {html.escape(r["page"] or "—")} · {r["ts"][:16]}</div>'
                 f'</div>', unsafe_allow_html=True)
-        st.download_button("⬇️  Download feedback CSV", pd.DataFrame(fb).to_csv(index=False),
+        st.download_button("Download feedback CSV", pd.DataFrame(fb).to_csv(index=False),
                            file_name="nabbly-feedback.csv", mime="text/csv")
     else:
         st.caption("No feedback yet.")

@@ -212,7 +212,16 @@
   .card-visual{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px}
   .mailrow{display:flex;gap:12px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--line)}
   .mailrow:last-child{border-bottom:none}
-  .mailrow .ic{flex:0 0 34px;height:34px;border-radius:9px;background:rgba(232,147,58,.12);display:grid;place-items:center;font-size:16px}
+  /* A miniature version of the radar motif (see FEEL.md §6) stands in for the
+     emoji this row used to open with (📬/✍️/🎬/🎨) — a colourful pictograph on
+     an otherwise near-monochrome card read as clip art, not as Nabbly. One warm
+     glow fading to dark says "something arrived" without borrowing a picture. */
+  .mailrow .ic{flex:0 0 34px;height:34px;border-radius:9px;position:relative;
+    background:radial-gradient(circle at 32% 32%, rgba(247,181,105,.55), rgba(203,111,22,.16) 60%, transparent 78%),
+      var(--bg2);border:1px solid var(--line)}
+  .mailrow .ic::after{content:"";position:absolute;top:50%;left:50%;
+    width:5px;height:5px;border-radius:50%;background:#FCE4C6;
+    transform:translate(-50%,-50%);box-shadow:0 0 6px 1px rgba(252,228,198,.5)}
   .mailrow .t{font-size:14.5px}
   .mailrow .t b{color:var(--ink);font-weight:600}
   .mailrow .t span{color:var(--mute);display:block;margin-top:2px;font-size:13.5px}
@@ -358,14 +367,14 @@
       <div class="kicker" style="color:var(--amber);font-weight:650;font-size:13px;letter-spacing:.08em;text-transform:uppercase">Your private inbox</div>
       <h2 style="margin-top:12px">The best gigs never hit a job board</h2>
       <p>A lot of the best work goes out on a listserv or a paid newsletter no crawler can reach. So Nabbly gives every member a private forwarding address. Forward a newsletter to it once, and we pull the gigs out and file them on your board — visible only to you.</p>
-      <div class="addr">📬 gigs+you@nabbly.co</div>
+      <div class="addr">gigs+you@nabbly.co</div>
     </div>
     <div class="card-visual">
-      <div class="mailrow"><div class="ic">✉️</div><div class="t"><b>Study Hall — Opportunities of the Week</b><span>Forwarded to your Nabbly address</span></div></div>
+      <div class="mailrow"><div class="ic"></div><div class="t"><b>Study Hall — Opportunities of the Week</b><span>Forwarded to your Nabbly address</span></div></div>
       <div class="arrow">↓</div>
-      <div class="mailrow"><div class="ic">✍️</div><div class="t"><b>Freelance science reporter — Wired</b><span>$1/word · pitch by Friday · Writing</span></div></div>
-      <div class="mailrow"><div class="ic">🎬</div><div class="t"><b>Documentary editor — 6-week contract</b><span>Remote · Video · from your newsletter</span></div></div>
-      <div class="mailrow"><div class="ic">🎨</div><div class="t"><b>Brand designer for a nonprofit rebrand</b><span>Project rate · Design · private to you</span></div></div>
+      <div class="mailrow"><div class="ic"></div><div class="t"><b>Freelance science reporter — Wired</b><span>$1/word · pitch by Friday · Writing</span></div></div>
+      <div class="mailrow"><div class="ic"></div><div class="t"><b>Documentary editor — 6-week contract</b><span>Remote · Video · from your newsletter</span></div></div>
+      <div class="mailrow"><div class="ic"></div><div class="t"><b>Brand designer for a nonprofit rebrand</b><span>Project rate · Design · private to you</span></div></div>
     </div>
   </div>
 </section>

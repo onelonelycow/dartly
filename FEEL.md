@@ -68,6 +68,29 @@ accents — don't decorate with them.
 - **Headings speak the wordmark's language:** last word amber, like the "ly".
   `### The whole <span class="gr-accent">board</span>`. This REPLACED emoji
   prefixes (📡🔥👋) — never reintroduce emoji in headings.
+- **No emoji anywhere in the product, full stop** (July 2026) — not just
+  headings. It had spread everywhere: pills (🎯🔒🔥📍), buttons (💾🔄⭐📍),
+  captions (🧡✨), the marketing site's mail-preview icons (📬✉️🎬🎨). A
+  cartoon pictograph next to hand-tuned type is the fastest way to look like a
+  demo instead of a product — colour and weight are supposed to be doing that
+  work already. **Not on buttons at all** — `↻ Refresh` was cut on sight even
+  though `↻` is technically a glyph, not an emoji: if it reads as an icon
+  bolted to a label, it goes, and a button label is the last place that needs
+  decorating. Arrows survive ONLY where they carry information the words
+  don't: `↗` (opens in a new tab), `→` (a hover affordance on a card), `↑`
+  (jump to top), `▸` (an active-filter marker). The plain `✓` is fine.
+  If a control needs a state marker, reach for what's already
+  established instead: a coloured dot (`.gr-ch-st::before`), the pill's own
+  tint (match/urgent/low already carry their meaning in colour — see §2 — so a
+  🎯 or 🔥 in front of one said the same thing twice), or the small radar-glow
+  mark below.
+  - **The radar-glow mark** — the replacement when a row genuinely needs a
+    visual anchor and plain text isn't enough (e.g. a list of forwarded-mail
+    previews on the marketing site). A miniature version of the artwork motif
+    in §6: a soft radial amber glow fading to the card's own background, one
+    small warm-white point lit inside it. Same restraint rule as a poster —
+    ONE point of emphasis, never a second colour. See `.mailrow .ic` in
+    `site/index.html` for the reference implementation.
 - **No eyebrow/kicker labels** above headlines ("LIVE FREELANCE DEMAND" was
   removed). Let negative space do that job.
 - Markdown gotcha: `###` only parses at line start — any HTML before it turns
@@ -117,6 +140,10 @@ accents — don't decorate with them.
 ---
 
 ## 6. Artwork (posts, og-image, illustrations)
+
+Same motif, smaller: this is also the icon-mark used in-product wherever a row
+needs a visual anchor and text alone isn't enough — see §3's "radar-glow mark."
+Scale down, don't reinvent.
 
 The radar motif, treated with restraint:
 - Soft gradients, never hard-edged beams — blur the sweep's leading edge.
@@ -215,14 +242,51 @@ never stark separators.
 internal alignment across every row is what makes a long list feel calm rather
 than endless.
 
-**Where we currently fall short of all three (ranked):**
-1. **Vertical rhythm is flat** — sections, groups and items are spaced too
-   alike. Vary section gaps deliberately.
-2. **Type scale is compressed** — headings should be further from body.
-3. **Gig cards repeat a lot** — 60 near-identical blocks; they need clearer
-   internal hierarchy (title dominant, meta recessive) so the eye can skim.
-4. **Borders are doing too much work** — several full-width bordered bars
-   stacked. Prefer spacing and background shifts over more outlines.
+**Where we fell short of all three, and what we did (July 2026).** All four are
+closed. Kept here because the RULES are the useful part — the diagnosis is what
+stops each one being reintroduced.
+
+1. **Vertical rhythm was flat.** Streamlit ships one 16px gap between
+   everything, and we had never overridden it on desktop. The gap *inside* a gig
+   card was 16px and the gap *between* two cards was also 16px, so a card read as
+   four loose rows instead of one object.
+   **Rule:** three distances, always different — `--s-item` (parts of one thing)
+   < `--s-group` (thing to thing) < `--s-section` (before a new heading). Never
+   let the inner gap equal the outer gap.
+2. **Type scale was compressed.** Desktop `h3`/`h4` were never styled at all.
+   Worse, inside a card the title (19px), body (16px) and "Posted…" (14px) were
+   all essentially the same brightness — body and caption were both pure
+   `#fafafa`. Nothing receded, so nothing stood out.
+   **Rule:** most of the fix is at the BOTTOM of the ramp. Pull meta down and
+   back (12px `--faint`) before you push headings up. Colour separates as much
+   as size does.
+3. **Gig cards repeated.** Now: title dominant (18px/650), pills recessive,
+   body 14.5px `--mute`, caption 12px `--faint`, one shared left edge.
+   **Rule:** one dominant thing per row; everything else is context for it.
+4. **Borders did too much work.** The card was the most repeated element on the
+   site and the ONLY box still on Streamlit's stock `rgba(250,250,250,.2)`; pills
+   drew 4-6 more outlines inside every card; the reply expander was a frame
+   inside a frame; a full-width `<hr>` sat immediately above a section gap.
+   **Rule:** an edge must earn its place. Prefer a background shift. Never put a
+   bordered box inside a bordered box, and never state a separation twice (a
+   rule AND a gap).
+
+**Tokens live in `app.py`'s `:root`** (mirroring `site/index.html`). New rules use
+them; old literals were deliberately left alone rather than sweeping 40 values in
+a design commit.
+
+**Two traps this pass hit, both worth remembering:**
+- The new block sits AFTER the mobile media query, so an unscoped `!important`
+  wins on phones too — it silently undid the mobile type ramp. Desktop-only type
+  rules go in `@media (min-width:641px)`.
+- `[data-testid="stVerticalBlockBorderWrapper"]` **does not exist** in Streamlit
+  1.59. Two rules targeting it had never fired. Confirm selectors against the
+  live DOM, not memory.
+
+**Controls collapse before they wrap.** "Browse by field" was five chips that fit
+one desktop line and stacked into four ragged rows on a phone, pushing the first
+gig off-screen. It became a select beside the search. If a control set wraps on a
+phone, that is the signal to collapse it into one, not to restyle the chips.
 
 ## 10. The checklist before shipping any UI change
 
@@ -235,3 +299,4 @@ than endless.
    `###` heading and the "Nabb ly" gap both shipped because nobody looked.
 6. Does it expose plumbing (sources, column names, internals)? Hide it.
 7. Loud or quiet? When unsure: quiet.
+8. Any emoji snuck in? (§3) Colour/weight/the radar-glow mark instead.
