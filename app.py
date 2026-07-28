@@ -488,10 +488,25 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   padding-bottom:18px;border-bottom:1px solid #262b33}
 .gr-doc h2{font-size:22px;font-weight:650;letter-spacing:-.4px;color:#f2f4f7;
   margin:34px 0 10px;text-align:left;text-wrap:balance}
-.gr-doc h3{font-size:16.5px;font-weight:650;letter-spacing:-.2px;color:#e7ebf1;
-  margin:26px 0 8px;text-wrap:balance}
-.gr-doc p{font-size:15.5px;color:#b8bfc9;margin:0 0 14px}
+/* Section heads carry a short amber rule instead of sitting as plain bold
+   text — the one piece of brand language these pages had none of, and it
+   gives the eye something to catch when scanning a long policy. NOTE: these
+   are h3, not h2: legal.py's markdown uses "## " only for the document title
+   (which renders separately as .gr-doc-title) and "### " for every section,
+   so styling h2 here targeted nothing at all. */
+.gr-doc h3{font-size:18px;font-weight:650;letter-spacing:-.25px;color:#f2f4f7;
+  margin:38px 0 12px;text-wrap:balance;
+  padding-top:15px;border-top:1px solid #1e222a;position:relative}
+.gr-doc h3::before{content:"";position:absolute;top:-1px;left:0;
+  width:34px;height:2px;background:var(--amber);border-radius:2px}
+.gr-doc p{font-size:15.5px;color:#b8bfc9;margin:0 0 15px}
 .gr-doc strong{color:#eef1f5;font-weight:600}
+/* Most paragraphs here open "**What we collect.** Then the explanation." Eight
+   of those in a row reads as the text flickering between bold and not. Treated
+   as a deliberate lead-in — its own colour, a hair of letter-spacing — the
+   same pattern becomes structure instead of noise. */
+.gr-doc p > strong:first-child{color:var(--amber-l);font-weight:650;
+  letter-spacing:.005em}
 .gr-doc ul{margin:0 0 16px;padding-left:20px}
 .gr-doc li{font-size:15.5px;color:#b8bfc9;margin:7px 0;padding-left:2px}
 .gr-doc li::marker{color:#E8933A}
@@ -501,7 +516,7 @@ header[data-testid="stHeader"]{height:0;background:transparent}
 @media (max-width:640px){
   .gr-doc .gr-doc-title{font-size:25px}
   .gr-doc h2{font-size:19px;margin-top:28px}
-  .gr-doc h3{font-size:15.5px}
+  .gr-doc h3{font-size:16.5px;margin-top:30px}
   .gr-doc p,.gr-doc li{font-size:15px}}
 .gr-footer .foot-links{display:flex;gap:16px;align-items:center}
 /* Keep the FAQ's heading and its rows in one column — the heading sat in a
@@ -838,8 +853,17 @@ a.gr-title{font-weight:650}
    one click away. The gap above sits here (not on the pills) so a card with
    NO description gets the identical gap before its date — that mismatch was
    what made the two card shapes look like different components. */
-.gr-bodywrap{margin-top:10px}
-.gr-bodywrap.gr-nobody{margin-top:8px}
+/* padding, NOT margin: this sits inside Streamlit's markdown wrapper, which
+   collapses a child's top margin — the gap measured at exactly the card's 8px
+   flex gap, i.e. the margin was doing nothing and the pills still sat right on
+   top of the text. Padding can't collapse, so the separation is real.
+   The number is empirical, not tidy: the pills row's own box overhangs the
+   wrapper's top edge by ~2px, so the visible gap always lands a couple of
+   pixels under whatever is set here. 18px measures as ~16px on screen. */
+.gr-bodywrap{padding-top:18px}
+/* A card with no description has no body box above the date, so it needs less
+   padding to land on the same visible gap as one that does (item 10). */
+.gr-bodywrap.gr-nobody{padding-top:9px}
 .gr-body{font-size:14.5px;line-height:1.55;color:var(--mute);
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
   overflow:hidden;white-space:pre-line}
@@ -3303,8 +3327,11 @@ with _rcol:
         f'<div class="gr-menu">'
         f'<div class="gr-menu-hd">{html.escape(_who)}'
         f'<span>{html.escape(_plan)}</span></div>'
-        f'<a href="?nav=profile" target="_self">Your profile</a>'
-        f'<a href="?nav=profile" target="_self">Location &amp; settings</a>'
+        # One entry, not two. "Your profile" and "Location & settings" were
+        # different labels on the identical ?nav=profile link, which reads as a
+        # menu with a broken item. Profile genuinely IS the settings page now —
+        # it holds your details, location, alerts, resume and plan.
+        f'<a href="?nav=profile" target="_self">Profile &amp; settings</a>'
         # Owners only — everyone else never sees this link exists.
         + (f'<a href="?nav=admin" target="_self">Admin</a>' if IS_ADMIN else '') +
         f'<div class="gr-menu-sep"></div>'
