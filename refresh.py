@@ -24,6 +24,25 @@ _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
 
 
+def _rss_mb() -> float:
+    """Current resident memory, in MB. Linux reads /proc (what Render runs);
+    the getrusage fallback on macOS reports peak rather than current, which is
+    fine for a local sanity check and irrelevant in production."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024
+    except OSError:
+        pass
+    try:
+        import resource
+        kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+        return kb / (1024 * 1024) if kb > 10_000_000 else kb / 1024
+    except Exception:
+        return -1.0
+
+
 def _loop():
     import ingest
     import alerts
@@ -65,6 +84,16 @@ def _loop():
             ingest.run()
             _state["runs"] += 1
             _state["last"] = time.time()
+
+            # One memory line per cycle, into Render's log stream. The OOM
+            # restarts have now been "fixed" three times, and each diagnosis
+            # was reconstructed after the fact from local reproductions. This
+            # is the missing instrument: when (if) the next alert email
+            # arrives, the log shows exactly what RSS was doing in the minutes
+            # before, instead of us inferring it. ~720 short lines a day.
+            _state["rss_mb"] = _rss_mb()
+            print(f"  mem: {_state['rss_mb']:.0f}MB rss "
+                  f"(cycle {_state['runs']})", flush=True)
 
             # Read anything people forwarded to their Nabbly address. Runs right
             # after the fetch so forwarded gigs are on the board before the

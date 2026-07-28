@@ -642,24 +642,39 @@ div[data-testid="stForm"]{border:0;padding:0}
   [data-testid="stTextInputRootElement"] input{font-size:16px!important}  /* iOS
      zooms the page on focus for anything under 16px — this prevents that. */
 
-  /* The Gigs location filter (st.segmented_control) rendered as three ragged
-     different-width rows. It's a stButtonGroup > [role=radiogroup] of
-     button[role=radio] — one full-width column so they read as a set. */
-  /* Its container is a flex item with flex:0 1 auto, so it shrinks to content
-     and width:100% below resolves against that shrunken box. Stretch it. */
+  /* The Gigs location filter (st.segmented_control). Take two: the first
+     mobile fix stacked the three options as full-width rows — even, but
+     three rows of chrome on a page that already had seven. A swipeable chip
+     row is one row, the pattern every phone user already knows from app
+     stores and news apps. The gradient hints there's more to the right. */
   [data-testid="stElementContainer"]:has([data-testid="stButtonGroup"]){
-    width:100%!important;align-self:stretch!important}
-  [data-testid="stButtonGroup"]{width:100%!important;max-width:none!important}
-  /* max-width:fit-content is what pinned this to 190px and dragged the whole
-     container chain narrow with it. */
+    width:100%!important;align-self:stretch!important;position:relative}
+  [data-testid="stButtonGroup"]{width:100%!important;max-width:none!important;
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  [data-testid="stButtonGroup"]::-webkit-scrollbar{display:none}
   [data-testid="stButtonGroup"] > [role="radiogroup"]{
-    display:grid!important;grid-template-columns:1fr!important;
-    gap:7px!important;width:100%!important;max-width:none!important}
+    display:flex!important;flex-wrap:nowrap!important;gap:7px!important;
+    width:max-content!important;max-width:none!important}
   [data-testid="stButtonGroup"] button[role="radio"]{
-    width:100%!important;max-width:none!important;justify-content:center}
+    flex:0 0 auto;white-space:nowrap;justify-content:center}
   /* the label inside truncates at a fixed width — let it use the room */
   [data-testid="stButtonGroup"] button[role="radio"] > *{
     width:auto!important;overflow:visible!important;text-overflow:clip!important}
+
+  /* Title row and pager keep their columns side by side. Streamlit stacks
+     every stColumn full-width on phones, which turned "title + Refresh" into
+     two bars and the pager into THREE (Prev / label / Next). Same technique
+     as the top bar above: defeat the forced column width, put the row back. */
+  div[data-testid="stHorizontalBlock"]:has(.gr-tools){
+    display:grid!important;grid-template-columns:1fr auto;align-items:center;
+    gap:8px!important}
+  div[data-testid="stHorizontalBlock"]:has(.gr-tools) > [data-testid="stColumn"]{
+    width:auto!important;min-width:0!important}
+  div[data-testid="stHorizontalBlock"]:has([class*="st-key-pg_"]){
+    display:grid!important;grid-template-columns:1fr auto 1fr;
+    align-items:center;gap:8px!important}
+  div[data-testid="stHorizontalBlock"]:has([class*="st-key-pg_"]) > [data-testid="stColumn"]{
+    width:auto!important;min-width:0!important}
 }
 
 /* "New gigs arrived" nudge — a small, centred outline chip, not a full-width
@@ -2607,7 +2622,7 @@ def plan_card():
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
     else:
-        name, price, note = ("Free", "£0 — the whole board",
+        name, price, note = ("Free", "$0 — the whole board",
                              "Every gig, every field, search and browse.")
 
     st.markdown(
@@ -2932,7 +2947,7 @@ def view_about():
         '<li>Every gig, every field</li>'
         '<li>Search and browse it all</li>'
         '<li>Your profile, so the board sorts around you</li>'
-        '<li>A daily digest of what\'s new</li>'
+        '<li>Fresh gigs, minutes after they\'re posted</li>'
         '</ul></div>'
         '<div class="gr-ab-plan pro">'
         '<div class="gr-ab-name">Pro</div>'
