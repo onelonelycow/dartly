@@ -133,7 +133,8 @@
      Left to wrap naturally below 640px; a phone-width headline can wrap. */
   @media(min-width:640px){.offer .big{white-space:nowrap}}
   .offer .big em{font-style:normal;color:var(--nw-green)}
-  .offer p{color:var(--ink2);margin:12px auto 0;max-width:460px;font-size:16px}
+  .offer p{color:var(--ink2);margin:12px auto 0;max-width:560px;font-size:16px}
+  @media(min-width:640px){.offer p{white-space:nowrap}}
 
   /* ── three reasons, no more ── */
   .three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
