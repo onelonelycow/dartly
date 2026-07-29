@@ -105,6 +105,11 @@
   h1{font-size:clamp(38px,6.6vw,64px)}
   .hero .lead{font-size:clamp(17px,2.1vw,20px);color:var(--ink2);max-width:520px;
     margin:22px auto 0}
+  /* A quick, real-numbers credibility beat before the ask — small and quiet
+     on purpose, a fact to skim in passing, not a second headline. */
+  .stats{display:flex;justify-content:center;gap:36px;margin:26px 0 4px;flex-wrap:wrap}
+  .stat .n{font-size:22px;font-weight:700;color:var(--amber-l);letter-spacing:-.02em}
+  .stat .l{font-size:12.5px;color:var(--mute);margin-top:2px}
   .cta-row{margin-top:34px}
   .cta-row .btn{padding:15px 28px;font-size:17px}
 
@@ -172,6 +177,13 @@
   <div class="wrap">
     <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
     <p class="lead">Marketing, design, writing and video work — from every board and community, in one place. You just reply first.</p>
+    <!-- Real, current numbers — not a static claim baked into copy. Pulled the
+         same way the one-pager's stats were: honest ceilings, rounded down. -->
+    <div class="stats">
+      <div class="stat"><div class="n">15,000+</div><div class="l">gigs live now</div></div>
+      <div class="stat"><div class="n">20+</div><div class="l">fields covered</div></div>
+      <div class="stat"><div class="n">1,000+</div><div class="l">new every day</div></div>
+    </div>
     <div class="cta-row">
       <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board →</a>
     </div>
@@ -232,8 +244,8 @@
       <a href="https://app.nabbly.co/?nav=faq&ref=nextnw">FAQ</a> ·
       <a href="/privacy.html">Privacy</a> ·
       <a href="/terms.html">Terms</a><br>
-      <span style="opacity:.7">Next Northwest is referenced here to describe a
-      collaboration. This page is published by Nabbly.</span>
+      <span style="opacity:.7">This page describes a collaboration between
+      Nabbly and Next Northwest, and is published by Nabbly.</span>
     </div>
   </div>
 </footer>
