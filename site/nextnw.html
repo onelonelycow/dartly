@@ -61,12 +61,24 @@
   .lk-mark{display:flex;align-items:center;gap:9px;font-weight:680;font-size:19px;
     letter-spacing:-.02em;white-space:nowrap}
   .lk-x{width:1px;height:26px;background:var(--line2);flex:0 0 auto}
-  /* NEXTNW LOGO GOES HERE — drop the file in as /nextnw-logo.svg (or .png)
-     and delete the .lk-slot span. Sized to sit level with the Nabbly mark. */
-  .lk-slot{display:inline-flex;align-items:center;height:30px;padding:0 13px;
-    border:1px dashed var(--line2);border-radius:8px;color:var(--mute);
-    font-size:12.5px;font-weight:600;letter-spacing:.04em;white-space:nowrap}
-  .lk-logo{height:30px;width:auto;display:block}
+  /* Their real lockup, on its own native background — not stripped to
+     transparent or recolored. Rounded so it reads as a deliberate badge
+     sitting next to ours, not a stray rectangle. */
+  .lk-logo{height:30px;width:auto;display:block;border-radius:7px}
+
+  /* The real NextNW logo is wider than the dashed placeholder it replaced —
+     at 375px the header didn't have room and the CTA button overlapped it.
+     Shrink the lockup and the header's own CTA together rather than letting
+     either one silently overflow. */
+  @media(max-width:480px){
+    .nav{gap:9px}
+    .lockup{gap:9px}
+    .lk-mark{font-size:16px;gap:6px}
+    .lk-mark svg{width:20px;height:20px}
+    .lk-x{height:20px}
+    .lk-logo{height:20px}
+    .nav .btn-primary{padding:9px 13px;font-size:13px}
+  }
 
   .btn{display:inline-flex;align-items:center;gap:8px;font-weight:650;font-size:15px;
     border-radius:11px;padding:11px 18px;transition:.15s;border:1px solid transparent;
@@ -138,8 +150,9 @@
         <span>Nabb<span class="amber">ly</span></span>
       </a>
       <span class="lk-x"></span>
-      <!-- Swap this span for: <img class="lk-logo" src="/nextnw-logo.svg" alt="Next Northwest"> -->
-      <span class="lk-slot">NEXTNW LOGO</span>
+      <a href="https://nextnw.org/" target="_blank" rel="noopener" aria-label="Next Northwest">
+        <img class="lk-logo" src="/nextnw-logo.png" alt="Next Northwest">
+      </a>
     </div>
     <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board</a>
   </div>
