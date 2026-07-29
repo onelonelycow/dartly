@@ -41,6 +41,18 @@ TRIAL_DAYS = 14               # the opt-in trial anyone can start
 FOUNDING_DAYS = 60           # ~2 months, the thank-you for the first backers
 FOUNDING_LIMIT = 50          # how many of them get it
 
+# Partner groups testing Nabbly under an in-kind agreement: their people get Pro
+# free for the length of the test, unlocked by arriving on the partner's own
+# link (?ref=<tag>). Keyed by the campaign tag so the same link that measures
+# the collaboration also delivers what was promised on it — one thing to hand a
+# partner, not a link plus a code.
+#
+# `days` is the test window, deliberately generous enough to cover a real
+# working month or two rather than a weekend look.
+PARTNER_GRANTS = {
+    "nextnw": {"name": "Next Northwest", "days": 90},
+}
+
 _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
          "founding", "plan", "last_alert_id", "visits")
@@ -173,9 +185,25 @@ def sign_in(email: str, source: str = "signin",
     if row:
         conn.execute("UPDATE accounts SET last_seen=?, visits=visits+1 WHERE email=?",
                      (_now(), email))
+        # An existing account arriving on a partner link still gets the offer.
+        # Plenty of a partner's members will have looked at Nabbly before their
+        # announcement went out, and telling those people "you signed up too
+        # early, no Pro for you" is the opposite of what the collaboration is
+        # for. Only ever extends: if they already have longer, theirs stands.
+        grant = PARTNER_GRANTS.get((campaign or "").strip().lower())
+        if grant:
+            until = (datetime.now(timezone.utc)
+                     + timedelta(days=grant["days"])).isoformat(timespec="seconds")
+            have = _parse(row["pro_until"] if "pro_until" in row.keys() else None)
+            if not have or have < _parse(until):
+                conn.execute("UPDATE accounts SET pro_until=? WHERE email=?",
+                             (until, email))
         conn.commit()
-        acc = dict(row)
+        acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
+                                (email,)).fetchone())
         conn.close()
+        if grant:
+            _mirror(email)
         return acc, False
 
     now = _now()
@@ -189,16 +217,27 @@ def sign_in(email: str, source: str = "signin",
         watermark = _db.max_post_id()
     except Exception:
         watermark = 0
-    # The first FOUNDING_LIMIT people to sign up get ~2 months of Pro as a
-    # thank-you for taking the early chance — not because they asked, but as a
-    # gift. Everyone after that lands on Free and can start the opt-in trial when
-    # they choose. (The count is a snapshot; a rare simultaneous signup could put
-    # us a hair over 50, which is fine — erring generous.)
-    existing = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
-    founding = 1 if existing < FOUNDING_LIMIT else 0
-    pro_until = (datetime.now(timezone.utc)
-                 + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
-        if founding else ""
+    # A partner's group gets Pro for the length of their test, and — importantly
+    # — does NOT consume the founding-50 slots. Those were meant as a thank-you
+    # to whoever found Nabbly on their own; a single partner announcement could
+    # otherwise empty all fifty in an afternoon, spending the gesture on people
+    # who were already being given Pro by the partner deal anyway.
+    grant = PARTNER_GRANTS.get((campaign or "").strip().lower())
+    if grant:
+        founding = 0
+        pro_until = (datetime.now(timezone.utc)
+                     + timedelta(days=grant["days"])).isoformat(timespec="seconds")
+    else:
+        # The first FOUNDING_LIMIT people to sign up get ~2 months of Pro as a
+        # thank-you for taking the early chance — not because they asked, but as
+        # a gift. Everyone after that lands on Free and can start the opt-in
+        # trial when they choose. (The count is a snapshot; a rare simultaneous
+        # signup could put us a hair over 50, which is fine — erring generous.)
+        existing = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        founding = 1 if existing < FOUNDING_LIMIT else 0
+        pro_until = (datetime.now(timezone.utc)
+                     + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
+            if founding else ""
     conn.execute(
         "INSERT INTO accounts (email, token, created, last_seen, trial_start, "
         "pro_until, founding, plan, last_alert_id, visits) "
