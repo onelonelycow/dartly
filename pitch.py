@@ -277,6 +277,16 @@ def draft_pitch(gig: dict, profile: dict | None = None, resume_text: str = "",
     if ai_available():
         try:
             return draft_ai(gig, profile, resume_text, who=who)
-        except Exception:
-            pass          # capped, rate limited, no network, bad key: fall through
+        except Exception as e:
+            # Silent to the reader on purpose (a worse draft, not an error
+            # page) but silent in the logs too used to mean the very first
+            # real-key rollout had no way to see WHY it fell back. One line,
+            # not the reader's problem, but ours to see.
+            print(f"  draft_ai failed, falling back to template: {e!r}", flush=True)
+    else:
+        # ai_available() being False never reaches the except above at all —
+        # this is the other, quieter way a key rollout goes unnoticed: the
+        # env var isn't visible to this process, or `import anthropic` failed.
+        print(f"  draft_pitch: AI not available "
+              f"(key set: {bool(os.environ.get('ANTHROPIC_API_KEY'))})", flush=True)
     return draft_template(gig, profile)
