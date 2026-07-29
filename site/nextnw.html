@@ -57,15 +57,16 @@
   header{border-bottom:1px solid var(--line);background:rgba(14,22,19,.8);
     backdrop-filter:blur(12px);position:sticky;top:0;z-index:50}
   .nav{display:flex;align-items:center;justify-content:space-between;height:70px;gap:16px}
-  .lockup{display:flex;align-items:center;gap:15px;min-width:0}
+  .lockup{display:flex;align-items:center;gap:18px;min-width:0}
   .lk-mark{display:flex;align-items:center;gap:9px;font-weight:680;font-size:19px;
     letter-spacing:-.02em;white-space:nowrap}
-  .lk-x{width:1px;height:26px;background:var(--line2);flex:0 0 auto}
+  .lk-mark svg{width:40px;height:40px;display:block}
+  .lk-x{width:1px;height:36px;background:var(--line2);flex:0 0 auto}
   /* Their icon, background removed (not recolored — the glyph is still
      their exact white), paired with their name set in our own type. Same
      treatment as the Nabbly mark beside it: icon + text, no box, so the
      two read as equals instead of "our mark" next to "their sticker". */
-  .lk-icon{height:26px;width:auto;display:block}
+  .lk-icon{height:38px;width:auto;display:block}
 
   /* The lockup got wider once real content replaced the placeholder — at
      375px the header didn't have room and the CTA button overlapped it.
@@ -73,11 +74,11 @@
      either one silently overflow. */
   @media(max-width:480px){
     .nav{gap:9px}
-    .lockup{gap:9px}
+    .lockup{gap:12px}
     .lk-mark{font-size:16px;gap:6px}
-    .lk-mark svg{width:20px;height:20px}
-    .lk-x{height:20px}
-    .lk-icon{height:19px}
+    .lk-mark svg{width:30px;height:30px}
+    .lk-x{height:28px}
+    .lk-icon{height:28px}
     .nav .btn-primary{padding:9px 13px;font-size:13px}
   }
 
