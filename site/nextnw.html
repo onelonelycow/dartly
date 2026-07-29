@@ -69,9 +69,9 @@
   .lk-icon{height:38px;width:auto;display:block}
 
   /* The lockup got wider once real content replaced the placeholder — at
-     375px the header didn't have room and the CTA button overlapped it.
-     Shrink the lockup and the header's own CTA together rather than letting
-     either one silently overflow. */
+     375px the header didn't have room. The header's own CTA is gone now (one
+     button on the page, in the hero, is plenty) but the lockup still needs
+     the same shrink at this width. */
   @media(max-width:480px){
     .nav{gap:9px}
     .lockup{gap:12px}
@@ -79,7 +79,6 @@
     .lk-mark svg{width:30px;height:30px}
     .lk-x{height:28px}
     .lk-icon{height:28px}
-    .nav .btn-primary{padding:9px 13px;font-size:13px}
   }
 
   .btn{display:inline-flex;align-items:center;gap:8px;font-weight:650;font-size:15px;
@@ -168,7 +167,6 @@
         <img class="lk-icon" src="/nextnw-icon.png" alt="">
       </a>
     </div>
-    <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board</a>
   </div>
 </header>
 
