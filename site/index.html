@@ -492,6 +492,24 @@
       a.addEventListener('pointerenter', warm, { once: true });
       a.addEventListener('touchstart', warm, { once: true, passive: true });
     });
+
+    // Carry a partner's tag across to the app.
+    // A partner links to nabbly.co/?ref=theirname, but every button here points
+    // at app.nabbly.co — a different host, so the tag would be dropped at the
+    // door and their traffic would land as anonymous "Direct". This copies
+    // ?ref (or utm_source, which most newsletter tools emit) onto every app
+    // link, which is the whole reason the attribution works end to end.
+    try {
+      var q = new URLSearchParams(location.search);
+      var tag = q.get('ref') || q.get('utm_source') || '';
+      if (tag) {
+        document.querySelectorAll('a[href^="https://app.nabbly.co"]').forEach(function (a) {
+          var u = new URL(a.href);
+          if (!u.searchParams.has('ref')) u.searchParams.set('ref', tag);
+          a.href = u.toString();
+        });
+      }
+    } catch (e) {}
   })();
 </script>
 </body>

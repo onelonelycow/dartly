@@ -126,6 +126,70 @@ def referrer_label(referer: str) -> str:
     return host[:60]
 
 
+# ---------------------------------------------------------------------------
+# Campaigns: "did that collaboration actually work?"
+# ---------------------------------------------------------------------------
+# referrer_label answers "which site sent them", which blurs the moment a
+# partner posts the link in three places, or a newsletter shows up as
+# "Direct" because mail clients strip the referrer. A tag the partner carries
+# in their own link answers it directly: ?ref=partnername.
+#
+# Kept deliberately small and dumb: a short slug, no free text. It ends up in
+# a database and on an admin page, so it gets the same treatment as anything
+# else arriving from a URL.
+_CAMPAIGN_OK = re.compile(r"[^a-z0-9_-]+")
+
+
+def campaign_label(raw: str) -> str:
+    """'?ref=Sarah's Newsletter!' -> 'sarahs-newsletter'. '' if nothing usable."""
+    tag = (raw or "").strip().lower()
+    if not tag:
+        return ""
+    tag = _CAMPAIGN_OK.sub("-", tag).strip("-")
+    return tag[:40]
+
+
+def campaign_funnel(days: int = 30) -> list[dict]:
+    """
+    Per partner link: how many landed, and how many of them signed up.
+
+    Visits alone can't tell you whether a collaboration worked — a thousand
+    people bouncing looks identical to a thousand people arriving. Sessions
+    come from the events table, signups from people.campaign, joined on the
+    tag itself.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    out = {}
+    try:
+        conn = _connect()
+        rows = conn.execute(
+            "SELECT detail AS tag, COUNT(DISTINCT session) AS n FROM events "
+            "WHERE event='campaign' AND ts >= ? AND detail != '' "
+            "GROUP BY detail", (since,)).fetchall()
+        conn.close()
+        for r in rows:
+            out[r["tag"]] = {"tag": r["tag"], "sessions": int(r["n"]), "signups": 0}
+    except sqlite3.Error:
+        return []
+    try:
+        import people
+        conn = sqlite3.connect(people.DB_PATH, timeout=10)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT campaign AS tag, COUNT(*) AS n FROM people "
+            "WHERE COALESCE(campaign,'') != '' AND created >= ? "
+            "GROUP BY campaign", (since,)).fetchall()
+        conn.close()
+        for r in rows:
+            out.setdefault(r["tag"], {"tag": r["tag"], "sessions": 0, "signups": 0})
+            out[r["tag"]]["signups"] = int(r["n"])
+    except Exception:
+        pass
+    for v in out.values():
+        v["rate"] = (100 * v["signups"] / v["sessions"]) if v["sessions"] else 0.0
+    return sorted(out.values(), key=lambda d: -d["sessions"])
+
+
 def device_label(user_agent: str) -> str:
     ua = (user_agent or "").lower()
     if not ua:

@@ -154,7 +154,8 @@ def _rehydrate():
 # ---------------------------------------------------------------------------
 # Sign in / look up
 # ---------------------------------------------------------------------------
-def sign_in(email: str, source: str = "signin") -> tuple[dict | None, bool]:
+def sign_in(email: str, source: str = "signin",
+            campaign: str = "") -> tuple[dict | None, bool]:
     """
     Find or create the account for this email.
 
@@ -209,7 +210,7 @@ def sign_in(email: str, source: str = "signin") -> tuple[dict | None, bool]:
     conn.close()
     _mirror(email)
     try:
-        people.add_person(email, source=source)
+        people.add_person(email, source=source, campaign=campaign)
     except Exception:
         pass          # a webhook hiccup must never block someone signing in
     return acc, True

@@ -90,6 +90,14 @@ def init():
         )
         """
     )
+    # Which partner link brought them in, kept apart from `source` (which is
+    # the in-app placement they signed up from, e.g. "dashboard"). A
+    # collaboration is only measurable if the tag survives all the way to the
+    # signup, not just the first page view.
+    try:
+        conn.execute("ALTER TABLE people ADD COLUMN campaign TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -105,7 +113,7 @@ def _mirror(payload: dict):
         pass  # a dead webhook must never block a signup
 
 
-def add_person(email: str, source: str = "") -> tuple:
+def add_person(email: str, source: str = "", campaign: str = "") -> tuple:
     """Create the record at signup. Repeat emails are fine, not an error."""
     email = (email or "").strip().lower()
     if not valid_email(email):
@@ -113,13 +121,24 @@ def add_person(email: str, source: str = "") -> tuple:
     try:
         conn = _connect()
         conn.execute(
-            "INSERT OR IGNORE INTO people (email, created, updated, source) "
-            "VALUES (?,?,?,?)", (email, _now(), _now(), source[:60]))
+            "INSERT OR IGNORE INTO people (email, created, updated, source, campaign) "
+            "VALUES (?,?,?,?,?)",
+            (email, _now(), _now(), source[:60], (campaign or "")[:40]))
+        # A returning visitor who first arrived untagged and comes back through
+        # a partner link should still be credited to that partner — but never
+        # overwrite a tag we already have, or the last link they happened to
+        # click would steal the attribution from the one that actually worked.
+        if campaign:
+            conn.execute(
+                "UPDATE people SET campaign = ?, updated = ? "
+                "WHERE email = ? AND COALESCE(campaign, '') = ''",
+                (campaign[:40], _now(), email))
         conn.commit()
         conn.close()
     except sqlite3.Error:
         return False, "Couldn't save that just now. Try again in a moment."
-    _mirror({"type": "signup", "email": email, "source": source, "at": _now()})
+    _mirror({"type": "signup", "email": email, "source": source,
+             "campaign": campaign, "at": _now()})
     return True, "You're on the list."
 
 

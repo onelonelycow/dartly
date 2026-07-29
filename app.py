@@ -1400,7 +1400,22 @@ if "_sid" not in st.session_state:
         analytics.track("device", analytics.device_label(_h.get("User-Agent", "")), _sid)
     except Exception:
         pass          # header access must never break a page load
+    # A partner's own tag: ?ref=name (or utm_source=, which is what most
+    # newsletter tools emit by default). Captured HERE, at session start,
+    # because the nav dispatch calls st.query_params.clear() further down —
+    # read it any later and it's already gone. Held in session state so it
+    # survives to whenever they actually sign up, which is the only moment
+    # that answers whether the collaboration worked.
+    try:
+        _tag = analytics.campaign_label(
+            st.query_params.get("ref", "") or st.query_params.get("utm_source", ""))
+        if _tag:
+            st.session_state["_campaign"] = _tag
+            analytics.track("campaign", _tag, _sid)
+    except Exception:
+        pass
 SID = st.session_state["_sid"]
+CAMPAIGN = st.session_state.get("_campaign", "")
 
 
 def note(event: str, detail: str = ""):
@@ -2770,7 +2785,7 @@ def sign_in_here(email: str, where: str):
     Starting Pro is a separate, deliberate choice (accounts.start_trial), so
     signing in never drops anyone into a trial they didn't ask for.
     """
-    acc, is_new = accounts.sign_in(email, source=where)
+    acc, is_new = accounts.sign_in(email, source=where, campaign=CAMPAIGN)
     if not acc:
         return False, "That doesn't look like an email address."
     st.session_state["_tok"] = acc["token"]
@@ -3186,6 +3201,22 @@ def view_admin():
         ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
     ])
+
+    # --- Partner links: did the collaboration actually work? ----------------
+    _camp = analytics.campaign_funnel(30)
+    if _camp:
+        st.markdown("#### Partner links")
+        st.caption("Last 30 days. Send a partner `nabbly.co/?ref=theirname` and "
+                   "they show up here, with what share of them signed up.")
+        _cd = pd.DataFrame(_camp)[["tag", "sessions", "signups", "rate"]]
+        _cd.columns = ["Link", "Visitors", "Signups", "Signup rate"]
+        _cd["Signup rate"] = _cd["Signup rate"].map(lambda v: f"{v:.1f}%")
+        st.dataframe(_cd, width="stretch", hide_index=True)
+    else:
+        st.markdown("#### Partner links")
+        st.caption("Nothing tagged yet. Give a partner a link ending "
+                   "`?ref=theirname` and their traffic and signups appear here, "
+                   "separated from everyone else's.")
 
     # --- AI spend: the one number that can cost real money ------------------
     # Drafting is the only feature billed per use, and sign-in doesn't verify
