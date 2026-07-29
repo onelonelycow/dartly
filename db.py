@@ -57,6 +57,15 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN owner TEXT DEFAULT ''")
     except sqlite3.OperationalError:
         pass
+    # The address to apply to, extracted once from the FULL body. It has to be
+    # a stored column rather than something the app derives per render: the
+    # feed frame truncates body to 2,000 chars for memory, and "how to apply"
+    # lives at 4,000-8,000 in a long posting, so deriving it later would find
+    # almost none of them. NULL = not looked at yet, '' = looked, none found.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN apply_email TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -226,6 +235,33 @@ def clean_bodies() -> int:
             conn.executemany("UPDATE posts SET body=? WHERE id=?", fixes)
             conn.commit()
         return len(fixes)
+    finally:
+        conn.close()
+
+
+def backfill_emails(limit: int = 4000) -> int:
+    """
+    Fill apply_email for rows that haven't been looked at. Returns how many.
+
+    Only touches rows where the column is still NULL, so the steady-state cost
+    is whatever arrived in the last couple of minutes, not a full-table scan.
+    Runs on the refresh loop, which means a new gig has its address within one
+    cycle of landing.
+    """
+    import contact
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, body FROM posts WHERE apply_email IS NULL LIMIT ?",
+            (int(limit),)).fetchall()
+        if not rows:
+            return 0
+        # '' for "looked, found nothing" so the row isn't re-scanned forever.
+        conn.executemany(
+            "UPDATE posts SET apply_email=? WHERE id=?",
+            [(contact.find(r["body"]), r["id"]) for r in rows])
+        conn.commit()
+        return len(rows)
     finally:
         conn.close()
 

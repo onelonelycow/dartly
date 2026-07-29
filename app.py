@@ -36,6 +36,7 @@ import location
 import lang
 import resume
 import budget
+import contact
 import drafts
 import refresh
 import inbox
@@ -895,6 +896,16 @@ a.gr-title{font-weight:650}
 .gr-more-lbl:hover{color:var(--amber)}
 .gr-posted{font-size:12px;color:var(--faint);margin-top:9px}
 
+/* "Send to hr@company.com" — the one place a draft turns into a sent message.
+   Amber gradient because on a card where it appears, it IS the primary action
+   (FEEL.md §4: one primary per screen; a gig card is that screen). */
+a.gr-sendmail{display:block;margin:10px 0 2px;padding:11px 16px;border-radius:11px;
+  text-align:center;font-size:14px;font-weight:650;letter-spacing:-.1px;
+  color:#141414!important;text-decoration:none!important;
+  background:linear-gradient(180deg,var(--amber-l),var(--amber-d));
+  transition:filter .15s ease,transform .15s ease}
+a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
+
 /* ── Plan card ─────────────────────────────────────────────────────────────
    Replaces a stock st.success/st.info banner. Those use Streamlit's own green
    and blue, which are the only colours on the page that answer to nothing in
@@ -1616,6 +1627,8 @@ def gig_card(r, pro):
         # Only ever shown when a non-English gig is ON the board — either the
         # reader opened it up in Profile, or it's their country's language. It
         # answers "why is this one in German?" before they have to wonder.
+        if (r.get("apply_email") or "").strip():
+            badge_items.append(("Apply by email", "match"))
         _lc = r.get("_lang") or "en"
         if _lc != "en":
             badge_items.append((lang.label(_lc), "locoff"))
@@ -1692,6 +1705,20 @@ def gig_card(r, pro):
                 bc2.button("Start fresh", key=f"regen_{gid}", width="stretch",
                            on_click=_regen_draft, args=(r, key),
                            help="Replace your edits with a new auto-draft")
+                # Some postings have no apply button at all — they just say
+                # "email us". For those we know the address, so the draft stops
+                # being something to copy somewhere and becomes something to
+                # send. Reads the CURRENT textarea, so any edit goes with it.
+                _to = (r.get("apply_email") or "").strip()
+                if _to:
+                    _link = contact.mailto(
+                        _to, f"Re: {r.get('title', '')}",
+                        st.session_state.get(key, ""))
+                    st.markdown(
+                        f'<a class="gr-sendmail" href="{html.escape(_link, quote=True)}">'
+                        f'Send to {html.escape(_to)}</a>', unsafe_allow_html=True)
+                    st.caption("Opens your mail app with this draft already in it. "
+                               "Read it once before you send.")
                 if st.session_state.pop(f"_saved_{gid}", False):
                     st.caption("Saved — your edits will be here when you come back.")
                 elif saved_exists:

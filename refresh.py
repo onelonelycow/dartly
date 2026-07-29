@@ -136,6 +136,12 @@ def _loop():
                 budget.purge()
             except Exception:
                 pass
+            # Pull the apply-to address out of anything that arrived this
+            # cycle, so a new gig carries it within ~2 minutes of landing.
+            try:
+                db.backfill_emails()
+            except Exception:
+                pass
 
             if time.time() - last_alert >= gap:
                 # One pass per signed-in person, each against their own skills
