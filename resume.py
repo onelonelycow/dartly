@@ -35,8 +35,18 @@ def extract_text(uploaded_file) -> str:
         data = uploaded_file.getvalue()
         if len(data) > MAX_BYTES:
             return ""
-        text = _from_pdf(data) if name.endswith(".pdf") else data.decode(
-            "utf-8", errors="ignore")
+        if name.endswith(".pdf"):
+            text = _from_pdf(data)
+        elif name.endswith(".docx"):
+            text = _from_docx(data)
+        else:
+            # .txt, and the fallback for anything else. NOT used for .docx: a
+            # .docx is a zip archive, and decode(errors="ignore") on binary
+            # doesn't raise — it silently returns garbage that LOOKS like text,
+            # which would have gone straight into the AI prompt instead of
+            # failing cleanly. Caught by testing against a real resume rather
+            # than the synthetic PDFs this was first built and verified with.
+            text = data.decode("utf-8", errors="ignore")
     except Exception:
         return ""
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
@@ -47,3 +57,18 @@ def _from_pdf(data: bytes) -> str:
     from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(data))
     return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+
+def _from_docx(data: bytes) -> str:
+    from docx import Document
+    doc = Document(io.BytesIO(data))
+    parts = [p.text for p in doc.paragraphs if p.text.strip()]
+    # Resumes commonly put contact info, dates or skills in a table rather than
+    # a paragraph (a two-column layout, a skills grid) — paragraphs alone would
+    # silently drop that content.
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [c.text.strip() for c in row.cells if c.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)

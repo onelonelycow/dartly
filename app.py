@@ -2483,15 +2483,18 @@ def resume_card():
     """
     st.markdown('#### Your <span class="gr-accent">resume</span>',
                 unsafe_allow_html=True)
-    # Names no vendor: on our own surface this should read as Nabbly doing the
-    # work. The privacy policy still discloses the processor in full — that's
-    # the right place for it, and it stays accurate there.
+    # Names no vendor — the privacy policy still discloses the processor in
+    # full, which is the right place for that. But it has to be true on ITS
+    # OWN, without relying on someone having also read the policy: "used just
+    # to write that one reply" went quiet on the fact that writing the reply
+    # means the text leaves this server for a moment. "Processed to write your
+    # reply" says that honestly without naming who does the processing.
     st.caption("Upload it once and your drafts can name real, specific work "
                "instead of reading like a form letter. **We don't store it** — "
-               "it stays in this browser tab only, is used just to write that "
-               "one reply, and it's gone the moment you close the tab. "
-               "Re-upload next time you visit.")
-    up = st.file_uploader("Resume (PDF or .txt)", type=["pdf", "txt"],
+               "processed only to write your reply, held in this browser tab, "
+               "gone the moment you close it. Re-upload next time you visit.")
+    up = st.file_uploader("Resume (PDF, Word, or .txt)",
+                          type=["pdf", "docx", "txt"],
                           key="resume_upload", label_visibility="collapsed")
     if up is not None and up.name != st.session_state.get("_resume_name"):
         text = resume.extract_text(up)
@@ -2500,7 +2503,7 @@ def resume_card():
             st.session_state["_resume_name"] = up.name
         else:
             st.warning("Couldn't read that file — try a text-based PDF "
-                       "(not a scan), or upload a .txt instead.")
+                       "or Word file (not a scanned image), or a .txt instead.")
     if st.session_state.get("_resume_text"):
         words = len(st.session_state["_resume_text"].split())
         rc1, rc2 = st.columns([4, 1], vertical_alignment="center")
