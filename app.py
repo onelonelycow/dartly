@@ -35,6 +35,7 @@ import score
 import location
 import lang
 import resume
+import budget
 import drafts
 import refresh
 import inbox
@@ -1573,7 +1574,8 @@ def _save_draft(gig_id, key):
 
 def _regen_draft(gig, key):
     st.session_state[key] = pitch.draft_pitch(
-        gig, prof, resume_text=st.session_state.get("_resume_text", ""))
+        gig, prof, resume_text=st.session_state.get("_resume_text", ""),
+        who=paths.get_scope())
     st.session_state[f"_saved_{gig['id']}"] = False
 
 
@@ -1680,7 +1682,8 @@ def gig_card(r, pro):
                 # Seed once: your saved edit if you have one, else a fresh draft.
                 if key not in st.session_state:
                     st.session_state[key] = drafts.load(gid) or pitch.draft_pitch(
-                        r, prof, resume_text=st.session_state.get("_resume_text", ""))
+                        r, prof, resume_text=st.session_state.get("_resume_text", ""),
+                        who=paths.get_scope())
                 st.text_area("Your draft", height=240, key=key,
                              label_visibility="collapsed")
                 bc1, bc2 = st.columns(2)
@@ -1882,7 +1885,8 @@ def draft_showcase(pro):
         return
 
     text = drafts.load(gid) or pitch.draft_pitch(
-        g, prof, resume_text=st.session_state.get("_resume_text", ""))
+        g, prof, resume_text=st.session_state.get("_resume_text", ""),
+        who=paths.get_scope())
     body = "".join(
         "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
         for block in text.split("\n\n") if block.strip())
@@ -3155,6 +3159,28 @@ def view_admin():
         ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
     ])
+
+    # --- AI spend: the one number that can cost real money ------------------
+    # Drafting is the only feature billed per use, and sign-in doesn't verify
+    # an address, so this is where abuse would show up first. Visible rather
+    # than merely capped: a cap you can't see is a cap you find out about from
+    # an invoice.
+    _b = budget.today()
+    _pct = min(1.0, _b["drafts"] / _b["cap"]) if _b["cap"] else 0
+    st.markdown("#### AI drafts today")
+    _a1, _a2, _a3 = st.columns(3)
+    _a1.metric("Drafts", f"{_b['drafts']:,}", help=f"Daily cap: {_b['cap']:,}")
+    _a2.metric("Accounts drafting", f"{_b['accounts']:,}")
+    # Sonnet 5 at ~720 in / ~165 out per draft.
+    _a3.metric("Rough cost", f"${_b['drafts'] * 0.0047:,.2f}")
+    st.progress(_pct, text=f"{_b['drafts']:,} of {_b['cap']:,} daily cap")
+    if _b["top"]:
+        st.caption("Busiest accounts today: "
+                   + " · ".join(f"`{w}` {n}" for w, n in _b["top"]))
+    if _pct >= 0.8:
+        st.warning("Near the daily cap. Past it, everyone falls back to the "
+                   "free template until midnight UTC — check the busiest "
+                   "accounts above before raising `AI_DAILY_TOTAL`.")
 
     # --- Traffic: where it comes from and whether it's growing ---------------
     tr = analytics.traffic_summary(30)

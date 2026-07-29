@@ -22,6 +22,9 @@ alert_prefs.json
 # purpose (bundled gigs, no personal data, needed for first boot).
 nabbly_people.db
 nabbly_signals.db
+# AI spend ledger: per-account draft counts keyed by storage scope, plus the
+# cached draft text itself. Both are user data on a public repo.
+budget.db
 *.db-wal
 *.db-shm
 

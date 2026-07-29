@@ -130,6 +130,12 @@ def _loop():
                 analytics.flush()
             except Exception:
                 pass
+            # Keep the AI spend ledger small — it only needs recent days.
+            try:
+                import budget
+                budget.purge()
+            except Exception:
+                pass
 
             if time.time() - last_alert >= gap:
                 # One pass per signed-in person, each against their own skills

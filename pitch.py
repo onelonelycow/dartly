@@ -19,6 +19,7 @@ import os
 import re
 
 import sources
+import budget
 
 # Sonnet, not Opus: a drafted reply is short, direct, everyday business
 # writing (90-150 words, "here's why I fit this gig"), which is squarely
@@ -26,7 +27,6 @@ import sources
 # needs. ~$15/mo at 3,000 drafts vs. ~$24 on Opus, same shape of output.
 MODEL = "claude-sonnet-5"
 _MAX_BODY = 2600          # plenty for a job post; keeps the prompt cheap
-_cache: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -165,21 +165,36 @@ def _cache_key(gig: dict, profile: dict, resume_text: str = "") -> str:
     return hashlib.sha256(blob.encode()).hexdigest()[:32]
 
 
-def draft_ai(gig: dict, profile: dict, resume_text: str = "") -> str:
+def draft_ai(gig: dict, profile: dict, resume_text: str = "",
+             who: str = "") -> str:
     """
     A reply written from the client's actual words. Raises if the call fails so
     the caller can fall back, rather than showing an empty box.
+
+    `who` is the caller's storage scope, used for the per-account daily cap.
     """
     import anthropic
 
     key = _cache_key(gig, profile, resume_text)
-    if key in _cache:
-        return _cache[key]
+
+    # Cache first, and it's a real cache now (drafts.py, SQLite) rather than a
+    # dict that emptied on every restart. A double-click, a page reload or a
+    # Render redeploy used to mean paying for the same draft again.
+    cached = budget.cached_ai(key)
+    if cached:
+        return cached
+
+    # Only spend against the day's budget once we know we actually have to
+    # call out. Checking before the cache would let a reload burn quota on a
+    # draft we already hold.
+    ok, why = budget.allow(who)
+    if not ok:
+        raise RuntimeError(f"budget: {why}")
 
     # No cache_control here on purpose: this system prompt is ~420 tokens and
-    # Opus needs a 4096-token prefix before anything caches. Marking it would
-    # look like an optimisation while doing nothing. The dict above is the real
-    # saving, since it stops us paying twice for the same gig.
+    # a 4096-token prefix is needed before anything caches. Marking it would
+    # look like an optimisation while doing nothing. The cache above is the
+    # real saving, since it stops us paying twice for the same gig.
     client = anthropic.Anthropic()
     resp = client.messages.create(
         model=MODEL,
@@ -187,13 +202,17 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "") -> str:
         system=SYSTEM,
         messages=[{"role": "user", "content": _user_prompt(gig, profile, resume_text)}],
     )
+    # Recorded here, not after the parsing below: the call was made and billed
+    # the moment it returned, whether or not we liked the shape of the answer.
+    budget.record(who)
+
     if resp.stop_reason == "refusal":
         raise RuntimeError("declined")
     text = "\n\n".join(b.text.strip() for b in resp.content
                        if b.type == "text" and b.text.strip()).strip()
     if not text:
         raise RuntimeError("empty draft")
-    _cache[key] = text
+    budget.cache_ai(key, text)
     return text
 
 
@@ -238,7 +257,8 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     return "\n".join(out)
 
 
-def draft_pitch(gig: dict, profile: dict | None = None, resume_text: str = "") -> str:
+def draft_pitch(gig: dict, profile: dict | None = None, resume_text: str = "",
+                who: str = "") -> str:
     """
     The best draft we can produce right now, without ever failing loudly.
 
@@ -246,11 +266,17 @@ def draft_pitch(gig: dict, profile: dict | None = None, resume_text: str = "") -
     template engine can't use it (it has no model to read free text with), so
     it's only passed to the AI path; that's fine, the template was always the
     generic fallback.
+
+    Hitting a daily cap raises inside draft_ai and lands in the same except as
+    a dead key or a flat network — deliberately. Someone over the limit gets
+    the template, which is a worse draft, not an error page. They are far more
+    likely to be a script than a person, and a person who somehow drafted
+    twenty replies today still gets something usable.
     """
     profile = profile or {}
     if ai_available():
         try:
-            return draft_ai(gig, profile, resume_text)
+            return draft_ai(gig, profile, resume_text, who=who)
         except Exception:
-            pass          # rate limit, no network, bad key: fall through
+            pass          # capped, rate limited, no network, bad key: fall through
     return draft_template(gig, profile)
