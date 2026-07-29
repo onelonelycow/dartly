@@ -929,6 +929,18 @@ a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
   border-radius:100px;padding:3px 9px;vertical-align:4px}
 .gr-plan{background:var(--bg2);border:1px solid var(--line);border-radius:14px;
   padding:16px 18px}
+
+/* Signed-in confirmation. Was a stock st.success — Streamlit's own bright
+   green, the one colour on the page that answers to nothing in FEEL.md §2,
+   and the same reason the plan card above stopped being one. Quiet card,
+   house palette, with a green dot carrying the "it worked" signal instead
+   of a full green slab. */
+.gr-confirm{display:flex;align-items:center;gap:11px;background:var(--bg2);
+  border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.gr-confirm-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;
+  background:#54B95A;box-shadow:0 0 0 3px rgba(84,185,90,.16)}
+.gr-confirm-txt{font-size:14.5px;color:var(--ink2);line-height:1.45}
+.gr-confirm-txt b{color:var(--ink);font-weight:650}
 .gr-plan-top{display:flex;justify-content:space-between;align-items:flex-start;
   gap:16px;flex-wrap:wrap}
 .gr-plan-name{font-size:17px;font-weight:650;color:var(--ink);letter-spacing:-.2px}
@@ -2968,11 +2980,19 @@ def view_signin():
     if ACCESS["signed_in"]:
         st.markdown('### You\'re <span class="gr-accent">signed in</span>',
                     unsafe_allow_html=True)
-        st.success(f"Signed in as **{ACCESS['email']}**.")
+        st.markdown(
+            f'<div class="gr-confirm"><span class="gr-confirm-dot"></span>'
+            f'<span class="gr-confirm-txt">Signed in as '
+            f'<b>{html.escape(ACCESS["email"] or "")}</b></span></div>',
+            unsafe_allow_html=True)
+        st.write("")
         _l, _c, _r = st.columns([1, 1.6, 1])
         with _c:
-            if st.button("Go to your account", type="primary", width="stretch"):
-                st.query_params["nav"] = "profile"
+            # The board, not the profile: someone who just signed in came to
+            # look at gigs, and the profile is a detour they can take from the
+            # account menu whenever they actually want it.
+            if st.button("Go to your board", type="primary", width="stretch"):
+                st.query_params["nav"] = "dashboard"
                 st.rerun()
         return
 

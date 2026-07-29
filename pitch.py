@@ -83,20 +83,40 @@ def _clean_body(text: str) -> str:
     return human[:_MAX_BODY]
 
 
+def _text(value) -> str:
+    """
+    Any stored field -> a stripped string, safely.
+
+    `(x or "").strip()` looks like it covers this and doesn't: a pandas NaN is
+    a float and it is TRUTHY, so it sails past the `or` and then blows up on
+    .strip() with "'float' object has no attribute 'strip'". Profile and resume
+    values reach here from a DataFrame, where an empty cell is exactly that
+    NaN, which is how this crashed drafting in production.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        # NaN != NaN is the cheapest NaN test that needs no import.
+        return "" if value != value else str(value).strip()
+    return str(value).strip()
+
+
 def _who(profile: dict, resume_text: str = "") -> str:
     """Everything true about the freelancer, as lines the model can draw from."""
     bits = []
     for key, label in (("name", "Name"), ("headline", "Does"),
                        ("bio", "Background"), ("portfolio", "Portfolio link")):
-        v = (profile.get(key) or "").strip()
+        v = _text(profile.get(key))
         if v:
             bits.append(f"{label}: {v}")
     skills = profile.get("skills") or []
     if isinstance(skills, list):
-        skills = ", ".join(skills)
+        skills = ", ".join(str(s) for s in skills)
+    else:
+        skills = _text(skills)
     if skills:
         bits.append(f"Skills: {skills}")
-    kw = (profile.get("keywords") or "").strip()
+    kw = _text(profile.get("keywords"))
     if kw:
         bits.append(f"Specific strengths: {kw}")
     floor, unit = profile.get("rate_floor"), profile.get("rate_unit") or "hr"
@@ -108,8 +128,9 @@ def _who(profile: dict, resume_text: str = "") -> str:
     # turns a generic draft into one that names relevant work. Never invented:
     # the SYSTEM prompt's "never invent experience" rule already covers this
     # text the same as every other field here.
-    if resume_text.strip():
-        bits.append(f"Resume (use only what's actually in it):\n{resume_text.strip()}")
+    _resume = _text(resume_text)
+    if _resume:
+        bits.append(f"Resume (use only what's actually in it):\n{_resume}")
     return "\n".join(bits) or "No profile details on file."
 
 
@@ -223,17 +244,21 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     out of the way. Short and honest beats long and hollow.
     """
     profile = profile or {}
-    name = (profile.get("name") or "").strip()
-    portfolio = (profile.get("portfolio") or "").strip()
-    bio = (profile.get("bio") or "").strip()
+    # _text, not `(x or "").strip()`: a NaN from an empty DataFrame cell is a
+    # truthy float and crashes .strip(). Same bug this file hit in draft_ai.
+    name = _text(profile.get("name"))
+    portfolio = _text(profile.get("portfolio"))
+    bio = _text(profile.get("bio"))
     title = gig.get("title", "this")
-    skill = (gig.get("job_type") or "this work").lower()
+    skill = (_text(gig.get("job_type")) or "this work").lower()
 
-    who = (profile.get("headline") or "").strip()
+    who = _text(profile.get("headline"))
     if not who:
         skills = profile.get("skills") or []
         if isinstance(skills, list):
-            skills = ", ".join(skills)
+            skills = ", ".join(str(s) for s in skills)
+        else:
+            skills = _text(skills)
         who = skills or f"a {skill} freelancer"
 
     intro = f"I'm {who}."
