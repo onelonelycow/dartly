@@ -20,7 +20,11 @@ import re
 
 import sources
 
-MODEL = "claude-opus-4-8"
+# Sonnet, not Opus: a drafted reply is short, direct, everyday business
+# writing (90-150 words, "here's why I fit this gig"), which is squarely
+# Sonnet's strength — Opus's extra reasoning headroom isn't what this task
+# needs. ~$15/mo at 3,000 drafts vs. ~$24 on Opus, same shape of output.
+MODEL = "claude-sonnet-5"
 _MAX_BODY = 2600          # plenty for a job post; keeps the prompt cheap
 _cache: dict[str, str] = {}
 
