@@ -2583,8 +2583,7 @@ def view_profile(pro):
     if geo:
         found = ", ".join(x for x in [geo.get("city"), geo.get("country")] if x)
         if found:
-            mcol.markdown(f"Looks like you're in **{found}** — check the fields below "
-                          "and hit **Save**.")
+            mcol.markdown(f"**{found}**")
         else:
             mcol.caption("Couldn't place you automatically — just pick your country below.")
 
