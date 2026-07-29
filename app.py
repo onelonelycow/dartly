@@ -894,7 +894,17 @@ a.gr-title{font-weight:650}
 .gr-more-lbl::after{content:"See more"}
 .gr-more-cb:checked ~ .gr-more-lbl::after{content:"Show less"}
 .gr-more-lbl:hover{color:var(--amber)}
-.gr-posted{font-size:12px;color:var(--faint);margin-top:9px}
+/* Streamlit's own wrapper around this markdown block consistently under-
+   reports its height by exactly 16px versus what actually renders here —
+   verified on every card, not content-dependent (likely a stale auto-height
+   measurement against the -webkit-box/line-clamp body above). Since the
+   wrapper's reported height is what the flex `gap` to the next card row
+   (the expander) is measured from, the real content spilled ~16px into it —
+   worse on hover only because the expander's hover fill made the overlap
+   visible; it was there unhovered too. Adding the missing 16px back as
+   margin-bottom makes this element's own box match its real rendered size,
+   which pulls the wrapper's reported height back in line with it. */
+.gr-posted{font-size:12px;color:var(--faint);margin-top:9px;margin-bottom:16px}
 
 /* "Send to hr@company.com" — the one place a draft turns into a sent message.
    Amber gradient because on a card where it appears, it IS the primary action
