@@ -66,6 +66,18 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN apply_email TEXT")
     except sqlite3.OperationalError:
         pass
+    # Separate from apply_email: a page we've read that simply has no address
+    # must not be refetched every cycle forever.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN page_checked INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    # Whether we've verified this posting still resolves. Separate again, so a
+    # link we checked and found alive isn't re-fetched every cycle.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN link_checked INTEGER")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -264,6 +276,159 @@ def backfill_emails(limit: int = 4000) -> int:
         return len(rows)
     finally:
         conn.close()
+
+
+# Deliberately small. This is the only place the app makes an outbound request
+# per GIG rather than per feed, so it is capped hard and runs on the background
+# loop: a handful per cycle clears any backlog within hours and never makes a
+# visitor wait. Nothing but the extracted address is kept — the page itself is
+# read, scanned and dropped, so it costs no database space and no lasting
+# memory (which is the question worth asking after this week).
+PAGE_FETCH_PER_CYCLE = 8
+
+
+def backfill_emails_from_pages(limit: int = PAGE_FETCH_PER_CYCLE) -> int:
+    """
+    For the few sources that keep the address on the posting page, fetch it.
+
+    Restricted to contact.PAGE_SOURCES, an allowlist of sources whose pages
+    have been checked by hand. Testing this against everything showed why:
+    freelancer.com serves "jane@freelancer.com" as a template placeholder, and
+    a blanket version would have written that one fake address onto 7,000+
+    gigs — worse than having no address at all, because someone would send a
+    real application to it.
+
+    Marks a row '' when the fetch fails or finds nothing, so a dead page is
+    tried once rather than every cycle forever.
+    """
+    import contact
+    try:
+        import requests
+    except ImportError:
+        return 0
+    if not contact.PAGE_SOURCES:
+        return 0
+
+    marks = ",".join("?" * len(contact.PAGE_SOURCES))
+    conn = connect()
+    try:
+        rows = conn.execute(
+            f"SELECT id, url, source FROM posts "
+            f"WHERE (apply_email IS NULL OR apply_email = '') "
+            f"  AND page_checked IS NULL "
+            f"  AND source IN ({marks}) AND url LIKE 'http%' LIMIT ?",
+            (*contact.PAGE_SOURCES, int(limit))).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+
+    found = []
+    for r in rows:
+        addr = ""
+        try:
+            resp = requests.get(
+                r["url"], timeout=15,
+                headers={"User-Agent": "nabbly/0.1 (public job & gig aggregator)"})
+            if resp.status_code == 200:
+                addr = contact.from_page(
+                    resp.text, contact.PAGE_SOURCES.get(r["source"], ""))
+        except Exception:
+            pass          # a dead link is not worth a retry loop
+        found.append((addr, r["id"]))
+
+    conn = connect()
+    try:
+        # page_checked marks "we have looked at the page", separately from
+        # apply_email, so a page that genuinely has no address isn't refetched
+        # on every cycle for the rest of time.
+        conn.executemany(
+            "UPDATE posts SET apply_email = CASE WHEN ?1 != '' THEN ?1 "
+            "ELSE apply_email END, page_checked = 1 WHERE id = ?2", found)
+        conn.commit()
+    finally:
+        conn.close()
+    return sum(1 for a, _ in found if a)
+
+
+LINK_CHECK_PER_CYCLE = 6
+LINK_CHECK_MIN_AGE_DAYS = 7
+
+
+def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
+    """
+    Take gigs off the board whose posting is provably gone. Returns how many.
+
+    The age cutoff alone isn't enough. A We Work Remotely listing reported by
+    the founder was 34 days old — inside the 45-day window — but WWR had
+    already pulled it, so clicking it landed on their homepage. Boards expire
+    postings on their own schedule, and the only way to know is to look.
+
+    ONLY definitive signals archive a gig:
+        404 / 410            the posting is gone
+        redirect to the site root   the board bounced us off a dead listing
+
+    Explicitly NOT archived on 403, 429, timeouts or connection errors. Several
+    sources (himalayas, jobicy) return 403 to any script while serving the page
+    perfectly to a real browser — treating that as "dead" would delete large
+    numbers of live gigs, which is far worse than leaving a few stale ones up.
+
+    Checks the OLDEST unchecked gigs first, since those are likeliest expired,
+    and only a handful per cycle so this never becomes a crawl of anyone's site.
+    """
+    try:
+        import requests
+    except ImportError:
+        return 0
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc)
+              - timedelta(days=LINK_CHECK_MIN_AGE_DAYS)).isoformat()
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, url, source FROM posts "
+            "WHERE is_demand = 1 AND link_checked IS NULL AND url LIKE 'http%' "
+            "  AND COALESCE(NULLIF(posted_at,''), fetched_at) < ? "
+            "ORDER BY COALESCE(NULLIF(posted_at,''), fetched_at) ASC LIMIT ?",
+            (cutoff, int(limit))).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+
+    # A real browser UA: we're checking whether a HUMAN clicking this link
+    # would reach the posting, so asking as anything else answers a different
+    # question.
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                             "AppleWebKit/537.36 (KHTML, like Gecko) "
+                             "Chrome/120.0 Safari/537.36"}
+    verdicts = []
+    for r in rows:
+        dead = 0
+        try:
+            resp = requests.get(r["url"], headers=headers, timeout=15,
+                                allow_redirects=True)
+            if resp.status_code in (404, 410):
+                dead = 1
+            elif resp.status_code == 200:
+                # Landed on the site root => the posting no longer exists and
+                # the board bounced us to its front page.
+                if str(resp.url).rstrip("/").count("/") <= 2:
+                    dead = 1
+        except Exception:
+            pass          # unreachable now != gone; leave it and re-check later
+        verdicts.append((dead, r["id"]))
+
+    conn = connect()
+    try:
+        conn.executemany(
+            "UPDATE posts SET link_checked = 1, "
+            "is_demand = CASE WHEN ?1 = 1 THEN 0 ELSE is_demand END "
+            "WHERE id = ?2", verdicts)
+        conn.commit()
+    finally:
+        conn.close()
+    return sum(d for d, _ in verdicts)
 
 
 STALE_DAYS = 45

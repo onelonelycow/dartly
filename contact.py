@@ -88,6 +88,65 @@ def _plausible(addr: str) -> bool:
     return True
 
 
+# ---------------------------------------------------------------------------
+# Reading the address off a job's own page
+# ---------------------------------------------------------------------------
+# Some boards keep the contact address on the posting page and out of the feed,
+# so the only way to get it is to fetch the page. This is an ALLOWLIST, not a
+# capability we point at everything, because testing it broadly showed exactly
+# how badly a blanket version fails:
+#
+#   freelancer.com  -> "jane@freelancer.com", a placeholder in their own page
+#                      template. Blanket fetching would have stamped one fake
+#                      address onto 7,000+ gigs.
+#   dribbble        -> "u003evonkretschmann@lotum.de", a JSON escape read as
+#                      text.
+#   himalayas       -> HTTP 403. nodesk -> 404. arbeitnow -> no address at all.
+#
+# A source earns a place here only after its pages have been checked by hand.
+PAGE_SOURCES = {
+    # python.org puts the employer's address in a mailto: link under
+    # "E-mail contact", url-encoded, with the visible text broken up by
+    # <span>@</span> to defeat scrapers. Its OWN jobs@python.org sits further
+    # down the same page in boilerplate, which is why _SITE_GENERIC exists.
+    "pythonjobs": "python.org",
+}
+
+# Addresses belonging to the board itself rather than to whoever is hiring.
+_SITE_GENERIC = re.compile(
+    r"^(jobs|info|hello|support|contact|help|admin|team|hi)@", re.I)
+
+_MAILTO = re.compile(r'href=["\']mailto:([^"\'?>]+)', re.I)
+
+
+def from_page(html_text: str, site_domain: str = "") -> str:
+    """
+    The employer's address from a posting page, or ''.
+
+    Reads mailto: HREFS rather than running a regex over the visible text. A
+    mailto link is an explicit "write to this person" affordance, where loose
+    text matching picks up analytics addresses, template placeholders and
+    escaped JSON. It also survives the common obfuscation of splitting the
+    visible address with markup, since the href is intact underneath.
+
+    Anything on the board's own domain is dropped: that's their support desk,
+    not the person hiring.
+    """
+    if not html_text:
+        return ""
+    from urllib.parse import unquote
+    site = (site_domain or "").lower().lstrip("www.")
+    for raw in _MAILTO.findall(html_text)[:12]:
+        addr = unquote(raw).strip().strip(".,;:)]}>\"'")
+        if not _plausible(addr):
+            continue
+        domain = addr.partition("@")[2].lower()
+        if site and site in domain and _SITE_GENERIC.match(addr):
+            continue          # the board's own desk, not the employer
+        return addr
+    return ""
+
+
 def mailto(addr: str, subject: str, body: str) -> str:
     """
     A mailto: URL that opens their mail client with the draft already in it.

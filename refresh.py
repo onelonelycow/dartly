@@ -140,6 +140,14 @@ def _loop():
             # cycle, so a new gig carries it within ~2 minutes of landing.
             try:
                 db.backfill_emails()
+                # A few posting-page fetches per cycle for the allowlisted
+                # sources that keep the address off the feed.
+                db.backfill_emails_from_pages()
+                # Retire postings the source has already taken down. The age
+                # cutoff alone missed a WWR gig that expired inside the window.
+                _dead = db.sweep_dead_links()
+                if _dead:
+                    _state["dead_links"] = _state.get("dead_links", 0) + _dead
             except Exception:
                 pass
 
