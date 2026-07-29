@@ -562,15 +562,30 @@ def posts_frame(demand_only: bool = True, owner: str | None = None):
 
 def board_version() -> tuple[int, int]:
     """
-    A cheap fingerprint of the board: (highest id, row count).
+    A cheap fingerprint of the board: (highest id, total row count).
 
     Lets the app cache the built feed until the board ACTUALLY changes, instead
     of rebuilding it on a timer. Two integers from an index, not a table scan.
+
+    Deliberately NOT filtered by is_demand = 1. sweep_dead_links() flips that
+    flag on a handful of rows almost every 2-minute cycle, and this fingerprint
+    used to be scoped to is_demand = 1 — so an archive-only cycle (no new gigs,
+    just a few taken off the board) looked identical to real growth and forced
+    the same full board rebuild new arrivals do. That rebuild is the ~150MB
+    spike Round 3 was built to make rare; sweeping made it fire nearly every
+    cycle instead, stacking on top of that cycle's own ingest cost right when
+    live visitors are loading the board. sweep_dead_links() and
+    backfill_emails_from_pages() only ever UPDATE existing rows (never INSERT),
+    so neither id nor total count moves when they run — only real new posts
+    change this fingerprint now. A gig archived this cycle stays visible until
+    the next real ingest (usually minutes, not hours) instead of costing a
+    rebuild of its own; posts_frame() still filters is_demand = 1 at rebuild
+    time, so once a rebuild does happen the archived gig is gone regardless.
     """
     conn = connect()
     try:
         row = conn.execute(
-            "SELECT COALESCE(MAX(id), 0), COUNT(*) FROM posts WHERE is_demand = 1"
+            "SELECT COALESCE(MAX(id), 0), COUNT(*) FROM posts"
         ).fetchone()
         return int(row[0]), int(row[1])
     finally:
