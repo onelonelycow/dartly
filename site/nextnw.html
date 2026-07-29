@@ -61,13 +61,14 @@
   .lk-mark{display:flex;align-items:center;gap:9px;font-weight:680;font-size:19px;
     letter-spacing:-.02em;white-space:nowrap}
   .lk-x{width:1px;height:26px;background:var(--line2);flex:0 0 auto}
-  /* Their real lockup, on its own native background — not stripped to
-     transparent or recolored. Rounded so it reads as a deliberate badge
-     sitting next to ours, not a stray rectangle. */
-  .lk-logo{height:28px;width:auto;display:block;border-radius:7px}
+  /* Their icon, background removed (not recolored — the glyph is still
+     their exact white), paired with their name set in our own type. Same
+     treatment as the Nabbly mark beside it: icon + text, no box, so the
+     two read as equals instead of "our mark" next to "their sticker". */
+  .lk-icon{height:26px;width:auto;display:block}
 
-  /* The real NextNW logo is wider than the dashed placeholder it replaced —
-     at 375px the header didn't have room and the CTA button overlapped it.
+  /* The lockup got wider once real content replaced the placeholder — at
+     375px the header didn't have room and the CTA button overlapped it.
      Shrink the lockup and the header's own CTA together rather than letting
      either one silently overflow. */
   @media(max-width:480px){
@@ -76,7 +77,7 @@
     .lk-mark{font-size:16px;gap:6px}
     .lk-mark svg{width:20px;height:20px}
     .lk-x{height:20px}
-    .lk-logo{height:20px}
+    .lk-icon{height:19px}
     .nav .btn-primary{padding:9px 13px;font-size:13px}
   }
 
@@ -92,6 +93,14 @@
     radial-gradient(620px 300px at 22% -8%, rgba(84,185,90,.16), transparent 70%),
     radial-gradient(620px 300px at 78% -8%, rgba(232,147,58,.14), transparent 70%)}
   .hero{padding:84px 0 72px;text-align:center}
+  /* The collaboration itself is the headline news for this audience — sized
+     close to h1, not a small badge above it, so it can't be skimmed past. */
+  .collab{display:flex;align-items:center;justify-content:center;gap:14px;
+    flex-wrap:wrap;margin-bottom:20px}
+  .collab-label{font-size:clamp(15px,1.8vw,18px);color:var(--mute);font-weight:500}
+  .collab-mark{display:inline-flex;align-items:center;gap:11px;
+    font-size:clamp(32px,5.6vw,54px);font-weight:800;letter-spacing:-.025em;color:var(--ink)}
+  .collab-icon{height:.78em;width:auto;display:block}
   h1{font-size:clamp(38px,6.6vw,64px)}
   .hero .lead{font-size:clamp(17px,2.1vw,20px);color:var(--ink2);max-width:520px;
     margin:22px auto 0}
@@ -145,8 +154,9 @@
         <span>Nabb<span class="amber">ly</span></span>
       </a>
       <span class="lk-x"></span>
-      <a href="https://nextnw.org/" target="_blank" rel="noopener" aria-label="Next Northwest">
-        <img class="lk-logo" src="/nextnw-logo.png" alt="Next Northwest">
+      <a class="lk-mark" href="https://nextnw.org/" target="_blank" rel="noopener">
+        <img class="lk-icon" src="/nextnw-icon.png" alt="">
+        <span>NextNW</span>
       </a>
     </div>
     <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board</a>
@@ -156,6 +166,10 @@
 <div class="glow">
 <section class="hero">
   <div class="wrap">
+    <div class="collab">
+      <span class="collab-label">In collaboration with</span>
+      <span class="collab-mark"><img class="collab-icon" src="/nextnw-icon.png" alt="">NextNW</span>
+    </div>
     <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
     <p class="lead">Marketing, design, writing and video work — from every board and community, in one place. You just reply first.</p>
     <div class="cta-row">
@@ -168,13 +182,11 @@
 <!-- ══ THE ANNOUNCEMENT ══
      Framed as Nabbly opening the beta TO NextNW, not as an already-finalised
      partnership — the board hasn't voted yet when this ships, and that framing
-     stays true either way the vote goes. Kept to two sentences on purpose:
-     the whole point of this rebuild was cutting the page from 600 words to
-     178, and an announcement earns three lines, not a section. -->
+     stays true either way the vote goes. Cut to one line now that the collab
+     mark above the headline already carries the "who this is for" job — this
+     just needs to add the one fact that mark doesn't: it's a private beta. -->
 <div class="wrap">
-  <p class="announce">A private beta, opened to Next Northwest first — before
-  anyone else sees it. We built this stretch of it with your community in
-  mind, and we're genuinely glad to have you testing it with us.</p>
+  <p class="announce">A private beta, opened to you first — built with your community in mind.</p>
 </div>
 
 <!-- ══ THE OFFER ══ -->
