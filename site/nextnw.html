@@ -92,7 +92,7 @@
   .glow{background:
     radial-gradient(620px 300px at 22% -8%, rgba(84,185,90,.16), transparent 70%),
     radial-gradient(620px 300px at 78% -8%, rgba(232,147,58,.14), transparent 70%)}
-  .hero{padding:84px 0 72px;text-align:center}
+  .hero{padding:84px 0 34px;text-align:center}
   /* The collaboration itself is the headline news for this audience — sized
      close to h1, not a small badge above it, so it can't be skimmed past. */
   .collab{display:flex;align-items:center;justify-content:center;gap:14px;
@@ -149,14 +149,12 @@
 <header>
   <div class="wrap nav">
     <div class="lockup">
-      <a class="lk-mark" href="https://nabbly.co/">
+      <a class="lk-mark" href="https://nabbly.co/" aria-label="Nabbly">
         <svg width="28" height="28" viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F7B569"/><stop offset=".52" stop-color="#E8933A"/><stop offset="1" stop-color="#CB6F16"/></linearGradient></defs><rect x="4" y="4" width="40" height="40" rx="11" fill="url(#b)"/><path d="M13.5 33.5 L13.5 17" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="3.5" stroke-linecap="round"/><path d="M13.5 17 L23 30.5 L32 14" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="34.2" cy="11.4" r="2.5" fill="#fff"/></svg>
-        <span>Nabb<span class="amber">ly</span></span>
       </a>
       <span class="lk-x"></span>
-      <a class="lk-mark" href="https://nextnw.org/" target="_blank" rel="noopener">
+      <a class="lk-mark" href="https://nextnw.org/" target="_blank" rel="noopener" aria-label="Next Northwest">
         <img class="lk-icon" src="/nextnw-icon.png" alt="">
-        <span>NextNW</span>
       </a>
     </div>
     <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board</a>
@@ -166,10 +164,6 @@
 <div class="glow">
 <section class="hero">
   <div class="wrap">
-    <div class="collab">
-      <span class="collab-label">In collaboration with</span>
-      <span class="collab-mark"><img class="collab-icon" src="/nextnw-icon.png" alt="">NextNW</span>
-    </div>
     <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
     <p class="lead">Marketing, design, writing and video work — from every board and community, in one place. You just reply first.</p>
     <div class="cta-row">
@@ -182,10 +176,14 @@
 <!-- ══ THE ANNOUNCEMENT ══
      Framed as Nabbly opening the beta TO NextNW, not as an already-finalised
      partnership — the board hasn't voted yet when this ships, and that framing
-     stays true either way the vote goes. Cut to one line now that the collab
-     mark above the headline already carries the "who this is for" job — this
-     just needs to add the one fact that mark doesn't: it's a private beta. -->
+     stays true either way the vote goes. The collab mark now sits right above
+     this line instead of above the headline, so the two read as one beat:
+     who this is with, then the one fact about it (still a beta, opened first). -->
 <div class="wrap">
+  <div class="collab">
+    <span class="collab-label">In collaboration with</span>
+    <span class="collab-mark"><img class="collab-icon" src="/nextnw-icon.png" alt="">NextNW</span>
+  </div>
   <p class="announce">A private beta, opened to you first — built with your community in mind.</p>
 </div>
 
