@@ -33,6 +33,7 @@ import pitch
 import market
 import score
 import location
+import lang
 import resume
 import drafts
 import refresh
@@ -1292,6 +1293,10 @@ def _build_feed(posts):
     # property of the POST, not of the reader — doing it per-render would mean
     # regexing 14,000 titles on every rerun for an answer that never changes.
     df["_city"] = [location.city_lock({"title": t}) for t in df["title"].fillna("")]
+    # Same reasoning as _city: a gig's language is a property of the POST, so
+    # it's computed once here rather than per render.
+    df["_lang"] = [lang.detect(t, b) for t, b in
+                   zip(df["title"].fillna(""), df["body"].fillna(""))]
     return df, before - len(df)
 
 
@@ -1479,6 +1484,38 @@ def location_counts(data):
     return len(data), remote, local
 
 
+def reading_languages():
+    """
+    Which languages this person's board should include.
+
+    English always, plus whatever their country implies — someone in Germany
+    keeps their German gigs without having to find a setting for it.
+    """
+    codes = {"en"}
+    implied = lang.COUNTRY_LANG.get((prof.get("country") or "").strip())
+    if implied:
+        codes.add(implied)
+    return codes
+
+
+def apply_language(view):
+    """
+    Hide gigs written in a language this reader hasn't got.
+
+    Nine percent of the board arrives in German, Dutch, Spanish or French
+    because several feeds are European. That's real work for someone who reads
+    those and unreadable clutter for everyone else. Off by default rather than
+    on, and the detector falls back to English when unsure — a miss leaves a
+    gig visible, which costs nothing, while a false positive would hide real
+    work, which costs someone a job.
+    """
+    if view.empty or "_lang" not in view.columns:
+        return view
+    if prof.get("show_all_languages"):
+        return view
+    return view[view["_lang"].isin(reading_languages())]
+
+
 def apply_city_lock(view):
     """
     Drop gigs pinned to a metro that isn't yours.
@@ -1574,6 +1611,12 @@ def gig_card(r, pro):
                 elif not (_src in config.REMOTE_ONLY_SOURCES
                           and loc_lbl.strip().lower().endswith("remote")):
                     badge_items.append((loc_lbl, "loc"))
+        # Only ever shown when a non-English gig is ON the board — either the
+        # reader opened it up in Profile, or it's their country's language. It
+        # answers "why is this one in German?" before they have to wonder.
+        _lc = r.get("_lang") or "en"
+        if _lc != "en":
+            badge_items.append((lang.label(_lc), "locoff"))
         if r.get("urgency") == "Urgent":
             badge_items.append(("Urgent", "urgent"))
         if pro:
@@ -1600,7 +1643,13 @@ def gig_card(r, pro):
         # the text short to keep the layout tidy. It also means "See more" has
         # something real to reveal instead of one extra sentence.
         body = smart_trim(display_body(r.get("body")), target=620, hard=1200)
-        posted = html.escape(f"Posted {human_time(r.get('posted_at'))}")
+        # Fall back to fetched_at exactly like the SQL sort does. Without it a
+        # gig with no posted_at read "Posted recently" — which sounds like
+        # "minutes ago" but actually means "we couldn't read a date", the least
+        # useful thing to tell someone deciding whether a gig is worth chasing.
+        # We always know when WE saw it, so say that instead.
+        posted = html.escape(
+            f"Posted {human_time(r.get('posted_at') or r.get('fetched_at'))}")
         if body:
             cb = f"gm{r['id']}"
             st.markdown(
@@ -1904,13 +1953,13 @@ def view_dashboard(pro):
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
-        top = scored(apply_city_lock(
+        top = scored(apply_language(apply_city_lock(
             apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                          srcs, False, ""))).head(DASH_FEED)
+                          srcs, False, "")))).head(DASH_FEED)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
-        top = apply_city_lock(df).head(DASH_FEED)
+        top = apply_language(apply_city_lock(df)).head(DASH_FEED)
 
     if top.empty:
         st.caption("Nothing's clicking yet — try adding a few more skills on the Profile "
@@ -1993,7 +2042,7 @@ def view_gigs(pro):
 
     with st.spinner(f"Searching for “{kw}”…" if kw else "Loading the board…"):
         view = apply_filters(df, skills, sizes, sources, urgent, kw)
-        view = apply_city_lock(view)
+        view = apply_language(apply_city_lock(view))
         view = apply_location(view, loc_mode)
         if pro:
             view = scored(view)
@@ -2532,6 +2581,12 @@ def view_profile(pro):
                 help="Off by default: a gig posted as \"… in Austin, TX\" wants "
                      "someone in that metro, so it stays off your board unless "
                      "it names your city. Turn this on if you'd travel or move.")
+            f_alllang = st.toggle(
+                "Show gigs in other languages",
+                value=bool(prof.get("show_all_languages")),
+                help="Around one gig in eleven is posted in German, Dutch, "
+                     "Spanish or French. English (and your country's language) "
+                     "always show; this adds the rest.")
             f_portfolio = st.text_input("Where's your work?",
                                         value=prof.get("portfolio", ""),
                                         placeholder="your portfolio link")
@@ -2548,6 +2603,7 @@ def view_profile(pro):
                 "country": f_country if f_country != "Other / elsewhere" else "",
                 "city": f_city.strip(),
                 "open_to_relocate": bool(f_relocate),
+                "show_all_languages": bool(f_alllang),
             }
             profile_mod.save(_saved)
             # If they've signed up, keep a copy against their email, so what we

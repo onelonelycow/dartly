@@ -64,12 +64,30 @@ BOILERPLATE = re.compile(r"\s*please mention the word\b.*$", re.I | re.S)
 
 
 def _strip(text) -> str:
+    """
+    Feed text -> clean prose.
+
+    ORDER MATTERS, and it was wrong: this stripped tags first and unescaped
+    second. A feed that sends its HTML escaped ("&lt;p&gt;About us&lt;/p&gt;")
+    survives the tag regex untouched — there are no real angle brackets yet —
+    and then unescape turns it into "<p>About us</p>" AFTER the only step that
+    would have removed it. 310 listings were showing raw <h1>/<p>/&nbsp; in
+    their description because of it.
+
+    Unescape first, then strip. Twice, because some feeds double-encode.
+    """
     if not text:
         return ""
     text = _fix_mojibake(str(text))
+    for _ in range(3):
+        unescaped = _html.unescape(text)
+        if unescaped == text:
+            break
+        text = unescaped
     text = re.sub(r"<[^>]+>", " ", text)
     text = BOILERPLATE.sub("", text)
-    return re.sub(r"\s+", " ", _html.unescape(text)).strip()
+    # \xa0 (from &nbsp;) is whitespace to Python's \s, so this folds it away too.
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # Some sources (e.g. Freelancer.com) append a timestamp to the title, like

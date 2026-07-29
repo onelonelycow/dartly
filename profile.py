@@ -24,6 +24,9 @@ DEFAULT = {
     # Gigs whose title pins them to a metro ("… in Austin, TX") are hidden
     # unless they name your city. Turn this on if you'd travel or relocate.
     "open_to_relocate": False,
+    # Gigs written in a language you don't read are hidden by default. English
+    # plus whatever your country implies always show; this opens it to all.
+    "show_all_languages": False,
 }
 
 # Fields that count toward "profile completeness".

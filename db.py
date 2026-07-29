@@ -196,6 +196,40 @@ def normalize_dates() -> int:
         conn.close()
 
 
+def clean_bodies() -> int:
+    """
+    Re-clean stored descriptions that still carry raw HTML. Returns how many.
+
+    _strip() used to unescape AFTER stripping tags, so any feed sending escaped
+    HTML landed in the database with literal <h1>/<p>/&nbsp; in the text. The
+    parser is fixed, but 310 rows were already stored that way and upsert never
+    rewrites a row it has seen. Runs at boot; a second pass finds nothing.
+    """
+    import re as _re
+    import sources
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, body FROM posts WHERE body LIKE '%<%' OR body LIKE '%&lt;%' "
+            "OR body LIKE '%&amp;%' OR body LIKE '%&nbsp;%'").fetchall()
+        fixes = []
+        for r in rows:
+            raw = r["body"] or ""
+            # Machine hints live after HINT_SEP and are never shown as prose —
+            # clean only the human half so the classifier's tail is untouched.
+            human, sep, tail = str(raw).partition(sources.HINT_SEP)
+            cleaned = sources._strip(human)
+            rebuilt = f"{cleaned}{sep}{tail}" if sep else cleaned
+            if rebuilt != raw:
+                fixes.append((rebuilt, r["id"]))
+        if fixes:
+            conn.executemany("UPDATE posts SET body=? WHERE id=?", fixes)
+            conn.commit()
+        return len(fixes)
+    finally:
+        conn.close()
+
+
 STALE_DAYS = 45
 
 
