@@ -74,6 +74,11 @@ def _loop():
         # format "newest first" is really "weekday name, Z to A".
         _state["dates_fixed"] = db.normalize_dates()
         _state["archived"] = db.archive_stale()
+        # Nodesk turned out to be a paid subscription, not a job board — pulled
+        # from ENABLE_SOURCES already; this clears the ~43 rows it had already
+        # placed on the board so they don't linger under a source we no longer
+        # trust. One-off and idempotent: finds nothing to do once they're gone.
+        _state["nodesk_removed"] = db.archive_source("nodesk")
         _state["reclassified"] = db.reclassify_all()
     except Exception:
         pass

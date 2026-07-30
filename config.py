@@ -21,8 +21,9 @@ ENABLE_SOURCES = [
     "arbeitnow",       # Arbeitnow — remote/EU jobs
     "jobicy",          # Jobicy — remote jobs
     "weworkremotely",  # We Work Remotely — remote jobs
+    "workingnomads",   # Working Nomads — curated remote jobs, direct outbound apply
     # Config-only boards (see RSS_SOURCES below)
-    "dribbble", "himalayas", "nodesk", "pythonjobs", "larajobs", "wpjobs",
+    "dribbble", "himalayas", "jobspresso", "pythonjobs", "larajobs", "wpjobs",
     "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
     # vertical backfill
     "jobicy_health", "jobicy_legal", "jobicy_finance", "jobicy_edu",
@@ -57,10 +58,16 @@ RSS_SOURCES = {
                    "label": "Dribbble"},
     "himalayas":  {"url": "https://himalayas.app/jobs/rss",
                    "label": "Himalayas"},
-    "nodesk":     {"url": "https://nodesk.co/remote-jobs/index.xml",
-                   "label": "NoDesk"},
     "pythonjobs": {"url": "https://www.python.org/jobs/feed/rss/",
                    "label": "Python.org"},
+    # Replaces nodesk (removed): checked two real listings and the actual
+    # apply link sat behind a button reading "Subscribe to Apply" on both —
+    # a paywall, not a job board. Jobspresso runs on WP Job Manager (same
+    # plugin family as WordPress Jobs below) and its real apply mechanism,
+    # confirmed on a live listing, is a direct email or a direct outbound
+    # URL — no Jobspresso account of any kind.
+    "jobspresso": {"url": "https://jobspresso.co/feed/?post_type=job_listing",
+                   "label": "Jobspresso"},
     "larajobs":   {"url": "https://larajobs.com/feed",
                    "label": "LaraJobs"},
     "wpjobs":     {"url": "https://jobs.wordpress.net/feed/",
@@ -303,13 +310,15 @@ ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer",
                             "bubble", "blenderartists"}
 
 # Distinct from the above on purpose: this isn't "make a free account," it's
-# "pay money before you can even see the apply link." Confirmed on Nodesk by
-# checking two real listings — the actual external application URL sits in a
-# data attribute, but the visible button reads "Subscribe to Apply" instead of
-# "Apply Now" in the raw page, on both. Gets its own badge with its own
-# wording; conflating a paywall with a free signup would be dishonest about
+# "pay money before you can even see the apply link." Nodesk was the one board
+# that hit this (checked two real listings — the actual external application
+# URL sat in a data attribute, but the visible button read "Subscribe to
+# Apply" instead of "Apply Now" in the raw page, on both) and it's been pulled
+# from ENABLE_SOURCES entirely rather than kept around and badged, so this
+# starts empty. Gets its own badge with its own wording if it's ever needed
+# again; conflating a paywall with a free signup would be dishonest about
 # what's actually being asked of someone applying to a job.
-SUBSCRIPTION_REQUIRED_SOURCES = {"nodesk"}
+SUBSCRIPTION_REQUIRED_SOURCES = set()
 
 # Raw source keys are how we fetch; these are how a human should read them.
 SOURCE_LABELS = {

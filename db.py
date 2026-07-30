@@ -489,6 +489,38 @@ def archive_stale(days: int = STALE_DAYS) -> int:
     return n
 
 
+def archive_source(source: str) -> int:
+    """
+    Take every live gig from one source off the board. Returns how many.
+
+    For dropping a source entirely (e.g. one that turned out to require a
+    paid subscription to apply) — same is_demand=0-not-delete pattern as
+    archive_stale, and same board_store mirror, for the same reason: skip
+    the mirror and the next Render restart resurrects them straight back
+    onto the live board.
+    """
+    conn = connect()
+    try:
+        aged = [(r["source"], r["source_id"]) for r in conn.execute(
+            "SELECT source, source_id FROM posts WHERE is_demand = 1 AND source = ?",
+            (source,)).fetchall()]
+        cur = conn.execute(
+            "UPDATE posts SET is_demand = 0 WHERE is_demand = 1 AND source = ?",
+            (source,))
+        conn.commit()
+        n = cur.rowcount or 0
+    finally:
+        conn.close()
+
+    if aged:
+        try:
+            import board_store
+            board_store.mark_archived(aged)
+        except Exception:
+            pass
+    return n
+
+
 def reclassify_all() -> int:
     """
     Re-run the classifier over every stored post, updating any whose tags moved.

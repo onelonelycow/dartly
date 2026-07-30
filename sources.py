@@ -347,6 +347,31 @@ def fetch_freelancer() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Working Nomads — JSON API. Its own apply link (/job/go/{id}/) 302s straight
+# to the employer's real application page — no Working Nomads account needed,
+# confirmed on a live listing before adding this source.
+# ---------------------------------------------------------------------------
+def fetch_workingnomads() -> list[dict]:
+    r = _get("https://www.workingnomads.co/api/exposed_jobs/")
+    if r.status_code != 200:
+        print(f"  ! workingnomads: HTTP {r.status_code}"); return []
+    out = []
+    for j in r.json():
+        url = j.get("url", "")
+        if not url:
+            continue
+        out.append({
+            "source": "workingnomads", "source_id": url,
+            "url": url,
+            "title": _clean_title(j.get("title", "")),
+            "body": _body(j.get("description", ""), j.get("category_name", ""),
+                          (j.get("tags") or "").replace(",", " "), j.get("location", "")),
+            "posted_at": to_iso(j.get("pub_date")),
+        })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # We Work Remotely — RSS
 # ---------------------------------------------------------------------------
 def fetch_weworkremotely() -> list[dict]:
@@ -412,6 +437,7 @@ _FETCHERS = {
     "arbeitnow": fetch_arbeitnow,
     "jobicy": fetch_jobicy,
     "weworkremotely": fetch_weworkremotely,
+    "workingnomads": fetch_workingnomads,
 }
 
 
