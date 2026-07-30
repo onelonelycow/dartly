@@ -332,7 +332,12 @@ def fetch_freelancer() -> list[dict]:
         else:
             budget = ""
         jobs = " ".join(j.get("name", "") for j in (p.get("jobs") or []))
-        desc = p.get("preview_description") or ""
+        # preview_description is Freelancer's own truncated summary — often
+        # cut off mid-sentence ("...confirming the integrity of three footings
+        # at"), which made "Show more" reveal nothing for a short posting since
+        # there was nothing fuller stored to reveal. full_description=true is
+        # already in the request URL above; description is the real full text.
+        desc = p.get("description") or p.get("preview_description") or ""
         seo = p.get("seo_url")
         url_p = (f"https://www.freelancer.com/projects/{seo}" if seo
                  else f"https://www.freelancer.com/projects/{p.get('id')}")

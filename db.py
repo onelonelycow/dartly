@@ -521,6 +521,38 @@ def archive_source(source: str) -> int:
     return n
 
 
+def backfill_freelancer_descriptions() -> int:
+    """
+    Refill already-stored Freelancer rows with the real description.
+
+    fetch_freelancer() used to read preview_description, Freelancer's own
+    truncated summary — sometimes cut off mid-sentence ("...confirming the
+    integrity of three footings at"), which made "Show more" reveal nothing
+    for a short posting because there was nothing fuller stored to reveal.
+    The fetcher now reads the full description; this one-off UPDATEs the
+    rows that were already saved with the old short text before the fix
+    shipped. Only touches rows still live and still on Freelancer's own
+    active-projects feed — it can't backfill a project that's since closed.
+    """
+    import sources
+    fresh = {r["source_id"]: r["body"] for r in sources.fetch_freelancer()}
+    if not fresh:
+        return 0
+    conn = connect()
+    try:
+        n = 0
+        for source_id, body in fresh.items():
+            cur = conn.execute(
+                "UPDATE posts SET body=? WHERE source='freelancer' "
+                "AND source_id=? AND is_demand=1 AND body != ?",
+                (body, source_id, body))
+            n += cur.rowcount or 0
+        conn.commit()
+    finally:
+        conn.close()
+    return n
+
+
 def reclassify_all() -> int:
     """
     Re-run the classifier over every stored post, updating any whose tags moved.
