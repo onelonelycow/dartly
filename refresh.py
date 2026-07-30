@@ -87,8 +87,24 @@ def _loop():
         _state["reclassified"] = db.reclassify_all()
     except Exception:
         pass
+    # Everyone who signed up before the weekly digest existed has an empty
+    # last_digest, which reads as "never sent" and would make the whole user
+    # base due at once on the first pass. Start their clock now instead, so
+    # the first digest anyone gets arrives on a normal weekly schedule rather
+    # than as a surprise blast the moment this deploys. One-off and
+    # idempotent: once stamped there's nothing left to find.
+    try:
+        import accounts as _accounts
+        _state["digest_clock_started"] = _accounts.backfill_last_digest()
+    except Exception:
+        pass
+
     last_alert = 0.0
-    last_digest_check = 0.0
+    # NOT 0.0: `time.time() - 0.0 >= 3600` is true on the very first pass, so
+    # a zero here means every deploy and every idle-wake restart fires a digest
+    # sweep within seconds of booting instead of an hour in. Starting the clock
+    # at "now" is what actually makes this an hourly check.
+    last_digest_check = time.time()
 
     while True:
         try:

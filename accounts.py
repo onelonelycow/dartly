@@ -241,11 +241,16 @@ def sign_in(email: str, source: str = "signin",
         pro_until = (datetime.now(timezone.utc)
                      + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
             if founding else ""
+    # last_digest starts at signup, not empty. Empty means "never sent", which
+    # weekly_digest reads as due immediately — so a brand new account would get
+    # a welcome email and then a full weekly digest within the hour. Starting
+    # the clock here means their first digest lands a week after they join,
+    # which is what "weekly" is supposed to mean.
     conn.execute(
         "INSERT INTO accounts (email, token, created, last_seen, trial_start, "
-        "pro_until, founding, plan, last_alert_id, visits) "
-        "VALUES (?,?,?,?,'',?,?,'free',?,1)",
-        (email, token, now, now, pro_until, founding, watermark))
+        "pro_until, founding, plan, last_alert_id, visits, last_digest) "
+        "VALUES (?,?,?,?,'',?,?,'free',?,1,?)",
+        (email, token, now, now, pro_until, founding, watermark, now))
     conn.commit()
     acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
                             (email,)).fetchone())
@@ -447,6 +452,36 @@ def set_last_digest(email: str, when: str):
     conn.commit()
     conn.close()
     _mirror(email)
+
+
+def backfill_last_digest() -> int:
+    """
+    Start the weekly-digest clock for accounts that predate the feature.
+
+    last_digest was added to a table full of existing rows, so every one of
+    them reads as "never sent" and weekly_digest._due() says yes to all of
+    them at once. Stamping them with now means their first digest lands a
+    normal week out instead of arriving as one unannounced blast the moment
+    the feature deploys. Returns how many were stamped; idempotent, so the
+    second call finds nothing.
+    """
+    init()
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT email FROM accounts WHERE COALESCE(last_digest, '') = ''"
+        ).fetchall()
+        if not rows:
+            return 0
+        conn.execute("UPDATE accounts SET last_digest=? "
+                     "WHERE COALESCE(last_digest, '') = ''", (_now(),))
+        conn.commit()
+        n = len(rows)
+    finally:
+        conn.close()
+    for r in rows:
+        _mirror(r["email"])
+    return n
 
 
 def unsubscribe(token: str) -> bool:
