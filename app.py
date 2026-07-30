@@ -18,7 +18,6 @@ from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
 
 import pandas as pd
-import altair as alt
 import streamlit as st
 
 from dotenv import load_dotenv
@@ -2225,6 +2224,12 @@ def view_gigs(pro):
 
 
 def view_market(pro):
+    # Imported here, not at module top: altair alone costs ~36MB just to
+    # import, and this is the only place on the whole site that uses it.
+    # Paying that cost only for someone who actually opens Market — not for
+    # every single visitor on every single page — is real memory back on an
+    # instance that's already tight against its ceiling.
+    import altair as alt
     st.markdown('### What gigs like yours are <span class="gr-accent">paying</span>',
                 unsafe_allow_html=True)
     if not pro:
@@ -3231,6 +3236,9 @@ def feedback_card(where="dashboard"):
 # Admin: who showed up. Visit ?admin=<ADMIN_KEY>  (see analytics.py)
 # ---------------------------------------------------------------------------
 def view_admin():
+    # Same reasoning as view_market: only place besides Market that touches
+    # altair, and only the founder ever opens this page.
+    import altair as alt
     s = analytics.stats()
     st.markdown("## Signals")
     st.caption("Who showed up, what they opened, and who raised their hand. "
