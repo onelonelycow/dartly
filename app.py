@@ -2629,8 +2629,6 @@ def view_profile(pro):
 
         with st.expander("Fine-tune your matches   ·   optional",
                          expanded=_has_extra):
-            st.caption("Rates, filters, and a couple of details for your replies. "
-                       "Skip anything — you can come back to it whenever.")
             rc1, rc2 = st.columns([2, 1])
             with rc1:
                 f_floor = st.number_input("Won't work below ($)", min_value=0, step=25,
