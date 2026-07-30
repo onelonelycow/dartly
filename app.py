@@ -1760,8 +1760,6 @@ def gig_card(r, pro):
                     st.caption("Saved — your edits will be here when you come back.")
                 elif saved_exists:
                     st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
-                else:
-                    st.caption("Tweak it, save it, copy — and you're first in line.")
             else:
                 st.caption("On **Pro**, we write a ready-to-send reply for this exact "
                            "gig — so you can fire back first, without staring at a blank "

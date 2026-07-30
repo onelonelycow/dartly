@@ -27,17 +27,33 @@ import re
 _SIGNALS = {
     "de": r"\b(und|oder|der|die|das|den|dem|für|mit|bei|wir|uns|unsere[nrs]?|"
           r"suchen|Ihre[nrs]?|Aufgaben|Kenntnisse|Erfahrung|Berufserfahrung|"
-          r"Stelle|Mitarbeiter|Bewerbung|Deine|Deinen|m/w/d|w/m/d)\b",
+          r"Stelle|Mitarbeiter|Bewerbung|Deine|Deinen|m/w/d|w/m/d|"
+          r"sowie|auch|nicht|sind|haben|werden|einen|eine|über|durch|zum|zur)\b",
     "nl": r"\b(het|een|voor|met|wij|jij|jouw|zoeken|ervaring|"
-          r"functie|vacature|sollicitatie|werkzaamheden)\b",
+          r"functie|vacature|sollicitatie|werkzaamheden|"
+          r"onze|niet|van|zijn|worden|binnen|waarbij|jaar)\b",
     "es": r"\b(los|las|una|para|nosotros|buscamos|experiencia|"
-          r"conocimientos|trabajo|puesto|empresa|requisitos|desarrollo)\b",
+          r"conocimientos|trabajo|puesto|empresa|requisitos|desarrollo|"
+          r"del|con|por|que|más|sobre|nuestra|nuestro|será|tus|sus|"
+          r"equipo|puedes|tendrás)\b",
     "fr": r"\b(les|une|des|pour|avec|nous|vous|votre|recherche|"
-          r"expérience|poste|entreprise|profil|travail)\b",
+          r"expérience|poste|entreprise|profil|travail|"
+          r"dans|sur|est|sont|aux|notre|nos|vos|chez|ainsi|également|"
+          r"missions|compétences)\b",
+    # Portuguese was the thinnest list here and it showed: a real Brazilian
+    # security post ("Analista Senior de Acessos e Identidades") matched only
+    # "trabalho", twice, which is 2 hits against a threshold of 3 — so it sat
+    # on the board in Portuguese. Enriched with the function words that
+    # actually carry Portuguese prose, none of which collide with English.
     "pt": r"\b(uma|para|nós|procuramos|experiência|"
-          r"conhecimentos|trabalho|vaga|empresa|desenvolvimento)\b",
+          r"conhecimentos|trabalho|vaga|empresa|desenvolvimento|"
+          r"sobre|nossa|nosso|você|sua|seu|dos|das|pela|pelo|mas|"
+          r"não|são|está|também|atuação|área|equipe|conhecimento|"
+          r"remoto|vagas|requisitos|desejável)\b",
     "it": r"\b(una|per|noi|cerchiamo|esperienza|"
-          r"conoscenze|lavoro|azienda|requisiti|sviluppo)\b",
+          r"conoscenze|lavoro|azienda|requisiti|sviluppo|"
+          r"del|della|con|che|più|nostra|nostro|sono|anche|presso|"
+          r"attività|competenze)\b",
 }
 _COMPILED = {k: re.compile(v, re.I) for k, v in _SIGNALS.items()}
 
@@ -71,7 +87,14 @@ def detect(title: str, body: str = "") -> str:
         return "en"
     best, best_hits = "en", 0
     for code, pat in _COMPILED.items():
-        hits = len(pat.findall(text))
+        # DISTINCT words, not total occurrences. One word repeated is one piece
+        # of evidence, not three: a German post that says "und" three times was
+        # already caught, but an English post that happens to repeat a single
+        # borrowed word ("una", "des", a "de" in a place name) used to be able
+        # to clear the threshold on that word alone. Requiring three DIFFERENT
+        # function words is what actually distinguishes prose in a language
+        # from prose that mentions one of its words.
+        hits = len({m.lower() for m in pat.findall(text)})
         if hits > best_hits:
             best, best_hits = code, hits
     return best if best_hits >= _MIN_HITS else "en"

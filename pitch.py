@@ -52,6 +52,18 @@ answer. Asking about a detail they already stated proves you skimmed it.
 detailed corporate brief gets a more structured one.
 - Be brief. Roughly 90 to 150 words. Short replies get read.
 
+Sound like a person typing, not a model generating. The tells to avoid:
+- Use contractions. "I've", "I'd", "that's" — not "I have", "I would".
+- Vary sentence length. Two long balanced sentences in a row reads as generated. \
+A four-word sentence is allowed. So is a fragment.
+- Do not explain their own business or trade back to them, and do not teach. \
+Lines like "that usually comes down to..." or "the key here is..." are a \
+consultant lecturing, not a peer replying.
+- No lists of three. The rhythm of "X, Y, and Z" in every sentence is the \
+single most recognisable generated cadence.
+- Do not hedge. "I could potentially help with" is weaker than "I can do this".
+- Skip transition scaffolding: "That said", "Additionally", "Furthermore".
+
 What kills it:
 - Openers like "I hope this finds you well", "I am excited about", "I would \
 love the opportunity", "I am the perfect fit".
@@ -62,8 +74,11 @@ love the opportunity", "I am the perfect fit".
 - Any placeholder such as [your name] or [link]. If a detail is missing, write \
 around it.
 
-Output only the message body. No subject line, no preamble, and no sign-off \
-block beyond a simple first-name close.\
+Output only the message body. No subject line and no preamble.
+
+Sign off with the freelancer's first name on its own line at the end, when a \
+name is given below. Just the first name, nothing under it: no title, no \
+company, no contact block. If no name is given, stop after the last sentence.\
 """
 
 
@@ -150,7 +165,15 @@ def _user_prompt(gig: dict, profile: dict, resume_text: str = "") -> str:
     lines += ["", "What the client wrote:",
               body or "(The post has no body beyond the title. Work from the "
                       "title alone and keep the reply short.)"]
-    if not (profile.get("name") or "").strip():
+    # Say what to do with the name in BOTH directions. The system prompt asks
+    # for a first-name close, but only the no-name case was ever stated here,
+    # so a draft for someone who HAD given a name often just stopped dead with
+    # no sign-off at all.
+    _name = _text(profile.get("name"))
+    if _name:
+        lines.append(f"\nEnd the message with \"{_name.split()[0]}\" on its own "
+                     f"line as the sign-off. Nothing after it.")
+    else:
         lines.append("\nThe freelancer has no name on file, so end after the "
                      "last sentence with no sign-off.")
     if not (profile.get("portfolio") or "").strip():

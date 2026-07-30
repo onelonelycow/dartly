@@ -119,3 +119,39 @@ def count() -> int:
             conn.close()
     except Exception:
         return -1
+
+
+def mark_archived(pairs) -> int:
+    """
+    Record in the mirror that these (source, source_id) gigs are off the board.
+
+    THIS IS WHY DEAD GIGS KEPT COMING BACK. The mirror only ever heard about
+    gigs at ingest, where everything is is_demand=1 by definition. Archival —
+    sweep_dead_links() finding a 404, archive_stale() ageing a post out — was
+    written to the LOCAL sqlite file only, and Render's free tier has no
+    persistent disk, so that file is destroyed on every restart. Each OOM
+    restart therefore rehydrated the newest 15,000 mirrored gigs with their
+    original is_demand=1, resurrecting postings we had already proven dead;
+    the sweeper then had to rediscover them six per cycle. A founder watching
+    the board saw an April listing reappear at the top of "Fresh off the
+    boards" minutes after a crash and reasonably concluded the fix never
+    worked. The fix has to outlive the disk, which means it lives here.
+    """
+    pairs = [(s, sid) for s, sid in (pairs or []) if s and sid]
+    if not enabled() or not pairs:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET is_demand = 0 "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            with conn:
+                conn.cursor().executemany(sql, pairs)
+            return len(pairs)
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0

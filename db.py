@@ -386,7 +386,7 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
     conn = connect()
     try:
         rows = conn.execute(
-            "SELECT id, url, source FROM posts "
+            "SELECT id, url, source, source_id FROM posts "
             "WHERE is_demand = 1 AND link_checked IS NULL AND url LIKE 'http%' "
             "  AND COALESCE(NULLIF(posted_at,''), fetched_at) < ? "
             "ORDER BY COALESCE(NULLIF(posted_at,''), fetched_at) ASC LIMIT ?",
@@ -403,6 +403,7 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
                              "AppleWebKit/537.36 (KHTML, like Gecko) "
                              "Chrome/120.0 Safari/537.36"}
     verdicts = []
+    gone = []
     for r in rows:
         dead = 0
         try:
@@ -418,6 +419,8 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
         except Exception:
             pass          # unreachable now != gone; leave it and re-check later
         verdicts.append((dead, r["id"]))
+        if dead:
+            gone.append((r["source"], r["source_id"]))
 
     conn = connect()
     try:
@@ -428,6 +431,15 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
         conn.commit()
     finally:
         conn.close()
+
+    # Tell the durable mirror too, or the next restart undoes this. See
+    # board_store.mark_archived() for why that isn't hypothetical.
+    if gone:
+        try:
+            import board_store
+            board_store.mark_archived(gone)
+        except Exception:
+            pass
     return sum(d for d, _ in verdicts)
 
 
@@ -451,14 +463,30 @@ def archive_stale(days: int = STALE_DAYS) -> int:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     conn = connect()
     try:
+        # Read the pairs BEFORE the update, so we know which rows this pass is
+        # actually retiring and can mirror exactly those.
+        aged = [(r["source"], r["source_id"]) for r in conn.execute(
+            "SELECT source, source_id FROM posts WHERE is_demand = 1 "
+            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?",
+            (cutoff,)).fetchall()]
         cur = conn.execute(
             "UPDATE posts SET is_demand = 0 "
             "WHERE is_demand = 1 "
             "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (cutoff,))
         conn.commit()
-        return cur.rowcount or 0
+        n = cur.rowcount or 0
     finally:
         conn.close()
+
+    # Same reason as sweep_dead_links: without this the next restart pulls
+    # every one of these back onto the board as live.
+    if aged:
+        try:
+            import board_store
+            board_store.mark_archived(aged)
+        except Exception:
+            pass
+    return n
 
 
 def reclassify_all() -> int:
