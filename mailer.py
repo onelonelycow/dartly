@@ -123,46 +123,98 @@ def _button(label: str, url: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# welcome email
+# welcome email — two genuinely different emails, not one email with a
+# paragraph toggled on. Whoever's reading this already knows what Nabbly is
+# (they just signed up for it), so neither version re-explains the product;
+# each just gets straight to the one thing that's actually news to THEM.
 # ---------------------------------------------------------------------------
-def welcome_email(email: str, name: str, founding: bool, token: str) -> tuple[str, str, str]:
+def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
+    board_url = f"{APP_URL}/?nav=dashboard"
+    hi = f"{name}, y" if name else "Y"
+    subject = "You're one of Nabbly's first fifty"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  {hi}ou made the first fifty.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  Pro's already on for you, free for the next two months. No card, nothing
+  to cancel &mdash; it just runs until it doesn't.
+</p>
+<p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
+  Add your skills to your profile and the board sorts itself around you.
+  Takes about a minute.
+</p>
+{_button("Open the board", board_url)}
+"""
+    body = body.replace("&mdash;", ",")
+    text = (f"{hi}ou made the first fifty.\n\n"
+            "Pro's already on for you, free for the next two months. No card, "
+            "nothing to cancel.\n\n"
+            f"Add your skills to your profile and the board sorts itself around "
+            f"you.\n\nOpen the board: {board_url}\n")
+    return subject, _shell("Pro's on for two months, free.", body, token), text
+
+
+def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
     board_url = f"{APP_URL}/?nav=dashboard"
     hi = f"Hi {name}," if name else "Hi,"
-    founding_line = (
-        f'<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">'
-        f'You\'re one of our first fifty members, so Pro is already on for '
-        f'the next two months, on us. No card, nothing to cancel.</p>'
-        if founding else "")
     subject = "Welcome to Nabbly"
     body = f"""
 <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
   {hi} you're in.
 </h1>
 <p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
-  Nabbly watches every freelance job board and hiring community at once and
-  puts new work in one place the moment it posts, so you're the one
-  who replies first.
-</p>
-{founding_line}
-<p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
   Add your skills to your profile and the board sorts itself around you.
-  It takes about a minute.
+  Takes about a minute.
+</p>
+<p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
+  Pro's free to try for 14 days whenever you want to see the full thing.
+  No rush &mdash; start it from your profile when you're ready.
 </p>
 {_button("Open the board", board_url)}
 """
+    body = body.replace("&mdash;", ",")
     text = (f"{hi} you're in.\n\n"
-            "Nabbly watches every freelance job board and hiring community at once "
-            "and puts new work in one place the moment it posts.\n\n"
-            + ("You're one of our first fifty members, so Pro is already on for the "
-               "next two months, on us.\n\n" if founding else "")
-            + f"Open the board: {board_url}\n")
-    return subject, _shell("You're in. Here's what Nabbly does.", body, token), text
+            "Add your skills to your profile and the board sorts itself around "
+            "you.\n\n"
+            "Pro's free to try for 14 days whenever you want to see the full "
+            "thing. No rush, start it from your profile when you're ready.\n\n"
+            f"Open the board: {board_url}\n")
+    return subject, _shell("You're in.", body, token), text
+
+
+def welcome_email(email: str, name: str, founding: bool, token: str) -> tuple[str, str, str]:
+    return (_welcome_founding(name, token) if founding
+           else _welcome_standard(name, token))
 
 
 # ---------------------------------------------------------------------------
 # weekly digest
 # ---------------------------------------------------------------------------
-def digest_email(name: str, gigs: list[dict], total: int, token: str) -> tuple[str, str, str]:
+def _gig_out_url(gig: dict, token: str) -> str:
+    """Routed through the same ?nav=out redirect the in-app gig cards use
+    (app.py's gig_card()), not a direct link — so a click from the email
+    counts toward the same "applied" number the email itself is reporting,
+    on whatever device the email happens to be opened on. &u= signs them in
+    on that device too, the same token-in-URL model the whole app runs on."""
+    gid = gig.get("id")
+    if gid is None:
+        return gig.get("url", "")
+    return f"{APP_URL}/?nav=out&gid={gid}&u={token}"
+
+
+def digest_email(name: str, gigs: list[dict], total: int, token: str,
+                 stats: dict | None = None) -> tuple[str, str, str]:
+    """
+    gigs: each dict also carries _score (0-100, from score.fit_score()) and
+    _reasons (its short "why" list) — the exact ranking and reasoning the
+    dashboard's "Picked for you" already shows, not a separate email-only
+    guess at fit.
+    stats: {"applied": int, "completeness": int} — real counts, both already
+    tracked (activity.py, profile.completeness()). Nothing here is invented;
+    a number this app can't actually back up doesn't go in front of someone.
+    """
+    stats = stats or {}
     board_url = f"{APP_URL}/?nav=gigs"
     hi = f"{name}, " if name else ""
     plural = "s" if total != 1 else ""
@@ -171,17 +223,38 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str) -> tuple[s
         subject = subject[0].upper() + subject[1:]
 
     import config
+
+    stat_cells = [(f"{total}", f"gig{plural} matched")]
+    if "applied" in stats:
+        stat_cells.append((f"{stats['applied']}", "applied this week"))
+    if "completeness" in stats and stats["completeness"] < 100:
+        stat_cells.append((f"{stats['completeness']}%", "profile complete"))
+    stats_html = "".join(
+        f'<td style="text-align:center;padding:12px 6px;">'
+        f'<div style="font-size:20px;font-weight:700;color:{AMBER};letter-spacing:-.02em;">{n}</div>'
+        f'<div style="font-size:11.5px;color:{MUTE};margin-top:2px;">{label}</div></td>'
+        for n, label in stat_cells)
+
     rows = []
     for g in gigs:
         src = config.source_label(g.get("source", ""))
+        score_html = ""
+        if g.get("_score") is not None:
+            score_html = (f'<span style="color:{AMBER};font-weight:650;">'
+                          f'{int(g["_score"])}% match</span> &middot; ')
+        why_html = ""
+        if g.get("_reasons"):
+            why_html = (f'<div style="font-size:12px;color:{FAINT};margin-top:3px;">'
+                       f'why: {", ".join(g["_reasons"])}</div>')
         rows.append(f"""
 <tr><td style="padding:14px 0;border-top:1px solid {LINE};">
-  <a href="{g['url']}" style="font-size:14.5px;font-weight:650;color:{INK};text-decoration:none;">
+  <a href="{_gig_out_url(g, token)}" style="font-size:14.5px;font-weight:650;color:{INK};text-decoration:none;">
     {g['title']}
   </a>
   <div style="font-size:12.5px;color:{MUTE};margin-top:4px;">
-    {g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
+    {score_html}{g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
   </div>
+  {why_html}
 </td></tr>""")
     more_line = ""
     if total > len(gigs):
@@ -189,11 +262,15 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str) -> tuple[s
                      f'and {total - len(gigs)} more on the board.</p>')
 
     body = f"""
-<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 6px;">
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
   This week, at a glance
 </h1>
-<p style="font-size:14px;color:{MUTE};line-height:1.6;margin:0 0 18px;">
-  {total} gig{plural} matched your profile in the last 7 days. Here are the best fits.
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+  style="background:{AMBER_BG};border-radius:12px;margin:0 0 20px;">
+<tr>{stats_html}</tr>
+</table>
+<p style="font-size:13px;color:{FAINT};margin:0 0 18px;">
+  The best fits from the last 7 days, ranked the same way the dashboard ranks them.
 </p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 {''.join(rows)}
@@ -203,9 +280,13 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str) -> tuple[s
 {_button("See the whole board", board_url)}
 </div>
 """
+    text_stats = " | ".join(f"{n} {label}" for n, label in stat_cells)
     text_rows = "\n".join(
-        f"- {g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget - "
-        f"{config.source_label(g.get('source', ''))}\n  {g['url']}" for g in gigs)
-    text = (f"This week, at a glance\n\n{total} gig{plural} matched your profile in the "
-            f"last 7 days.\n\n{text_rows}\n\nSee the whole board: {board_url}\n")
+        f"- {g['title']}"
+        + (f" ({int(g['_score'])}% match)" if g.get("_score") is not None else "")
+        + f"\n  {g.get('job_type','')} - {g.get('size_tier','')} budget - "
+        f"{config.source_label(g.get('source', ''))}\n  {_gig_out_url(g, token)}" for g in gigs)
+    text = (f"This week, at a glance\n\n{text_stats}\n\n"
+            f"The best fits from the last 7 days, ranked the same way the dashboard "
+            f"ranks them.\n\n{text_rows}\n\nSee the whole board: {board_url}\n")
     return subject, _shell(f"{total} gigs matched your profile this week.", body, token), text

@@ -37,6 +37,7 @@ import resume
 import budget
 import contact
 import drafts
+import style
 import refresh
 import inbox
 import legal
@@ -1626,7 +1627,12 @@ def scored(view):
 
 
 def _save_draft(gig_id, key):
-    drafts.save(gig_id, st.session_state.get(key, ""))
+    text = st.session_state.get(key, "")
+    drafts.save(gig_id, text)
+    # What they actually kept, compared to the AI's first attempt at this gig
+    # — style.py filters out trivial edits on its own, so it's fine to call
+    # this on every save rather than only the ones that look different.
+    style.record_edit(gig_id, text)
     st.session_state[f"_saved_{gig_id}"] = True
 
 
@@ -1641,8 +1647,14 @@ def gig_card(r, pro):
     with st.container(border=True):
         new = '<span class="gr-new">New</span>' if r.get("is_new") == 1 else ""
         title = html.escape(r.get("title") or "(no title)")
-        url = html.escape(r.get("url") or "", quote=True)
-        st.markdown(f'{new}<a class="gr-title" href="{url}" target="_blank">{title}</a>',
+        # Routed through ?nav=out so an apply click can be logged (activity.py)
+        # before the browser leaves — a direct href to the external URL has no
+        # server round-trip to hook a count into. Falls back to the raw URL if
+        # the row somehow has no id, so a click still goes somewhere.
+        gid = r.get("id")
+        out_url = f"?nav=out&gid={gid}" if gid is not None else \
+            html.escape(r.get("url") or "", quote=True)
+        st.markdown(f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>',
                     unsafe_allow_html=True)
 
         # Pills carry their meaning in colour (FEEL.md §2: match is amber,
@@ -1982,7 +1994,9 @@ def draft_showcase(pro):
 
     c1, c2 = st.columns(2)
     with c1:
-        st.link_button("Open the gig  ↗", g.get("url") or "#", width="stretch")
+        _gid = g.get("id")
+        _out = f"?nav=out&gid={_gid}" if _gid is not None else (g.get("url") or "#")
+        st.link_button("Open the gig  ↗", _out, width="stretch")
     with c2:
         if st.button("Edit this reply", width="stretch", key="showcase_edit"):
             st.session_state["_navidx"] = _TABS.index("Gigs")
@@ -3472,6 +3486,27 @@ _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
                "signin": "Sign in", "admin": "Admin",
                "privacy": "Privacy", "terms": "Terms",
                "unsubscribe": "Unsubscribe"}
+
+# Every gig title routes through here instead of linking straight out, so an
+# apply click can be logged before the browser leaves — a plain <a href> to
+# the external URL has no server round-trip at all to hook into. Checked
+# before the ?nav= dispatch below for the same reason IS_ADMIN is: the first
+# click on a gig title must not fall through and render the dashboard instead
+# of redirecting.
+if st.query_params.get("nav", "").lower() == "out" and st.query_params.get("gid"):
+    import db as _db
+    _row = _db.post_by_id(st.query_params.get("gid"))
+    if _row and _row.get("url"):
+        if ACCESS["signed_in"]:
+            import activity
+            activity.log_apply(paths.get_scope(), _row["id"])
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; url={html.escape(_row["url"], quote=True)}">',
+            unsafe_allow_html=True)
+    else:
+        st.markdown('<meta http-equiv="refresh" content="0; url=?nav=gigs">',
+                    unsafe_allow_html=True)
+    st.stop()
 
 # The admin panel replaces the whole page — nothing else needs to render.
 # Two ways in: the secret ?admin= key (works signed out), or simply being signed

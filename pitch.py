@@ -20,6 +20,7 @@ import re
 
 import sources
 import budget
+import style
 
 # Sonnet, not Opus: a drafted reply is short, direct, everyday business
 # writing (90-150 words, "here's why I fit this gig"), which is squarely
@@ -179,7 +180,33 @@ def _user_prompt(gig: dict, profile: dict, resume_text: str = "") -> str:
     if not (profile.get("portfolio") or "").strip():
         lines.append("\nThere is no portfolio link, so do not offer one or "
                      "leave a placeholder for it.")
+    examples = _style_examples()
+    if examples:
+        lines.append(examples)
     return "\n".join(lines)
+
+
+def _style_examples() -> str:
+    """
+    Real (AI draft -> what they actually saved) pairs for whoever is signed
+    in right now, so the next draft starts closer to where they'd end up by
+    hand instead of relearning the same edit every single time. Reads
+    style.py's per-account history, which is scoped the same implicit way
+    profile.py and drafts.py already are — no account id passed in, because
+    whichever account is signed in during this request is whichever
+    account's edit history this reads.
+    """
+    edits = style.recent_edits(limit=2)
+    if not edits:
+        return ""
+    blocks = [f"AI wrote:\n{e['original']}\n\nThis freelancer changed it to:\n{e['edited']}"
+             for e in edits]
+    return ("\n\nHOW THIS FREELANCER ACTUALLY EDITS DRAFTS\n"
+            "Real examples of what they changed the last time a draft was "
+            "written for them. Match the DIRECTION they moved things (shorter "
+            "or longer, more or less formal, keeps or cuts the questions, sign-"
+            "off habits) — not the exact wording, which was specific to that job.\n\n"
+            + "\n\n---\n\n".join(blocks))
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +253,10 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "",
     # Render redeploy used to mean paying for the same draft again.
     cached = budget.cached_ai(key)
     if cached:
+        # Stashed per THIS account even on a cache hit — the cache is shared
+        # across everyone (see cache_ai's own note), but each account's own
+        # "what did the AI first suggest me" record is scoped to them alone.
+        style.stash_original(gig.get("id"), cached)
         return cached
 
     # Only spend against the day's budget once we know we actually have to
@@ -257,6 +288,7 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "",
     if not text:
         raise RuntimeError("empty draft")
     budget.cache_ai(key, text)
+    style.stash_original(gig.get("id"), text)
     return text
 
 

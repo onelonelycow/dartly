@@ -743,6 +743,15 @@ def posts_recent(days: int, demand_only: bool = True):
     return [dict(r) for r in rows]
 
 
+def post_by_id(gig_id) -> dict | None:
+    """One post, for the outbound-click redirect route (app.py's ?nav=out) —
+    it only knows a gig id from the URL, not the row itself."""
+    conn = connect()
+    row = conn.execute("SELECT * FROM posts WHERE id=?", (gig_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
 def max_post_id() -> int:
     """
     Highest id on the whole table, private rows included.

@@ -25,6 +25,8 @@ nabbly_signals.db
 # AI spend ledger: per-account draft counts keyed by storage scope, plus the
 # cached draft text itself. Both are user data on a public repo.
 budget.db
+# Apply-click log: per-account activity, same reasoning as budget.db above.
+activity.db
 *.db-wal
 *.db-shm
 

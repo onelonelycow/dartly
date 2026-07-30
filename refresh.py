@@ -147,6 +147,12 @@ def _loop():
                 budget.purge()
             except Exception:
                 pass
+            # Same reasoning for the apply-click log.
+            try:
+                import activity
+                activity.purge()
+            except Exception:
+                pass
             # Pull the apply-to address out of anything that arrived this
             # cycle, so a new gig carries it within ~2 minutes of landing.
             try:

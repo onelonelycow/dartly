@@ -18,7 +18,7 @@ it left off.
 from datetime import datetime, timedelta, timezone
 
 DIGEST_EVERY_DAYS = 7
-_TOP_N = 5
+_TOP_N = 10
 
 
 def _due(acc: dict) -> bool:
@@ -40,6 +40,7 @@ def run_all() -> int:
     window of posts ONCE, filter per-account in Python, never re-query per
     person."""
     import accounts
+    import activity
     import db
     import mailer
     import paths
@@ -73,12 +74,19 @@ def run_all() -> int:
         skills = prof.get("skills") or []
         matched = [p for p in week if not skills or p.get("job_type") in skills]
         if matched:
-            scored = sorted(
-                ((score.fit_score(p, prof)[0], p) for p in matched),
-                key=lambda t: t[0], reverse=True)
+            # Same fit_score() the dashboard's "Picked for you" ranks by,
+            # score AND reasons both attached to the row — the email should
+            # never claim a match or a "why" the app itself wouldn't also show.
+            scored = []
+            for p in matched:
+                s, why = score.fit_score(p, prof)
+                scored.append((s, {**p, "_score": s, "_reasons": why}))
+            scored.sort(key=lambda t: t[0], reverse=True)
             top = [p for _, p in scored[:_TOP_N]]
+            stats = {"applied": activity.applied_count(scope, days=DIGEST_EVERY_DAYS),
+                     "completeness": profile.completeness(prof)}
             subject, html_body, text_body = mailer.digest_email(
-                prof.get("name", ""), top, len(matched), acc["token"])
+                prof.get("name", ""), top, len(matched), acc["token"], stats=stats)
             if mailer.send(acc["email"], subject, html_body, text_body):
                 sent += 1
         # Advance the marker whether or not there was anything to send — a
