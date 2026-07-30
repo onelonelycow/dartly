@@ -138,20 +138,19 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
 </h1>
 <p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
   Pro's already on for you, free for the next two months. No card, nothing
-  to cancel &mdash; it just runs until it doesn't.
+  to cancel, it just runs until it doesn't.
 </p>
 <p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
   Add your skills to your profile and the board sorts itself around you.
-  Takes about a minute.
+  Welcome to Nabbly.
 </p>
 {_button("Open the board", board_url)}
 """
-    body = body.replace("&mdash;", ",")
     text = (f"{hi}ou made the first fifty.\n\n"
             "Pro's already on for you, free for the next two months. No card, "
             "nothing to cancel.\n\n"
             f"Add your skills to your profile and the board sorts itself around "
-            f"you.\n\nOpen the board: {board_url}\n")
+            f"you. Welcome to Nabbly.\n\nOpen the board: {board_url}\n")
     return subject, _shell("Pro's on for two months, free.", body, token), text
 
 
@@ -165,18 +164,17 @@ def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
 </h1>
 <p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
   Add your skills to your profile and the board sorts itself around you.
-  Takes about a minute.
+  Welcome to Nabbly.
 </p>
 <p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
   Pro's free to try for 14 days whenever you want to see the full thing.
-  No rush &mdash; start it from your profile when you're ready.
+  No rush, start it from your profile when you're ready.
 </p>
 {_button("Open the board", board_url)}
 """
-    body = body.replace("&mdash;", ",")
     text = (f"{hi} you're in.\n\n"
             "Add your skills to your profile and the board sorts itself around "
-            "you.\n\n"
+            "you. Welcome to Nabbly.\n\n"
             "Pro's free to try for 14 days whenever you want to see the full "
             "thing. No rush, start it from your profile when you're ready.\n\n"
             f"Open the board: {board_url}\n")
@@ -256,10 +254,20 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
   </div>
   {why_html}
 </td></tr>""")
-    more_line = ""
+    # One link at the end, not a text line AND a separate button saying the
+    # same thing twice. It's their own personal board either way (board_url
+    # already carries ?nav=gigs, ranked and filtered around their profile the
+    # same as everything above it) — just worded around whether there's an
+    # actual remainder to name.
     if total > len(gigs):
-        more_line = (f'<p style="font-size:13px;color:{MUTE};margin:14px 0 0;">'
-                     f'and {total - len(gigs)} more on the board.</p>')
+        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
+                     f'<a href="{board_url}" style="color:{AMBER};font-weight:650;'
+                     f'text-decoration:none;">and {total - len(gigs)} more on the board '
+                     f'&rarr;</a></p>')
+    else:
+        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
+                     f'<a href="{board_url}" style="color:{AMBER};font-weight:650;'
+                     f'text-decoration:none;">See the whole board &rarr;</a></p>')
 
     body = f"""
 <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
@@ -276,9 +284,6 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
 {''.join(rows)}
 </table>
 {more_line}
-<div style="margin-top:22px;">
-{_button("See the whole board", board_url)}
-</div>
 """
     text_stats = " | ".join(f"{n} {label}" for n, label in stat_cells)
     text_rows = "\n".join(
