@@ -7,15 +7,19 @@
 <meta name="robots" content="noindex, follow">
 <link rel="icon" type="image/png" href="/favicon.png">
 <style>
+  /* Straight FEEL.md §2 — no partner colour anywhere. This is Nabbly's own
+     document presenting the collaboration, so it stays in Nabbly's colors
+     throughout; the co-branding lives in the two logos in the letterhead,
+     not in a second accent hue competing with amber. */
   :root{
     --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
-    --nw-forest:#173D32; --nw-green:#54B95A; --nw-mint:#D3E7E2;
-    --bg:#0E1613; --bg2:#141F1A; --line:#22352C; --line2:#2E4A3D;
-    --ink:#F2F5F3; --ink2:#C6D3CC; --mute:#93A79C; --faint:#6C8175;
+    --bg:#121418; --bg2:#15181d; --panel:#171a20;
+    --line:#262a31; --line2:#2f343d;
+    --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#6b7280;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:#0A100D;color:var(--ink);font-family:var(--sans);
+  body{margin:0;background:#0B0D10;color:var(--ink);font-family:var(--sans);
     -webkit-font-smoothing:antialiased;display:flex;justify-content:center;padding:32px 16px}
   a{color:inherit}
 
@@ -25,18 +29,15 @@
     border-radius:14px;padding:46px 52px 40px;box-shadow:0 30px 80px rgba(0,0,0,.5)}
 
   /* ── letterhead ── */
-  .letterhead{display:flex;align-items:center;justify-content:space-between;
+  .letterhead{display:flex;align-items:center;
     padding-bottom:18px;border-bottom:1px solid var(--line);margin-bottom:26px}
   .lockup{display:flex;align-items:center;gap:13px}
   .lk-mark{display:flex;align-items:center;gap:8px;font-weight:700;font-size:17px;letter-spacing:-.02em}
   .lk-mark .amber{color:var(--amber)}
   .lk-x{width:1px;height:20px;background:var(--line2)}
   .lk-icon{height:20px;width:auto;display:block}
-  .doc-meta{text-align:right;font-size:11.5px;color:var(--faint);line-height:1.5}
 
   /* ── headline ── */
-  .kicker{font-size:11.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
-    color:var(--nw-green);margin-bottom:9px}
   h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.03em;line-height:1.18;
     max-width:580px;text-wrap:balance}
   .dek{font-size:15px;color:var(--ink2);margin:12px 0 0;max-width:560px;line-height:1.55}
@@ -51,37 +52,31 @@
   /* ── the deal, two columns ── */
   .deal{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:8px 0 24px}
   .deal-col{border:1px solid var(--line);border-radius:12px;padding:18px 20px}
-  .deal-col.give{border-color:rgba(84,185,90,.36);
-    background:linear-gradient(135deg,rgba(23,61,50,.55),rgba(20,31,26,.3))}
-  .deal-col .who{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-    color:var(--mute);margin-bottom:9px}
-  .deal-col.give .who{color:var(--nw-green)}
+  /* The "give" side is the only tinted box on the page — amber at low alpha,
+     not a second hue. FEEL.md §2: one amber focal point, nothing else shouts. */
+  .deal-col.give{border-color:rgba(232,147,58,.34);
+    background:linear-gradient(135deg,rgba(232,147,58,.09),rgba(232,147,58,.03))}
   .deal-col ul{margin:0;padding:0;list-style:none}
   .deal-col li{font-size:13.5px;color:var(--ink2);margin:0 0 8px;padding-left:16px;
     position:relative;line-height:1.45}
   .deal-col li:last-child{margin-bottom:0}
   .deal-col li::before{content:"";position:absolute;left:1px;top:6px;width:5px;height:5px;
     border-radius:50%;background:var(--line2)}
-  .deal-col.give li::before{background:var(--nw-green)}
+  .deal-col.give li::before{background:var(--amber)}
 
   /* ── why this fits ── */
   .fit{border-top:1px solid var(--line);padding-top:20px;margin-bottom:22px}
-  .fit .lbl{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-    color:var(--mute);margin-bottom:8px}
   .fit p{font-size:13.5px;color:var(--ink2);line-height:1.6;margin:0;max-width:640px}
   .fit .fields{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
   .fchip{font-size:11.5px;color:var(--ink2);background:rgba(232,147,58,.08);
     border:1px solid rgba(232,147,58,.18);padding:3px 10px;border-radius:100px}
 
   /* ── the ask ── */
-  .ask{background:linear-gradient(135deg,rgba(23,61,50,.9),rgba(19,32,25,.6));
-    border:1px solid rgba(84,185,90,.34);border-radius:12px;padding:18px 22px;
+  .ask{background:linear-gradient(135deg,rgba(232,147,58,.10),rgba(232,147,58,.03));
+    border:1px solid rgba(232,147,58,.30);border-radius:12px;padding:18px 22px;
     display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
   .ask .t{font-size:15px;font-weight:650;color:var(--ink)}
-  .ask .t span{color:var(--nw-green)}
-  .ask .s{font-size:12.5px;color:var(--mute);margin-top:3px}
-  .ask .link{font-size:12.5px;font-weight:650;color:var(--amber-l);white-space:nowrap;
-    border-bottom:1px solid rgba(232,147,58,.4)}
+  .ask .t span{color:var(--amber)}
 
   footer{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
     display:flex;justify-content:space-between;font-size:11px;color:var(--faint)}
@@ -90,14 +85,19 @@
     .page{padding:30px 22px}
     .deal{grid-template-columns:1fr}
     .letterhead{flex-direction:column;align-items:flex-start;gap:10px}
-    .doc-meta{text-align:left}
     .ask{flex-direction:column;align-items:flex-start}
   }
 
   /* Actually printing this: strip the outer page chrome so the .page IS
      the printed sheet, at real letter proportions, one page, no shadow. */
   @media print{
-    body{padding:0;background:#fff}
+    /* Same dark as .page, not white: content got shorter over several edit
+       passes, and forcing the card to stretch to a full 11in left an empty
+       dark box with dead space at the bottom — worse than what it fixed.
+       Matching the page background to the card means there's no edge to
+       notice at all; the sheet just reads as dark, whatever the content
+       height actually is. */
+    body{padding:0;background:var(--bg)}
     .page{box-shadow:none;border:0;border-radius:0;max-width:none;width:8.5in;
       padding:.55in .6in}
   }
@@ -118,48 +118,50 @@
         <span>NextNW</span>
       </div>
     </div>
-    <div class="doc-meta">Partnership overview<br>Prepared for the NextNW executive board</div>
   </div>
 
-  <div class="kicker">Proposed collaboration · no cost either direction</div>
-  <h1>Every freelance gig, the moment it drops — for the fields NextNW already works in.</h1>
-  <p class="dek">Nabbly watches every freelance job board and hiring community and puts new
-    work in one place the moment it posts. The proposal: a 90-day free Pro test for the
-    entire NextNW membership, in exchange for the introduction.</p>
+  <h1>Every freelance gig, the moment it drops. Built for the fields NextNW already works in.</h1>
+  <p class="dek">Nabbly watches every freelance job board and hiring community at once and puts
+    new work in one place the moment it posts, covering advertising, marketing, design, writing,
+    video and the other project work the membership already does.</p>
 
   <div class="stats">
-    <div class="stat"><div class="n">15,000+</div><div class="l">gigs live on the board now</div></div>
-    <div class="stat"><div class="n">20+</div><div class="l">fields, marketing &amp; creative included</div></div>
-    <div class="stat"><div class="n">1,000+</div><div class="l">new gigs added every day</div></div>
+    <div class="stat"><div class="n">15,000+</div><div class="l">gigs live now</div></div>
+    <div class="stat"><div class="n">20+</div><div class="l">fields covered</div></div>
+    <div class="stat"><div class="n">1,000+</div><div class="l">new every day</div></div>
+  </div>
+
+  <div class="ask">
+    <div>
+      <div class="t">Every member gets <span>Pro free for 90 days</span></div>
+    </div>
   </div>
 
   <div class="deal">
     <div class="deal-col give">
-      <div class="who">Nabbly provides</div>
       <ul>
-        <li>Pro access free for every member, 90 days, no card</li>
-        <li>Gigs ranked to each member's own skills, drafted first replies</li>
-        <li>Instant alerts and market-rate pricing context</li>
-        <li>Fixes shipped from member feedback during the test</li>
+        <li>Gigs ranked to their own skills, not a firehose to sift</li>
+        <li>An alert the moment something fits, before the crowd replies</li>
+        <li>A first reply drafted from the actual posting</li>
+        <li>Market-rate context, so nobody quotes blind</li>
       </ul>
     </div>
     <div class="deal-col">
-      <div class="who">Next Northwest provides</div>
       <ul>
-        <li>A listing on the member homepage</li>
-        <li>One announcement to the membership</li>
-        <li>Introductions at the Aug 6 &amp; 19 networking events</li>
-        <li>Feedback, and permission to reference NextNW once it lands well</li>
+        <li>Members open one link, and Pro is already on, no card</li>
+        <li>Ninety days, then it ends on its own</li>
+        <li>No cost, and nothing to invoice or unwind</li>
+        <li>What testers tell us shapes what ships next</li>
       </ul>
     </div>
   </div>
 
   <div class="fit">
-    <div class="lbl">Why this membership</div>
     <p>Nabbly's largest categories are the ones NextNW is built around, and a meaningful
-      share of the membership freelances or takes project work alongside staff roles —
+      share of the membership freelances or takes project work alongside staff roles,
       exactly the group whose income depends on hearing about work early.</p>
     <div class="fields">
+      <span class="fchip">Advertising</span>
       <span class="fchip">Marketing &amp; SEO</span>
       <span class="fchip">Design &amp; creative</span>
       <span class="fchip">Writing &amp; content</span>
@@ -168,17 +170,8 @@
     </div>
   </div>
 
-  <div class="ask">
-    <div>
-      <div class="t">The ask: <span>one announcement</span>, 90 days to see if it lands</div>
-      <div class="s">No renewal, no invoice, nothing to unwind if it doesn't work out.</div>
-    </div>
-    <div class="link">nabbly.co/nextnw.html →</div>
-  </div>
-
   <footer>
     <span>hello@nabbly.co · nabbly.co</span>
-    <span>Prepared for internal board review, not for public distribution</span>
   </footer>
 
 </div>
