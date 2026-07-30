@@ -79,6 +79,10 @@ def _loop():
         # placed on the board so they don't linger under a source we no longer
         # trust. One-off and idempotent: finds nothing to do once they're gone.
         _state["nodesk_removed"] = db.archive_source("nodesk")
+        # fetch_freelancer() used to store Freelancer's own truncated preview
+        # instead of the real description; this backfills the rows already on
+        # the board with the full text now that the fetcher reads it.
+        _state["freelancer_backfilled"] = db.backfill_freelancer_descriptions()
         _state["reclassified"] = db.reclassify_all()
     except Exception:
         pass
