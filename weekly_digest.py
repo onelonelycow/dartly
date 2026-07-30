@@ -19,6 +19,13 @@ from datetime import datetime, timedelta, timezone
 
 DIGEST_EVERY_DAYS = 7
 _TOP_N = 10
+# Ceiling on one pass, not on the day. Every existing account is "due" the
+# first time this runs (last_digest starts empty), so without a cap the very
+# first cycle after deploy tries to email the entire user base at once and
+# runs straight into the mail provider's own daily limit. Whoever doesn't fit
+# stays unstamped and is picked up on the next hourly check, so the backlog
+# drains on its own rather than being dropped.
+_MAX_PER_RUN = 40
 
 
 def _due(acc: dict) -> bool:
@@ -67,7 +74,7 @@ def run_all() -> int:
 
     sent = 0
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    for acc in due:
+    for acc in due[:_MAX_PER_RUN]:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prof = profile.load()
@@ -89,8 +96,15 @@ def run_all() -> int:
                 prof.get("name", ""), top, len(matched), acc["token"], stats=stats)
             if mailer.send(acc["email"], subject, html_body, text_body):
                 sent += 1
-        # Advance the marker whether or not there was anything to send — a
-        # quiet week for one person's skills shouldn't bank a backlog that
-        # fires as one big email the moment something finally matches.
+            else:
+                # Do NOT stamp on a failed send. A rate limit or a transient
+                # provider error would otherwise cost this person their digest
+                # for a full week, silently — the marker says "sent" and the
+                # next pass skips them. Leaving it unset means they're still
+                # due on the next hourly check, which is self-healing.
+                continue
+        # Stamp on a real send, and on "nothing matched this week" — a quiet
+        # week for one person's skills shouldn't bank a backlog that fires as
+        # one big email the moment something finally matches.
         accounts.set_last_digest(acc["email"], now)
     return sent
