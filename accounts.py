@@ -55,7 +55,7 @@ PARTNER_GRANTS = {
 
 _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
-         "founding", "plan", "last_alert_id", "visits")
+         "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest")
 _rehydrated = False
 
 
@@ -98,13 +98,16 @@ def init():
             founding      INTEGER DEFAULT 0,     -- 1 = one of the first FOUNDING_LIMIT members
             plan          TEXT DEFAULT 'free',   -- free | trial | pro
             last_alert_id INTEGER DEFAULT 0,     -- highest gig id we've pinged them about
-            visits        INTEGER DEFAULT 0
+            visits        INTEGER DEFAULT 0,
+            email_opt_out INTEGER DEFAULT 0,     -- 1 = unsubscribed from all email
+            last_digest   TEXT                   -- when the weekly digest last sent them
         )
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_token ON accounts(token)")
     # Safe migration for tables created before these columns existed.
-    for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0")):
+    for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
+                      ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
@@ -252,6 +255,13 @@ def sign_in(email: str, source: str = "signin",
         people.add_person(email, source=source, campaign=campaign)
     except Exception:
         pass          # a webhook hiccup must never block someone signing in
+    try:
+        import mailer
+        subject, html_body, text_body = mailer.welcome_email(
+            email, "", bool(founding), token)
+        mailer.send(email, subject, html_body, text_body)
+    except Exception:
+        pass          # a mail-provider hiccup must never block someone signing in
     return acc, True
 
 
@@ -422,6 +432,45 @@ def set_last_alert_id(email: str, gig_id: int):
     conn.commit()
     conn.close()
     _mirror(email)
+
+
+# ---------------------------------------------------------------------------
+# Email support (welcome + weekly digest)
+# ---------------------------------------------------------------------------
+def set_last_digest(email: str, when: str):
+    """Stamp when the weekly digest last sent this person, so a restart can't
+    make weekly_digest.py think a week has passed and re-send early."""
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET last_digest=? WHERE email=?",
+                 (when, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
+def unsubscribe(token: str) -> bool:
+    """
+    One click, no sign-in required — the same token-in-URL model the whole
+    app already uses to sign someone in without a password. Applies to every
+    email (welcome, weekly digest), not just whichever one carried the link;
+    there's one opt-out per person, not one per email type, because "stop
+    only the digest but keep the welcome email" isn't a real preference
+    anyone has and a second toggle would just be a second thing to explain.
+    """
+    init()
+    conn = _connect()
+    row = conn.execute("SELECT email FROM accounts WHERE token=?",
+                       (token,)).fetchone()
+    if not row:
+        conn.close()
+        return False
+    email = row["email"]
+    conn.execute("UPDATE accounts SET email_opt_out=1 WHERE token=?", (token,))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+    return True
 
 
 # Owner accounts get the admin panel just by being signed in, no ?admin= key.

@@ -2993,6 +2993,42 @@ def view_legal(which: str):
             st.rerun()
 
 
+def view_unsubscribe():
+    """
+    One click, no sign-in needed — same token-in-URL model as everywhere else
+    in the app. Reached from the unsubscribe link at the bottom of every
+    email (mailer.py's _shell()). Turns off ALL email for the account, not
+    just whichever one carried the link — see accounts.unsubscribe()'s note
+    on why there's one opt-out, not one per email type.
+    """
+    import accounts
+    token = st.session_state.get("_unsub_token", "")
+    ok = bool(token) and accounts.unsubscribe(token)
+    st.markdown('### You\'re <span class="gr-accent">unsubscribed</span>'
+                if ok else
+                '### That link didn\'t <span class="gr-accent">work</span>',
+                unsafe_allow_html=True)
+    if ok:
+        st.markdown(
+            '<div class="gr-confirm"><span class="gr-confirm-dot"></span>'
+            '<span class="gr-confirm-txt">You won\'t get the welcome email or '
+            'the weekly digest again. The board itself is still there '
+            'whenever you want it.</span></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(
+            '<p class="gr-doc-sub">This link has expired or isn\'t valid. '
+            'If you\'re still getting email you don\'t want, the feedback '
+            'box on your profile goes straight to us and we\'ll take care '
+            'of it by hand.</p>',
+            unsafe_allow_html=True)
+    st.write("")
+    _b1, _b2, _b3 = st.columns([1, 1.4, 1])
+    with _b2:
+        if st.button("← Back to the board", width="stretch", key="back_unsub"):
+            st.query_params["nav"] = "dashboard"
+            st.rerun()
+
+
 def view_signin():
     """
     A focused sign-in page. The account menu's "Sign in" used to point at the
@@ -3434,7 +3470,8 @@ _TABS = ["Dashboard", "Gigs", "Market"]
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
                "signin": "Sign in", "admin": "Admin",
-               "privacy": "Privacy", "terms": "Terms"}
+               "privacy": "Privacy", "terms": "Terms",
+               "unsubscribe": "Unsubscribe"}
 
 # The admin panel replaces the whole page — nothing else needs to render.
 # Two ways in: the secret ?admin= key (works signed out), or simply being signed
@@ -3458,6 +3495,10 @@ if "nav" in st.query_params:
         _nav = "profile"          # alerts moved into Profile; keep old links alive
     if _nav in _SIDE_PAGES:
         st.session_state["_page"] = _nav
+        if _nav == "unsubscribe":
+            # query_params.clear() below would wipe ?t= before view_unsubscribe()
+            # runs at dispatch time, same reason qf/cat/group get captured above.
+            st.session_state["_unsub_token"] = st.query_params.get("t", "")
     else:
         _idx = {t.lower(): i for i, t in enumerate(_TABS)}.get(_nav)
         if _idx is not None:
@@ -3583,6 +3624,8 @@ elif active == "Privacy":
     view_legal("privacy")
 elif active == "Terms":
     view_legal("terms")
+elif active == "Unsubscribe":
+    view_unsubscribe()
 
 st.markdown(
     '<div class="gr-footer">'

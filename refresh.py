@@ -19,6 +19,7 @@ import time
 _INTERVAL_S = 120          # ~2 min between fetches
 _FIRST_DELAY_S = 30        # let the app finish booting before the first pull
 _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
+_DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
 _started = False
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
@@ -87,6 +88,7 @@ def _loop():
     except Exception:
         pass
     last_alert = 0.0
+    last_digest_check = 0.0
 
     while True:
         try:
@@ -170,6 +172,20 @@ def _loop():
                     _state["alerted"] += n
                     _state["last_alert"] = time.time()
                 last_alert = time.time()
+
+            # Hourly is plenty here — weekly_digest.run_all() only actually
+            # sends to an account once accounts.last_digest is ~7 days old,
+            # so checking every 2-minute cycle like alerts would just be
+            # 30x more SQL for no earlier a send.
+            if time.time() - last_digest_check >= _DIGEST_CHECK_S:
+                try:
+                    import weekly_digest
+                    d = weekly_digest.run_all()
+                    if d:
+                        _state["digests_sent"] = _state.get("digests_sent", 0) + d
+                except Exception:
+                    pass
+                last_digest_check = time.time()
         except Exception:
             pass  # a bad fetch or a dead webhook shouldn't kill the loop
         time.sleep(_INTERVAL_S)

@@ -719,6 +719,30 @@ def posts_since(min_id: int, demand_only: bool = True, owner: str | None = None)
     return [dict(r) for r in rows]
 
 
+def posts_recent(days: int, demand_only: bool = True):
+    """
+    Only the posts from the last `days` days — the SQL-side filter, not a
+    full-table load. Same reasoning as posts_since: the weekly digest runs
+    once per account, and pulling the whole ~17,000-row board into Python on
+    every one of those passes is exactly the pattern that caused the OOM
+    restarts earlier (~45MB per pass, never handed back to the OS). This asks
+    the database for one week's rows once, and every account's digest is
+    filtered from that single set in Python.
+    """
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    conn = connect()
+    where = "WHERE COALESCE(NULLIF(posted_at, ''), fetched_at) >= ?" + \
+            (" AND is_demand = 1" if demand_only else "")
+    rows = conn.execute(
+        f"SELECT * FROM posts {where} "
+        f"ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC",
+        (cutoff,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def max_post_id() -> int:
     """
     Highest id on the whole table, private rows included.
