@@ -286,17 +286,30 @@ URGENT_SIGNALS = ["asap", "urgent", "immediately", "today", "right away", "start
 # "Remote" pill next to a source called RemoteOK is the same fact twice.
 REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 
-# Boards where applying means creating an account on THEIR site first —
+# Boards where applying means creating a FREE account on THEIR site first —
 # a real interruption to "reply first" that's worse if it's a surprise.
 # Deliberately a short, confirmed list rather than a guess at every source:
 # "weworkremotely" and "himalayas" per the founder's own reported experience
 # clicking through real listings; "freelancer" because bidding on Freelancer.com
-# requires an account by definition (it's a bid marketplace, not a job board).
-# Everything else stays off this list until it's actually been checked, not
-# assumed — a wrong "no account needed" claim costs someone a surprise wall
-# anyway, but a wrong "account needed" claim on a board that doesn't require
-# one trains people to ignore the badge.
-ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer"}
+# requires an account by definition (it's a bid marketplace, not a job board);
+# "bubble" and "blenderartists" are both Discourse forums (same /t/slug/id URL
+# shape), where "applying" means replying to the thread, which every Discourse
+# forum requires a free account for — that's how the software works, not a
+# guess about their policy. Everything else stays off this list until it's
+# actually been checked, not assumed — a wrong "no account needed" claim costs
+# someone a surprise wall anyway, but a wrong "account needed" claim on a board
+# that doesn't require one trains people to ignore the badge.
+ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer",
+                            "bubble", "blenderartists"}
+
+# Distinct from the above on purpose: this isn't "make a free account," it's
+# "pay money before you can even see the apply link." Confirmed on Nodesk by
+# checking two real listings — the actual external application URL sits in a
+# data attribute, but the visible button reads "Subscribe to Apply" instead of
+# "Apply Now" in the raw page, on both. Gets its own badge with its own
+# wording; conflating a paywall with a free signup would be dishonest about
+# what's actually being asked of someone applying to a job.
+SUBSCRIPTION_REQUIRED_SOURCES = {"nodesk"}
 
 # Raw source keys are how we fetch; these are how a human should read them.
 SOURCE_LABELS = {

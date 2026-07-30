@@ -1679,9 +1679,13 @@ def gig_card(r, pro):
         # The source's own name pill (a few lines up) already says WHICH
         # board; this just adds the one thing that pill doesn't — that
         # applying means signing up there first. Said before the click, not
-        # discovered after it.
+        # discovered after it. Two distinct pills on purpose: a free signup
+        # and a paywall are not the same ask, and saying so honestly matters
+        # more than keeping the badge list short.
+        elif _src in config.SUBSCRIPTION_REQUIRED_SOURCES:
+            badge_items.append(("Paid subscription to apply", "urgent"))
         elif _src in config.ACCOUNT_REQUIRED_SOURCES:
-            badge_items.append(("Account needed to apply", "locoff"))
+            badge_items.append(("Free account needed to apply", "locoff"))
         _lc = r.get("_lang") or "en"
         if _lc != "en":
             badge_items.append((lang.label(_lc), "locoff"))
