@@ -1676,6 +1676,12 @@ def gig_card(r, pro):
         # answers "why is this one in German?" before they have to wonder.
         if (r.get("apply_email") or "").strip():
             badge_items.append(("Apply by email", "match"))
+        # The source's own name pill (a few lines up) already says WHICH
+        # board; this just adds the one thing that pill doesn't — that
+        # applying means signing up there first. Said before the click, not
+        # discovered after it.
+        elif _src in config.ACCOUNT_REQUIRED_SOURCES:
+            badge_items.append(("Account needed to apply", "locoff"))
         _lc = r.get("_lang") or "en"
         if _lc != "en":
             badge_items.append((lang.label(_lc), "locoff"))
