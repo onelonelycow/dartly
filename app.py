@@ -663,6 +663,17 @@ div[data-testid="stForm"]{border:0;padding:0}
   /* the label inside truncates at a fixed width — let it use the room */
   [data-testid="stButtonGroup"] button[role="radio"] > *{
     width:auto!important;overflow:visible!important;text-overflow:clip!important}
+  /* THE GRADIENT THE COMMENT ABOVE PROMISED. It was never actually written:
+     the container got position:relative to host it and nothing else, so the
+     row just ended mid-word at the screen edge with no signal it scrolled.
+     The founder read that as the layout bleeding off the page, which is the
+     correct reading of a hard cut. A fade to the page ground says "there is
+     more this way" the way every app-store shelf does. pointer-events:none so
+     it can't eat a tap on the chip underneath it. */
+  [data-testid="stElementContainer"]:has([data-testid="stButtonGroup"])::after{
+    content:"";position:absolute;top:0;bottom:0;right:0;width:34px;
+    pointer-events:none;
+    background:linear-gradient(90deg,rgba(18,20,24,0),rgba(18,20,24,.92))}
 
   /* Title row and pager keep their columns side by side. Streamlit stacks
      every stColumn full-width on phones, which turned "title + Refresh" into
