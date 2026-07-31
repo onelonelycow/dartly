@@ -1234,18 +1234,25 @@ def display_body(raw):
     return text
 
 
-def fmt_ceiling(n: int, ceiling: int) -> str:
+def fmt_floor(n: int, round_above: int, step: int = 1_000) -> str:
     """
     An honest number that still reads as "there's always more."
 
-    Below the ceiling, the exact count — it changes every fetch, so a precise
-    number is true and worth showing. At or above it, "10,000+" instead of
-    whatever the live figure happens to be: FEEL.md §7 killed one stale claim
-    already ("6,000+ gigs" shipped as a fixed line and drifted the moment a
-    redeploy reset the seed). A live ceiling can't go stale — it's either still
-    true, or the real count has grown past it and it's MORE true.
+    Below `round_above`, the exact count — it changes every fetch, so a precise
+    number is true and worth showing. At or above it, the count rounded DOWN to
+    the nearest `step`, plus a "+": FEEL.md §7 killed one stale claim already
+    ("6,000+ gigs" shipped as a fixed line and drifted the moment a redeploy
+    reset the seed), and the rule it left behind is "state its floor or make it
+    live". A rounded-down live count is both at once.
+
+    This used to be a fixed ceiling (`"10,000+"` forever, once the board passed
+    10k). That can't lie, but it stops tracking: the board reached ~15k and the
+    tile still read 10,000+, understating by a third while the Gigs page showed
+    the real figure a click away. Rounding keeps the round-number shape that
+    reads as scale, and re-tunes itself as the board grows instead of needing a
+    hand-bumped constant every few months.
     """
-    return f"{ceiling:,}+" if n >= ceiling else f"{n:,}"
+    return f"{n // step * step:,}+" if n >= round_above else f"{n:,}"
 
 
 def _flip_spans(value: str) -> str:
@@ -1842,19 +1849,29 @@ def live_stats():
     """Re-reads the feed every ~60s so the headline numbers climb on their own
     as the background fetcher pulls in new gigs — no click needed. (Kept a touch
     slower than the ~5-min fetch to avoid needless reruns.)"""
+    # Same lens the rest of the app uses: the dashboard's own "Fresh off the
+    # boards" list and the whole Gigs page both read through
+    # apply_language(apply_city_lock(...)), so counting the raw frame here made
+    # the tiles quote gigs no other surface would ever show. It read as the
+    # number shrinking on click ("17,000+ on the board" landing on a page that
+    # says 15,374), when nothing had actually gone anywhere. Count what the
+    # viewer can actually reach. Both helpers no-op on an empty frame, so the
+    # one guard below still covers the empty-board case.
     cur, _ = load_feed()
+    cur = apply_language(apply_city_lock(cur))
     if cur.empty:
         return
     skills = prof.get("skills") or []
     # Signed in with skills → the numbers are about YOU: your matches, your
     # fresh ones, your urgent ones, with one card for whole-board context.
     # Signed out → the board at large, exactly as before.
-    # ONE ceiling, on the board total only. Every other number stays live and
-    # exact, so it visibly climbs as the board grows — that movement is the
+    # ONE rounded number, on the board total only. Every other number stays live
+    # and exact, so it visibly climbs as the board grows — that movement is the
     # point. The board total is the exception because it's the number that runs
-    # away from the others, and "10,000+" reads as scale in a way that a precise
-    # five-digit figure doesn't. A live ceiling also can't go stale the way the
-    # old hard-coded "6,000+ gigs" line did (FEEL.md §7).
+    # away from the others, and a round "15,000+" reads as scale in a way that a
+    # precise five-digit figure doesn't. It rounds DOWN off the live count, so
+    # it tracks growth on its own and can't go stale the way the old hard-coded
+    # "6,000+ gigs" line did (FEEL.md §7).
     if ACCESS["signed_in"] and skills:
         mine = cur[cur["job_type"].isin(skills)]
         stat_cards([
@@ -1863,12 +1880,12 @@ def live_stats():
              "?nav=gigs&qf=mine"),
             ("Urgent for you", f"{int((mine['urgency'] == 'Urgent').sum()):,}",
              "#E96250", "?nav=gigs&qf=urgent"),
-            ("On the whole board", fmt_ceiling(len(cur), 10_000), "#35B37E",
+            ("On the whole board", fmt_floor(len(cur), 10_000), "#35B37E",
              "?nav=gigs"),
         ])
     else:
         stat_cards([
-            ("On the board now", fmt_ceiling(len(cur), 10_000), "#E8933A",
+            ("On the board now", fmt_floor(len(cur), 10_000), "#E8933A",
              "?nav=gigs"),
             ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
              "?nav=gigs&qf=recent"),
