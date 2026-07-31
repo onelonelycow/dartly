@@ -138,7 +138,7 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
 </h1>
 <p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
   Pro's already on for you, free for the next two months. No card, nothing
-  to cancel, it just runs until it doesn't.
+  to cancel. Your profile shows what's left on it any time.
 </p>
 <p style="font-size:14.5px;color:{MUTE};line-height:1.6;margin:0 0 22px;">
   Add your skills to your profile and the board sorts itself around you.
@@ -148,7 +148,7 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
 """
     text = (f"{hi}ou made the first fifty.\n\n"
             "Pro's already on for you, free for the next two months. No card, "
-            "nothing to cancel.\n\n"
+            "nothing to cancel. Your profile shows what's left on it any time.\n\n"
             f"Add your skills to your profile and the board sorts itself around "
             f"you. Welcome to Nabbly.\n\nOpen the board: {board_url}\n")
     return subject, _shell("Pro's on for two months, free.", body, token), text

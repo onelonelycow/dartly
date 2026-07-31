@@ -2770,10 +2770,14 @@ def plan_card():
     renews = ""
     if ACCESS["pro"] and days:
         _when = (datetime.now(timezone.utc) + timedelta(days=days))
-        # "Ends", never "renews": nothing is charged today, and implying a
-        # billing date we don't have would be the kind of claim FEEL.md §7
-        # exists to prevent.
-        renews = f"Ends {_when.strftime('%-d %B %Y')}"
+        # Both the countdown and the date. "How long have I got" is the thing
+        # people actually want off this card, and a date alone makes them work
+        # it out against today's; a countdown alone is vague about which day it
+        # actually stops. "Ends", never "renews": nothing is charged today, and
+        # implying a billing date we don't have would be the kind of claim
+        # FEEL.md §7 exists to prevent.
+        _left = "1 day left" if days == 1 else f"{days} days left"
+        renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
     if ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
@@ -3050,23 +3054,13 @@ def view_signin():
     as "nothing happened, back to home". This gives the click a real destination.
     """
     if ACCESS["signed_in"]:
-        st.markdown('### You\'re <span class="gr-accent">signed in</span>',
-                    unsafe_allow_html=True)
-        st.markdown(
-            f'<div class="gr-confirm"><span class="gr-confirm-dot"></span>'
-            f'<span class="gr-confirm-txt">Signed in as '
-            f'<b>{html.escape(ACCESS["email"] or "")}</b></span></div>',
-            unsafe_allow_html=True)
-        st.write("")
-        _l, _c, _r = st.columns([1, 1.6, 1])
-        with _c:
-            # The board, not the profile: someone who just signed in came to
-            # look at gigs, and the profile is a detour they can take from the
-            # account menu whenever they actually want it.
-            if st.button("Go to your board", type="primary", width="stretch"):
-                st.query_params["nav"] = "dashboard"
-                st.rerun()
-        return
+        # Nothing to show someone who is already signed in — the account menu
+        # in the header already says who they are. Land them on the board
+        # instead of a page whose only content is a fact they know and a
+        # button to leave it.
+        st.session_state["_navidx"] = 0          # Dashboard
+        st.session_state["_page"] = ""
+        st.rerun()
 
     st.markdown('### Sign in to <span class="gr-accent">Nabbly</span>',
                 unsafe_allow_html=True)
@@ -3089,11 +3083,19 @@ def view_signin():
             if sent:
                 ok, msg = sign_in_here(email, "signin")
                 if ok:
-                    # Just rerun — do NOT set ?nav here. sign_in_here put the
-                    # token in the URL (?u=), and the nav dispatch clears the
-                    # query string; setting nav would wipe the token that
-                    # keeps them signed in on a later reload. On this rerun
-                    # they're signed in and see the signed-in state below.
+                    # Straight to the board. Someone who just signed in came to
+                    # look at gigs, and a "you're signed in" screen between them
+                    # and the board is a click that tells them what they already
+                    # know.
+                    #
+                    # The tab index is set directly rather than via ?nav=
+                    # deliberately: the ?nav dispatch ends in
+                    # st.query_params.clear(), which would wipe the ?u= token
+                    # sign_in_here just put in the address bar. Setting session
+                    # state skips that entirely, so they land on the board AND
+                    # keep the link that signs them back in later.
+                    st.session_state["_navidx"] = 0      # Dashboard
+                    st.session_state["_page"] = ""
                     st.rerun()
                 st.warning(msg)
             st.markdown('<div class="gr-cta-fine">Works with any email · keep the '
