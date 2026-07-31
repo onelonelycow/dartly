@@ -20,6 +20,7 @@ _INTERVAL_S = 120          # ~2 min between fetches
 _FIRST_DELAY_S = 30        # let the app finish booting before the first pull
 _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
+_ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
 _started = False
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
@@ -74,6 +75,14 @@ def _loop():
         # feeds in RFC 2822 and the sort is a text sort, so until these are one
         # format "newest first" is really "weekday name, Z to A".
         _state["dates_fixed"] = db.normalize_dates()
+        # First pass happens here, at boot, so a gig that's already 45+ days
+        # old is off the board before the first visitor loads it. The RECURRING
+        # pass is further down in the main loop (_ARCHIVE_CHECK_S) — this one
+        # alone used to be the only call, which quietly worked on the free tier
+        # because idle sleep and the OOM crashes restarted the process often
+        # enough to keep re-triggering it. An always-on paid instance can run
+        # for weeks without a restart, and without the loop call a gig that
+        # crosses 45 days mid-run would simply never age out.
         _state["archived"] = db.archive_stale()
         # Nodesk turned out to be a paid subscription, not a job board — pulled
         # from ENABLE_SOURCES already; this clears the ~43 rows it had already
@@ -105,6 +114,9 @@ def _loop():
     # sweep within seconds of booting instead of an hour in. Starting the clock
     # at "now" is what actually makes this an hourly check.
     last_digest_check = time.time()
+    # Same reasoning: the boot-time call above already archived anything stale
+    # as of right now, so the clock for the NEXT pass starts here, not at zero.
+    last_archive_check = time.time()
 
     while True:
         try:
@@ -208,6 +220,16 @@ def _loop():
                 except Exception:
                     pass
                 last_digest_check = time.time()
+
+            # Daily is plenty — a 45-day cutoff doesn't need a 2-minute clock,
+            # and this is a full-table scan (see archive_stale) so it shouldn't
+            # run any more often than the thing it's protecting against.
+            if time.time() - last_archive_check >= _ARCHIVE_CHECK_S:
+                try:
+                    _state["archived"] = db.archive_stale()
+                except Exception:
+                    pass
+                last_archive_check = time.time()
         except Exception:
             pass  # a bad fetch or a dead webhook shouldn't kill the loop
         time.sleep(_INTERVAL_S)

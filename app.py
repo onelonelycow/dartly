@@ -151,6 +151,11 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-why-chip{font-size:11px;font-weight:500;color:#caa06e;
   background:rgba(232,147,58,.07);border:1px solid rgba(232,147,58,.18);
   border-radius:999px;padding:2px 10px}
+.gr-founding{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+  font-weight:600;color:#eaa662;background:rgba(232,147,58,.12);
+  border:1px solid rgba(232,147,58,.32);border-radius:999px;padding:2px 9px 2px 5px;
+  vertical-align:2px;margin-left:7px;white-space:nowrap}
+.gr-founding svg{flex-shrink:0}
 .gr-hero{text-align:center;max-width:860px;margin:2px auto 6px;padding:14px 16px 6px;
   background:radial-gradient(ellipse 640px 260px at 50% -8%,rgba(232,147,58,.11),transparent 72%)}
 @keyframes gr-ping{
@@ -1265,6 +1270,20 @@ def _flip_spans(value: str) -> str:
     """
     return "".join(f'<span class="gr-flip" style="animation-delay:{i*35}ms">'
                    f'{ch}</span>' for i, ch in enumerate(value))
+
+
+# A miniature echo of the logo mark itself (amber circle, the same checkmark
+# shape) rather than a new icon — a founding member is, literally, wearing a
+# small piece of the mark next to their name. Static markup, safe to inline
+# wherever ACCESS.get("founding") is true; nothing here is user-controlled.
+FOUNDING_BADGE = (
+    '<span class="gr-founding" title="One of the first 50 to sign up">'
+    '<svg width="13" height="13" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    '<circle cx="12" cy="12" r="12" fill="#E8933A"/>'
+    '<path d="M7 12.6l3.4 3.3L17.5 8.4" stroke="#141414" stroke-width="2.6" '
+    'stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
+    'Founding member</span>'
+)
 
 
 def stat_cards(items):
@@ -2845,11 +2864,15 @@ def plan_card():
         _left = "1 day left" if days == 1 else f"{days} days left"
         renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
+    plan_badge = ""
     if ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
     elif ACCESS["pro"] and ACCESS.get("founding"):
-        name, price, note = ("Pro · founding member", "Free for 60 days",
+        # The badge itself now says "founding member", so the name goes back
+        # to a plain "Pro" rather than repeating the label in text too.
+        name, price, note = ("Pro", "Free for 60 days",
                              "Our thank-you to the people who backed it first.")
+        plan_badge = FOUNDING_BADGE
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
@@ -2860,7 +2883,7 @@ def plan_card():
     st.markdown(
         f'<div class="gr-plan">'
         f'<div class="gr-plan-top">'
-        f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
+        f'<div><div class="gr-plan-name">{html.escape(name)}{plan_badge}</div>'
         f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
         f'<div class="gr-plan-price">{html.escape(price)}'
         + (f'<span>{html.escape(renews)}</span>' if renews else "")
@@ -3782,17 +3805,23 @@ with _rcol:
     if ACCESS["signed_in"]:
         _email = ACCESS.get("email", "")
         _who = _name or _email.split("@")[0] or "Your account"
+        _founding_html = ""
         if ACCESS["plan"] == "pro":
             _plan = "Pro"
         elif ACCESS["pro"]:
             _d = ACCESS["days_left"]
-            _tag = "Founding Pro" if ACCESS.get("founding") else "Pro trial"
-            _plan = f"{_tag} · {_d} day{'s' if _d != 1 else ''} left"
+            if ACCESS.get("founding"):
+                # The badge carries "founding" now, so the text line only
+                # needs to say how long is left, not repeat the label.
+                _founding_html = FOUNDING_BADGE
+                _plan = f"{_d} day{'s' if _d != 1 else ''} left"
+            else:
+                _plan = f"Pro trial · {_d} day{'s' if _d != 1 else ''} left"
         else:
             _plan = "Free"
         _last = f'<a href="{ilink("?signout=1")}" target="_self">Sign out</a>'
     else:
-        _who, _plan = _name or "Your account", "Not signed in"
+        _who, _plan, _founding_html = _name or "Your account", "Not signed in", ""
         _last = f'<a href="{ilink("?nav=signin")}" target="_self">Sign in</a>'
     # Signed in (or a local name filled in) → their initial. Anonymous → a small
     # person icon rather than a lone dot that reads as a stray period.
@@ -3807,7 +3836,10 @@ with _rcol:
         f'<div class="gr-acct">'
         f'<a class="{_acls}" href="{_href}" target="_self" title="Your account">{_init}</a>'
         f'<div class="gr-menu">'
-        f'<div class="gr-menu-hd">{html.escape(_who)}'
+        # gr-menu-hd is flex-column, so the name and the badge share a wrapper
+        # div to stay on one row — as separate direct children they'd each
+        # become their own row and the badge would stack under the name.
+        f'<div class="gr-menu-hd"><div>{html.escape(_who)}{_founding_html}</div>'
         f'<span>{html.escape(_plan)}</span></div>'
         # One entry, not two. "Your profile" and "Location & settings" were
         # different labels on the identical ?nav=profile link, which reads as a
