@@ -2165,7 +2165,13 @@ def view_gigs(pro):
     category_strip(_fc)
 
     # Prominent location lens — the first cut most people want to make.
-    _all, _rem, _loc = location_counts(df)
+    # Counted through the same apply_language(apply_city_lock(...)) the view
+    # below reads through (2189). Counting the raw frame here made every chip
+    # promise gigs this reader can't be shown: "Everywhere · 17148" landing on
+    # a page that says 15,375 gigs. A chip is a promise about what one tap
+    # gives you, so it has to count the same board the tap lands on. Both
+    # helpers no-op on an empty frame, and location_counts already handles it.
+    _all, _rem, _loc = location_counts(apply_language(apply_city_lock(df)))
     _CITY = (prof.get("city") or "").strip()
     _onsite_lbl = "Near " + _CITY if _CITY else "On-site / local"
     _opts = [f"Everywhere · {_all}", f"Remote I can take · {_rem}",
