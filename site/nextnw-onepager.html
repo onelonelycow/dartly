@@ -52,10 +52,16 @@
   /* ── the deal, two columns ── */
   .deal{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:8px 0 24px}
   .deal-col{border:1px solid var(--line);border-radius:12px;padding:18px 20px}
-  /* The "give" side is the only tinted box on the page — amber at low alpha,
-     not a second hue. FEEL.md §2: one amber focal point, nothing else shouts. */
+  .deal-col .dc-label{font-size:11px;font-weight:700;letter-spacing:.04em;
+    text-transform:uppercase;color:var(--mute);margin:0 0 12px}
+  /* The Pro side is the only tinted box on the page — amber at low alpha,
+     not a second hue. FEEL.md §2: one amber focal point, nothing else shouts.
+     It's on the right (Pro), not the left (Free), because Pro is what's
+     actually being given away here — the tint marks the offer, not just
+     "the nicer-sounding column". */
   .deal-col.give{border-color:rgba(232,147,58,.34);
     background:linear-gradient(135deg,rgba(232,147,58,.09),rgba(232,147,58,.03))}
+  .deal-col.give .dc-label{color:var(--amber-l)}
   .deal-col ul{margin:0;padding:0;list-style:none}
   .deal-col li{font-size:13.5px;color:var(--ink2);margin:0 0 8px;padding-left:16px;
     position:relative;line-height:1.45}
@@ -64,8 +70,23 @@
     border-radius:50%;background:var(--line2)}
   .deal-col.give li::before{background:var(--amber)}
 
-  /* ── why this fits ── */
+  /* ── why this fits: the claim as a chart, not just a sentence ──
+     Live board counts, not illustrative — see the git history for the query.
+     Design/marketing/writing/video grouped as one bar because that's the
+     comparison the sentence makes ("that work"), not because it's one
+     category on the board. */
   .fit{border-top:1px solid var(--line);padding-top:20px;margin-bottom:22px}
+  .fitbars{display:flex;flex-direction:column;gap:14px;margin-bottom:18px}
+  .fitbar .fb-top{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:13px;margin-bottom:6px}
+  .fitbar .fb-top span:first-child{color:var(--mute)}
+  .fitbar .fb-top .fb-n{font-weight:700;color:var(--ink2);font-variant-numeric:tabular-nums}
+  .fitbar.hi .fb-top span:first-child{color:var(--ink);font-weight:600}
+  .fitbar.hi .fb-top .fb-n{color:var(--amber-l)}
+  .fb-track{height:8px;border-radius:5px;background:var(--bg2);border:1px solid var(--line);
+    overflow:hidden}
+  .fb-fill{height:100%;border-radius:5px;background:var(--line2)}
+  .fitbar.hi .fb-fill{background:linear-gradient(90deg,var(--amber-d),var(--amber-l))}
   .fit p{font-size:13.5px;color:var(--ink2);line-height:1.6;margin:0;max-width:640px}
 
   /* ── the ask ── */
@@ -77,6 +98,7 @@
 
   footer{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
     display:flex;justify-content:space-between;font-size:11px;color:var(--faint)}
+  footer a{color:var(--faint);border-bottom:1px solid var(--line2)}
 
   @media(max-width:600px){
     .page{padding:30px 22px}
@@ -135,34 +157,48 @@
   </div>
 
   <div class="deal">
-    <div class="deal-col give">
+    <div class="deal-col">
+      <div class="dc-label">Free</div>
       <ul>
-        <li>Gigs ranked to their own skills, not a firehose to sift</li>
-        <li>An alert within minutes, before the crowd replies</li>
-        <li>A first reply drafted from the actual posting</li>
-        <li>Market-rate context, so nobody quotes blind</li>
+        <li>Every gig, every field on the board</li>
+        <li>Filter by location, budget, and keyword</li>
+        <li>A weekly email with gigs picked to your own skills</li>
       </ul>
     </div>
-    <div class="deal-col">
+    <div class="deal-col give">
+      <div class="dc-label">Pro</div>
       <ul>
-        <li>Members open one link, and Pro is already on, no card</li>
-        <li>Ninety days, then it ends on its own</li>
-        <li>No cost, and nothing to invoice or unwind</li>
-        <li>What testers tell us shapes what ships next</li>
+        <li>Every gig sorted to your skills as you browse, not just in a weekly email</li>
+        <li>Alerted the moment a match lands, not a weekly summary</li>
+        <li>A first reply already drafted from the actual posting</li>
+        <li>What similar gigs are paying, so you know the going rate</li>
       </ul>
     </div>
   </div>
 
   <div class="fit">
-    <p>That work is the largest block on the board, bigger than any other
-      grouping including tech — the same fields this membership already
-      works in. Most freelancers on Nabbly take project work alongside a
-      staff role, exactly the group whose income depends on hearing about
-      new work early.</p>
+    <div class="fitbars">
+      <div class="fitbar hi">
+        <div class="fb-top"><span>Design, marketing, writing &amp; video</span><span class="fb-n">3,737</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:100%"></div></div>
+      </div>
+      <div class="fitbar">
+        <div class="fb-top"><span>Development / tech</span><span class="fb-n">2,469</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:66%"></div></div>
+      </div>
+      <div class="fitbar">
+        <div class="fb-top"><span>Sales / outreach</span><span class="fb-n">991</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:27%"></div></div>
+      </div>
+    </div>
+    <p>The same fields this membership already works in. Most freelancers on
+      Nabbly take project work alongside a staff role, exactly the group
+      whose income depends on hearing about new work early.</p>
   </div>
 
   <footer>
-    <span>nabbly.co/nextnw.html · hello@nabbly.co</span>
+    <a href="https://nabbly.co/nextnw.html">nabbly.co</a>
+    <a href="mailto:hello@nabbly.co">hello@nabbly.co</a>
   </footer>
 
 </div>
