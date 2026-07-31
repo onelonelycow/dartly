@@ -27,6 +27,7 @@ unlimited (a thank-you, or a paying user). Starting a trial is a deliberate
 click (start_trial), so nobody feels forced down one path.
 """
 import hashlib
+import hmac
 import os
 import secrets
 import sqlite3
@@ -263,7 +264,7 @@ def sign_in(email: str, source: str = "signin",
     try:
         import mailer
         subject, html_body, text_body = mailer.welcome_email(
-            email, "", bool(founding), token)
+            email, "", bool(founding), email_token(token))
         mailer.send(email, subject, html_body, text_body)
     except Exception:
         pass          # a mail-provider hiccup must never block someone signing in
@@ -454,6 +455,48 @@ def set_last_digest(email: str, when: str):
     _mirror(email)
 
 
+def email_token(signin_token: str) -> str:
+    """
+    A per-account identifier safe to put in an email. NOT a way to sign in.
+
+    Every link in the welcome email and the weekly digest used to carry the
+    real sign-in token, because that token was the only per-account handle we
+    had. That meant forwarding one interesting gig from a digest handed over
+    the whole account, and any corporate link scanner that rewrites and logs
+    URLs (Defender Safe Links and friends) captured a live credential.
+
+    This is derived from the sign-in token by HMAC, so it identifies the
+    account for the two things an email actually needs — unsubscribing, and
+    attributing an apply click — while being useless for signing in:
+    _resolve_account() only ever accepts the real token, and this cannot be
+    reversed into one.
+
+    Rotating someone's sign-in token rotates this with it, which is the
+    behaviour you want: old email links stop resolving too.
+    """
+    if not signin_token:
+        return ""
+    key = (os.environ.get("AUTH_COOKIE_SECRET") or "nabbly-email-token").encode()
+    return hmac.new(key, f"email:{signin_token}".encode(),
+                    hashlib.sha256).hexdigest()[:32]
+
+
+def by_email_token(tok: str) -> dict | None:
+    """The account an email-link token belongs to, or None.
+
+    Linear scan on purpose: this is a handful of accounts, it runs only on an
+    unsubscribe or an apply click from an email, and storing the derived value
+    would just be a second secret to keep in sync with the first.
+    """
+    tok = (tok or "").strip()
+    if not tok:
+        return None
+    for acc in all_accounts():
+        if secrets.compare_digest(email_token(acc.get("token", "")), tok):
+            return acc
+    return None
+
+
 def backfill_last_digest() -> int:
     """
     Start the weekly-digest clock for accounts that predate the feature.
@@ -621,24 +664,25 @@ def check_code(email: str, code: str) -> tuple[bool, str]:
         conn.close()
 
 
-def unsubscribe(token: str) -> bool:
+def unsubscribe(tok: str) -> bool:
     """
-    One click, no sign-in required — the same token-in-URL model the whole
-    app already uses to sign someone in without a password. Applies to every
-    email (welcome, weekly digest), not just whichever one carried the link;
-    there's one opt-out per person, not one per email type, because "stop
-    only the digest but keep the welcome email" isn't a real preference
-    anyone has and a second toggle would just be a second thing to explain.
+    Opt this account out of every email. Takes an EMAIL token, not a sign-in
+    token — see email_token() for why a link that travels in a mailbox must
+    not be a credential.
+
+    Applies to every email (welcome, weekly digest), not just whichever one
+    carried the link; there's one opt-out per person, not one per email type,
+    because "stop only the digest but keep the welcome email" isn't a real
+    preference anyone has and a second toggle would just be a second thing to
+    explain.
     """
+    acc = by_email_token(tok)
+    if not acc:
+        return False
+    email = acc["email"]
     init()
     conn = _connect()
-    row = conn.execute("SELECT email FROM accounts WHERE token=?",
-                       (token,)).fetchone()
-    if not row:
-        conn.close()
-        return False
-    email = row["email"]
-    conn.execute("UPDATE accounts SET email_opt_out=1 WHERE token=?", (token,))
+    conn.execute("UPDATE accounts SET email_opt_out=1 WHERE email=?", (email,))
     conn.commit()
     conn.close()
     _mirror(email)

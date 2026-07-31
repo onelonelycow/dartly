@@ -2249,12 +2249,16 @@ def view_gigs(pro):
             st.markdown(f'<div class="gr-cats" style="justify-content:flex-start">'
                         f'{subchips}</div>', unsafe_allow_html=True)
 
-    note = f"**{len(view):,}** gigs for you"
+    # Named _caption, not `note`: assigning to `note` anywhere in this
+    # function made EVERY `note` in it a local, so the analytics call at
+    # the "Save these as my skills" button (further up) raised
+    # UnboundLocalError and replaced the whole Gigs page with a traceback.
+    _caption = f"**{len(view):,}** gigs for you"
     if merged:
-        note += f"  ·  {merged} duplicates tidied up"
+        _caption += f"  ·  {merged} duplicates tidied up"
     if len(view) > FEED_CAP:
-        note += f"  ·  showing the freshest {FEED_CAP}"
-    st.caption(note)
+        _caption += f"  ·  showing the freshest {FEED_CAP}"
+    st.caption(_caption)
 
     if view.empty:
         st.info("Nothing matches those filters right now — try widening them, or hit "
@@ -3646,14 +3650,25 @@ if st.query_params.get("nav", "").lower() == "out" and st.query_params.get("gid"
     import db as _db
     _row = _db.post_by_id(st.query_params.get("gid"))
     if _row and _row.get("url"):
+        # Who clicked? Either they're signed in in this browser, or they came
+        # from an email carrying ?e=<email token> — which identifies them for
+        # the count without being a credential (see accounts.email_token).
+        import activity
+        _who_scope = ""
         if ACCESS["signed_in"]:
-            import activity
-            activity.log_apply(paths.get_scope(), _row["id"])
+            _who_scope = paths.get_scope()
+        elif st.query_params.get("e"):
+            _acc = accounts.by_email_token(st.query_params.get("e", ""))
+            if _acc:
+                _who_scope = paths.scope_for(_acc["email"])
+        if _who_scope:
+            activity.log_apply(_who_scope, _row["id"])
         st.markdown(
             f'<meta http-equiv="refresh" content="0; url={html.escape(_row["url"], quote=True)}">',
             unsafe_allow_html=True)
     else:
-        st.markdown('<meta http-equiv="refresh" content="0; url=?nav=gigs">',
+        # ilink() so a stale gig id doesn't also sign them out on the way back.
+        st.markdown(f'<meta http-equiv="refresh" content="0; url={ilink("?nav=gigs")}">',
                     unsafe_allow_html=True)
     st.stop()
 

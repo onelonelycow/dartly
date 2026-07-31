@@ -93,7 +93,8 @@ def run_all() -> int:
             stats = {"applied": activity.applied_count(scope, days=DIGEST_EVERY_DAYS),
                      "completeness": profile.completeness(prof)}
             subject, html_body, text_body = mailer.digest_email(
-                prof.get("name", ""), top, len(matched), acc["token"], stats=stats)
+                prof.get("name", ""), top, len(matched),
+                accounts.email_token(acc["token"]), stats=stats)
             if mailer.send(acc["email"], subject, html_body, text_body):
                 sent += 1
             else:

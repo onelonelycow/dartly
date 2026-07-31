@@ -288,16 +288,22 @@ def signin_link_email(name: str, token: str) -> tuple[str, str, str]:
 # ---------------------------------------------------------------------------
 # weekly digest
 # ---------------------------------------------------------------------------
-def _gig_out_url(gig: dict, token: str) -> str:
-    """Routed through the same ?nav=out redirect the in-app gig cards use
-    (app.py's gig_card()), not a direct link — so a click from the email
-    counts toward the same "applied" number the email itself is reporting,
-    on whatever device the email happens to be opened on. &u= signs them in
-    on that device too, the same token-in-URL model the whole app runs on."""
+def _gig_out_url(gig: dict, email_tok: str) -> str:
+    """
+    Routed through the same ?nav=out redirect the in-app gig cards use, so a
+    click from the email counts toward the same "applied" number the email is
+    reporting, on whatever device it was opened on.
+
+    Carries the EMAIL token (accounts.email_token), never the sign-in one.
+    This link sits on every row of a weekly digest, which is exactly the thing
+    people forward to a friend — "have you seen this gig?" must not also mean
+    "here is my account". It identifies who clicked, for the count; it does
+    not sign anyone in.
+    """
     gid = gig.get("id")
     if gid is None:
         return gig.get("url", "")
-    return f"{APP_URL}/?nav=out&gid={gid}&u={token}"
+    return f"{APP_URL}/?nav=out&gid={gid}&e={email_tok}"
 
 
 def digest_email(name: str, gigs: list[dict], total: int, token: str,
