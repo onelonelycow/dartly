@@ -93,6 +93,66 @@ st.markdown("""
   --s-group:1rem;      /* between sibling things (card to card) */
   --s-section:2.2rem;  /* before a new section heading */
 }
+/* --- How things respond to being touched --------------------------------
+   There was NO global button styling at all: every button in the app was
+   Streamlit stock, with no transition and no pressed state, so a click
+   registered as a colour swap with nothing in between. That absence is most
+   of what made the app read as unfinished — an interface feels expensive
+   when it acknowledges the pointer, and cheap when it doesn't, and that is
+   almost entirely hover and :active.
+
+   Scoped to real controls, not "button", because Streamlit renders expanders,
+   the "See more" toggle and various chrome as buttons too; sweeping them all
+   would put a press animation on things that are not buttons to a reader.
+
+   :active is the honest half of this. Hover is decoration on a mouse and
+   nothing at all on a phone; the press is what a thumb actually feels. */
+.stButton button,[data-testid="stFormSubmitButton"] button,
+[data-testid="stDownloadButton"] button,.stLinkButton a{
+  transition:transform .11s cubic-bezier(.2,.7,.3,1),
+             border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.stButton button:hover,[data-testid="stFormSubmitButton"] button:hover,
+[data-testid="stDownloadButton"] button:hover,.stLinkButton a:hover{
+  border-color:#3b4250}
+/* The amber ones need their own hover: they have no visible border to shift,
+   so the rule above does nothing for them. Brightness + a 1px lift is already
+   the house treatment for a primary button on the marketing site
+   (site/nextnw.html .btn-primary:hover), and it's the one transform FEEL.md §5
+   explicitly allows. Deliberately NOT a background change — an earlier draft
+   set one and it painted straight over the amber gradient, leaving dark text
+   on dark grey.
+
+   BOTH kind values, verified against the live DOM rather than assumed:
+   st.button(type="primary") renders kind="primary", but a form's submit
+   renders kind="primaryFormSubmit" — and the app's most prominent amber
+   button (Search) is a form submit, so a rule matching only "primary" would
+   have silently done nothing to the one button most people press. */
+button[kind="primary"]:hover,button[kind="primaryFormSubmit"]:hover{
+  filter:brightness(1.07);transform:translateY(-1px)}
+button[kind="primary"]:active,button[kind="primaryFormSubmit"]:active{
+  filter:brightness(1.02);transform:scale(.975)}
+@media (prefers-reduced-motion:reduce){
+  button[kind="primary"]:hover,button[kind="primaryFormSubmit"]:hover,
+  button[kind="primary"]:active,button[kind="primaryFormSubmit"]:active{
+    transform:none}
+}
+.stButton button:active,[data-testid="stFormSubmitButton"] button:active,
+[data-testid="stDownloadButton"] button:active,.stLinkButton a:active{
+  transform:scale(.975)}
+/* Keyboard users get the same affordance a mouse gets, and a visible ring
+   rather than the browser's default outline, which the dark ground swallows. */
+.stButton button:focus-visible,[data-testid="stFormSubmitButton"] button:focus-visible,
+a.gr-title:focus-visible,a.gr-save:focus-visible,.gr-nav a:focus-visible,
+a.gr-stat:focus-visible,a.gr-cat:focus-visible{
+  outline:2px solid var(--amber);outline-offset:2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){
+  .stButton button,[data-testid="stFormSubmitButton"] button,
+  [data-testid="stDownloadButton"] button,.stLinkButton a{transition:none}
+  .stButton button:active,[data-testid="stFormSubmitButton"] button:active,
+  [data-testid="stDownloadButton"] button:active,.stLinkButton a:active{
+    transform:none}
+}
+
 /* Section headings speak the wordmark's language: the last word in amber, the
    way "ly" is amber in Nabbly. Replaces the scattered emoji prefixes so every
    heading reads as one family. */
@@ -919,8 +979,23 @@ h4{margin-top:1.4rem!important}
   background:#14171b!important;
   padding:15px 18px 13px!important;
   gap:var(--s-item)!important}          /* items inside < gap between cards */
+/* A card lifts slightly under the pointer. Border-colour alone was too quiet
+   to register as "this row is the one you're on" in a list of sixty, and the
+   stat cards already lift 3px — this is the same idea at half the distance,
+   because a gig card is much larger and a big element moving far reads as
+   the page wobbling. The shadow is what actually sells it; the 1px is just
+   enough to catch the eye. */
+[data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title){
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
 [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title):hover{
-  border-color:#30353f!important}
+  border-color:#3a414d!important;transform:translateY(-1px);
+  box-shadow:0 10px 26px -18px rgba(0,0,0,.95)}
+@media (prefers-reduced-motion:reduce){
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title){
+    transition:none}
+  [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title):hover{
+    transform:none}
+}
 
 @media (min-width:641px){
   a.gr-title{font-size:18px!important;font-weight:650!important;letter-spacing:-.2px}
