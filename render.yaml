@@ -11,9 +11,19 @@
 #    block and DATA_DIR.
 
 services:
+  # NAME MUST MATCH THE LIVE SERVICE. Render matches a blueprint to existing
+  # services by name, so a name that doesn't match doesn't update anything —
+  # it creates a second service. This said "gig-radar" long after the real app
+  # was renamed "dartly", and "gig-radar" is the bare duplicate that cost an
+  # hour in July and is now suspended. Syncing that would have pointed the
+  # blueprint at the dud instead of the app holding every env var.
   - type: web
-    name: gig-radar
+    name: dartly
     runtime: python
+    # NOTE: this line is what the blueprint WANTS the plan to be. If the plan
+    # is ever upgraded in the dashboard, change it here too — otherwise a
+    # blueprint sync is a way to silently drop back to free, and free is a
+    # 512MB ceiling this app has already crashed against.
     plan: free
     buildCommand: "pip install --no-cache-dir -r requirements.txt"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
@@ -27,7 +37,7 @@ services:
     # Optional persistent storage (uncomment to keep the DB + profile between deploys).
     # A small disk is inexpensive; the free plan does not include one.
     # disk:
-    #   name: gig-radar-data
+    #   name: dartly-data
     #   mountPath: /var/data
     #   sizeGB: 1
 
@@ -36,8 +46,9 @@ services:
   # previews see almost nothing — this page is real HTML they can read, and it
   # loads instantly instead of waiting on the app's cold start. It links across
   # to the app (app.nabbly.co). Nothing to build; it's hand-written HTML.
+  # Same naming rule as the app above: this is the live service's real name.
   - type: web
-    name: nabbly-site
+    name: nabbly-site-static
     runtime: static
     buildCommand: ""
     staticPublishPath: ./site

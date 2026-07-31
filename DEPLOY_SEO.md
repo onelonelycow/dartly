@@ -1,6 +1,13 @@
 # Going live: the landing page + the app
 
-Today `nabbly.co` points straight at the Streamlit app. We're changing that to:
+> **✅ ALREADY DONE.** This split shipped and has been live since 2026-07-25.
+> `nabbly.co` is the static landing page, `app.nabbly.co` is the Streamlit app,
+> both are real running services (`nabbly-site-static` and `dartly`). Kept here
+> as a historical record of how the split was done, not as a to-do list — do
+> NOT follow the steps below again. Step 2 in particular would try to create a
+> second static site next to the one that already exists.
+
+Before this, `nabbly.co` pointed straight at the Streamlit app. That changed to:
 
 ```
 nabbly.co        → the new fast landing page   (great for Google + link previews)
@@ -39,7 +46,7 @@ push it yourself. Once it's on `main`, Render can see it.
 
 So the landing page's buttons have somewhere to go *before* we move `nabbly.co`.
 
-1. Render dashboard → your existing app service (**gig-radar**) → **Settings → Custom Domains**.
+1. Render dashboard → your existing app service (**dartly**) → **Settings → Custom Domains**.
 2. Click **Add Custom Domain**, enter `app.nabbly.co`.
 3. Render shows a **CNAME** record to add. In **Namecheap → Advanced DNS**, add a
    CNAME record with Host `app` and Value set to what Render shows.
@@ -58,7 +65,7 @@ At this point both `nabbly.co` and `app.nabbly.co` show the app. Nothing's broke
 The app tells Google where to send people back after they sign in. That address
 has to be the app's real home, which is about to become `app.nabbly.co`.
 
-1. Render → **gig-radar** service → **Environment**.
+1. Render → **dartly** service → **Environment**.
 2. Set `OAUTH_REDIRECT_URI` to:
    ```
    https://app.nabbly.co/oauth2callback
@@ -82,11 +89,11 @@ them character for character.
 3. Settings:
    - **Publish directory:** `site`
    - **Build command:** leave blank (it's plain HTML, nothing to build)
-4. Create it. Render gives it a free URL like `nabbly-site.onrender.com`.
+4. Create it. Render gives it a free URL like `nabbly-site-static.onrender.com`.
 5. Test that URL — you should see the new landing page. ✅
 
 > If you deploy from the `render.yaml` blueprint instead, the static site
-> (`nabbly-site`) is already defined in there — Render will offer to create it.
+> (`nabbly-site-static`) is already defined in there — Render will offer to create it.
 
 ---
 
@@ -94,9 +101,9 @@ them character for character.
 
 Now the swap. This is the only step that changes what visitors to `nabbly.co` see.
 
-1. **Remove** `nabbly.co` (and `www.nabbly.co` if present) from the **gig-radar**
+1. **Remove** `nabbly.co` (and `www.nabbly.co` if present) from the **dartly**
    app service → Settings → Custom Domains.
-2. **Add** `nabbly.co` (and `www.nabbly.co`) to the new **nabbly-site** static
+2. **Add** `nabbly.co` (and `www.nabbly.co`) to the new **nabbly-site-static** static
    service → Settings → Custom Domains.
 3. Render tells you the DNS records. The apex (`nabbly.co`) record most likely
    **doesn't change** (it already points at Render) — but confirm it matches what
@@ -115,17 +122,7 @@ Done. `nabbly.co` is now the fast, crawlable front door; the app lives one click
 
 ## Step 3b — put the app back in the sitemap
 
-`app.nabbly.co` was removed from `site/sitemap.xml` while it didn't exist, because
-a sitemap entry pointing at a dead host is a crawl error every time Google looks.
-Now that it's real, tell me and I'll add it back and push:
-
-```xml
-<url>
-  <loc>https://app.nabbly.co/</loc>
-  <changefreq>hourly</changefreq>
-  <priority>0.9</priority>
-</url>
-```
+✅ Done — `app.nabbly.co` is back in `site/sitemap.xml`.
 
 ---
 

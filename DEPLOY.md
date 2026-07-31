@@ -27,8 +27,10 @@ Render deploys from a GitHub repo.
 1. Make a free account at **https://render.com** (you can sign in with GitHub —
    easiest, because it connects the two).
 2. Click **New +**  ->  **Blueprint**.
-3. Pick your `gig-radar` repository. Render reads `render.yaml` and fills in
-   everything automatically. Click **Apply** / **Create**.
+3. Pick your `dartly` repository (the code is Nabbly; the GitHub repo name
+   never got renamed, it's cosmetic and doesn't matter). Render reads
+   `render.yaml` and fills in everything automatically. Click **Apply** /
+   **Create**.
 4. Wait ~3–6 minutes for the first build. It installs the app and pulls in a fresh
    batch of live gigs so the site isn't empty. When it's done you get a public URL
    like `https://nabbly.onrender.com`.
@@ -42,9 +44,11 @@ These are **not required** for the preview. Set them under the service's
 
 | What | Keys to add |
 |------|-------------|
-| Reddit gigs (r/forhire etc.) | `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` — see `REDDIT_SETUP.md` |
-| Email alerts | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `ALERT_EMAIL` |
+| Email alerts | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `ALERT_EMAIL_TO` |
 | Keep data + profile across redeploys | Uncomment the `disk:` block and `DATA_DIR` in `render.yaml` (small monthly cost) |
+
+Reddit gigs (r/forhire etc.) need no setup at all — they're pulled from
+Reddit's public RSS feed, no account or key required.
 
 Even with none of these, the site works and fills with gigs from the free sources.
 
