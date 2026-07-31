@@ -633,9 +633,25 @@ def posts_frame(demand_only: bool = True, owner: str | None = None):
     try:
         # Column list from the live schema, so adding a column later can't
         # silently drop it here — body is the only one we rewrite.
-        cols = [r["name"] for r in conn.execute("PRAGMA table_info(posts)")]
+        #
+        # Every TEXT column is COALESCEd to '' because a SQL NULL arrives in
+        # pandas as NaN, and NaN is a FLOAT that is also TRUTHY. That combination
+        # defeats the `(x or "").strip()` guard used all over the app: the `or`
+        # sees something truthy, passes the float straight through, and .strip()
+        # raises "'float' object has no attribute 'strip'". apply_email is NULL
+        # on most gigs, so this crashed the whole board with a traceback the
+        # moment one of those rows reached a card.
+        #
+        # Done in SQL rather than a pandas fillna() on purpose: fillna copies
+        # the frame, and this function exists to hold peak memory down. SQLite
+        # substitutes the empty string for free, before a single row crosses
+        # into Python.
+        rows = list(conn.execute("PRAGMA table_info(posts)"))
+        cols = [r["name"] for r in rows]
+        _texty = {r["name"] for r in rows if (r["type"] or "").upper() == "TEXT"}
         select = ", ".join(
-            f"substr({c}, 1, {BODY_CHARS}) AS {c}" if c == "body" else c
+            f"substr(COALESCE(body, ''), 1, {BODY_CHARS}) AS body" if c == "body"
+            else (f"COALESCE({c}, '') AS {c}" if c in _texty else c)
             for c in cols)
         sql = (f"SELECT {select} FROM posts {where} "
                f"ORDER BY COALESCE(NULLIF(posted_at, ''), fetched_at) DESC")
