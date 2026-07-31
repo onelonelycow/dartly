@@ -1679,8 +1679,14 @@ def gig_card(r, pro):
         # before the browser leaves — a direct href to the external URL has no
         # server round-trip to hook a count into. Falls back to the raw URL if
         # the row somehow has no id, so a click still goes somewhere.
+        #
+        # ilink() is what makes the logging actually happen. This opens in a NEW
+        # TAB, and a new tab is a new Streamlit session with empty session_state,
+        # so without the token in the URL the redirect route sees an anonymous
+        # visitor and records nothing — the count the weekly digest reports would
+        # sit at zero for everyone who signed in by email.
         gid = r.get("id")
-        out_url = f"?nav=out&gid={gid}" if gid is not None else \
+        out_url = ilink(f"?nav=out&gid={gid}") if gid is not None else \
             html.escape(r.get("url") or "", quote=True)
         st.markdown(f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>',
                     unsafe_allow_html=True)
@@ -2023,7 +2029,9 @@ def draft_showcase(pro):
     c1, c2 = st.columns(2)
     with c1:
         _gid = g.get("id")
-        _out = f"?nav=out&gid={_gid}" if _gid is not None else (g.get("url") or "#")
+        # ilink() for the same reason as gig_card's title: the redirect route
+        # can only log the click if it can tell who is clicking.
+        _out = ilink(f"?nav=out&gid={_gid}") if _gid is not None else (g.get("url") or "#")
         st.link_button("Open the gig  ↗", _out, width="stretch")
     with c2:
         if st.button("Edit this reply", width="stretch", key="showcase_edit"):
