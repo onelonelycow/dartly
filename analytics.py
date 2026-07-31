@@ -37,8 +37,20 @@ DB_PATH = data_file("nabbly_signals.db")
 # Set this in Render → Environment to mirror every signup somewhere permanent.
 WEBHOOK_URL = os.environ.get("SIGNUP_WEBHOOK_URL", "").strip()
 
-# Visit ?admin=<key> to see the numbers. Override in Render → Environment.
-ADMIN_KEY = os.environ.get("ADMIN_KEY", "nabbly-admin").strip()
+# Visit ?admin=<key> to see the numbers. Set ADMIN_KEY in Render → Environment.
+#
+# NO DEFAULT, on purpose. This used to fall back to a literal string in this
+# file, and this repo is public — so the admin panel, which lists signup
+# addresses, everything people typed into the feedback box, their "would you
+# pay" answers and a CSV export of the lot, was open to anyone who read the
+# source and appended ?admin=<that string>. Verified open on the live site
+# before this change.
+#
+# Empty means the ?admin= door is simply shut (app.py's IS_ADMIN requires a
+# truthy key), which is the right default for a secret: absent, not guessable.
+# The founder still gets in by being signed in on an owner account — see
+# accounts.is_owner — so nothing is lost by leaving this unset.
+ADMIN_KEY = os.environ.get("ADMIN_KEY", "").strip()
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$")
 
