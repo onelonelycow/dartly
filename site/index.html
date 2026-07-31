@@ -511,6 +511,62 @@
       }
     } catch (e) {}
   })();
+
+  // ── Scroll reveal ────────────────────────────────────────────────────────
+  // Sections fade and rise very slightly as they come into view. Calibrated
+  // against linear.app, which FEEL.md §9 names as the restraint benchmark:
+  // measured on their live site, their motion is FAST — 0.16s dominant, some
+  // 0.1s, rarely 0.2s, on cubic-bezier(.25,.46,.45,.94). The expensive feel
+  // comes from being quick and barely-there, not from long showy travel. So:
+  // 14px of rise, not 40, and gone in under a third of a second.
+  //
+  // PROGRESSIVE ENHANCEMENT, deliberately. The hidden state is added by this
+  // script, never in the stylesheet, so if the JS fails, is blocked, or the
+  // browser has no IntersectionObserver, every section simply renders normally.
+  // A CSS-first version of this hides content for anyone whose JS didn't run —
+  // on a marketing page that is the one failure that actually costs you.
+  (function () {
+    try {
+      var reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduce || !('IntersectionObserver' in window)) return;
+
+      var targets = document.querySelectorAll(
+        'section > .wrap > *, footer .wrap > *');
+      if (!targets.length) return;
+
+      var style = document.createElement('style');
+      style.textContent =
+        '.nb-rise{opacity:0;transform:translateY(14px);' +
+        'transition:opacity .28s cubic-bezier(.25,.46,.45,.94),' +
+        'transform .28s cubic-bezier(.25,.46,.45,.94)}' +
+        '.nb-rise.nb-in{opacity:1;transform:none}';
+      document.head.appendChild(style);
+
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          // Stagger by position within the section, so a group of cards
+          // cascades instead of all snapping at once. Capped so a long
+          // section never leaves the last item waiting on a slow queue.
+          var i = +(e.target.getAttribute('data-nb-i') || 0);
+          e.target.style.transitionDelay = Math.min(i * 55, 220) + 'ms';
+          e.target.classList.add('nb-in');
+          io.unobserve(e.target);
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+
+      Array.prototype.forEach.call(targets, function (el) {
+        // The hero is above the fold — animating it delays the first thing a
+        // visitor reads, which is the opposite of feeling fast.
+        if (el.closest('.hero')) return;
+        var sib = el.parentNode ? el.parentNode.children : [];
+        el.setAttribute('data-nb-i', Array.prototype.indexOf.call(sib, el));
+        el.classList.add('nb-rise');
+        io.observe(el);
+      });
+    } catch (e) {}
+  })();
 </script>
 </body>
 </html>
