@@ -135,6 +135,11 @@
   .offer .big em{font-style:normal;color:var(--nw-green)}
   .offer p{color:var(--ink2);margin:12px auto 0;max-width:560px;font-size:16px}
   @media(min-width:640px){.offer p{white-space:nowrap}}
+  /* Quieter than the line above it, and allowed to wrap — it answers a
+     question rather than making the offer, so it shouldn't compete with it. */
+  .offer p.after{font-size:14.5px;color:var(--mute);margin-top:14px;
+    padding-top:14px;border-top:1px solid rgba(255,255,255,.07);max-width:620px}
+  @media(min-width:640px){.offer p.after{white-space:normal}}
 
   /* ── three reasons, no more ── */
   .three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
@@ -208,6 +213,13 @@
   <div class="offer">
     <div class="big">NextNW members get Pro <em>free for 90 days</em></div>
     <p>No card, nothing to cancel. Open the link above and it's already on.</p>
+    <!-- The question this page was leaving unanswered. Saving is free for
+         everyone, so it's the honest reassurance to lead with here: what you
+         keep, not another thing the offer unlocks. Deliberately NOT a fourth
+         feature card above — a free capability listed among the Pro ones
+         reads as something that expires with them. -->
+    <p class="after">After that you drop to Free, and keep the whole board,
+      your filters and every gig you saved.</p>
   </div>
 </div>
 

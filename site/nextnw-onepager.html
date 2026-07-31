@@ -87,6 +87,9 @@
     overflow:hidden}
   .fb-fill{height:100%;border-radius:5px;background:var(--line2)}
   .fitbar.hi .fb-fill{background:linear-gradient(90deg,var(--amber-d),var(--amber-l))}
+  /* Names what the empty part of each track means, so a 27% bar reads as
+     "a quarter of the whole board" rather than "a bar that didn't fill up". */
+  .fb-foot{font-size:11px;color:var(--faint);margin-top:2px}
   .fit p{font-size:13.5px;color:var(--ink2);line-height:1.6;margin:0;max-width:640px}
 
   /* ── the ask ── */
@@ -162,6 +165,7 @@
       <ul>
         <li>Every gig, every field on the board</li>
         <li>Filter by location, budget, and keyword</li>
+        <li>Save gigs to come back to, so a good one isn't lost by morning</li>
         <li>A weekly email with gigs picked to your own skills</li>
       </ul>
     </div>
@@ -176,20 +180,30 @@
     </div>
   </div>
 
+  <!-- Shares, not counts. The raw numbers move every few minutes — this chart
+       read 3,737 / 2,469 / 991 when it was built and 3,837 / 2,570 / 1,035 a
+       few hours later — so a printed count is stale before the page is read.
+       The proportions barely moved across the same window (26.7%→26.5%,
+       17.6%→17.7%), which is the honest version of the claim anyway: the
+       argument is that this work is the biggest slice of the board, not that
+       there are exactly N of them today.
+       Bar width IS the percentage, so the track reads as the whole board and
+       the top bar genuinely looks like about a quarter of it. -->
   <div class="fit">
     <div class="fitbars">
       <div class="fitbar hi">
-        <div class="fb-top"><span>Design, marketing, writing &amp; video</span><span class="fb-n">3,737</span></div>
-        <div class="fb-track"><div class="fb-fill" style="width:100%"></div></div>
-      </div>
-      <div class="fitbar">
-        <div class="fb-top"><span>Development / tech</span><span class="fb-n">2,469</span></div>
-        <div class="fb-track"><div class="fb-fill" style="width:66%"></div></div>
-      </div>
-      <div class="fitbar">
-        <div class="fb-top"><span>Sales / outreach</span><span class="fb-n">991</span></div>
+        <div class="fb-top"><span>Design, marketing, writing &amp; video</span><span class="fb-n">27%</span></div>
         <div class="fb-track"><div class="fb-fill" style="width:27%"></div></div>
       </div>
+      <div class="fitbar">
+        <div class="fb-top"><span>Development / tech</span><span class="fb-n">18%</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:18%"></div></div>
+      </div>
+      <div class="fitbar">
+        <div class="fb-top"><span>Sales / outreach</span><span class="fb-n">7%</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:7%"></div></div>
+      </div>
+      <div class="fb-foot">Share of everything live on the board</div>
     </div>
     <p>The same fields this membership already works in. Most freelancers on
       Nabbly take project work alongside a staff role, exactly the group
