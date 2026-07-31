@@ -2876,6 +2876,84 @@ def plan_card():
                     st.rerun()
 
 
+def _send_signin_code(email: str) -> tuple[bool, str]:
+    """Mint a code and mail it. Returns (ok, message)."""
+    code, err = accounts.issue_code(email)
+    if err:
+        return False, err
+    subject, html_body, text_body = mailer.signin_code_email(code)
+    if not mailer.send(email.strip().lower(), subject, html_body, text_body):
+        # Never leave someone staring at a code entry box for an email that
+        # was never sent.
+        return False, "We couldn't send that email. Try again in a minute."
+    return True, ""
+
+
+def _signin_email_step():
+    st.markdown('<span class="gr-cta-mark"></span>'
+                '<div class="gr-cta-h">Welcome</div>'
+                '<div class="gr-cta-s">Your board, saved and sorted to you.'
+                '</div>', unsafe_allow_html=True)
+    if not mailer.enabled():
+        # Without mail there is no way to prove the address, and signing
+        # someone in on an unverified address is the exact hole this replaced.
+        st.warning("Email sign-in isn't available right now."
+                   + (" Use Google below." if auth.enabled() else ""))
+    else:
+        with st.form("signin_page_form", clear_on_submit=False, border=False):
+            email = st.text_input("Email", placeholder="you@example.com",
+                                  label_visibility="collapsed")
+            sent = st.form_submit_button("Email me a code", type="primary",
+                                         width="stretch")
+        if sent:
+            ok, msg = _send_signin_code(email)
+            if ok:
+                st.session_state["_code_email"] = email.strip().lower()
+                st.rerun()
+            st.warning(msg)
+        st.markdown('<div class="gr-cta-fine">Works with any email · we send a '
+                    'six digit code, no password to remember</div>',
+                    unsafe_allow_html=True)
+
+
+def _signin_code_step(email: str):
+    st.markdown('<span class="gr-cta-mark"></span>'
+                '<div class="gr-cta-h">Check your email</div>'
+                f'<div class="gr-cta-s">We sent a six digit code to '
+                f'<b>{html.escape(email)}</b>.</div>', unsafe_allow_html=True)
+    with st.form("signin_code_form", clear_on_submit=False, border=False):
+        code = st.text_input("Code", placeholder="123456",
+                             label_visibility="collapsed", max_chars=6)
+        ok_click = st.form_submit_button("Sign in", type="primary", width="stretch")
+    if ok_click:
+        ok, err = accounts.check_code(email, code)
+        if ok:
+            # Only NOW does the account get created or resolved. Before the
+            # code is proven there is deliberately no account touched at all.
+            good, msg = sign_in_here(email, "signin")
+            if good:
+                st.session_state.pop("_code_email", None)
+                # Straight to the board — see the note in sign_in_here. The tab
+                # index is set directly rather than via ?nav= because the ?nav
+                # dispatch clears the query string, which would wipe the ?u=
+                # token that keeps them signed in.
+                st.session_state["_navidx"] = 0      # Dashboard
+                st.session_state["_page"] = ""
+                st.rerun()
+            st.warning(msg)
+        else:
+            st.warning(err)
+    _c1, _c2 = st.columns(2)
+    with _c1:
+        if st.button("Send a new code", width="stretch", key="resend_code"):
+            ok, msg = _send_signin_code(email)
+            st.warning(msg if not ok else "New code sent.")
+    with _c2:
+        if st.button("Use a different email", width="stretch", key="change_email"):
+            st.session_state.pop("_code_email", None)
+            st.rerun()
+
+
 def signin_link_card():
     """
     The passwordless answer to "reset my password".
@@ -3048,11 +3126,19 @@ def signup_card(where="dashboard"):
                     email = st.text_input("Email", placeholder="you@example.com",
                                           label_visibility="collapsed")
                 with c2:
-                    sent = st.form_submit_button("Sign in", type="primary",
+                    sent = st.form_submit_button("Send code", type="primary",
                                                  width="stretch")
             if sent:
-                ok, msg = sign_in_here(email, where)
+                # Goes through the emailed code like every other door. This card
+                # used to call sign_in_here() straight from the address, which
+                # would have left the impersonation hole wide open on the busiest
+                # surface in the app while the sign-in page was locked down.
+                # Hands off to the sign-in page for the code step rather than
+                # growing a second code UI here.
+                ok, msg = _send_signin_code(email)
                 if ok:
+                    st.session_state["_code_email"] = email.strip().lower()
+                    st.session_state["_page"] = "signin"
                     st.rerun()
                 st.warning(msg)
             if auth.enabled():
@@ -3153,38 +3239,15 @@ def view_signin():
     _l, _c, _r = st.columns([1, 2, 1])
     with _c:
         with st.container(border=True):
-            st.markdown('<span class="gr-cta-mark"></span>'
-                        '<div class="gr-cta-h">Welcome</div>'
-                        '<div class="gr-cta-s">Your board, saved and sorted to you.'
-                        '</div>', unsafe_allow_html=True)
-            # Any email, any provider — people keep full say over how they sign
-            # up. Google sits below as a one-tap option, not the only door.
-            with st.form("signin_page_form", clear_on_submit=False, border=False):
-                email = st.text_input("Email", placeholder="you@example.com",
-                                      label_visibility="collapsed")
-                sent = st.form_submit_button("Continue with email", type="primary",
-                                             width="stretch")
-            if sent:
-                ok, msg = sign_in_here(email, "signin")
-                if ok:
-                    # Straight to the board. Someone who just signed in came to
-                    # look at gigs, and a "you're signed in" screen between them
-                    # and the board is a click that tells them what they already
-                    # know.
-                    #
-                    # The tab index is set directly rather than via ?nav=
-                    # deliberately: the ?nav dispatch ends in
-                    # st.query_params.clear(), which would wipe the ?u= token
-                    # sign_in_here just put in the address bar. Setting session
-                    # state skips that entirely, so they land on the board AND
-                    # keep the link that signs them back in later.
-                    st.session_state["_navidx"] = 0      # Dashboard
-                    st.session_state["_page"] = ""
-                    st.rerun()
-                st.warning(msg)
-            st.markdown('<div class="gr-cta-fine">Works with any email · keep the '
-                        'link we put in your address bar to sign back in</div>',
-                        unsafe_allow_html=True)
+            # Two steps: address, then the code we mail to it. The second step
+            # is the whole point — typing an address used to be enough to BE
+            # that person, so the only thing standing between a stranger and
+            # someone's profile, drafts and resume was knowing their email.
+            _pending = st.session_state.get("_code_email", "")
+            if _pending:
+                _signin_code_step(_pending)
+            else:
+                _signin_email_step()
             if auth.enabled():
                 st.markdown('<div class="gr-or"><span>or</span></div>',
                             unsafe_allow_html=True)

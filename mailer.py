@@ -41,12 +41,36 @@ AMBER_BG = "#fdf1e2"    # its own contrast against a light card, not a black one
 
 
 def enabled() -> bool:
-    return bool(RESEND_API_KEY)
+    """Can we actually deliver mail right now?
+
+    Not just "is there an API key" — send() also delivers to a local file when
+    MAIL_OUTBOX is set. Callers gate real behaviour on this (the sign-in page
+    refuses to offer email sign-in without it, since an unverifiable address is
+    exactly the hole codes exist to close), so it has to agree with what send()
+    will actually do or the two drift apart.
+    """
+    return bool(RESEND_API_KEY) or bool(os.environ.get("MAIL_OUTBOX", "").strip())
 
 
 def send(to: str, subject: str, html_body: str, text_body: str) -> bool:
     """The only function in the codebase that calls Resend. Never raises —
     a failed send should never take down a signup or a background cycle."""
+    # Local development: write the mail to a file instead of sending it. The
+    # sign-in code flow is impossible to exercise end to end otherwise — you
+    # cannot read the code you were supposed to be emailed. Only ever active
+    # when MAIL_OUTBOX is explicitly set, which nothing in production does, and
+    # it deliberately does NOT require an API key so a local run needs no
+    # credentials at all.
+    outbox = os.environ.get("MAIL_OUTBOX", "").strip()
+    if outbox:
+        try:
+            with open(outbox, "w") as fh:
+                fh.write(f"TO: {to}\nSUBJECT: {subject}\n\n{text_body}")
+            print(f"  mailer: MAIL_OUTBOX set, wrote '{subject}' to {outbox}")
+            return True
+        except Exception as e:
+            print("  mailer: outbox write failed:", e)
+            return False
     if not enabled():
         print(f"  mailer: RESEND_API_KEY not set, skipped '{subject}' to {to}")
         return False
@@ -184,6 +208,42 @@ def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
 def welcome_email(email: str, name: str, founding: bool, token: str) -> tuple[str, str, str]:
     return (_welcome_founding(name, token) if founding
            else _welcome_standard(name, token))
+
+
+# ---------------------------------------------------------------------------
+# sign-in code — the one email that has to arrive fast
+# ---------------------------------------------------------------------------
+def signin_code_email(code: str) -> tuple[str, str, str]:
+    """
+    The six digits, and as little else as possible.
+
+    Someone reading this is mid-sign-in with a form open in another tab, so the
+    code goes in the subject line too — on a phone that often means never
+    opening the email at all. No unsubscribe footer: this is a direct reply to
+    something they just did, not a mailing (empty token drops it in _shell).
+    """
+    subject = f"{code} is your Nabbly sign-in code"
+    body = f"""
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 16px;">
+  Your sign-in code
+</h1>
+<div style="font-size:34px;font-weight:700;letter-spacing:.18em;color:{INK};
+  background:{AMBER_BG};border-radius:12px;padding:18px 20px;text-align:center;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{code}</div>
+<p style="font-size:14px;color:{MUTE};line-height:1.6;margin:18px 0 0;">
+  Type this back into Nabbly to finish signing in. It works once and runs out
+  after 10 minutes.
+</p>
+<p style="font-size:12.5px;color:{FAINT};line-height:1.6;margin:14px 0 0;">
+  If you didn't ask to sign in, you can ignore this. Nobody can get into your
+  board without the code.
+</p>
+"""
+    text = (f"Your Nabbly sign-in code is {code}\n\n"
+            "Type it back into Nabbly to finish signing in. It works once and "
+            "runs out after 10 minutes.\n\n"
+            "If you didn't ask to sign in, you can ignore this.\n")
+    return subject, _shell(f"{code} — type this back into Nabbly.", body, ""), text
 
 
 # ---------------------------------------------------------------------------

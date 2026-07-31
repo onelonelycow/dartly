@@ -484,6 +484,143 @@ def backfill_last_digest() -> int:
     return n
 
 
+# ---------------------------------------------------------------------------
+# Sign-in codes — proving the address is actually theirs
+# ---------------------------------------------------------------------------
+# sign_in() takes an email and hands back that account, with nothing in between.
+# That was a deliberate trade while this was an invited beta of one, and it is
+# the wrong trade the moment strangers are on it: typing someone else's address
+# signed you in AS them, with their profile, their saved drafts and their
+# uploaded resume. A code emailed to the address closes that, because only the
+# person reading that inbox can finish the sign-in.
+#
+# Deliberate choices, each one load-bearing:
+#   * The code is STORED HASHED. A leaked database read shouldn't hand over live
+#     sign-in codes any more than it should hand over passwords.
+#   * Short life, single use, small attempt budget. A 6-digit code is only 10^6
+#     wide, so the thing that actually protects it is that guessing is capped
+#     and it dies quickly.
+#   * Issuing is rate-limited per address, so nobody can be mailbombed by
+#     someone pounding "send me a code" with their address in the box.
+CODE_TTL_MIN = 10          # how long a code stays good
+CODE_MAX_ATTEMPTS = 5      # wrong guesses before a code is burned
+CODE_MAX_PER_HOUR = 5      # codes we'll send one address in an hour
+
+
+def _code_hash(email: str, code: str) -> str:
+    """Salted by the email so the same digits for two people don't collide,
+    and so a stolen hash can't be replayed against a different address."""
+    return hashlib.sha256(f"{email.strip().lower()}:{code}".encode()).hexdigest()
+
+
+def _init_codes(conn):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS login_codes (
+            email     TEXT PRIMARY KEY,
+            code_hash TEXT NOT NULL,
+            created   TEXT NOT NULL,
+            expires   TEXT NOT NULL,
+            attempts  INTEGER NOT NULL DEFAULT 0
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS login_code_sends (
+            email TEXT NOT NULL,
+            ts    TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_code_sends ON login_code_sends(email, ts)")
+
+
+def issue_code(email: str) -> tuple[str, str]:
+    """
+    Mint a sign-in code for this address.
+
+    Returns (code, error). On success the code is the plaintext to email and
+    error is ""; on refusal the code is "" and error is something safe to show.
+    Only ever one live code per address — asking again replaces the old one, so
+    a forwarded or shoulder-surfed code stops working the moment a new one is
+    requested.
+    """
+    email = (email or "").strip().lower()
+    if not people.valid_email(email):
+        return "", "That doesn't look like an email address."
+    init()
+    conn = _connect()
+    try:
+        _init_codes(conn)
+        now = datetime.now(timezone.utc)
+        # Rate limit first, before anything is written or sent.
+        hour_ago = (now - timedelta(hours=1)).isoformat()
+        conn.execute("DELETE FROM login_code_sends WHERE ts < ?", (hour_ago,))
+        recent = conn.execute(
+            "SELECT COUNT(*) FROM login_code_sends WHERE email=? AND ts>=?",
+            (email, hour_ago)).fetchone()[0]
+        if recent >= CODE_MAX_PER_HOUR:
+            return "", "That's a lot of codes. Try again in an hour."
+        # secrets, not random: this is a credential.
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        expires = (now + timedelta(minutes=CODE_TTL_MIN)).isoformat(timespec="seconds")
+        conn.execute(
+            "INSERT INTO login_codes (email, code_hash, created, expires, attempts) "
+            "VALUES (?,?,?,?,0) "
+            "ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash, "
+            "  created=excluded.created, expires=excluded.expires, attempts=0",
+            (email, _code_hash(email, code), now.isoformat(timespec="seconds"), expires))
+        conn.execute("INSERT INTO login_code_sends (email, ts) VALUES (?,?)",
+                     (email, now.isoformat(timespec="seconds")))
+        conn.commit()
+        return code, ""
+    finally:
+        conn.close()
+
+
+def check_code(email: str, code: str) -> tuple[bool, str]:
+    """
+    Is this the live code for this address? Consumes it on success.
+
+    Returns (ok, error). Every failure path burns an attempt, so guessing is
+    bounded whether the code is wrong, expired or already used.
+    """
+    email = (email or "").strip().lower()
+    code = (code or "").strip().replace(" ", "")
+    init()
+    conn = _connect()
+    try:
+        _init_codes(conn)
+        row = conn.execute("SELECT * FROM login_codes WHERE email=?",
+                           (email,)).fetchone()
+        if not row:
+            return False, "Ask for a new code."
+        if _parse(row["expires"]) and _parse(row["expires"]) < datetime.now(timezone.utc):
+            conn.execute("DELETE FROM login_codes WHERE email=?", (email,))
+            conn.commit()
+            return False, "That code expired. Ask for a new one."
+        if int(row["attempts"]) >= CODE_MAX_ATTEMPTS:
+            conn.execute("DELETE FROM login_codes WHERE email=?", (email,))
+            conn.commit()
+            return False, "Too many tries. Ask for a new code."
+        # compare_digest, not ==: a plain comparison leaks how much of the hash
+        # matched through how long it took to fail.
+        if not secrets.compare_digest(row["code_hash"], _code_hash(email, code)):
+            conn.execute("UPDATE login_codes SET attempts = attempts + 1 WHERE email=?",
+                         (email,))
+            conn.commit()
+            left = CODE_MAX_ATTEMPTS - int(row["attempts"]) - 1
+            return False, ("That code isn't right." if left > 0
+                          else "Too many tries. Ask for a new code.")
+        # Single use: the code dies the moment it works.
+        conn.execute("DELETE FROM login_codes WHERE email=?", (email,))
+        conn.commit()
+        return True, ""
+    finally:
+        conn.close()
+
+
 def unsubscribe(token: str) -> bool:
     """
     One click, no sign-in required — the same token-in-URL model the whole
