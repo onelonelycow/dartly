@@ -37,6 +37,7 @@ import resume
 import budget
 import contact
 import drafts
+import saved
 import style
 import mailer
 import refresh
@@ -125,6 +126,16 @@ st.markdown("""
   .gr-stat .n span.gr-flip{animation:none}}
 a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
   text-decoration:none !important;line-height:1.35;letter-spacing:-.1px}
+/* The save star. Dim until you go near it, so a column of sixty cards isn't
+   sixty little icons competing with the titles they sit beside — it's there
+   when you're deciding about THIS gig, invisible when you're scanning. */
+a.gr-save{display:inline-block;margin-left:9px;font-size:16px;line-height:1;
+  color:#4d545e!important;text-decoration:none!important;vertical-align:2px;
+  transition:color .15s ease,transform .15s ease}
+a.gr-save:hover{color:var(--amber-l)!important;transform:scale(1.18)}
+a.gr-save.on{color:var(--amber)!important}
+a.gr-save.on:hover{color:var(--amber-l)!important}
+@media (prefers-reduced-motion:reduce){a.gr-save{transition:none}}
 a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-decoration-color:rgba(232,147,58,.55);text-underline-offset:3px}
 .gr-new{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.5px;
@@ -237,13 +248,26 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
 /* Streamlit paints markdown links its own accent colour, which washed out the
    active pill's label and made the inactive tabs read as links, so the colours
    here have to win outright. */
-.gr-nav a,.gr-nav a:link,.gr-nav a:visited{font-size:15.5px;font-weight:600;
-  color:#c3cad3!important;text-decoration:none!important;padding:10px 22px;
-  border-radius:9px;white-space:nowrap;letter-spacing:-.1px;
-  transition:background .15s,color .15s}
-.gr-nav a:hover{background:rgba(232,147,58,.12);color:#eaa662!important}
+.gr-nav a,.gr-nav a:link,.gr-nav a:visited{position:relative;font-size:15.5px;
+  font-weight:600;color:#c3cad3!important;text-decoration:none!important;
+  padding:10px 20px;border-radius:9px;white-space:nowrap;letter-spacing:-.1px;
+  transition:background .18s ease,color .18s ease}
+/* The active tab is marked by a RULE UNDER IT, not a solid amber slab behind
+   the text. A filled pill was the single loudest element on a page whose whole
+   job is to make gigs the loudest thing — and it fought the amber CTA buttons
+   for the same attention. An underline reads as "you are here" without
+   competing. ::after rather than border-bottom so it can animate width from
+   the centre instead of appearing all at once. */
+.gr-nav a::after{content:"";position:absolute;left:50%;right:50%;bottom:2px;
+  height:2px;border-radius:2px;background:var(--amber);
+  transition:left .22s cubic-bezier(.2,.7,.3,1),right .22s cubic-bezier(.2,.7,.3,1)}
+.gr-nav a:hover{background:rgba(232,147,58,.09);color:#eaa662!important}
+.gr-nav a:hover::after{left:30%;right:30%;background:rgba(232,147,58,.45)}
 .gr-nav a.on,.gr-nav a.on:link,.gr-nav a.on:visited,.gr-nav a.on:hover{
-  background:#E8933A;color:#141414!important}
+  color:#F7B569!important;background:transparent}
+.gr-nav a.on::after{left:18%;right:18%;background:var(--amber)}
+@media (prefers-reduced-motion:reduce){
+  .gr-nav a::after{transition:none}}
 .gr-home{display:block;line-height:0;text-decoration:none!important;
   transition:opacity .14s ease}
 .gr-home:hover{opacity:.8}
@@ -255,8 +279,29 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
 div[data-testid="stHorizontalBlock"]:has(.gr-home){
   margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);
   width:100vw;max-width:100vw;box-sizing:border-box;
-  padding:0 clamp(22px, 4vw, 64px) 12px;
-  border-bottom:1px solid #23272f}   /* a full-width bar rule, so the divider below it goes */
+  padding:6px clamp(22px, 4vw, 64px) 12px;
+  /* THE BAR IS ITS OWN SURFACE. It used to be the page's exact background
+     with a 1px rule under it, which is why the header and the board read as
+     one undifferentiated sheet: there was nothing there to see. It now sits a
+     step above the page (--panel, already in the tokens and barely used) and
+     STICKS, so the board scrolls beneath it. The blur is what sells that —
+     content passing under frosted glass is the thing that makes a bar read as
+     a layer rather than a stripe of colour.
+     The gradient is deliberately near-invisible: opaque at the top where the
+     logo and nav sit, easing to the panel colour at the rule, so the bar has
+     a faint sense of depth instead of being one flat block. */
+  position:sticky;top:0;z-index:900;
+  background:linear-gradient(180deg,#181c22 0%,var(--panel) 100%);
+  backdrop-filter:blur(14px) saturate(120%);
+  -webkit-backdrop-filter:blur(14px) saturate(120%);
+  border-bottom:1px solid #23272f;
+  /* A shadow, not a second border. Two stacked lines under a bar is the look
+     of a thing that has been bordered twice; a soft drop is how a real app bar
+     separates itself from what's under it. */
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 10px 24px -14px rgba(0,0,0,.9)}
+/* Streamlit's own toolbar sits above ours; without this the sticky bar slides
+   under it and the logo clips on scroll. */
+[data-testid="stHeader"]{background:transparent}
 /* Streamlit's three columns are ratios 2.0 / 4.9 / 1.3 (set in Python so the
    logo has room and the avatar doesn't), which measured out to the nav sitting
    50px right of the page's true centre — unequal flanks push the middle
@@ -1721,6 +1766,8 @@ def _regen_draft(gig, key):
     st.session_state[f"_saved_{gig['id']}"] = False
 
 
+
+
 def gig_card(r, pro):
     with st.container(border=True):
         new = '<span class="gr-new">New</span>' if r.get("is_new") == 1 else ""
@@ -1738,8 +1785,27 @@ def gig_card(r, pro):
         gid = r.get("id")
         out_url = ilink(f"?nav=out&gid={gid}") if gid is not None else \
             html.escape(r.get("url") or "", quote=True)
-        st.markdown(f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>',
-                    unsafe_allow_html=True)
+        # The star is a LINK in the same markdown as the title, not an
+        # st.button in a column beside it. A column would wrap the title in its
+        # own stVerticalBlock, and the card's border rule keys off
+        # `:has(> stElementContainer a.gr-title)` — so the column's block
+        # matched it too and drew a second bordered card around just the
+        # headline, while the real card lost its house border and fell back to
+        # Streamlit's stock grey. Same ?param routing the nav and the stat
+        # cards already use, so the card's DOM shape is exactly what the
+        # stylesheet was tuned against.
+        star = ""
+        if gid is not None and ACCESS["signed_in"]:
+            _on = saved.has(gid)
+            # `from` so unsaving on the Saved tab returns to Saved, not Gigs.
+            _from = (st.session_state.get("_active_tab") or "gigs").lower()
+            star = (f'<a class="gr-save{" on" if _on else ""}" '
+                    f'href="{ilink(f"?save={gid}&from={_from}")}" target="_self" '
+                    f'title="{"Saved — click to remove" if _on else "Save for later"}">'
+                    f'{"★" if _on else "☆"}</a>')
+        st.markdown(
+            f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>{star}',
+            unsafe_allow_html=True)
 
         # Pills carry their meaning in colour (FEEL.md §2: match is amber,
         # urgent is red, low is amber-dim, location is blue/green) — an emoji
@@ -2364,6 +2430,52 @@ def view_gigs(pro):
     for r in view.iloc[start:start + PAGE_SIZE].to_dict("records"):
         gig_card(r, pro)
     gig_pager(page, total_pages, "bottom", show_top_link=True)
+
+
+def view_saved(pro):
+    st.markdown('### Gigs you <span class="gr-accent">saved</span>',
+                unsafe_allow_html=True)
+
+    if not ACCESS["signed_in"]:
+        st.info("Sign in and you can save gigs here to come back to. "
+                "The board moves fast — saving pins one so it's still "
+                "findable tomorrow.")
+        return
+
+    ids = saved.ids()
+    if not ids:
+        st.caption("Nothing saved yet. Hit the ☆ on any gig and it'll wait "
+                   "for you here.")
+        return
+
+    # Read straight from the board, filtered to the saved ids, so a saved gig
+    # shows whatever the board currently knows about it — the re-classified
+    # tag, the backfilled apply address — instead of a copy frozen at save
+    # time. The same reason saved.py stores ids and not rows.
+    cur, _ = load_feed()
+    if cur.empty:
+        st.caption("The board is still loading. Give it a moment.")
+        return
+    have = cur[cur["id"].astype(str).isin(ids)]
+
+    # Their save order, not the board's newest-first order: this page is a
+    # list they built, so it should read in the order they built it.
+    _rank = {gid: i for i, gid in enumerate(ids)}
+    have = have.assign(_saved_rank=have["id"].astype(str).map(_rank)) \
+               .sort_values("_saved_rank")
+
+    # Anything saved that is no longer on the board — the posting was taken
+    # down, or it aged past the 45-day cutoff. Said plainly rather than
+    # silently showing fewer cards than the count implies.
+    missing = len(ids) - len(have)
+    _n = len(have)
+    st.caption(f"**{_n}** saved gig{'' if _n == 1 else 's'}" +
+               (f"  ·  {missing} no longer on the board" if missing else ""))
+
+    if pro:
+        have = scored(have)
+    for r in have.to_dict("records"):
+        gig_card(r, pro)
 
 
 def view_market(pro):
@@ -3730,7 +3842,12 @@ def view_admin():
 # three tabs that actually show gigs while its own copy told you to go to
 # Profile to switch it on. It's a section of Profile now; ?nav=alerts still
 # resolves there so any existing link or bookmark keeps working.
-_TABS = ["Dashboard", "Gigs", "Market"]
+#
+# Saved earns its place by the same rule Alerts failed: every tab here shows
+# GIGS. Dashboard shows what's fresh, Gigs the whole board, Saved the ones you
+# kept, Market what they pay. A settings screen in this row would be the odd
+# one out again.
+_TABS = ["Dashboard", "Gigs", "Saved", "Market"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
@@ -3744,6 +3861,23 @@ _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
 # before the ?nav= dispatch below for the same reason IS_ADMIN is: the first
 # click on a gig title must not fall through and render the dashboard instead
 # of redirecting.
+# Save/unsave, then bounce back to where they were. Handled HERE, after the
+# account has been resolved and paths.set_scope() has run, so the write lands
+# in the signed-in person's own store rather than the anonymous scratch scope.
+# Doing this as a link + redirect rather than an st.button keeps the gig card's
+# DOM identical to what the card stylesheet was built against.
+if st.query_params.get("save"):
+    _sgid = st.query_params.get("save", "")
+    if ACCESS["signed_in"] and _sgid:
+        saved.toggle(_sgid)
+    # Back to the page they were on, carrying the token so an email sign-in
+    # isn't dropped by the round trip — same reasoning as ilink() everywhere.
+    _back = (st.query_params.get("from") or "gigs").lower()
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={ilink(f"?nav={_back}")}">',
+        unsafe_allow_html=True)
+    st.stop()
+
 if st.query_params.get("nav", "").lower() == "out" and st.query_params.get("gid"):
     import db as _db
     _row = _db.post_by_id(st.query_params.get("gid"))
@@ -3846,6 +3980,9 @@ with _ncol:
 _page = st.session_state.get("_page", "")
 _on_profile = _page == "profile"
 active = _SIDE_PAGES.get(_page) or selected
+# Which tab the cards below are being drawn on, so a save link can send them
+# back to it. Read by gig_card(), which runs after this.
+st.session_state["_active_tab"] = active
 
 with _rcol:
     _name = (prof.get("name") or "").strip()
@@ -3923,6 +4060,8 @@ if active == "Dashboard":
     view_dashboard(PRO)
 elif active == "Gigs":
     view_gigs(PRO)
+elif active == "Saved":
+    view_saved(PRO)
 elif active == "Market":
     view_market(PRO)
 elif active == "Profile":
