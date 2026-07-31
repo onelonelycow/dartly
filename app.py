@@ -261,6 +261,14 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
 .gr-nav a::after{content:"";position:absolute;left:50%;right:50%;bottom:2px;
   height:2px;border-radius:2px;background:var(--amber);
   transition:left .22s cubic-bezier(.2,.7,.3,1),right .22s cubic-bezier(.2,.7,.3,1)}
+/* The count rides inside the tab's own pill rather than floating over its
+   corner: a corner badge on a text tab has nothing to anchor to and drifts as
+   the label length changes. */
+.gr-nav .gr-tabn{display:inline-block;margin-left:7px;min-width:18px;
+  padding:1px 6px;border-radius:999px;font-size:11.5px;font-weight:700;
+  line-height:1.5;text-align:center;color:#eaa662;
+  background:rgba(232,147,58,.16);vertical-align:1px}
+.gr-nav a.on .gr-tabn{color:#141414;background:var(--amber)}
 .gr-nav a:hover{background:rgba(232,147,58,.09);color:#eaa662!important}
 .gr-nav a:hover::after{left:30%;right:30%;background:rgba(232,147,58,.45)}
 .gr-nav a.on,.gr-nav a.on:link,.gr-nav a.on:visited,.gr-nav a.on:hover{
@@ -1113,6 +1121,29 @@ PRO = ACCESS["pro"]
 TOKEN = (ACCOUNT or {}).get("token", "") if ACCOUNT else ""
 
 
+def saved_ids() -> list:
+    """
+    This person's saved gig ids, newest first, read ONCE per session.
+
+    Not a convenience: saved.has() goes through read_user_json(), which falls
+    through to a Supabase round trip whenever the local file is missing — and
+    for someone who has never saved anything, it is always missing. Calling it
+    per card meant 25+ network round trips to draw one page of the board, and
+    it never stopped, because the file that would end the fallback only exists
+    once they save something. Measured at 26 calls for a single render.
+
+    A list, not a set, because the Saved tab renders in the order things were
+    saved — one cached source of truth for the stars, the tab count, and that
+    page, instead of three reads that can disagree.
+
+    The ?save= handler clears this, so a star still lights up immediately.
+    """
+    if "_saved_set" not in st.session_state:
+        st.session_state["_saved_set"] = (
+            saved.ids() if ACCESS["signed_in"] else [])
+    return st.session_state["_saved_set"]
+
+
 def ilink(href: str) -> str:
     """
     An internal link that keeps a signed-in person signed in.
@@ -1796,7 +1827,7 @@ def gig_card(r, pro):
         # stylesheet was tuned against.
         star = ""
         if gid is not None and ACCESS["signed_in"]:
-            _on = saved.has(gid)
+            _on = str(gid) in saved_ids()
             # `from` so unsaving on the Saved tab returns to Saved, not Gigs.
             _from = (st.session_state.get("_active_tab") or "gigs").lower()
             star = (f'<a class="gr-save{" on" if _on else ""}" '
@@ -2442,7 +2473,7 @@ def view_saved(pro):
                 "findable tomorrow.")
         return
 
-    ids = saved.ids()
+    ids = saved_ids()
     if not ids:
         st.caption("Nothing saved yet. Hit the ☆ on any gig and it'll wait "
                    "for you here.")
@@ -3870,6 +3901,9 @@ if st.query_params.get("save"):
     _sgid = st.query_params.get("save", "")
     if ACCESS["signed_in"] and _sgid:
         saved.toggle(_sgid)
+        # Drop the cached set so the star and the tab count both show the new
+        # state on the very next render rather than a stale one.
+        st.session_state.pop("_saved_set", None)
     # Back to the page they were on, carrying the token so an email sign-in
     # isn't dropped by the round trip — same reasoning as ilink() everywhere.
     _back = (st.query_params.get("from") or "gigs").lower()
@@ -3968,10 +4002,21 @@ with _bcol:
 selected = _TABS[st.session_state.get("_navidx", 0)]
 with _ncol:
     _side = bool(st.session_state.get("_page"))
-    _links = "".join(
-        f'<a class="{"on" if t == selected and not _side else ""}" '
-        f'href="{ilink(f"?nav={t.lower()}")}" target="_self">{t}</a>'
-        for t in _TABS)
+    # A count on Saved, and only when there IS one. A "0" badge is a tab
+    # telling you it has nothing — worse than no badge at all — and an empty
+    # Saved tab already explains itself when you open it. Signed-out visitors
+    # can't have saved anything, so they never see it either.
+    #
+    # Reads the same session-cached set the cards use — see saved_ids() for why
+    # touching the store directly here would put a network call on every click.
+    _saved_n = len(saved_ids())
+    _links = ""
+    for t in _TABS:
+        _badge = (f'<span class="gr-tabn">{_saved_n}</span>'
+                  if t == "Saved" and _saved_n else "")
+        _links += (f'<a class="{"on" if t == selected and not _side else ""}" '
+                   f'href="{ilink(f"?nav={t.lower()}")}" target="_self">'
+                   f'{t}{_badge}</a>')
     st.markdown(f'<div class="gr-nav">{_links}</div>', unsafe_allow_html=True)
 
 # Leaving an info page is handled where ?nav= is dispatched: a tab link clears
