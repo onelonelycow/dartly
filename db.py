@@ -561,24 +561,49 @@ def reclassify_all() -> int:
     improvement would otherwise only reach new gigs while the existing board
     kept its old (often wrong) tags. This re-tags what's already stored. Only
     changed rows are written, so a second run is a cheap no-op.
+
+    STREAMED IN CHUNKS, not fetchall()'d. The naive version materialised every
+    row — full, untruncated body text included — before the loop started:
+    measured at 57MB peak on a 19,831-gig board, and it grows linearly as the
+    board does. That lands on the WORST possible path: this runs at every
+    process boot, right after board_store.pull() does its own full-board read,
+    before the app has served a single request, under Render's 512MB ceiling.
+    It's the same mistake posts_frame was already rewritten to fix — see its
+    docstring for the profiling that prompted that one.
+
+    Bodies are NOT truncated here the way posts_frame truncates them. The
+    classifier reads the description to tag a gig, so trimming it would change
+    what the board says a gig IS, not just how much text is held in memory.
+    Streaming gets the memory back without touching the result.
     """
     import classify
     conn = connect()
     try:
-        rows = conn.execute(
-            "SELECT id, title, body, source, job_type, size_tier, urgency FROM posts"
-        ).fetchall()
-        changed = 0
-        for r in rows:
-            t = classify.classify(r["title"], r["body"], r["source"])
-            if (t["job_type"] != r["job_type"] or t["size_tier"] != r["size_tier"]
-                    or t["urgency"] != r["urgency"]):
-                conn.execute(
-                    "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
-                    (t["job_type"], t["size_tier"], t["urgency"], r["id"]))
-                changed += 1
+        cur = conn.execute(
+            "SELECT id, title, body, source, job_type, size_tier, urgency FROM posts")
+        # Only the rows that actually changed are held, and each is four short
+        # strings rather than a full description. A repeat run finds nothing and
+        # so holds nothing — the idempotence this function already promised.
+        pending = []
+        while True:
+            rows = cur.fetchmany(2000)
+            if not rows:
+                break
+            for r in rows:
+                t = classify.classify(r["title"], r["body"], r["source"])
+                if (t["job_type"] != r["job_type"] or t["size_tier"] != r["size_tier"]
+                        or t["urgency"] != r["urgency"]):
+                    pending.append((t["job_type"], t["size_tier"], t["urgency"],
+                                    r["id"]))
+        # Applied after the read cursor is exhausted, never during it: SQLite
+        # gives no guarantees about a SELECT still being stepped through while
+        # the same table is being written.
+        if pending:
+            conn.executemany(
+                "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
+                pending)
         conn.commit()
-        return changed
+        return len(pending)
     finally:
         conn.close()
 

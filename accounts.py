@@ -74,6 +74,19 @@ def _parse(ts: str | None):
         return None
 
 
+class StoreUnavailable(RuntimeError):
+    """
+    The accounts database couldn't be reached on this render.
+
+    Deliberately NOT the same thing as "no account matched". _resolve_account()
+    pops the session token when a lookup comes back empty, on the reasoning
+    that the token must be stale or forged — correct for a genuine miss, and
+    exactly wrong for a database that was merely busy for a moment, which
+    would sign a real person out for good. Callers distinguish the two by
+    catching this; returning None for both is the bug this exists to prevent.
+    """
+
+
 def _connect():
     conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
@@ -183,6 +196,17 @@ def sign_in(email: str, source: str = "signin",
     if not people.valid_email(email):
         return None, False
 
+    try:
+        return _sign_in_locked(email, source, campaign)
+    except sqlite3.Error as e:
+        # Same reasoning as by_token: a busy database is not a bad email
+        # address, and the sign-in form must be able to tell the person to
+        # try again rather than showing them a traceback.
+        raise StoreUnavailable(str(e)) from e
+
+
+def _sign_in_locked(email: str, source: str, campaign: str) -> tuple[dict | None, bool]:
+    """The body of sign_in(), split out so one try/except covers all its SQL."""
     init()
     conn = _connect()
     row = conn.execute("SELECT * FROM accounts WHERE email=?", (email,)).fetchone()
@@ -272,19 +296,38 @@ def sign_in(email: str, source: str = "signin",
 
 
 def by_token(token: str) -> dict | None:
-    """The account this URL token belongs to, or None."""
+    """
+    The account this URL token belongs to, or None if no account matches.
+
+    Raises StoreUnavailable if the database itself couldn't be read — see that
+    class for why the caller must not treat the two outcomes the same way.
+    This runs on EVERY rerun for every signed-in visitor (Streamlit re-executes
+    the whole script on each click), so it is the single most-called write in
+    the app and the first thing that touches SQLite on a page load.
+    """
     token = (token or "").strip()
     if not token:
         return None
-    init()
-    conn = _connect()
-    row = conn.execute("SELECT * FROM accounts WHERE token=?", (token,)).fetchone()
-    if row:
-        conn.execute("UPDATE accounts SET last_seen=?, visits=visits+1 WHERE token=?",
-                     (_now(), token))
-        conn.commit()
-    conn.close()
-    return dict(row) if row else None
+    conn = None
+    try:
+        init()
+        conn = _connect()
+        row = conn.execute("SELECT * FROM accounts WHERE token=?",
+                           (token,)).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE accounts SET last_seen=?, visits=visits+1 WHERE token=?",
+                (_now(), token))
+            conn.commit()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        raise StoreUnavailable(str(e)) from e
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
 
 
 def _founding_rank(acc: dict) -> int | None:
@@ -293,14 +336,28 @@ def _founding_rank(acc: dict) -> int | None:
     not just "founding". Computed from `created` order at read time rather
     than stored on the row, so it stays correct even after a wipe-and-
     rehydrate reorders when rows were last written.
+
+    `rowid` BREAKS TIES, and it has to. `_now()` truncates to whole seconds,
+    and the accounts table is keyed on email with no autoincrement id, so two
+    people signing up in the same second got byte-identical `created` strings
+    — and `created <= ?` alone then counted BOTH of them, handing the same
+    number to two different people while skipping the next one entirely.
+    That isn't hypothetical at launch: an announcement to a whole membership
+    is exactly a burst of same-second signups. rowid is monotonic per insert,
+    so (created, rowid) is a total order and every rank is unique.
     """
     if not acc.get("founding"):
         return None
     conn = _connect()
     try:
+        row = conn.execute("SELECT rowid FROM accounts WHERE email=?",
+                           (acc.get("email") or "",)).fetchone()
+        if not row:
+            return None
         n = conn.execute(
-            "SELECT COUNT(*) FROM accounts WHERE founding=1 AND created<=?",
-            (acc.get("created") or "",)).fetchone()[0]
+            "SELECT COUNT(*) FROM accounts WHERE founding=1 AND "
+            "(created < ?1 OR (created = ?1 AND rowid <= ?2))",
+            (acc.get("created") or "", row[0])).fetchone()[0]
     finally:
         conn.close()
     return n or 1

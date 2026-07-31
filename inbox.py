@@ -230,6 +230,16 @@ def poll(max_messages: int = MAX_PER_POLL) -> dict:
     import classify
     import db
 
+    # Forwarded gigs have to reach the durable mirror too. ingest.py pushes
+    # every cycle's new rows to Supabase precisely so a Render redeploy or
+    # idle spin-down doesn't reset the board — but these rows arrive by a
+    # different door, and without the same push they'd live only in the
+    # local SQLite file. That file is ephemeral on the current plan, so a
+    # forwarded gig would look fine right up until the next restart and then
+    # be gone, and it's the one kind of gig the user can't re-fetch: it came
+    # from their own private newsletter, not a board we crawl.
+    fresh = []
+
     try:
         box = imaplib.IMAP4_SSL(IMAP_HOST)
         box.login(INBOX_EMAIL, INBOX_PASSWORD)
@@ -273,6 +283,7 @@ def poll(max_messages: int = MAX_PER_POLL) -> dict:
                     }
                     if db.upsert_post(rec):
                         out["gigs"] += 1
+                        fresh.append(rec)
                 box.store(num, "+FLAGS", "\\Seen")
             except Exception:
                 out["skipped"] += 1
@@ -280,6 +291,16 @@ def poll(max_messages: int = MAX_PER_POLL) -> dict:
         box.logout()
     except Exception as e:
         print(f"  ! inbox: {type(e).__name__}: {e}")
+    # Outside the try on purpose: the rows are already committed to SQLite by
+    # this point, so a failure tearing down the IMAP connection above must not
+    # be what decides whether they reach the mirror. Best-effort and a no-op
+    # when the mirror isn't configured, same as ingest.py.
+    if fresh:
+        try:
+            import board_store
+            board_store.push(fresh)
+        except Exception:
+            pass
     return out
 
 

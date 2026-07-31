@@ -1009,21 +1009,34 @@ accounts.init()
 # the URL; everyone else gets a scratch space unique to their browser session,
 # so two strangers browsing at once never see each other's data.
 def _resolve_account():
-    # Google first: it hands us an address it has already verified, so it beats
-    # a link that anyone could forward and an email box that nobody checked.
-    gmail = auth.google_email(st)
-    if gmail:
-        acc, _ = accounts.sign_in(gmail, source="google")
-        if acc:
-            return acc
+    # This is the FIRST thing that touches the database on every single render,
+    # so an unhandled error here doesn't degrade one component — it replaces the
+    # whole page with a traceback before anything has drawn. Both lookups below
+    # can now raise StoreUnavailable (a busy/locked database, as opposed to "no
+    # such account"), and both are caught: the visitor renders as a guest for
+    # this one run and the NEXT rerun tries again. Crucially the token is left
+    # in place when that happens — see the pop() below for why that matters.
+    try:
+        # Google first: it hands us an address it has already verified, so it
+        # beats a link that anyone could forward and an email box nobody checked.
+        gmail = auth.google_email(st)
+        if gmail:
+            acc, _ = accounts.sign_in(gmail, source="google")
+            if acc:
+                return acc
 
-    tok = st.query_params.get("u") or st.session_state.get("_tok") or ""
-    if tok:
-        acc = accounts.by_token(tok)
-        if acc:
-            st.session_state["_tok"] = tok
-            return acc
-        st.session_state.pop("_tok", None)   # stale or forged token
+        tok = st.query_params.get("u") or st.session_state.get("_tok") or ""
+        if tok:
+            acc = accounts.by_token(tok)
+            if acc:
+                st.session_state["_tok"] = tok
+                return acc
+            # Reached ONLY on a genuine miss, never on a database error. The
+            # difference matters: this line signs someone out permanently, and
+            # a moment of lock contention must never be what triggers it.
+            st.session_state.pop("_tok", None)   # stale or forged token
+    except accounts.StoreUnavailable:
+        pass
     return None
 
 
@@ -2185,9 +2198,19 @@ def view_gigs(pro):
     # Search and field sit on ONE row: they are the same decision ("what work?"),
     # so they belong together rather than as two stacked full-width bars.
     _sc, _fc = st.columns([3, 2], vertical_alignment="center")
+    # A generation number baked into the widget's key, not a fixed "gigsearch".
+    # Clear used to pop "gigsearch" from session_state and rerun, which is the
+    # textbook way to reset a keyed widget — and it silently didn't work: the
+    # results correctly went back to the whole board, but the box kept showing
+    # the old query, because once a key has been typed into, Streamlit's
+    # frontend treats it as user-owned and won't accept a fresh `value=` for
+    # that SAME key on a later render. Changing the key itself sidesteps the
+    # question entirely: the widget below is a widget Streamlit has never seen
+    # before, so `value=` is honored because there's nothing to override.
+    _skey = f"gigsearch_{st.session_state.get('_search_gen', 0)}"
     _sq = _sc.text_input("Search gigs", value=st.session_state.get("searchq", ""),
                          placeholder="Search gigs — figma, shopify, medical…",
-                         label_visibility="collapsed", key="gigsearch")
+                         label_visibility="collapsed", key=_skey)
     kw = (_sq or "").strip().lower()
     if kw != st.session_state.get("searchq", ""):
         st.session_state["searchq"] = kw
@@ -2249,7 +2272,10 @@ def view_gigs(pro):
                      f'<b>{html.escape(kw)}</b></span>', unsafe_allow_html=True)
         if sc2.button("Clear", key="clearsearch", width="stretch"):
             st.session_state["searchq"] = ""
-            st.session_state.pop("gigsearch", None)
+            # Bumping the generation, not popping "gigsearch" — see the comment
+            # by _skey above for why popping the old key rendered the results
+            # correctly but left stale text sitting in the box.
+            st.session_state["_search_gen"] = st.session_state.get("_search_gen", 0) + 1
             st.rerun()
         if view.empty:
             st.info(f"Nothing matches **{kw}** right now. Try a broader word, or "
@@ -2706,6 +2732,15 @@ def view_profile(pro):
     st.markdown('### Tell us about <span class="gr-accent">you</span>',
                 unsafe_allow_html=True)
     st.caption("The more we know, the better the gigs we surface for you.")
+    # A flash flag, not a toast shown right before the rerun below that follows
+    # a save: st.success() immediately followed by st.rerun() throws away its
+    # own message before a human ever sees it — the rerun aborts THIS script
+    # run and starts a fresh one where that success() line never executes
+    # again. Same pattern the draft-reply "Saved" caption already uses
+    # correctly (see _saved_{gid} above): set a flag, rerun, then read and
+    # clear the flag on the run that actually renders.
+    if st.session_state.pop("_profile_saved", False):
+        st.success("Got it — we've tuned things to you.")
 
     # No "Signed in as …" line and no Sign out button up here: the account menu
     # in the top bar already shows both, and repeating them at the top of the
@@ -2811,7 +2846,7 @@ def view_profile(pro):
             if _who:
                 people.attach_profile(_who, _saved)
             st.session_state.pop("_geo", None)
-            st.success("Got it — we've tuned things to you.")
+            st.session_state["_profile_saved"] = True
             st.rerun()
 
     if pro:
@@ -3072,7 +3107,13 @@ def sign_in_here(email: str, where: str):
     Starting Pro is a separate, deliberate choice (accounts.start_trial), so
     signing in never drops anyone into a trial they didn't ask for.
     """
-    acc, is_new = accounts.sign_in(email, source=where, campaign=CAMPAIGN)
+    try:
+        acc, is_new = accounts.sign_in(email, source=where, campaign=CAMPAIGN)
+    except accounts.StoreUnavailable:
+        # Their address was fine; we just couldn't write it down this second.
+        # Saying so plainly beats "that doesn't look like an email address",
+        # which would send someone off retyping a perfectly good address.
+        return False, "We couldn't reach your account just then. Try once more."
     if not acc:
         return False, "That doesn't look like an email address."
     st.session_state["_tok"] = acc["token"]
