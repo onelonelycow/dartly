@@ -547,7 +547,40 @@ def backfill_last_digest() -> int:
 #     someone pounding "send me a code" with their address in the box.
 CODE_TTL_MIN = 10          # how long a code stays good
 CODE_MAX_ATTEMPTS = 5      # wrong guesses before a code is burned
-CODE_MAX_PER_HOUR = 5      # codes we'll send one address in an hour
+CODE_MAX_PER_HOUR = 5      # codes we'll send one INBOX in an hour
+# A ceiling across everyone, not per address. The per-address limit stops one
+# person being mailbombed; this stops the whole mail quota being drained. That
+# matters more than it looks: sign-in IS email now, so an exhausted quota does
+# not merely stop codes — nobody can get into Nabbly at all until it resets.
+# Set well above a real launch day (a 100-person group signing up inside an
+# hour is ~200 emails counting welcomes) and well below anything a script
+# would reach.
+CODE_MAX_PER_HOUR_GLOBAL = 300
+_GLOBAL_KEY = "_all"       # the bucket the global counter lives in
+
+
+def _inbox_key(email: str) -> str:
+    """
+    Collapse the addresses that reach ONE inbox down to one rate-limit key.
+
+    Limiting on the literal string was no limit at all: you+1@gmail.com,
+    you+2@gmail.com and y.o.u@gmail.com are three different strings and one
+    mailbox, so five-per-hour became five-per-variation and the mailbomb it
+    was written to stop went straight through.
+
+    Everything after a + is a tag and is dropped, which every major provider
+    supports. Dots are only meaningless at Google, so they are stripped there
+    and nowhere else — dots DO distinguish real mailboxes at other hosts, and
+    over-collapsing would rate-limit two unrelated colleagues as one person.
+    """
+    email = (email or "").strip().lower()
+    if "@" not in email:
+        return email
+    local, _, domain = email.partition("@")
+    local = local.split("+", 1)[0]
+    if domain in ("gmail.com", "googlemail.com"):
+        local = local.replace(".", "")
+    return f"{local}@{domain}"
 
 
 def _code_hash(email: str, code: str) -> str:
@@ -598,13 +631,29 @@ def issue_code(email: str) -> tuple[str, str]:
         _init_codes(conn)
         now = datetime.now(timezone.utc)
         # Rate limit first, before anything is written or sent.
-        hour_ago = (now - timedelta(hours=1)).isoformat()
+        # timespec matches how the rows are stored, so the string comparison
+        # covers a true hour rather than an hour minus some microseconds.
+        hour_ago = (now - timedelta(hours=1)).isoformat(timespec="seconds")
         conn.execute("DELETE FROM login_code_sends WHERE ts < ?", (hour_ago,))
+        # Per inbox, keyed on the collapsed form so + tags and Gmail dots
+        # cannot be used to get five fresh codes per spelling.
+        inbox = _inbox_key(email)
         recent = conn.execute(
             "SELECT COUNT(*) FROM login_code_sends WHERE email=? AND ts>=?",
-            (email, hour_ago)).fetchone()[0]
+            (inbox, hour_ago)).fetchone()[0]
         if recent >= CODE_MAX_PER_HOUR:
             return "", "That's a lot of codes. Try again in an hour."
+        # And across everyone. Without this a script walking arbitrary
+        # addresses never trips the per-inbox limit at all, drains the day's
+        # mail quota in under a minute, and locks every real person out of
+        # signing in — because sign-in is email.
+        total = conn.execute(
+            "SELECT COUNT(*) FROM login_code_sends WHERE email=? AND ts>=?",
+            (_GLOBAL_KEY, hour_ago)).fetchone()[0]
+        if total >= CODE_MAX_PER_HOUR_GLOBAL:
+            print(f"  accounts: GLOBAL code cap hit ({total} in the last hour) "
+                  f"— refusing new sign-in codes", flush=True)
+            return "", "Sign-in is busy right now. Try again in a few minutes."
         # secrets, not random: this is a credential.
         code = f"{secrets.randbelow(1_000_000):06d}"
         expires = (now + timedelta(minutes=CODE_TTL_MIN)).isoformat(timespec="seconds")
@@ -614,8 +663,13 @@ def issue_code(email: str) -> tuple[str, str]:
             "ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash, "
             "  created=excluded.created, expires=excluded.expires, attempts=0",
             (email, _code_hash(email, code), now.isoformat(timespec="seconds"), expires))
-        conn.execute("INSERT INTO login_code_sends (email, ts) VALUES (?,?)",
-                     (email, now.isoformat(timespec="seconds")))
+        # Two ledger rows per send: one against the collapsed inbox, one
+        # against the global bucket. The code row itself stays keyed on the
+        # exact address the person typed, because that is what they will be
+        # verifying against.
+        _stamp = now.isoformat(timespec="seconds")
+        conn.executemany("INSERT INTO login_code_sends (email, ts) VALUES (?,?)",
+                         [(inbox, _stamp), (_GLOBAL_KEY, _stamp)])
         conn.commit()
         return code, ""
     finally:

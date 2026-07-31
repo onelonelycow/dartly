@@ -411,6 +411,34 @@ def notify_everyone(desktop: bool = False) -> int:
     live = [a for a in accounts.all_accounts() if accounts.status(a)["pro"]]
     if not live:
         return 0
+
+    # A watermark can end up pointing PAST the end of the table, and when it
+    # does it silently kills alerting — for everybody, not just its owner.
+    #
+    # Why it happens: last_alert_id is mirrored to the durable store and
+    # survives a deploy, but the ids it refers to do not. board_store restores
+    # gigs without their original id (it can't — the id is local autoincrement
+    # and meaningless across instances), so the table is renumbered from
+    # scratch on every wipe and the new top is LOWER than the marker people
+    # were left holding. A durable pointer into an ephemeral numbering.
+    #
+    # Then `floor` below is a min() across all Pro accounts, so one stale
+    # marker drags the floor above `newest`, the function returns 0, and the
+    # headline Pro feature goes quiet with no error and no log line.
+    #
+    # Clamping is the honest repair: a marker beyond the end can only mean the
+    # numbering was reset, so treat it as "caught up to the current top" and
+    # alert on everything that lands after this. It costs the gigs that arrived
+    # during the wipe — those are still on the board to browse — and it gets
+    # alerts working again on the next cycle instead of never.
+    stale = [a for a in live if int(a.get("last_alert_id") or 0) > newest]
+    if stale:
+        print(f"  alerts: {len(stale)} watermark(s) past the top of the table "
+              f"(ids were renumbered) — clamping to {newest}", flush=True)
+        for a in stale:
+            accounts.set_last_alert_id(a["email"], newest)
+            a["last_alert_id"] = newest
+
     floor = min(int(a.get("last_alert_id") or 0) for a in live)
     if floor >= newest:
         return 0                          # nothing new since the earliest marker
