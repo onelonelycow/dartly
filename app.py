@@ -1272,18 +1272,29 @@ def _flip_spans(value: str) -> str:
                    f'{ch}</span>' for i, ch in enumerate(value))
 
 
-# A miniature echo of the logo mark itself (amber circle, the same checkmark
-# shape) rather than a new icon — a founding member is, literally, wearing a
-# small piece of the mark next to their name. Static markup, safe to inline
-# wherever ACCESS.get("founding") is true; nothing here is user-controlled.
-FOUNDING_BADGE = (
-    '<span class="gr-founding" title="One of the first 50 to sign up">'
-    '<svg width="13" height="13" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
-    '<circle cx="12" cy="12" r="12" fill="#E8933A"/>'
-    '<path d="M7 12.6l3.4 3.3L17.5 8.4" stroke="#141414" stroke-width="2.6" '
-    'stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'
-    'Founding member</span>'
-)
+def founding_badge_html(rank: int | None) -> str:
+    """
+    A founding member's badge — their actual place in line, not a generic
+    checkmark. The "#7" says something a stock icon can't: it's the one part
+    of this badge that's unique to the person wearing it. The star is the
+    one new shape here (the checkmark is already spoken for — it's the logo).
+
+    ONE canonical spot for this: the account menu, since it's the only place
+    that's visible on every page without a click. The plan card mentions
+    "founding member" in plain text instead of repeating the badge — a
+    second copy of the same graphic read as decoration, not signal.
+    """
+    if not rank:
+        return ""
+    return (
+        f'<span class="gr-founding" title="One of the first {accounts.FOUNDING_LIMIT} '
+        f'to sign up">'
+        '<svg width="12" height="12" viewBox="0 0 24 24" fill="#E8933A" '
+        'xmlns="http://www.w3.org/2000/svg">'
+        '<path d="M12 2.5l2.9 6.4 7 .7-5.3 4.6 1.6 6.9-6.2-3.8-6.2 3.8 '
+        '1.6-6.9-5.3-4.6 7-.7z"/></svg>'
+        f'Founding member #{rank}</span>'
+    )
 
 
 def stat_cards(items):
@@ -2864,15 +2875,15 @@ def plan_card():
         _left = "1 day left" if days == 1 else f"{days} days left"
         renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
-    plan_badge = ""
     if ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
     elif ACCESS["pro"] and ACCESS.get("founding"):
-        # The badge itself now says "founding member", so the name goes back
-        # to a plain "Pro" rather than repeating the label in text too.
-        name, price, note = ("Pro", "Free for 60 days",
+        # The badge itself lives in the account menu only (see
+        # founding_badge_html) — this card says the same thing in plain
+        # text rather than repeating the graphic a second time on the same
+        # page load.
+        name, price, note = ("Pro · founding member", "Free for 60 days",
                              "Our thank-you to the people who backed it first.")
-        plan_badge = FOUNDING_BADGE
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
@@ -2883,7 +2894,7 @@ def plan_card():
     st.markdown(
         f'<div class="gr-plan">'
         f'<div class="gr-plan-top">'
-        f'<div><div class="gr-plan-name">{html.escape(name)}{plan_badge}</div>'
+        f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
         f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
         f'<div class="gr-plan-price">{html.escape(price)}'
         + (f'<span>{html.escape(renews)}</span>' if renews else "")
@@ -3811,9 +3822,9 @@ with _rcol:
         elif ACCESS["pro"]:
             _d = ACCESS["days_left"]
             if ACCESS.get("founding"):
-                # The badge carries "founding" now, so the text line only
+                # The badge carries "founding #N" now, so the text line only
                 # needs to say how long is left, not repeat the label.
-                _founding_html = FOUNDING_BADGE
+                _founding_html = founding_badge_html(ACCESS.get("founding_rank"))
                 _plan = f"{_d} day{'s' if _d != 1 else ''} left"
             else:
                 _plan = f"Pro trial · {_d} day{'s' if _d != 1 else ''} left"

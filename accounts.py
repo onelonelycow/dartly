@@ -287,6 +287,25 @@ def by_token(token: str) -> dict | None:
     return dict(row) if row else None
 
 
+def _founding_rank(acc: dict) -> int | None:
+    """
+    This account's place in line among the first FOUNDING_LIMIT signups — #7,
+    not just "founding". Computed from `created` order at read time rather
+    than stored on the row, so it stays correct even after a wipe-and-
+    rehydrate reorders when rows were last written.
+    """
+    if not acc.get("founding"):
+        return None
+    conn = _connect()
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM accounts WHERE founding=1 AND created<=?",
+            (acc.get("created") or "",)).fetchone()[0]
+    finally:
+        conn.close()
+    return n or 1
+
+
 # ---------------------------------------------------------------------------
 # Entitlement
 # ---------------------------------------------------------------------------
@@ -300,7 +319,8 @@ def status(acc: dict | None) -> dict:
     if not acc:
         return {"signed_in": False, "pro": False, "plan": "anon",
                 "days_left": 0, "expired": False, "email": "",
-                "trialed": False, "can_trial": False, "founding": False}
+                "trialed": False, "can_trial": False, "founding": False,
+                "founding_rank": None}
 
     plan = (acc.get("plan") or "free").lower()
     founding = bool(acc.get("founding"))
@@ -308,7 +328,8 @@ def status(acc: dict | None) -> dict:
     trialed = deadline is not None           # has had some time-boxed Pro grant
     base = {"signed_in": True, "plan": plan, "email": acc.get("email", ""),
             "days_left": 0, "expired": False, "trialed": trialed,
-            "founding": founding, "can_trial": False}
+            "founding": founding, "founding_rank": _founding_rank(acc),
+            "can_trial": False}
 
     # The founder's own account: Pro for life, not a 60-day clock. Checked
     # here rather than written once as plan='pro' in the database, so it
