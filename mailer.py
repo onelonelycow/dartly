@@ -187,6 +187,45 @@ def welcome_email(email: str, name: str, founding: bool, token: str) -> tuple[st
 
 
 # ---------------------------------------------------------------------------
+# sign-in link — the passwordless equivalent of a password reset
+# ---------------------------------------------------------------------------
+def signin_link_email(name: str, token: str) -> tuple[str, str, str]:
+    """
+    Their own sign-in link, in their inbox.
+
+    Nabbly has no passwords, so there is nothing to reset — identity is a
+    token in a link. What someone actually needs is that link somewhere
+    durable they can get to from any device, which is what this is.
+
+    Deliberately NOT sent with an unsubscribe link: this is a transactional
+    reply to something they just clicked, not a mailing. Passing an empty
+    token to _shell() drops the footer link.
+    """
+    link = f"{APP_URL}/?u={token}"
+    hi = f"Hi {name}," if name else "Hi,"
+    subject = "Your Nabbly sign-in link"
+    body = f"""
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  Your sign-in link
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  {hi} open this on any device and you're signed straight in. There's no
+  password to remember, so keep this email if it's handy.
+</p>
+{_button("Sign me in", link)}
+<p style="font-size:12.5px;color:{FAINT};line-height:1.6;margin:20px 0 0;">
+  Anyone with this link can get into your board, so treat it like a password
+  and don't forward it.
+</p>
+"""
+    text = (f"{hi} here's your Nabbly sign-in link. Open it on any device and "
+            f"you're signed straight in.\n\n{link}\n\n"
+            "Anyone with this link can get into your board, so treat it like a "
+            "password and don't forward it.\n")
+    return subject, _shell("Open it on any device to sign in.", body, ""), text
+
+
+# ---------------------------------------------------------------------------
 # weekly digest
 # ---------------------------------------------------------------------------
 def _gig_out_url(gig: dict, token: str) -> str:

@@ -38,6 +38,7 @@ import budget
 import contact
 import drafts
 import style
+import mailer
 import refresh
 import inbox
 import legal
@@ -1045,6 +1046,33 @@ else:
 ACCESS = accounts.status(ACCOUNT)
 PRO = ACCESS["pro"]
 
+# The token for whoever is signed in by email, or "" — see ilink() below.
+TOKEN = (ACCOUNT or {}).get("token", "") if ACCOUNT else ""
+
+
+def ilink(href: str) -> str:
+    """
+    An internal link that keeps a signed-in person signed in.
+
+    Every <a href="?nav=..."> is a REAL browser navigation, not a Streamlit
+    rerun, so each click starts a fresh session with empty session_state. That
+    makes the query string the only thing that carries identity across a
+    click — and a bare "?nav=gigs" replaces the whole query string, dropping
+    the ?u= token that says who this is. The result was that anyone who
+    signed up with an email was anonymous again the moment they clicked Gigs:
+    signed in on the board, signed out one click later.
+
+    Google sign-in never had this problem, which is why it went unnoticed —
+    Streamlit's own auth is cookie-backed and survives navigation. Email
+    sign-in has no cookie, so the token has to ride in the URL.
+
+    Every internal link goes through here. Anything that doesn't will sign an
+    email-signed-in person out when they click it.
+    """
+    if not TOKEN or "u=" in href:
+        return href
+    return f"{href}{'&' if '?' in href else '?'}u={TOKEN}"
+
 prof = profile_mod.load()
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 FEED_CAP = 60
@@ -1242,7 +1270,7 @@ def stat_cards(items):
                  f'<div class="l">{label}</div>'
                  f'<div class="{cls}">{_flip_spans(value)}</div>')
         if href:
-            html += (f'<a class="gr-stat" href="{href}" target="_self">{inner}'
+            html += (f'<a class="gr-stat" href="{ilink(href)}" target="_self">{inner}'
                      f'<div class="go">→</div></a>')
         else:
             html += f'<div class="gr-stat">{inner}</div>'
@@ -2203,7 +2231,7 @@ def view_gigs(pro):
         # sub-category chips to narrow into a specific one
         vc = view["job_type"].value_counts().to_dict()
         subchips = "".join(
-            f'<a class="gr-cat" href="?nav=gigs&cat={quote(s)}" target="_self">'
+            f'<a class="gr-cat" href="{ilink(f"?nav=gigs&cat={quote(s)}")}" target="_self">'
             f'{html.escape(s)}<span class="n">{vc.get(s, 0):,}</span></a>'
             for s in subs if vc.get(s, 0)
         )
@@ -2298,7 +2326,7 @@ def view_market(pro):
         # ?nav=gigs&cat= routing the category chips already use — no new
         # mechanism, and they work on a phone where a bar is a poor tap target.
         _hot = "".join(
-            f'<a class="gr-cat" href="?nav=gigs&cat={quote(row.Skill)}" target="_self">'
+            f'<a class="gr-cat" href="{ilink(f"?nav=gigs&cat={quote(row.Skill)}")}" target="_self">'
             f'{html.escape(row.Skill)}<span class="n">{row.Gigs:,}</span></a>'
             for row in dd.itertuples())
         st.markdown('<div style="font-size:12px;color:#7c828d;margin:10px 0 6px">'
@@ -2735,6 +2763,9 @@ def view_profile(pro):
     plan_card()
 
     st.divider()
+    signin_link_card()
+
+    st.divider()
     feedback_card("profile")
 
     # Sign out lives at the very bottom: it's the one destructive control on
@@ -2835,6 +2866,51 @@ def plan_card():
                 if st.button("Keep Pro", key="downgrade_no", width="stretch"):
                     st.session_state.pop("_confirm_downgrade", None)
                     st.rerun()
+
+
+def signin_link_card():
+    """
+    The passwordless answer to "reset my password".
+
+    There is no password on a Nabbly account — being signed in IS holding the
+    token in your address bar. So the honest version of a password reset is
+    "put that link somewhere I can get to it from my phone", which is this.
+    Says so plainly rather than borrowing the words of a password flow that
+    doesn't exist here, because a "Reset password" button that resets nothing
+    is worse than no button.
+    """
+    st.markdown('#### Getting back <span class="gr-accent">in</span>',
+                unsafe_allow_html=True)
+    if not ACCESS["signed_in"]:
+        st.caption("Sign in first and you can send yourself a link from here.")
+        return
+    st.caption("There's no password on your account. The link in your address "
+               "bar is what signs you in, so here's a copy for your inbox, for "
+               "a new phone or a different browser.")
+    if not mailer.enabled():
+        # Never claim to have sent something we structurally cannot send.
+        st.caption("Email isn't switched on for this site yet.")
+        return
+    _l, _c, _r = st.columns([1, 1.6, 1])
+    with _c:
+        if st.button("Email me my sign-in link", width="stretch",
+                     key="send_signin_link"):
+            subject, html_body, text_body = mailer.signin_link_email(
+                (prof.get("name") or "").strip(), ACCOUNT["token"])
+            if mailer.send(ACCESS["email"], subject, html_body, text_body):
+                st.session_state["_signin_link_sent"] = True
+            else:
+                st.session_state["_signin_link_sent"] = False
+            st.rerun()
+    _sent = st.session_state.get("_signin_link_sent")
+    if _sent is True:
+        st.markdown(
+            f'<div class="gr-confirm"><span class="gr-confirm-dot"></span>'
+            f'<span class="gr-confirm-txt">Sent to '
+            f'<b>{html.escape(ACCESS["email"] or "")}</b>. Check your inbox.'
+            f'</span></div>', unsafe_allow_html=True)
+    elif _sent is False:
+        st.warning("That didn't send. Try again in a minute.")
 
 
 # ---------------------------------------------------------------------------
@@ -3551,13 +3627,20 @@ if "nav" in st.query_params:
                     analytics.track("click", f"{_kind}:{_val}", SID)
                     break
         st.session_state["_page"] = ""      # a real tab leaves any info page
+    # Keep the sign-in token in the address bar. clear() used to strip it,
+    # which meant a reload (or a bookmark) of any page after the first click
+    # came back anonymous — see ilink() for why the URL is the only thing
+    # carrying identity for an email sign-in.
+    _keep_u = st.query_params.get("u", "")
     st.query_params.clear()
+    if _keep_u:
+        st.query_params["u"] = _keep_u
 
 _bcol, _ncol, _rcol = st.columns([2.0, 4.9, 1.3], vertical_alignment="center")
 with _bcol:
     # Clicking the mark goes home — the way out when someone has filtered
     # themselves into a corner three pages deep.
-    st.markdown(f'<a class="gr-home" href="?nav=dashboard" target="_self" '
+    st.markdown(f'<a class="gr-home" href="{ilink("?nav=dashboard")}" target="_self" '
                 f'title="Back to the dashboard">{LOGO_SVG}</a>',
                 unsafe_allow_html=True)
 # Which tab is live is ours to track now, rather than something we read back
@@ -3569,7 +3652,7 @@ with _ncol:
     _side = bool(st.session_state.get("_page"))
     _links = "".join(
         f'<a class="{"on" if t == selected and not _side else ""}" '
-        f'href="?nav={t.lower()}" target="_self">{t}</a>'
+        f'href="{ilink(f"?nav={t.lower()}")}" target="_self">{t}</a>'
         for t in _TABS)
     st.markdown(f'<div class="gr-nav">{_links}</div>', unsafe_allow_html=True)
 
@@ -3583,7 +3666,7 @@ active = _SIDE_PAGES.get(_page) or selected
 with _rcol:
     _name = (prof.get("name") or "").strip()
     _acls = "gr-avatar active" if _on_profile else "gr-avatar"
-    _href = f"?nav={selected.lower()}" if _on_profile else "?nav=profile"
+    _href = ilink(f"?nav={selected.lower()}") if _on_profile else ilink("?nav=profile")
     # The plan shown here used to read a session key that no longer exists, so
     # it said "Free plan" to everyone — including people mid-trial. Read the
     # real entitlement instead.
@@ -3598,10 +3681,10 @@ with _rcol:
             _plan = f"{_tag} · {_d} day{'s' if _d != 1 else ''} left"
         else:
             _plan = "Free"
-        _last = '<a href="?signout=1" target="_self">Sign out</a>'
+        _last = f'<a href="{ilink("?signout=1")}" target="_self">Sign out</a>'
     else:
         _who, _plan = _name or "Your account", "Not signed in"
-        _last = '<a href="?nav=signin" target="_self">Sign in</a>'
+        _last = f'<a href="{ilink("?nav=signin")}" target="_self">Sign in</a>'
     # Signed in (or a local name filled in) → their initial. Anonymous → a small
     # person icon rather than a lone dot that reads as a stray period.
     _user_icon = ('<svg width="18" height="18" viewBox="0 0 24 24" '
@@ -3621,9 +3704,9 @@ with _rcol:
         # different labels on the identical ?nav=profile link, which reads as a
         # menu with a broken item. Profile genuinely IS the settings page now —
         # it holds your details, location, alerts, resume and plan.
-        f'<a href="?nav=profile" target="_self">Profile &amp; settings</a>'
+        f'<a href="{ilink("?nav=profile")}" target="_self">Profile &amp; settings</a>'
         # Owners only — everyone else never sees this link exists.
-        + (f'<a href="?nav=admin" target="_self">Admin</a>' if IS_ADMIN else '') +
+        + (f'<a href="{ilink("?nav=admin")}" target="_self">Admin</a>' if IS_ADMIN else '') +
         f'<div class="gr-menu-sep"></div>'
         f'{_last}'
         f'</div></div></div>', unsafe_allow_html=True)
@@ -3669,10 +3752,10 @@ st.markdown(
     '<span class="brand">Nabbly</span>'
     '<span class="tag">Every gig. The moment it drops.</span>'
     '<div class="foot-links">'
-    '<a class="foot-link" href="?nav=about" target="_self">About</a>'
-    '<a class="foot-link" href="?nav=faq" target="_self">FAQ</a>'
-    '<a class="foot-link" href="?nav=privacy" target="_self">Privacy</a>'
-    '<a class="foot-link" href="?nav=terms" target="_self">Terms</a>'
+    f'<a class="foot-link" href="{ilink("?nav=about")}" target="_self">About</a>'
+    f'<a class="foot-link" href="{ilink("?nav=faq")}" target="_self">FAQ</a>'
+    f'<a class="foot-link" href="{ilink("?nav=privacy")}" target="_self">Privacy</a>'
+    f'<a class="foot-link" href="{ilink("?nav=terms")}" target="_self">Terms</a>'
     '</div>'
     '<span class="meta">OneLonelyCow · © 2026</span>'
     '</div>', unsafe_allow_html=True)
