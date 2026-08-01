@@ -76,17 +76,25 @@ def dither(img, amount=4, seed=1):
 def amber_tile(size, radius, ss=3):
     """The rounded-square icon with the diagonal amber gradient + radar check."""
     s = size * ss
-    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     grad = Image.new("RGB", (s, s))
     gd = grad.load()
     for y in range(s):
         for x in range(s):
             t = (x / s * 0.5 + y / s * 0.5)
             gd[x, y] = _lerp(AMBER_L, AMBER_D, min(1, t))
-    mask = Image.new("L", (s, s), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * ss, fill=255)
-    tile.paste(grad, (0, 0), mask)
-    d = ImageDraw.Draw(tile)
+    # The detail strokes below are semi-transparent white and MUST be drawn
+    # onto this RGB gradient now, not onto the RGBA tile after pasting.
+    # Pillow only actually blends a semi-transparent fill against what's
+    # already there when the target has no alpha channel of its own — draw
+    # the identical (255,255,255,130) onto an RGBA image instead and it just
+    # SETS the pixel to that literal (mostly-transparent) value, with no
+    # amber underneath it at all. That "transparent" pixel only picks up a
+    # visible color later, from whatever this tile eventually gets pasted
+    # onto — gray on the cover's dark background, cream here on amber. Same
+    # numbers, two different-looking marks. Blending here first, against the
+    # gradient that's actually supposed to show through, fixes it for every
+    # future use of this tile regardless of what it's placed on.
+    d = ImageDraw.Draw(grad, "RGBA")
     d.rounded_rectangle([s*0.02, s*0.02, s - s*0.02, s - s*0.02],
                         radius=radius * ss - s*0.02, outline=(255, 255, 255, 70),
                         width=max(2, int(s*0.008)))
@@ -99,6 +107,11 @@ def amber_tile(size, radius, ss=3):
            fill=(255, 255, 255, 255), width=lw, joint="curve")
     d.ellipse([cx - rr * 0.42, cy - rr * 0.42, cx + rr * 0.42, cy + rr * 0.42],
               fill=(255, 255, 255, 255))
+    # NOW cut the rounded-rect shape out of the fully-blended artwork.
+    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    mask = Image.new("L", (s, s), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * ss, fill=255)
+    tile.paste(grad, (0, 0), mask)
     return tile.resize((size, size), Image.LANCZOS)
 
 
@@ -110,7 +123,6 @@ def dark_tile(size, radius, ss=3):
     loud, disconnected block rather than part of the same brand system.
     """
     s = size * ss
-    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
     # a faint amber glow lower-right, echoing the cover art's glow instead of
     # sitting perfectly flat
     grad = Image.new("RGB", (s, s), BG)
@@ -121,10 +133,8 @@ def dark_tile(size, radius, ss=3):
             dist = (((x - gx) / gr) ** 2 + ((y - gy) / gr) ** 2) ** 0.5
             if dist < 1:
                 gd[x, y] = _lerp(BG, AMBER_D, (1 - dist) * 0.35)
-    mask = Image.new("L", (s, s), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * ss, fill=255)
-    tile.paste(grad, (0, 0), mask)
-    d = ImageDraw.Draw(tile)
+    # detail strokes blended onto the RGB gradient — see amber_tile's comment
+    d = ImageDraw.Draw(grad, "RGBA")
     d.rounded_rectangle([s*0.02, s*0.02, s - s*0.02, s - s*0.02],
                         radius=radius * ss - s*0.02, outline=(*AMBER, 90),
                         width=max(2, int(s*0.008)))
@@ -137,6 +147,10 @@ def dark_tile(size, radius, ss=3):
            fill=(*AMBER_L, 255), width=lw, joint="curve")
     d.ellipse([cx - rr * 0.42, cy - rr * 0.42, cx + rr * 0.42, cy + rr * 0.42],
               fill=(*AMBER_L, 255))
+    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    mask = Image.new("L", (s, s), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * ss, fill=255)
+    tile.paste(grad, (0, 0), mask)
     return tile.resize((size, size), Image.LANCZOS)
 
 

@@ -75,7 +75,7 @@ the domain. Use it wherever dots are allowed; where they aren't, use `nabblyco`
 - **About:**
   > Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post, across 25+ fields, from design and writing to video, dev and marketing.
   >
-  > Freelancing is enough of a hustle without refreshing ten boards all day. The person who answers a good post first usually gets the work, so Nabbly sorts each gig by skill, budget and urgency, matches it to what you do, and alerts you the moment something fits. Pro even drafts the first reply from the actual post.
+  > Freelancing is enough of a hustle without refreshing ten boards all day. The person who answers a good post first usually gets the work, so Nabbly sorts each gig by skill, budget and urgency, matches it to what you do, and alerts you the moment something fits. Pro users get even more: a first-reply draft written straight from the actual post, ready to send.
   >
   > Browse the whole board free, no account needed → nabbly.co
 - **Website:** `https://nabbly.co`
