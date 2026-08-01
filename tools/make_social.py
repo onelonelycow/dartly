@@ -2,9 +2,17 @@
 make_social.py — profile + banner art for the social accounts.
 
 Same mark and palette as the app and the og card, sized for each platform:
-  brand/avatar-1000.png    square profile picture (LinkedIn, IG, Reddit, TikTok, Bluesky)
-  brand/linkedin-banner.png   1584x396 company/profile cover
-  brand/social-banner.png     1500x500 wide cover (X/Bluesky sizing, reusable)
+  brand/avatar-1000.png            square profile picture (LinkedIn, IG, Reddit, TikTok, Bluesky)
+  brand/linkedin-banner.png        1584x396 — a PERSONAL LinkedIn profile's
+                                    background photo (4:1). Do not upload this
+                                    to the Company Page — LinkedIn crops a
+                                    Company Page cover to a much wider ~6:1
+                                    strip, so a 4:1 image gets its top and
+                                    bottom aggressively cut off.
+  brand/linkedin-company-cover.png 4200x700 — the Company Page cover (~6:1,
+                                    LinkedIn's current spec). Use THIS one
+                                    when setting up the nabbly-co page.
+  brand/social-banner.png          1500x500 wide cover (X/Bluesky sizing, reusable)
 
 Run:  .venv/bin/python tools/make_social.py
 """
@@ -164,7 +172,53 @@ def make_banner(w, h, name, tagline_y_shift=0):
     print(name, img.size)
 
 
+# ── company-page cover ──────────────────────────────────────────────────
+def make_company_cover(w, h, name, safe_w):
+    """
+    LinkedIn shows the full width on desktop but crops a Company Page cover
+    to its centered middle `safe_w` px on mobile — a left-aligned lockup
+    (like make_banner's) would lose the logo on one edge and the URL on the
+    other. Everything here is centered on the canvas instead, sized to fit
+    inside that centered strip on its own.
+    """
+    img = Image.new("RGB", (w, h), BG)
+    glow = Image.new("RGB", (w, h), BG)
+    gd = glow.load()
+    gx, gy, gr = w // 2, h // 2, int(h * 1.6)
+    for y in range(h):
+        for x in range(w):
+            dist = (((x - gx) / gr) ** 2 + ((y - gy) / gr) ** 2) ** 0.5
+            if dist < 1:
+                gd[x, y] = _lerp(BG, AMBER, (1 - dist) * 0.14)
+    img = Image.blend(img, glow, 0.7)
+    d = ImageDraw.Draw(img)
+    cx = w // 2
+
+    tile_sz = int(h * 0.26)
+    f_word = _font(int(h * 0.135), "Bold", ARIAL_B)
+    f_tag = _font(int(h * 0.052), "Regular", ARIAL)
+    tag = "Every freelance gig, the moment it drops."
+
+    word_w = d.textlength("Nabbly", font=f_word)
+    gap = int(w * 0.014)
+    lockup_w = tile_sz + gap + word_w
+    lx = cx - int(lockup_w / 2)
+    cy = int(h * 0.44)
+
+    tile = amber_tile(tile_sz, int(tile_sz * 0.26))
+    img.paste(tile, (lx, cy - tile_sz // 2), tile)
+    tx = lx + tile_sz + gap
+    d.text((tx, cy), "Nabb", font=f_word, fill=INK, anchor="lm")
+    wn = d.textlength("Nabb", font=f_word)
+    d.text((tx + wn, cy), "ly", font=f_word, fill=AMBER, anchor="lm")
+
+    d.text((cx, cy + int(h * 0.26)), tag, font=f_tag, fill=MUTE, anchor="mm")
+    img.save(OUT / name)
+    print(name, img.size, f"(lockup {int(lockup_w)}px, safe zone {safe_w}px)")
+
+
 make_avatar()
 make_pfp()
 make_banner(1584, 396, "linkedin-banner.png")
+make_company_cover(4200, 700, "linkedin-company-cover.png", safe_w=900)
 make_banner(1500, 500, "social-banner.png", tagline_y_shift=-10)

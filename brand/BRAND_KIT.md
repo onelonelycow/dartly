@@ -36,7 +36,8 @@ the domain. Use it wherever dots are allowed; where they aren't, use `nabblyco`
 | File | Use it for |
 | --- | --- |
 | **`avatar-pfp-1080.png`** | **Profile picture — use this on every platform.** Built for the circular crop: full-bleed amber, mark centred so nothing clips. |
-| `linkedin-banner.png` (1584×396) | LinkedIn page cover |
+| `linkedin-company-cover.png` (4200×700) | **LinkedIn Company Page cover.** LinkedIn crops this to its centered middle 900px on mobile — the lockup is centered and sized to survive that crop; don't swap in `linkedin-banner.png` here, it's the wrong shape. |
+| `linkedin-banner.png` (1584×396) | A PERSONAL LinkedIn profile's background photo — different aspect ratio (4:1) than the Company Page needs (~6:1). Only use this on a personal profile, never the Company Page. |
 | `social-banner.png` (1500×500) | Bluesky / general cover |
 | `avatar-1000.png`, `avatar-tight-1000.png` | Older avatars (mark on dark / rounded tile). Keep `avatar-pfp` as the profile pic; these are just alternates. |
 | `../site/og-image.png` (1200×630) | Already wired into the site for link previews |
@@ -72,14 +73,14 @@ the domain. Use it wherever dots are allowed; where they aren't, use `nabblyco`
 - **Tagline (120 char max):**
   > Every freelance gig, the moment it drops. One feed for every board, so you reply first.
 - **About:**
-  > Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post, across 21 fields, from design and writing to video, dev and marketing.
+  > Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post, across 25+ fields, from design and writing to video, dev and marketing.
   >
   > Freelancing is enough of a hustle without refreshing ten boards all day. The person who answers a good post first usually gets the work, so Nabbly sorts each gig by skill, budget and urgency, matches it to what you do, and alerts you the moment something fits. Pro even drafts the first reply from the actual post.
   >
   > Browse the whole board free, no account needed → nabbly.co
 - **Website:** `https://nabbly.co`
 - **Industry:** Software Development · **Size:** 1 · **Type:** Privately held
-- **Logo:** `avatar-pfp-1080.png` · **Cover:** `linkedin-banner.png`
+- **Logo:** `avatar-pfp-1080.png` · **Cover:** `linkedin-company-cover.png`
 
 ---
 
