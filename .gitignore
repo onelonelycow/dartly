@@ -29,6 +29,8 @@ budget.db
 activity.db
 # Who landed which gig — per-account outcome history, same reasoning again.
 nabbly_outcomes.db
+# Per-account 👍/👎 on match scores, same reasoning again.
+nabbly_match_feedback.db
 *.db-wal
 *.db-shm
 

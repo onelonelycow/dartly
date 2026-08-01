@@ -39,6 +39,7 @@ import contact
 import drafts
 import saved
 import outcomes
+import match_feedback
 import style
 import mailer
 import refresh
@@ -329,6 +330,20 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-why-chip{font-size:11px;font-weight:500;color:#caa06e;
   background:rgba(232,147,58,.07);border:1px solid rgba(232,147,58,.18);
   border-radius:999px;padding:2px 10px}
+/* Same visual family as .gr-why right above — a quiet lead label plus small
+   controls, not a second row of loud UI competing with the pills. */
+.gr-matchfb{display:flex;align-items:center;gap:7px;margin:0 0 11px}
+.gr-matchfb .lead{font-size:10px;font-weight:600;letter-spacing:.8px;
+  text-transform:uppercase;color:#6d747f}
+a.gr-thumb{display:inline-block;font-size:14px;line-height:1;
+  text-decoration:none!important;opacity:.4;filter:grayscale(1);
+  transition:opacity .15s ease,filter .15s ease,transform .15s ease}
+a.gr-thumb:hover{opacity:.85;transform:scale(1.15)}
+a.gr-thumb.on{opacity:1;filter:none}
+/* A grayscale 👎 still reads as a thumb, not as disapproval — only once
+   pressed does it need to visibly mean "no." */
+a.gr-thumb.on.down{filter:none}
+@media (prefers-reduced-motion:reduce){a.gr-thumb{transition:none}}
 .gr-founding{display:inline-flex;align-items:center;gap:5px;font-size:11px;
   font-weight:600;color:#eaa662;background:rgba(232,147,58,.12);
   border:1px solid rgba(232,147,58,.32);border-radius:999px;padding:2px 9px 2px 5px;
@@ -1313,6 +1328,7 @@ if st.query_params.get("signout"):
     # sits down next on a shared machine.
     st.session_state.pop("_saved_set", None)
     st.session_state.pop("_won_set", None)
+    st.session_state.pop("_rated", None)
     st.query_params.clear()
     if _was_google:
         st.logout()          # reruns on its own
@@ -1367,6 +1383,16 @@ def won_ids() -> list:
             [w["gig_id"] for w in outcomes.my_wins(ACCESS.get("email", ""))]
             if ACCESS["signed_in"] else [])
     return st.session_state["_won_set"]
+
+
+def my_ratings() -> dict:
+    """{gig_id: 'up'|'down'} for this person, cached once per session — same
+    reasoning as won_ids() and saved_ids()."""
+    if "_rated" not in st.session_state:
+        st.session_state["_rated"] = (
+            match_feedback.my_ratings(ACCESS.get("email", ""))
+            if ACCESS["signed_in"] else {})
+    return st.session_state["_rated"]
 
 
 def ilink(href: str) -> str:
@@ -1903,6 +1929,7 @@ refresh.start(on_update=_public_feed)  # background fetcher: grows the feed whil
 analytics.init()    # visit counting, in its own database file
 people.init()       # who signed up, their profile, and their feedback
 outcomes.init()     # gigs someone actually landed through the board
+match_feedback.init()  # was the match score actually right
 
 # One id per browser tab. Streamlit reruns this script constantly, so without
 # this every scroll and click would look like a brand-new visitor.
@@ -2257,6 +2284,24 @@ def gig_card(r, pro):
             if chips:
                 st.markdown('<div class="gr-why"><span class="lead">why</span>'
                             + chips + "</div>", unsafe_allow_html=True)
+
+        # Right where the claim is made, not buried in a settings page or a
+        # generic feedback box elsewhere — "73% match" is a specific promise,
+        # and this is the cheapest way to find out if it was right. Only
+        # shown alongside an actual score: without one there's no claim here
+        # to rate. Same link+redirect construction as the star and 🎯 above.
+        if pro and r.get("_score") is not None and gid is not None and ACCESS["signed_in"]:
+            _mr = my_ratings().get(str(gid))
+            _from2 = (st.session_state.get("_active_tab") or "gigs").lower()
+            st.markdown(
+                '<div class="gr-matchfb"><span class="lead">good match?</span>'
+                f'<a class="gr-thumb{" on" if _mr == "up" else ""}" '
+                f'href="{ilink(f"?rate={gid}&dir=up&from={_from2}")}" target="_self" '
+                f'title="Yes, this was a good match">👍</a>'
+                f'<a class="gr-thumb{" on down" if _mr == "down" else ""}" '
+                f'href="{ilink(f"?rate={gid}&dir=down&from={_from2}")}" target="_self" '
+                f'title="No, not really a match">👎</a></div>',
+                unsafe_allow_html=True)
 
         # Body clamped to three lines so every card is the same height whether
         # its post is two sentences or twenty — a column of ragged cards is the
@@ -2732,6 +2777,14 @@ def view_gigs(pro):
             # Best matches first — after scoring, so relevance to what they
             # actually typed wins over a generic fit score.
             view = rank_by_relevance(view, kw)
+
+    # A search that comes up nearly empty is unmet demand saying so out loud —
+    # someone typed a real skill or tool and the board had almost nothing for
+    # it. note() already dedupes per session, so a person refining the same
+    # bad query a few times only logs once. Threshold at 2, not 0: a single
+    # stray match on a 16,000-gig board is functionally still "nothing here."
+    if kw and len(view) <= 2:
+        note("search_miss", kw)
 
     # Answer the search plainly, including when it finds nothing — an empty
     # board with no explanation reads as broken rather than as "no matches".
@@ -3426,6 +3479,7 @@ def view_profile(pro):
                 st.session_state.pop("_tok", None)
                 st.session_state.pop("_saved_set", None)   # see ?signout= above
                 st.session_state.pop("_won_set", None)
+                st.session_state.pop("_rated", None)
                 st.query_params.clear()
                 if auth.google_email(st):
                     st.logout()
@@ -3679,6 +3733,7 @@ def sign_in_here(email: str, where: str):
     # lost their link and signed in again would take.
     st.session_state.pop("_saved_set", None)
     st.session_state.pop("_won_set", None)
+    st.session_state.pop("_rated", None)
     note("signup" if is_new else "signin", where)
     return True, ""
 
@@ -4137,6 +4192,18 @@ def view_admin():
                    "`?ref=theirname` and their traffic and signups appear here, "
                    "separated from everyone else's.")
 
+    # --- Unmet demand: what people typed and the board barely had -----------
+    _misses = analytics.search_misses(30)
+    st.markdown("#### Searches that came up empty")
+    if _misses:
+        st.caption("Last 30 days. Someone typed this and got 2 results or "
+                   "fewer — real demand the board doesn't serve well yet.")
+        _md = pd.DataFrame(_misses)[["query", "n", "last_seen"]]
+        _md.columns = ["Search", "Times", "Last seen"]
+        st.dataframe(_md, width="stretch", hide_index=True)
+    else:
+        st.caption("No near-empty searches logged in the last 30 days.")
+
     # --- Outcomes: did the board actually work for anyone -------------------
     # Not shown publicly yet — deliberately. "3 gigs landed" reads as a
     # scoreboard nobody's using this early, and would undercut trust rather
@@ -4150,6 +4217,19 @@ def view_admin():
     _o1, _o2 = st.columns(2)
     _o1.metric("Gigs landed", f"{_out['wins']:,}")
     _o2.metric("Total value", f"${_out['total_amount']:,}")
+
+    # --- Match quality: where the ranking is quietly wrong -------------------
+    _worst = match_feedback.worst_categories(30)
+    st.markdown("#### Categories with the most 👎")
+    if _worst:
+        st.caption("Last 30 days, net of 👍 — a category showing up here "
+                   "means the fit score is ranking it wrong often enough "
+                   "to be worth a look, not just one annoyed person.")
+        _wd = pd.DataFrame(_worst)[["job_type", "down_n", "up_n"]]
+        _wd.columns = ["Category", "👎", "👍"]
+        st.dataframe(_wd, width="stretch", hide_index=True)
+    else:
+        st.caption("No down-votes logged in the last 30 days.")
 
     # --- AI spend: the one number that can cost real money ------------------
     # Drafting is the only feature billed per use, and sign-in doesn't verify
@@ -4370,6 +4450,26 @@ if st.query_params.get("won"):
         _wamt = score.gig_amount(_wrow) if _wrow else 0
         outcomes.toggle(ACCESS.get("email", ""), _wgid, _wamt or 0)
         st.session_state.pop("_won_set", None)
+    _allowed = {t.lower() for t in _TABS} | set(_SIDE_PAGES)
+    _raw = (st.query_params.get("from") or "").lower()
+    _back = _raw if _raw in _allowed else "gigs"
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; '
+        f'url={html.escape(ilink(f"?nav={_back}"), quote=True)}">',
+        unsafe_allow_html=True)
+    st.stop()
+
+# Match-quality thumbs — same shape as ?won= just above, same reasons.
+if st.query_params.get("rate"):
+    _rgid = st.query_params.get("rate", "")
+    _rdir = st.query_params.get("dir", "")
+    if ACCESS["signed_in"] and _rgid and _rdir in ("up", "down"):
+        import db as _db
+        _rrow = _db.post_by_id(_rgid) or {}
+        match_feedback.rate(ACCESS.get("email", ""), _rgid, _rdir,
+                            job_type=_rrow.get("job_type", ""),
+                            source=_rrow.get("source", ""))
+        st.session_state.pop("_rated", None)
     _allowed = {t.lower() for t in _TABS} | set(_SIDE_PAGES)
     _raw = (st.query_params.get("from") or "").lower()
     _back = _raw if _raw in _allowed else "gigs"

@@ -202,6 +202,35 @@ def campaign_funnel(days: int = 30) -> list[dict]:
     return sorted(out.values(), key=lambda d: -d["sessions"])
 
 
+# ---------------------------------------------------------------------------
+# Unmet demand: what people typed that the board barely had anything for
+# ---------------------------------------------------------------------------
+def search_misses(days: int = 30, limit: int = 40) -> list[dict]:
+    """
+    Searches that came back with ~nothing, grouped and counted.
+
+    app.py logs one 'search_miss' event (the raw query as `detail`) the first
+    time a search drops to 2 results or fewer in a session — see note()'s
+    per-session dedup, so someone retyping the same bad query a few times
+    only counts once. Grouping by the raw text is intentionally simple: no
+    stemming or fuzzy merging, so "logo design" and "logo designer" show as
+    two rows rather than risking two genuinely different asks getting
+    silently folded into one.
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    try:
+        conn = _connect()
+        rows = conn.execute(
+            "SELECT detail AS query, COUNT(*) AS n, MAX(ts) AS last_seen "
+            "FROM events WHERE event='search_miss' AND ts >= ? AND detail != '' "
+            "GROUP BY detail ORDER BY n DESC, last_seen DESC LIMIT ?",
+            (since, limit)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except sqlite3.Error:
+        return []
+
+
 def device_label(user_agent: str) -> str:
     ua = (user_agent or "").lower()
     if not ua:
