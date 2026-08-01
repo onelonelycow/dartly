@@ -45,7 +45,7 @@ def _rss_mb() -> float:
         return -1.0
 
 
-def _loop():
+def _loop(on_update=None):
     import ingest
     import alerts
     import accounts
@@ -120,9 +120,23 @@ def _loop():
 
     while True:
         try:
-            ingest.run()
+            result = ingest.run()
             _state["runs"] += 1
             _state["last"] = time.time()
+
+            # Rebuild the cached public board HERE, in the background thread,
+            # instead of leaving it to whichever visitor's rerun discovers the
+            # cache is stale. That rebuild costs ~4s (a full board scan +
+            # dedup + tagging) — fine to pay once every ~2 minutes in a thread
+            # nobody's waiting on, not fine to hand to a real visitor as their
+            # page-load time. Only when something actually changed: an empty
+            # cycle (most of them, in a quiet window) would otherwise rebuild
+            # an identical frame for nothing.
+            if on_update and result.get("new"):
+                try:
+                    on_update()
+                except Exception:
+                    pass
 
             # One memory line per cycle, into Render's log stream. The OOM
             # restarts have now been "fixed" three times, and each diagnosis
@@ -235,14 +249,22 @@ def _loop():
         time.sleep(_INTERVAL_S)
 
 
-def start():
-    """Idempotent — safe to call on every Streamlit rerun; only one thread runs."""
+def start(on_update=None):
+    """
+    Idempotent — safe to call on every Streamlit rerun; only one thread runs.
+
+    on_update: called from the background thread after a cycle that actually
+    added new gigs. Lets app.py hand in "go rebuild the cached board now"
+    without refresh.py importing app.py back (app.py already imports this
+    module to start it, so the reverse import would be circular).
+    """
     global _started
     with _lock:
         if _started:
             return
         _started = True
-        threading.Thread(target=_loop, daemon=True, name="nabbly-refresh").start()
+        threading.Thread(target=_loop, args=(on_update,), daemon=True,
+                         name="nabbly-refresh").start()
 
 
 def state() -> dict:

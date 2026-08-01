@@ -1819,7 +1819,11 @@ db.ensure_seeded()      # first run on a fresh deploy loads the bundled seed.db
 # the network while the visitor stared at a blank page. It now runs inside the
 # background thread: the board renders immediately from the seed and fills in a
 # moment later. Never put network work on the first-render path.
-refresh.start()     # background fetcher: grows the feed while the app is in use
+refresh.start(on_update=_public_feed)  # background fetcher: grows the feed while
+                                        # the app is in use, and rebuilds the
+                                        # cached board itself after each cycle
+                                        # that adds gigs — see refresh._loop's
+                                        # on_update comment for why
 analytics.init()    # visit counting, in its own database file
 people.init()       # who signed up, their profile, and their feedback
 
