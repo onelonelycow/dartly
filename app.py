@@ -2461,7 +2461,10 @@ def category_strip(col=None):
     groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
     if not groups:
         return
-    labels = ["All fields"] + [f"{g} · {n:,}" for g, n in groups]
+    # No counts in the dropdown itself — picking one immediately shows
+    # "N,NNN gigs for you" right under the search bar, so the number here
+    # was saying the same thing twice, a beat apart.
+    labels = ["All fields"] + [g for g, _ in groups]
     names = [""] + [g for g, _ in groups]
     current = st.session_state.get("groupfilter", "")
     target = col if col is not None else st
