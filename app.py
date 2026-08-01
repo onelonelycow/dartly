@@ -224,7 +224,14 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
   border-radius:0 3px 3px 0;opacity:.55}
 .gr-stat .l{font-size:12.5px;color:#98a0ab;font-weight:500;margin:0 0 9px}
 .gr-stat .n{font-size:31px;font-weight:600;color:#f2f4f7;line-height:1;
-  font-variant-numeric:tabular-nums;perspective:240px}
+  font-variant-numeric:tabular-nums;perspective:240px;
+  /* This is a number 99% of the time, but "Hottest skill" puts a category
+     name here instead ("Development / tech"), and on a narrow 2-up mobile
+     grid that's long enough to need a line break. Without this, it took
+     the tightest break it could find — mid-word, "Development/t" / "ech" —
+     instead of the space before "tech". Normal wrapping only breaks AT a
+     space; worst case here is two short lines, never a word cut in half. */
+  overflow-wrap:normal;word-break:normal}
 .gr-stat .n.small{font-size:20px}
 /* A departure-board flip when a number lands, instead of it just appearing —
    each digit rotates down into place, staggered left to right. `animation`
@@ -1542,9 +1549,28 @@ def _flip_spans(value: str) -> str:
     rerun (it's not a persistent DOM node Python mutates in place), so a plain
     CSS `animation` replays on its own each time with no JS and nothing to
     orchestrate — see .gr-flip in the stylesheet.
+
+    Each letter is its own inline-block, which is normally invisible — but it
+    means the browser sees no difference between the gap AFTER a word and the
+    gap between two letters INSIDE one: both are just boundaries between
+    boxes, free to wrap at. Every stat here is a short number, where that
+    never shows up. Market's "Hottest skill" puts a real phrase in this same
+    slot ("Development / tech"), and on a narrow mobile stat card it wrapped
+    mid-word — "Development/t" / "ech" — because nothing told the browser
+    those letters belonged together. Grouping each word's letters inside one
+    shared inline-block fixes that: the browser can now only wrap BETWEEN
+    words, the same as plain text, while each letter still animates on its
+    own inside its word.
     """
-    return "".join(f'<span class="gr-flip" style="animation-delay:{i*35}ms">'
-                   f'{ch}</span>' for i, ch in enumerate(value))
+    i = 0
+    words_html = []
+    for word in value.split(" "):
+        letters = "".join(
+            f'<span class="gr-flip" style="animation-delay:{(i + j) * 35}ms">{ch}</span>'
+            for j, ch in enumerate(word))
+        i += len(word)
+        words_html.append(f'<span style="display:inline-block">{letters}</span>')
+    return " ".join(words_html)
 
 
 def founding_badge_html(rank: int | None) -> str:
@@ -2730,10 +2756,6 @@ def view_gigs(pro):
     # the "Save these as my skills" button (further up) raised
     # UnboundLocalError and replaced the whole Gigs page with a traceback.
     _caption = f"**{len(view):,}** gigs for you"
-    if merged:
-        _caption += f"  ·  {merged} duplicates tidied up"
-    if len(view) > FEED_CAP:
-        _caption += f"  ·  showing the freshest {FEED_CAP}"
     st.caption(_caption)
 
     if view.empty:
