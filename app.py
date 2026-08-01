@@ -84,7 +84,16 @@ st.markdown("""
 :root{
   --bg:#121418; --bg2:#15181d; --panel:#171a20;
   --line:#262a31; --line2:#2f343d;
-  --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#7d8590;
+  /* Headers/body/captions/dates sat too close together on brightness alone —
+     each individually passed WCAG fine against --bg, but the STEPS between
+     tiers were only ~1.4-1.6:1 apart, so a title and its own body copy read
+     as barely different weights of the same gray. Widened every adjacent
+     gap to ~1.6-2:1 (measured, not eyeballed — see the contrast numbers in
+     the commit this landed in). --faint is untouched: it was already
+     recalibrated earlier for its own WCAG fix, and .gr-body/.gr-posted sit
+     on the same card relying on --mute and --faint staying genuinely
+     different from each other. */
+  --ink:#F6F8FA; --ink2:#AEB4BE; --mute:#868D98; --faint:#7d8590;
   --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
   /* Vertical rhythm. The whole point is that these are DIFFERENT from each
      other — Streamlit ships one flat 16px between everything, which is why the
@@ -278,6 +287,15 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-pill.loc{background:rgba(76,141,255,.13);color:#89b0f5}
 .gr-pill.locnear,.gr-pill.remote{background:rgba(94,196,120,.14);color:#7ecb93}
 .gr-pill.locoff{background:#1a1d23;color:#767c86}
+/* Budget size, tinted by the same amber-ramp Market's charts already use
+   for this exact tier (BUDGET_COLORS) — Small/Medium/Large as light-to-deep
+   amber, not a new hue. This pill is on EVERY card (unlike match/urgent/loc,
+   which are conditional), and it sat fully neutral gray until now — the
+   single biggest reason a long list of cards read as flat monochrome
+   despite the pill system underneath already carrying real color. */
+.gr-pill.budget-sm{background:rgba(243,192,122,.13);color:#f0c896}
+.gr-pill.budget-md{background:rgba(232,147,58,.15);color:#eaa662}
+.gr-pill.budget-lg{background:rgba(168,93,27,.24);color:#d38a4f}
 .gr-why{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 11px}
 .gr-why .lead{font-size:10px;font-weight:600;letter-spacing:.8px;
   text-transform:uppercase;color:#6d747f;margin-right:2px}
@@ -2105,13 +2123,20 @@ def gig_card(r, pro):
             unsafe_allow_html=True)
 
         # Pills carry their meaning in colour (FEEL.md §2: match is amber,
-        # urgent is red, low is amber-dim, location is blue/green) — an emoji
-        # prefix on top of a tinted pill was saying the same thing twice.
+        # urgent is red, low is amber-dim, location is blue/green, budget is
+        # the same light-to-deep amber ramp Market's own charts use for size)
+        # — an emoji prefix on top of a tinted pill was saying the same thing
+        # twice. Budget shows on every single card, unlike the conditional
+        # pills around it, so leaving it neutral (as it was) meant the one
+        # pill guaranteed to appear every time carried no colour at all.
         badge_items = []
         if pro and r.get("_score") is not None:
             badge_items.append((f"{int(r['_score'])}% match", "match"))
         _src = (r["source"] or "").lower()
-        badge_items += [(r["job_type"], ""), (f"{r['size_tier']} budget", ""),
+        _budget_cls = {"Small": "budget-sm", "Medium": "budget-md",
+                       "Large": "budget-lg"}.get(r["size_tier"], "")
+        badge_items += [(r["job_type"], ""),
+                        (f"{r['size_tier']} budget", _budget_cls),
                         source_pill(_src)]
         # where can this be done — and can *you* take it?
         loc = location.tag(r)
