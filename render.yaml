@@ -20,11 +20,12 @@ services:
   - type: web
     name: dartly
     runtime: python
-    # NOTE: this line is what the blueprint WANTS the plan to be. If the plan
-    # is ever upgraded in the dashboard, change it here too — otherwise a
-    # blueprint sync is a way to silently drop back to free, and free is a
-    # 512MB ceiling this app has already crashed against.
-    plan: free
+    # Upgraded 2026-08-01 (Standard, 2GB) after the app crashed on the free
+    # tier's 512MB ceiling — it was booting at ~400MB before a single visitor,
+    # and Market's altair import added another 51MB on first open. THIS LINE
+    # MUST MATCH THE DASHBOARD or a future Blueprint sync silently drops the
+    # live service back to free and reintroduces the exact crash this fixed.
+    plan: standard
     buildCommand: "pip install --no-cache-dir -r requirements.txt"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
