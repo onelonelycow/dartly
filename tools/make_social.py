@@ -83,6 +83,44 @@ def amber_tile(size, radius, ss=3):
     return tile.resize((size, size), Image.LANCZOS)
 
 
+def dark_tile(size, radius, ss=3):
+    """
+    Same mark as amber_tile, inverted: a dark charcoal tile (matching the app's
+    own BG) with the check drawn in amber instead of white. Built for sitting
+    next to the dark cover/banner art, where the solid amber tile reads as a
+    loud, disconnected block rather than part of the same brand system.
+    """
+    s = size * ss
+    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    # a faint amber glow lower-right, echoing the cover art's glow instead of
+    # sitting perfectly flat
+    grad = Image.new("RGB", (s, s), BG)
+    gd = grad.load()
+    gx, gy, gr = s * 0.75, s * 0.8, s * 1.3
+    for y in range(s):
+        for x in range(s):
+            dist = (((x - gx) / gr) ** 2 + ((y - gy) / gr) ** 2) ** 0.5
+            if dist < 1:
+                gd[x, y] = _lerp(BG, AMBER_D, (1 - dist) * 0.35)
+    mask = Image.new("L", (s, s), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], radius=radius * ss, fill=255)
+    tile.paste(grad, (0, 0), mask)
+    d = ImageDraw.Draw(tile)
+    d.rounded_rectangle([s*0.02, s*0.02, s - s*0.02, s - s*0.02],
+                        radius=radius * ss - s*0.02, outline=(*AMBER, 90),
+                        width=max(2, int(s*0.008)))
+    cx, cy, rr = s * 0.72, s * 0.24, s * 0.105
+    d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(*AMBER_L, 140),
+              width=max(2, int(s*0.010)))
+    lw = int(s * 0.072)
+    d.line([(s * 0.28, s * 0.70), (s * 0.28, s * 0.35)], fill=(*AMBER, 190), width=lw)
+    d.line([(s * 0.28, s * 0.35), (s * 0.48, s * 0.64), (s * 0.67, s * 0.29)],
+           fill=(*AMBER_L, 255), width=lw, joint="curve")
+    d.ellipse([cx - rr * 0.42, cy - rr * 0.42, cx + rr * 0.42, cy + rr * 0.42],
+              fill=(*AMBER_L, 255))
+    return tile.resize((size, size), Image.LANCZOS)
+
+
 # ── avatar: the tile, centred on a dark round-safe square ────────────────
 def make_avatar(size=1000):
     img = Image.new("RGB", (size, size), BG)
@@ -219,6 +257,8 @@ def make_company_cover(w, h, name, safe_w):
 
 make_avatar()
 make_pfp()
+dark_tile(1000, int(1000 * 0.26)).convert("RGB").save(OUT / "logo-dark.png")
+print("logo-dark.png (dark-bg / amber-mark logo variant)")
 make_banner(1584, 396, "linkedin-banner.png")
 make_company_cover(4200, 700, "linkedin-company-cover.png", safe_w=900)
 make_banner(1500, 500, "social-banner.png", tagline_y_shift=-10)
