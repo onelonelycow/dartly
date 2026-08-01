@@ -10,10 +10,31 @@ import re
 
 MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*)")
 
+# Freelancer.com (and several job boards) post a budget as a fixed tier —
+# "$250 - $750", "$30,000 – $50,000" — rather than a number the client typed.
+# Taking the largest dollar amount in the post, as this used to do
+# unconditionally, means every gig in a tier reads as its tier's UPPER edge,
+# so "typical" for any skill dominated by one platform collapses onto
+# whichever edge that platform's most common tier happens to sit on — every
+# skill on the whole board showed an identical, suspiciously round $250.
+# Detecting the range and taking its midpoint is what "budget" actually
+# means here, and it's the same number gig_amount's other callers (fit_score,
+# the lowball check) want too.
+RANGE = re.compile(r"[$£€]\s?([0-9][0-9,]*)\s*(?:-|–|—|to)\s*[$£€]?\s?([0-9][0-9,]*)")
+
 
 def gig_amount(gig: dict):
-    """Largest dollar-ish amount mentioned in a gig, if any."""
+    """Largest dollar-ish amount mentioned in a gig, if any — the midpoint
+    when it's stated as a range."""
     text = f"{gig.get('title','')} {gig.get('body','')}"
+    m = RANGE.search(text)
+    if m:
+        try:
+            lo, hi = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
+            if hi >= lo:
+                return round((lo + hi) / 2)
+        except ValueError:
+            pass
     amounts = []
     for m in MONEY.findall(text):
         try:
