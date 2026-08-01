@@ -189,8 +189,13 @@ a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
 /* The save star. Dim until you go near it, so a column of sixty cards isn't
    sixty little icons competing with the titles they sit beside — it's there
    when you're deciding about THIS gig, invisible when you're scanning. */
+/* #6b7482, not the #4d545e this shipped as. That measured 2.35:1 against the
+   card — under the 3:1 WCAG needs for a UI control — and next to a bold white
+   title it read as a rendering artifact rather than something you could press.
+   It's the entry point to the entire Saved feature, so being nearly invisible
+   defeated the feature. Still the quietest thing on the card at 3.81:1. */
 a.gr-save{display:inline-block;margin-left:9px;font-size:16px;line-height:1;
-  color:#4d545e!important;text-decoration:none!important;vertical-align:2px;
+  color:#6b7482!important;text-decoration:none!important;vertical-align:2px;
   transition:color .15s ease,transform .15s ease}
 a.gr-save:hover{color:var(--amber-l)!important;transform:scale(1.18)}
 a.gr-save.on{color:var(--amber)!important}
@@ -358,7 +363,6 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home){
      The gradient is deliberately near-invisible: opaque at the top where the
      logo and nav sit, easing to the panel colour at the rule, so the bar has
      a faint sense of depth instead of being one flat block. */
-  position:sticky;top:0;z-index:900;
   background:linear-gradient(180deg,#181c22 0%,var(--panel) 100%);
   backdrop-filter:blur(14px) saturate(120%);
   -webkit-backdrop-filter:blur(14px) saturate(120%);
@@ -370,6 +374,16 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home){
 /* Streamlit's own toolbar sits above ours; without this the sticky bar slides
    under it and the logo clips on scroll. */
 [data-testid="stHeader"]{background:transparent}
+/* THE STICKY GOES ON THE WRAPPER, not on the bar itself. A sticky element can
+   only travel inside its own parent's box, and Streamlit wraps this row in a
+   stLayoutWrapper that is exactly the bar's height (measured: 64px for a 64px
+   bar) — so `position:sticky` on the bar was honoured and had precisely zero
+   room to move, scrolling away with the content. The wrapper's own parent is
+   the full-length stVerticalBlock (~7,700px on the Gigs board), which is the
+   travel room the bar needed. Scoped by :has(.gr-home) so it only ever hits
+   this one row and not every layout wrapper on the page. */
+[data-testid="stLayoutWrapper"]:has(.gr-home){
+  position:sticky;top:0;z-index:900}
 /* Streamlit's three columns are ratios 2.0 / 4.9 / 1.3 (set in Python so the
    logo has room and the avatar doesn't), which measured out to the nav sitting
    50px right of the page's true centre — unequal flanks push the middle
