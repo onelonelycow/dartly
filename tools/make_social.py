@@ -192,6 +192,40 @@ def make_pfp(size=1080, ss=3):
     print("avatar-pfp-1080.png (circle-optimized profile picture)")
 
 
+# ── profile picture, dark variant: full-bleed, built for a CIRCULAR crop ──
+def make_pfp_dark(size=1080, ss=3):
+    """
+    Dark counterpart to make_pfp — same full-bleed, no-corners construction
+    (LinkedIn's logo slot, like every platform's avatar upload, expects art
+    that fills the whole frame; a rounded tile with transparent/dark corners
+    like logo-dark.png leaves a gap between our shape and LinkedIn's own
+    circular crop, which is what shows as a "white line" around it). Dark
+    diagonal gradient instead of amber, mark drawn in amber instead of white.
+    """
+    s = size * ss
+    img = Image.new("RGB", (s, s))
+    px = img.load()
+    DARK_L, DARK_D = BG, (46, 29, 14)
+    for y in range(s):
+        for x in range(s):
+            px[x, y] = _lerp(DARK_L, DARK_D, min(1, (x / s * 0.5 + y / s * 0.5)))
+    d = ImageDraw.Draw(img, "RGBA")
+
+    cx, cy, rr = s * 0.695, s * 0.30, s * 0.093
+    d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], outline=(*AMBER_L, 160),
+              width=int(s * 0.011))
+    lw = int(s * 0.076)
+    d.line([(s * 0.315, s * 0.70), (s * 0.315, s * 0.375)],
+           fill=(*AMBER, 210), width=lw)
+    d.line([(s * 0.315, s * 0.375), (s * 0.505, s * 0.655), (s * 0.675, s * 0.335)],
+           fill=(*AMBER_L, 255), width=lw, joint="curve")
+    d.ellipse([cx - rr * 0.44, cy - rr * 0.44, cx + rr * 0.44, cy + rr * 0.44],
+              fill=(*AMBER_L, 255))
+    img = dither(img.resize((size, size), Image.LANCZOS), amount=3)
+    img.save(OUT / "pfp-dark-1080.png")
+    print("pfp-dark-1080.png (circle-optimized, dark variant)")
+
+
 # ── banner ───────────────────────────────────────────────────────────────
 def make_banner(w, h, name, tagline_y_shift=0):
     img = Image.new("RGB", (w, h), BG)
@@ -257,7 +291,12 @@ def make_company_cover(w, h, name, safe_w):
     # obvious. This targets ~80-85% of safe_w instead.
     tile_sz = int(h * 0.36)
     f_word = _font(int(h * 0.19), "Bold", ARIAL_B)
-    f_tag = _font(int(h * 0.068), "Regular", ARIAL)
+    # LinkedIn renders this cover at a small fraction of its source height —
+    # MUTE at a "reads fine at 700px" size was a near-invisible smudge once
+    # scaled down to actual on-page size. Bumped size, weight, and switched
+    # to INK (near-white, ~6.7:1 on BG at full size, and Semibold holds up
+    # far better than Regular once shrunk) instead of guessing again.
+    f_tag = _font(int(h * 0.078), "Semibold", ARIAL_B)
     tag = "Every freelance gig, the moment it drops."
 
     word_w = d.textlength("Nabbly", font=f_word)
@@ -273,7 +312,7 @@ def make_company_cover(w, h, name, safe_w):
     wn = d.textlength("Nabb", font=f_word)
     d.text((tx + wn, cy), "ly", font=f_word, fill=AMBER, anchor="lm")
 
-    d.text((cx, cy + int(h * 0.27)), tag, font=f_tag, fill=MUTE, anchor="mm")
+    d.text((cx, cy + int(h * 0.27)), tag, font=f_tag, fill=INK, anchor="mm")
     img = dither(img)
     img.save(OUT / name)
     print(name, img.size, f"(lockup {int(lockup_w)}px, safe zone {safe_w}px)")
@@ -281,6 +320,7 @@ def make_company_cover(w, h, name, safe_w):
 
 make_avatar()
 make_pfp()
+make_pfp_dark()
 dark_tile(1000, int(1000 * 0.26)).convert("RGB").save(OUT / "logo-dark.png")
 print("logo-dark.png (dark-bg / amber-mark logo variant)")
 make_banner(1584, 396, "linkedin-banner.png")
