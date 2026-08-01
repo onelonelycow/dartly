@@ -17,6 +17,7 @@ Same mark and palette as the app and the og card, sized for each platform:
 Run:  .venv/bin/python tools/make_social.py
 """
 from pathlib import Path
+import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +53,24 @@ def _font(size, variation, fallback=ARIAL):
 
 def _lerp(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def dither(img, amount=4, seed=1):
+    """
+    Add a tiny bit of random noise before saving. A perfectly smooth dark
+    gradient (like the cover art's glow) is the one thing JPEG re-encoding
+    handles worst — flat/smooth areas are exactly where 8-bit banding turns
+    into visible blocky "pixelated" rings once a platform recompresses the
+    upload. A few levels of noise breaks up the banding; it's invisible at
+    normal viewing size but keeps the recompressed version smooth instead of
+    stair-stepped. Deterministic seed so re-running the script doesn't
+    produce a different-looking file each time.
+    """
+    rng = np.random.default_rng(seed)
+    arr = np.asarray(img).astype(np.int16)
+    noise = rng.integers(-amount, amount + 1, arr.shape[:2] + (1,))
+    arr = np.clip(arr + noise, 0, 255).astype(np.uint8)
+    return Image.fromarray(arr, mode=img.mode)
 
 
 def amber_tile(size, radius, ss=3):
@@ -232,16 +251,20 @@ def make_company_cover(w, h, name, safe_w):
     d = ImageDraw.Draw(img)
     cx = w // 2
 
-    tile_sz = int(h * 0.26)
-    f_word = _font(int(h * 0.135), "Bold", ARIAL_B)
-    f_tag = _font(int(h * 0.052), "Regular", ARIAL)
+    # Sized to actually fill most of the mobile-safe strip, not just survive
+    # inside it — the first version used only 547 of 900 available px and
+    # read as tiny and lost once the full-width desktop banner made that gap
+    # obvious. This targets ~80-85% of safe_w instead.
+    tile_sz = int(h * 0.36)
+    f_word = _font(int(h * 0.19), "Bold", ARIAL_B)
+    f_tag = _font(int(h * 0.068), "Regular", ARIAL)
     tag = "Every freelance gig, the moment it drops."
 
     word_w = d.textlength("Nabbly", font=f_word)
     gap = int(w * 0.014)
     lockup_w = tile_sz + gap + word_w
     lx = cx - int(lockup_w / 2)
-    cy = int(h * 0.44)
+    cy = int(h * 0.43)
 
     tile = amber_tile(tile_sz, int(tile_sz * 0.26))
     img.paste(tile, (lx, cy - tile_sz // 2), tile)
@@ -250,7 +273,8 @@ def make_company_cover(w, h, name, safe_w):
     wn = d.textlength("Nabb", font=f_word)
     d.text((tx + wn, cy), "ly", font=f_word, fill=AMBER, anchor="lm")
 
-    d.text((cx, cy + int(h * 0.26)), tag, font=f_tag, fill=MUTE, anchor="mm")
+    d.text((cx, cy + int(h * 0.27)), tag, font=f_tag, fill=MUTE, anchor="mm")
+    img = dither(img)
     img.save(OUT / name)
     print(name, img.size, f"(lockup {int(lockup_w)}px, safe zone {safe_w}px)")
 
