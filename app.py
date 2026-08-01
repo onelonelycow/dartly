@@ -201,6 +201,15 @@ a.gr-save:hover{color:var(--amber-l)!important;transform:scale(1.18)}
 a.gr-save.on{color:var(--amber)!important}
 a.gr-save.on:hover{color:var(--amber-l)!important}
 @media (prefers-reduced-motion:reduce){a.gr-save{transition:none}}
+/* Let a multiselect show all of its chips. Streamlit caps this container at
+   155.5px, and with every skill selected (which is the DEFAULT on the Gigs
+   filters) the content is 170px — so the last row rendered sliced through the
+   glyphs, "Management / oper…" cut in half. It scrolls, so it worked; it just
+   looked broken the first time anyone opened the panel. Selector verified
+   against the live DOM: the clipping element is the direct child div of
+   [data-baseweb="select"], three levels inside stMultiSelect. */
+[data-testid="stMultiSelect"] [data-baseweb="select"] > div{
+  max-height:none!important}
 a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-decoration-color:rgba(232,147,58,.55);text-underline-offset:3px}
 .gr-new{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.5px;
@@ -1882,7 +1891,18 @@ def apply_location(view, mode):
 
 
 def scored(view):
-    if view.empty:
+    """
+    Fit scores, but ONLY when there is something to fit against.
+
+    fit_score() gives every gig a flat +30 when the profile has no skills
+    (score.py), so an empty profile produced the identical percentage on all
+    sixty cards — "63% match" over and over, presented as personalisation for
+    someone the app knows nothing about. A number that never varies isn't a
+    match, and showing it teaches people the number means nothing. With no
+    skills we return the view unscored, so no pill is drawn and the board
+    keeps its newest-first order, which is the honest default.
+    """
+    if view.empty or not (prof.get("skills") or []):
         return view
     sc = [score.fit_score(r, prof) for r in view.to_dict("records")]
     view = view.copy()
@@ -2333,7 +2353,7 @@ def view_dashboard(pro):
             f'</div>', unsafe_allow_html=True)
 
     if df.empty:
-        st.info("Nothing loaded yet. Pop over to **Gigs** and hit *Check for new gigs* — "
+        st.info("Nothing loaded yet. Pop over to **Gigs** and hit *Refresh* — "
                 "we'll pull the latest for you.")
         return
 
@@ -2491,6 +2511,15 @@ def view_gigs(pro):
 
     # Quick-filter arriving from a Dashboard stat click
     qf = st.session_state.get("quickfilter", "")
+    # "in your skills" with no skills on file filtered nothing — the pill said
+    # the board was narrowed to them while showing all sixteen thousand gigs.
+    # Say what actually happened and offer the fix, rather than claim a filter
+    # that didn't run.
+    if qf == "mine" and not (prof.get("skills") or []):
+        st.info("Tell us what you do and this becomes your shortlist — right "
+                "now it's the whole board. Add your skills on **Profile**.")
+        qf = ""
+        st.session_state["quickfilter"] = ""
     if qf:
         qlabel = {"recent": "posted in the last 24h", "mine": "in your skills",
                   "urgent": "urgent only"}.get(qf, qf)
@@ -2548,8 +2577,14 @@ def view_gigs(pro):
     st.caption(_caption)
 
     if view.empty:
-        st.info("Nothing matches those filters right now — try widening them, or hit "
-                "**Check for new gigs** up top.")
+        # Only when a SEARCH hasn't already explained the emptiness. A no-match
+        # search printed both this and "Nothing matches <term>", two empty
+        # states stacked, the second contradicting the first by blaming
+        # filters. The button is called Refresh, not "Check for new gigs" —
+        # naming a control that isn't there sends people hunting for it.
+        if not kw:
+            st.info("Nothing matches those filters right now — try widening "
+                    "them, or hit **Refresh** up top.")
         return
 
     # Reset to page 1 whenever the actual result set changes underneath the
@@ -2608,16 +2643,47 @@ def view_saved(pro):
 
     # Anything saved that is no longer on the board — the posting was taken
     # down, or it aged past the 45-day cutoff. Said plainly rather than
-    # silently showing fewer cards than the count implies.
-    missing = len(ids) - len(have)
+    # silently showing fewer cards than the count implies, AND forgotten, so
+    # the tab badge can't keep counting gigs nobody can see or remove.
+    missing = _prune_saved_ghosts(ids, have)
     _n = len(have)
     st.caption(f"**{_n}** saved gig{'' if _n == 1 else 's'}" +
-               (f"  ·  {missing} no longer on the board" if missing else ""))
+               (f"  ·  {missing} expired and cleared" if missing else ""))
 
-    if pro:
-        have = scored(have)
+    # NOT scored() here, deliberately. scored() ends with a sort by fit, which
+    # threw away the save order this page is built around — so a Pro user (i.e.
+    # everyone on a trial) saw their saved list shuffled into ranking order on
+    # the one page whose whole premise is "the order you put them in". Match
+    # pills come from _score, so Pro cards on this page simply don't carry one;
+    # that's the right trade — the pill is available on every other surface,
+    # and the ordering here is the feature.
     for r in have.to_dict("records"):
         gig_card(r, pro)
+
+
+def _prune_saved_ghosts(ids, have) -> int:
+    """
+    Forget saved ids the board can no longer resolve, and report how many.
+
+    Saved gigs age off the board continuously (archive_stale runs daily), and
+    nothing ever removed their ids — so the tab badge counted them forever
+    while the page could only render what still exists. Three months in that
+    reads "Saved 31" against a page showing four. The star is the only remove
+    control and it lives on a card that no longer renders, so a user could not
+    clear them by hand either.
+
+    Only prunes when the board is genuinely populated: an empty or
+    still-loading board would otherwise look like "everything expired" and
+    wipe a real list.
+    """
+    if have is None or len(ids) == len(have):
+        return 0
+    alive = set(have["id"].astype(str))
+    gone = [g for g in ids if g not in alive]
+    for g in gone:
+        saved.remove(g)
+    st.session_state.pop("_saved_set", None)
+    return len(gone)
 
 
 def view_market(pro):
@@ -2639,7 +2705,16 @@ def view_market(pro):
         return
 
     st.caption("Straight from the whole board — no guessing.")
-    total = sum(d["count"] for d in stats.values())
+    # Counted through the same lens as every other surface. `stats` is built
+    # from the RAW feed (module level, ~line 1730) because the rate figures
+    # below genuinely want every gig — a going rate shouldn't shrink because
+    # you read one language. But the headline COUNT is the same number the
+    # Gigs tab and the Dashboard show, and reading it off raw stats made
+    # Market claim 17,882 while Gigs said 16,007 on the same board, in the
+    # same session. Same fix as the dashboard tiles; Market was simply missed.
+    _mv, _ = load_feed()
+    _mv = apply_language(apply_city_lock(_mv))
+    total = len(_mv)
     hottest = market.hot_skills(stats)[0]
     priced = [(s, d["typical"]) for s, d in stats.items() if d["typical"]]
     toprate = max(priced, key=lambda x: x[1]) if priced else ("—", 0)
@@ -3155,7 +3230,10 @@ def plan_card():
     days = ACCESS.get("days_left") or 0
     renews = ""
     if ACCESS["pro"] and days:
-        _when = (datetime.now(timezone.utc) + timedelta(days=days))
+        # The real deadline off the account, not now+days_left — days_left is
+        # rounded up, so rebuilding the date from it overshoots by a day.
+        _when = ACCESS.get("ends") or (datetime.now(timezone.utc)
+                                       + timedelta(days=days))
         # Both the countdown and the date. "How long have I got" is the thing
         # people actually want off this card, and a date alone makes them work
         # it out against today's; a countdown alone is vague about which day it

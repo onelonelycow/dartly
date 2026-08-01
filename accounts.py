@@ -348,8 +348,15 @@ def _founding_rank(acc: dict) -> int | None:
     """
     if not acc.get("founding"):
         return None
-    conn = _connect()
+    # Degrades to "no number" rather than taking the page down. status() calls
+    # this, status() runs before anything paints, and it is NOT inside any
+    # try/except — so a locked database here meant a founding member got a bare
+    # traceback instead of a dashboard. by_token() and sign_in() were both
+    # wrapped for exactly this; this function was added in the same change and
+    # missed it. A missing badge is a rounding error next to a broken page.
+    conn = None
     try:
+        conn = _connect()
         row = conn.execute("SELECT rowid FROM accounts WHERE email=?",
                            (acc.get("email") or "",)).fetchone()
         if not row:
@@ -358,8 +365,14 @@ def _founding_rank(acc: dict) -> int | None:
             "SELECT COUNT(*) FROM accounts WHERE founding=1 AND "
             "(created < ?1 OR (created = ?1 AND rowid <= ?2))",
             (acc.get("created") or "", row[0])).fetchone()[0]
+    except sqlite3.Error:
+        return None
     finally:
-        conn.close()
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
     return n or 1
 
 
@@ -402,7 +415,13 @@ def status(acc: dict | None) -> dict:
         left = deadline - datetime.now(timezone.utc)
         if left.total_seconds() > 0:
             days = int(max(0, -(-left.total_seconds() // 86400)))   # round up
-            return {**base, "pro": True, "days_left": days}
+            # `ends` is the REAL deadline, carried through so callers don't
+            # have to reconstruct it from days_left. days_left rounds UP (59.2
+            # days reads as 60), so `now + days_left` lands a day late — which
+            # is exactly how the plan card came to promise "ends 30 September"
+            # for a grant that actually stops on the 29th. Rounding up is right
+            # for "how long have I got"; it is wrong for a date.
+            return {**base, "pro": True, "days_left": days, "ends": deadline}
         return {**base, "pro": False, "expired": True}
     # Never had a grant → Free, and the opt-in trial is theirs to start.
     return {**base, "pro": False, "can_trial": True}

@@ -180,6 +180,18 @@ def _user_prompt(gig: dict, profile: dict, resume_text: str = "") -> str:
     if not (profile.get("portfolio") or "").strip():
         lines.append("\nThere is no portfolio link, so do not offer one or "
                      "leave a placeholder for it.")
+    # The Category line above names the JOB's field, and with an empty profile
+    # that is the only occupation in the prompt — which is exactly how a model
+    # ends up writing "I'm a designer" for someone who never said so. The
+    # system prompt forbids inventing experience; this forbids the specific
+    # inference, because the tempting wrong answer is right there in context.
+    if not _who(profile, resume_text).strip().startswith(("Name", "Does",
+                                                          "Background",
+                                                          "Skills")):
+        lines.append("\nNOTHING is known about this freelancer's field or "
+                     "background. Do not state or imply what they do, and do "
+                     "NOT borrow the job's Category as their profession. Ask "
+                     "about the work instead of describing yourself.")
     examples = _style_examples()
     if examples:
         lines.append(examples)
@@ -307,6 +319,14 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     title = gig.get("title", "this")
     skill = (_text(gig.get("job_type")) or "this work").lower()
 
+    # NEVER falls back to the gig's own category. This used to end with
+    # `who = skills or f"a {skill} freelancer"`, where `skill` is the JOB's
+    # job_type — so someone with an empty profile got a draft that opened
+    # "I'm a design / creative freelancer", an identity the app made up and
+    # put in their mouth, under their name, to a stranger. Worse when the
+    # classifier is wrong: an engineering role tagged Design/creative had
+    # them introducing themselves as a designer to an engineering client.
+    # If we don't know what they do, we say nothing about what they do.
     who = _text(profile.get("headline"))
     if not who:
         skills = profile.get("skills") or []
@@ -314,11 +334,11 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
             skills = ", ".join(str(s) for s in skills)
         else:
             skills = _text(skills)
-        who = skills or f"a {skill} freelancer"
+        who = skills
 
-    intro = f"I'm {who}."
+    intro = f"I'm {who}." if who else ""
     if bio:
-        intro += f" {bio}."
+        intro = f"{intro} {bio}.".strip() if intro else f"{bio}."
 
     asks = ["What does done look like for you, and by when?"]
     if gig.get("size_tier") in ("Medium", "Large"):
@@ -328,8 +348,13 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     else:
         lead = "One quick thing so I can scope it properly:"
 
-    out = [f'Hi, I\'d like to help with "{title}".', "", intro, "", lead,
-           "\n".join(f"  • {a}" for a in asks)]
+    # intro is omitted entirely when we don't know who they are, rather than
+    # left as an empty line — otherwise the draft opens with a blank gap where
+    # a sentence should be, which reads as broken rather than as brief.
+    out = [f'Hi, I\'d like to help with "{title}".', ""]
+    if intro:
+        out += [intro, ""]
+    out += [lead, "\n".join(f"  • {a}" for a in asks)]
     if portfolio:
         out += ["", f"Recent work: {portfolio}"]
     if name:
