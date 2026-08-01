@@ -157,6 +157,54 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
    way "ly" is amber in Nabbly. Replaces the scattered emoji prefixes so every
    heading reads as one family. */
 .gr-accent{color:#E8933A}
+
+/* --- Market's charts, hand-built instead of altair -----------------------
+   altair costs 51MB just to import (measured 2026-08-01, up from the ~36MB
+   the code used to say), and Market is a Pro feature — every trial and
+   founding member has it, which is most of the launch cohort. That 51MB
+   landing on top of an already-tight baseline is what tipped the app over
+   its memory ceiling the night before send. Five charts, none of them need
+   a charting library: two are sorted bar lists, two are three-slice donuts,
+   one is a stacked bar. Real numbers still show on hover via `title`, same
+   information altair's tooltip gave, just the browser's own mechanism
+   instead of a second rendering engine's. */
+.gr-hbars{display:flex;flex-direction:column;gap:13px}
+.gr-hbar-top{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:13px;color:var(--ink2);margin-bottom:5px}
+.gr-hbar-n{font-weight:700;color:#eaeef4;font-variant-numeric:tabular-nums}
+.gr-hbar-track{height:9px;border-radius:5px;background:#1a1d23;overflow:hidden}
+.gr-hbar-fill{height:100%;border-radius:5px 0 0 5px}
+/* A full pill only when the bar is actually the max — otherwise the right
+   edge stays square, which is what makes a bar read as "62% of the top one"
+   instead of every bar looking like its own separate pill. */
+.gr-hbar-fill.max{border-radius:5px}
+
+/* Conic-gradient donut, a CSS circle standing in for an SVG arc chart. The
+   hole is a smaller circle in the exact card background sitting on top —
+   there's no native way to cut a ring out of a conic-gradient, so this fakes
+   it by covering the center rather than actually being one. */
+.gr-donut-wrap{display:flex;align-items:center;justify-content:center;
+  gap:24px;flex-wrap:wrap;padding:8px 0}
+.gr-donut{width:168px;height:168px;border-radius:50%;position:relative;
+  flex:0 0 auto}
+.gr-donut-hole{position:absolute;inset:29%;border-radius:50%;
+  background:var(--bg)}
+.gr-donut-legend{display:flex;flex-direction:column;gap:9px;font-size:13px;
+  color:var(--ink2)}
+.gr-donut-legend .sw{display:inline-block;width:10px;height:10px;
+  border-radius:3px;margin-right:9px;vertical-align:-1px;flex:0 0 auto}
+.gr-donut-legend .row{display:flex;align-items:center}
+.gr-donut-legend b{color:#eaeef4;font-variant-numeric:tabular-nums;
+  margin-left:auto;padding-left:16px}
+
+.gr-stack{display:flex;flex-direction:column;gap:11px}
+.gr-stack-row{display:grid;grid-template-columns:min(38%,190px) 1fr;
+  align-items:center;gap:12px}
+.gr-stack-lbl{font-size:12.5px;color:var(--ink2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gr-stack-bar{display:flex;height:16px;border-radius:4px;overflow:hidden;
+  background:#1a1d23}
+.gr-stack-bar .seg{height:100%}
 .gr-stats{display:flex;gap:14px;flex-wrap:wrap;margin:6px 0 4px;
   justify-content:center;max-width:none}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
@@ -1529,6 +1577,89 @@ def pills(items):
     st.markdown(f'<div class="gr-pills">{spans}</div>', unsafe_allow_html=True)
 
 
+def hbar_chart(rows, color: str, fmt=str, height: int | None = None):
+    """
+    A sorted horizontal bar list — Market's replacement for a two-line altair
+    chart. `rows` is (label, value) pairs, already in the order to display;
+    this doesn't sort them, because both callers want a specific order (one
+    by count, one by rate) and re-deriving it here would be a second place
+    that order lives. `fmt` renders the value shown beside the bar, e.g.
+    `lambda v: f"${v:,}"` for a rate — the underlying number always drives
+    the bar's width, so the visual and the label can't disagree.
+    """
+    if not rows:
+        return
+    top = max(v for _, v in rows) or 1
+    items = "".join(
+        f'<div class="gr-hbar">'
+        f'<div class="gr-hbar-top"><span>{html.escape(str(lbl))}</span>'
+        f'<span class="gr-hbar-n">{fmt(v)}</span></div>'
+        f'<div class="gr-hbar-track">'
+        f'<div class="gr-hbar-fill{" max" if v >= top else ""}" '
+        f'style="width:{v/top*100:.1f}%;background:{color}" '
+        f'title="{html.escape(str(lbl))}: {fmt(v)}"></div></div></div>'
+        for lbl, v in rows)
+    st.markdown(f'<div class="gr-hbars"{f" style=\"height:{height}px\"" if height else ""}>'
+               f'{items}</div>', unsafe_allow_html=True)
+
+
+def donut_chart(rows, colors: dict, fmt=lambda v: f"{v:,}"):
+    """
+    A three-ish-slice donut. `rows` is (label, value) pairs; `colors` maps
+    each label to a hex. Built as a single conic-gradient circle rather than
+    an SVG or a charting library — a plain CSS shape can't lose the browser
+    the way importing a 51MB rendering library can.
+    """
+    total = sum(v for _, v in rows) or 1
+    stops, pct = [], 0.0
+    for lbl, v in rows:
+        start, pct = pct, pct + v / total * 100
+        stops.append(f"{colors.get(lbl, '#4C8DFF')} {start:.2f}% {pct:.2f}%")
+    legend = "".join(
+        f'<div class="row"><span class="sw" style="background:{colors.get(lbl,"#4C8DFF")}">'
+        f'</span>{html.escape(str(lbl))}<b>{fmt(v)}</b></div>'
+        for lbl, v in rows)
+    st.markdown(
+        f'<div class="gr-donut-wrap">'
+        f'<div class="gr-donut" style="background:conic-gradient({", ".join(stops)})" '
+        f'title="{"; ".join(f"{l}: {fmt(v)}" for l, v in rows)}">'
+        f'<div class="gr-donut-hole"></div></div>'
+        f'<div class="gr-donut-legend">{legend}</div></div>',
+        unsafe_allow_html=True)
+
+
+def stacked_hbar_chart(row_labels, seg_labels, values: dict, colors: dict):
+    """
+    A horizontal stacked bar per row_label, split across seg_labels.
+    `values[(row, seg)]` gives that cell's count; missing keys are 0. The
+    legend is drawn once above the rows rather than per-row, since every row
+    shares the same segment set.
+    """
+    legend = "".join(
+        f'<span class="row" style="display:inline-flex;margin-right:16px">'
+        f'<span class="sw" style="background:{colors.get(s,"#888")}"></span>{s}</span>'
+        for s in seg_labels)
+    st.markdown(f'<div class="gr-donut-legend" style="flex-direction:row;'
+               f'flex-wrap:wrap;margin-bottom:12px">{legend}</div>',
+               unsafe_allow_html=True)
+
+    rows_html = []
+    for r in row_labels:
+        cells = [(s, values.get((r, s), 0)) for s in seg_labels]
+        row_total = sum(v for _, v in cells) or 1
+        segs = "".join(
+            f'<div class="seg" style="width:{v/row_total*100:.1f}%;'
+            f'background:{colors.get(s,"#888")}" '
+            f'title="{html.escape(str(s))}: {v:,}"></div>'
+            for s, v in cells if v)
+        rows_html.append(
+            f'<div class="gr-stack-row">'
+            f'<div class="gr-stack-lbl" title="{html.escape(str(r))}">{html.escape(str(r))}</div>'
+            f'<div class="gr-stack-bar">{segs}</div></div>')
+    st.markdown(f'<div class="gr-stack">{"".join(rows_html)}</div>',
+               unsafe_allow_html=True)
+
+
 def gig_pager(page: int, total_pages: int, key: str, show_top_link: bool = False):
     """
     Prev/next between chunks of the board, instead of one long scroll.
@@ -2687,12 +2818,14 @@ def _prune_saved_ghosts(ids, have) -> int:
 
 
 def view_market(pro):
-    # Imported here, not at module top: altair alone costs ~36MB just to
-    # import, and this is the only place on the whole site that uses it.
-    # Paying that cost only for someone who actually opens Market — not for
-    # every single visitor on every single page — is real memory back on an
-    # instance that's already tight against its ceiling.
-    import altair as alt
+    # NO altair import. It used to be lazy-imported right here — "only when
+    # someone opens Market" — but Market is a Pro feature, so that meant "only
+    # when a NextNW member does the thing the offer promised them." Measured
+    # 2026-08-01 at 51MB, up from the ~36MB an old comment quoted, landing on
+    # top of a baseline already tight against Render's ceiling — this is the
+    # single most likely reason the app went down the night before send. Every
+    # chart below is hand-built CSS instead: see hbar_chart/donut_chart/
+    # stacked_hbar_chart above pills().
     st.markdown('### What gigs like yours are <span class="gr-accent">paying</span>',
                 unsafe_allow_html=True)
     if not pro:
@@ -2724,9 +2857,10 @@ def view_market(pro):
         ("Hottest skill", hottest[0], "#35B37E", "small"),
         ("Top typical rate", f"${toprate[1]:,}", "#B889F0"),
     ])
-    # sequential amber ramp for budget size (light = small, deep = large)
-    BUDGET_SCALE = alt.Scale(domain=["Small", "Medium", "Large"],
-                             range=["#F3C07A", "#E8933A", "#A85D1B"])
+    # Sequential amber ramp for budget size (light = small, deep = large) —
+    # the same three hex values the old alt.Scale used, so the recolour is
+    # identical even though nothing here is Altair anymore.
+    BUDGET_COLORS = {"Small": "#F3C07A", "Medium": "#E8933A", "Large": "#A85D1B"}
     st.write("")
 
     c1, c2 = st.columns(2)
@@ -2734,17 +2868,13 @@ def view_market(pro):
         st.markdown("**What's hot right now**")
         dd = (pd.DataFrame([{"Skill": s, "Gigs": d["count"]} for s, d in stats.items()])
               .sort_values("Gigs", ascending=False).head(8))
-        chart = alt.Chart(dd).mark_bar(color="#E8933A", cornerRadiusEnd=4).encode(
-            x=alt.X("Gigs:Q", title=None),
-            y=alt.Y("Skill:N", sort="-x", title=None),
-            tooltip=["Skill", "Gigs"]).properties(height=300)
-        st.altair_chart(chart, width="stretch")
+        hbar_chart(list(dd.itertuples(index=False, name=None)), "#E8933A")
         # A chart that tells you Development is busiest and then leaves you to
         # go find it is half an answer. These are the same rows, as links.
-        # Deliberately NOT Altair's own click-selection: that routes through a
-        # rerun-on-select round trip, and these are plain anchors using the
-        # ?nav=gigs&cat= routing the category chips already use — no new
-        # mechanism, and they work on a phone where a bar is a poor tap target.
+        # Deliberately NOT a click-on-the-bar handler: these are plain anchors
+        # using the ?nav=gigs&cat= routing the category chips already use — no
+        # new mechanism, and they work on a phone where a bar is a poor tap
+        # target.
         _hot = "".join(
             f'<a class="gr-cat" href="{ilink(f"?nav=gigs&cat={quote(row.Skill)}")}" target="_self">'
             f'{html.escape(row.Skill)}<span class="n">{row.Gigs:,}</span></a>'
@@ -2757,24 +2887,16 @@ def view_market(pro):
         st.markdown("**Typical budget by skill**")
         rr = (pd.DataFrame([{"Skill": s, "Budget": b} for s, b in priced])
               .sort_values("Budget", ascending=False).head(8))
-        chart2 = alt.Chart(rr).mark_bar(color="#4C8DFF", cornerRadiusEnd=4).encode(
-            x=alt.X("Budget:Q", title=None, axis=alt.Axis(format="$,d")),
-            y=alt.Y("Skill:N", sort="-x", title=None),
-            tooltip=["Skill", alt.Tooltip("Budget", format="$,d")]).properties(height=300)
-        st.altair_chart(chart2, width="stretch")
+        hbar_chart(list(rr.itertuples(index=False, name=None)), "#4C8DFF",
+                  fmt=lambda v: f"${v:,.0f}")
 
     st.write("")
     c3, c4 = st.columns(2)
     with c3:
         st.markdown("**Budget mix** — how the board splits")
-        bm = df["size_tier"].value_counts().rename_axis("Budget").reset_index(name="Gigs")
-        donut = alt.Chart(bm).mark_arc(innerRadius=58, stroke="#0e1117",
-                                       strokeWidth=2).encode(
-            theta=alt.Theta("Gigs:Q"),
-            color=alt.Color("Budget:N", scale=BUDGET_SCALE,
-                            legend=alt.Legend(orient="bottom", title=None)),
-            tooltip=["Budget", "Gigs"]).properties(height=300)
-        st.altair_chart(donut, width="stretch")
+        bm = df["size_tier"].value_counts()
+        donut_chart([(s, int(bm.get(s, 0))) for s in ("Small", "Medium", "Large")
+                    if bm.get(s, 0)], BUDGET_COLORS)
     with c4:
         # This was a "Where the gigs come from" donut, which put every board we
         # read on screen with its share of the pie — a labelled map of exactly
@@ -2782,31 +2904,19 @@ def view_market(pro):
         # FAQ and the landing page (FEEL.md §7): the feed is the product,
         # provenance is plumbing. Urgency is the thing a freelancer can act on.
         st.markdown("**How fast you need to move**")
-        urg = (df["urgency"].fillna("").replace("", "Standard")
-               .value_counts().rename_axis("Pace").reset_index(name="Gigs"))
-        urg_donut = alt.Chart(urg).mark_arc(innerRadius=58, stroke="#0e1117",
-                                            strokeWidth=2).encode(
-            theta=alt.Theta("Gigs:Q"),
-            color=alt.Color("Pace:N",
-                            scale=alt.Scale(domain=["Standard", "Urgent"],
-                                            range=["#4C8DFF", "#E96250"]),
-                            legend=alt.Legend(orient="bottom", title=None)),
-            tooltip=["Pace", "Gigs"]).properties(height=300)
-        st.altair_chart(urg_donut, width="stretch")
+        urg = df["urgency"].fillna("").replace("", "Standard").value_counts()
+        donut_chart([(p, int(urg.get(p, 0))) for p in ("Standard", "Urgent")
+                    if urg.get(p, 0)],
+                   {"Standard": "#4C8DFF", "Urgent": "#E96250"})
 
     st.write("")
     st.markdown("**Where the big budgets sit** — gigs by skill, split by budget")
     top_skills = df["job_type"].value_counts().head(8).index.tolist()
     sk = (df[df["job_type"].isin(top_skills)]
-          .groupby(["job_type", "size_tier"]).size().reset_index(name="Gigs"))
-    stacked = alt.Chart(sk).mark_bar().encode(
-        x=alt.X("Gigs:Q", title=None),
-        y=alt.Y("job_type:N", sort=top_skills, title=None),
-        color=alt.Color("size_tier:N", scale=BUDGET_SCALE,
-                        legend=alt.Legend(orient="bottom", title="Budget")),
-        order=alt.Order("size_tier:N"),
-        tooltip=["job_type", "size_tier", "Gigs"]).properties(height=330)
-    st.altair_chart(stacked, width="stretch")
+          .groupby(["job_type", "size_tier"]).size())
+    stacked_hbar_chart(top_skills, ["Small", "Medium", "Large"],
+                      {(jt, st_): int(n) for (jt, st_), n in sk.items()},
+                      BUDGET_COLORS)
     # "Ballpark — budgets blend project & hourly figures across sources" was
     # three hedges and a mention of sources in one line. This says the one
     # thing a reader needs: treat it as a range, not a quote.
