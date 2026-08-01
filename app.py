@@ -4077,7 +4077,7 @@ def view_admin():
 # GIGS. Dashboard shows what's fresh, Gigs the whole board, Saved the ones you
 # kept, Market what they pay. A settings screen in this row would be the odd
 # one out again.
-_TABS = ["Dashboard", "Gigs", "Saved", "Market"]
+_TABS = ["Dashboard", "Gigs", "Market", "Saved"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
