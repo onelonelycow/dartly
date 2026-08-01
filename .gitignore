@@ -27,6 +27,8 @@ nabbly_signals.db
 budget.db
 # Apply-click log: per-account activity, same reasoning as budget.db above.
 activity.db
+# Who landed which gig — per-account outcome history, same reasoning again.
+nabbly_outcomes.db
 *.db-wal
 *.db-shm
 
