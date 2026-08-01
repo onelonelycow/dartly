@@ -2213,7 +2213,7 @@ def gig_card(r, pro):
             _iwon = str(gid) in won_ids()
             won = (f'<a class="gr-won{" on" if _iwon else ""}" '
                    f'href="{ilink(f"?won={gid}&from={_from}")}" target="_self" '
-                   f'title="{"You got this one — click to undo" if _iwon else "I got this one!"}">'
+                   f'title="{"You got hired for this — click to undo" if _iwon else "I got hired!"}">'
                    f'{"🎉" if _iwon else "🎯"}</a>')
         st.markdown(
             f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>{star}{won}',
