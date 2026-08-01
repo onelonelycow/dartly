@@ -15,7 +15,7 @@
     --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
     --bg:#121418; --bg2:#15181d; --panel:#171a20;
     --line:#262a31; --line2:#2f343d;
-    --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#6b7280;
+    --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#7d8590;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
@@ -119,9 +119,20 @@
        Matching the page background to the card means there's no edge to
        notice at all; the sheet just reads as dark, whatever the content
        height actually is. */
+    /* @page margin:0 is load-bearing. .page is a full 8.5in wide, but a
+       browser's default print margins (~0.4in a side) leave only ~7.7in
+       printable — so the sheet was overflowing horizontally onto extra pages.
+       A document called a one-pager printing as three is the kind of thing a
+       board notices. Zeroing the page margin lets .page's own padding be the
+       margin, which is what the 8.5in width already assumed. */
+    @page{size:letter;margin:0}
     body{padding:0;background:var(--bg)}
+    /* Padding trimmed from .55/.6 to .45/.55: measured height was 11.01in
+       against a letter sheet's 11.00in, so it spilled by a hair. */
     .page{box-shadow:none;border:0;border-radius:0;max-width:none;width:8.5in;
-      padding:.55in .6in}
+      padding:.45in .55in}
+    /* Nothing should be split across a page break if it does run long. */
+    .deal,.fitbars,.ask{break-inside:avoid}
   }
 </style>
 </head>
@@ -210,9 +221,16 @@
          so any sentence restating that was the same point a third time. This
          paragraph now only carries what the chart CAN'T show: who these
          people are and why timing decides whether they get the work. -->
-    <p>Most freelancers on Nabbly take project work alongside a staff role,
-      exactly the group whose income depends on hearing about new work
-      early.</p>
+    <!-- Subject is NextNW's membership, NOT Nabbly's users. An earlier edit
+         pass flipped it to "Most freelancers on Nabbly take project work…",
+         which is a statistic about our own user base that we cannot support —
+         and reads as one to a board that may well ask. This version is an
+         observation about their community, which is what the overview doc
+         actually argued and what Kent can verify himself. Hedge kept ("a lot
+         of", not "most") for the same reason. -->
+    <p>A lot of the membership freelances or takes project work alongside a
+      staff role — exactly the group whose income depends on hearing about
+      new work early.</p>
   </div>
 
   <footer>

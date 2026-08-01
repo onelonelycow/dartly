@@ -38,7 +38,7 @@
     /* the shared ground: Nabbly's near-black pulled a few degrees green so
        their forest sits on it without looking pasted on */
     --bg:#0E1613; --bg2:#132019; --line:#22352C; --line2:#2E4A3D;
-    --ink:#F2F5F3; --ink2:#C6D3CC; --mute:#93A79C; --faint:#6C8175;
+    --ink:#F2F5F3; --ink2:#C6D3CC; --mute:#93A79C; --faint:#7C9184;
     --radius:16px; --maxw:900px;
     --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
   }
@@ -207,7 +207,11 @@
 <div class="wrap">
   <div class="offer">
     <div class="big">NextNW members get Pro <em>free for 90 days</em></div>
-    <p>No card, nothing to cancel. Open the link above and it's already on.</p>
+    <!-- "already on" was not true: the 90 days are granted inside sign_in(),
+         so browsing the board without signing in leaves you on Free. Sign in
+         is the whole ask, and it's a small one, so say it plainly rather than
+         let someone discover the offer didn't apply. -->
+    <p>No card, nothing to cancel. Sign in with your email or Google and it's on.</p>
   </div>
 </div>
 

