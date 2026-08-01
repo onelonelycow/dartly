@@ -313,7 +313,9 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-pill.urgent{background:rgba(233,98,80,.15);color:#e8907e}
 .gr-pill.low{background:rgba(212,160,60,.14);color:#ddb478}
 .gr-pill.loc{background:rgba(76,141,255,.13);color:#89b0f5}
-.gr-pill.locnear,.gr-pill.remote{background:rgba(94,196,120,.14);color:#7ecb93}
+/* #35B37E is FEEL.md's actual documented green; a lighter #5EC478 had crept
+   in here instead — same hue family, but a second, undocumented shade. */
+.gr-pill.locnear,.gr-pill.remote{background:rgba(53,179,126,.14);color:#6bd19d}
 .gr-pill.locoff{background:#1a1d23;color:#767c86}
 /* Budget size, tinted by the same amber-ramp Market's charts already use
    for this exact tier (BUDGET_COLORS) — Small/Medium/Large as light-to-deep
@@ -2232,9 +2234,13 @@ def gig_card(r, pro):
         _src = (r["source"] or "").lower()
         _budget_cls = {"Small": "budget-sm", "Medium": "budget-md",
                        "Large": "budget-lg"}.get(r["size_tier"], "")
+        # Source used to sit here as its own neutral-gray pill. It's logistics
+        # (which board this came from), not a signal about whether the gig is
+        # worth chasing — the same weight as "Urgent" or "83% match" for
+        # information that isn't in the same league. It's still shown, just
+        # as quiet text by the post date below, not competing for the eye.
         badge_items += [(r["job_type"], ""),
-                        (f"{r['size_tier']} budget", _budget_cls),
-                        source_pill(_src)]
+                        (f"{r['size_tier']} budget", _budget_cls)]
         # where can this be done — and can *you* take it?
         loc = location.tag(r)
         if location.is_local(r, prof.get("city")):
@@ -2252,21 +2258,6 @@ def gig_card(r, pro):
                 elif not (_src in config.REMOTE_ONLY_SOURCES
                           and loc_lbl.strip().lower().endswith("remote")):
                     badge_items.append((loc_lbl, "loc"))
-        # Only ever shown when a non-English gig is ON the board — either the
-        # reader opened it up in Profile, or it's their country's language. It
-        # answers "why is this one in German?" before they have to wonder.
-        if (r.get("apply_email") or "").strip():
-            badge_items.append(("Apply by email", "match"))
-        # The source's own name pill (a few lines up) already says WHICH
-        # board; this just adds the one thing that pill doesn't — that
-        # applying means signing up there first. Said before the click, not
-        # discovered after it. Two distinct pills on purpose: a free signup
-        # and a paywall are not the same ask, and saying so honestly matters
-        # more than keeping the badge list short.
-        elif _src in config.SUBSCRIPTION_REQUIRED_SOURCES:
-            badge_items.append(("Paid subscription to apply", "urgent"))
-        elif _src in config.ACCOUNT_REQUIRED_SOURCES:
-            badge_items.append(("Free account needed to apply", "locoff"))
         _lc = r.get("_lang") or "en"
         if _lc != "en":
             badge_items.append((lang.label(_lc), "locoff"))
@@ -2276,6 +2267,22 @@ def gig_card(r, pro):
             lb, reason = market.lowball(r, stats, prof)
             if lb:
                 badge_items.append((reason, "low"))
+        # Apply-method last, on purpose: it's the one pill here that's
+        # neutral-gray instead of carrying real signal color, so it reads as
+        # a trailing note ("here's what applying involves") rather than
+        # competing with match/budget/urgent for first-glance attention.
+        if (r.get("apply_email") or "").strip():
+            badge_items.append(("Apply by email", "match"))
+        # The source name (below, by the post date) already says WHICH
+        # board; this adds the one thing that doesn't say — that applying
+        # means signing up there first. Said before the click, not
+        # discovered after it. Two distinct facts on purpose: a free signup
+        # and a paywall are not the same ask, and saying so honestly matters
+        # more than keeping the badge list short.
+        elif _src in config.SUBSCRIPTION_REQUIRED_SOURCES:
+            badge_items.append(("Paid subscription to apply", "urgent"))
+        elif _src in config.ACCOUNT_REQUIRED_SOURCES:
+            badge_items.append(("Free account needed to apply", "locoff"))
         pills(badge_items)
 
         if pro and r.get("_reasons"):
@@ -2319,8 +2326,12 @@ def gig_card(r, pro):
         # "minutes ago" but actually means "we couldn't read a date", the least
         # useful thing to tell someone deciding whether a gig is worth chasing.
         # We always know when WE saw it, so say that instead.
+        # Source moved here from the pill row above — see the badge_items
+        # comment on why. Same quiet treatment as the date it now sits next
+        # to: both are "how you'd act on this," not "should you care."
         posted = html.escape(
-            f"Posted {human_time(r.get('posted_at') or r.get('fetched_at'))}")
+            f"Posted {human_time(r.get('posted_at') or r.get('fetched_at'))}"
+            f" · via {config.source_label(_src)}")
         if body:
             cb = f"gm{r['id']}"
             st.markdown(
