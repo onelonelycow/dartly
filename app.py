@@ -1683,7 +1683,7 @@ def _count_up_html(value: str, uid: str) -> str:
     rows = "".join(f"<span>{html.escape(f)}</span>" for f in deduped)
     last = len(deduped) - 1
     kf = f"gr-cnt-{uid}"
-    dur = "0.7s"
+    dur = "1.1s"
     return (
         f'<span class="gr-count">'
         f'<style>@keyframes {kf}{{from{{transform:translateY(0)}}'
