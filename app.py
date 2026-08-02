@@ -1647,27 +1647,6 @@ def display_body(raw):
     return text
 
 
-def fmt_floor(n: int, round_above: int, step: int = 1_000) -> str:
-    """
-    An honest number that still reads as "there's always more."
-
-    Below `round_above`, the exact count — it changes every fetch, so a precise
-    number is true and worth showing. At or above it, the count rounded DOWN to
-    the nearest `step`, plus a "+": FEEL.md §7 killed one stale claim already
-    ("6,000+ gigs" shipped as a fixed line and drifted the moment a redeploy
-    reset the seed), and the rule it left behind is "state its floor or make it
-    live". A rounded-down live count is both at once.
-
-    This used to be a fixed ceiling (`"10,000+"` forever, once the board passed
-    10k). That can't lie, but it stops tracking: the board reached ~15k and the
-    tile still read 10,000+, understating by a third while the Gigs page showed
-    the real figure a click away. Rounding keeps the round-number shape that
-    reads as scale, and re-tunes itself as the board grows instead of needing a
-    hand-bumped constant every few months.
-    """
-    return f"{n // step * step:,}+" if n >= round_above else f"{n:,}"
-
-
 def _flip_spans(value: str) -> str:
     """
     Wrap each character so CSS can stagger a per-digit flip when it lands —
@@ -2513,13 +2492,11 @@ def live_stats():
     # Signed in with skills → the numbers are about YOU: your matches, your
     # fresh ones, your urgent ones, with one card for whole-board context.
     # Signed out → the board at large, exactly as before.
-    # ONE rounded number, on the board total only. Every other number stays live
-    # and exact, so it visibly climbs as the board grows — that movement is the
-    # point. The board total is the exception because it's the number that runs
-    # away from the others, and a round "15,000+" reads as scale in a way that a
-    # precise five-digit figure doesn't. It rounds DOWN off the live count, so
-    # it tracks growth on its own and can't go stale the way the old hard-coded
-    # "6,000+ gigs" line did (FEEL.md §7).
+    # The board total used to round down to a "15,000+" floor (fmt_floor,
+    # FEEL.md §7) — that was about a HARD-CODED marketing figure going stale.
+    # This one is never hard-coded, it's len(cur) read fresh on every load,
+    # so there's no staleness to guard against; showing the exact count just
+    # matches every other live number on this row now.
     if ACCESS["signed_in"] and skills:
         mine = cur[cur["job_type"].isin(skills)]
         stat_cards([
@@ -2528,12 +2505,12 @@ def live_stats():
              "?nav=gigs&qf=mine"),
             ("Urgent for you", f"{int((mine['urgency'] == 'Urgent').sum()):,}",
              "#E96250", "?nav=gigs&qf=urgent"),
-            ("On the whole board", fmt_floor(len(cur), 10_000), "#35B37E",
+            ("On the whole board", f"{len(cur):,}", "#35B37E",
              "?nav=gigs", "odo"),
         ])
     else:
         stat_cards([
-            ("On the board now", fmt_floor(len(cur), 10_000), "#E8933A",
+            ("On the board now", f"{len(cur):,}", "#E8933A",
              "?nav=gigs", "odo"),
             ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
              "?nav=gigs&qf=recent"),
