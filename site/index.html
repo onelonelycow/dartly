@@ -335,7 +335,7 @@
       <!-- Labels cut to two words: on a phone these stack full-width, and the
            long versions read as sentences under a headline number. "~2 min" is
            a real figure — the fetcher's actual cycle (refresh.py, 120s). -->
-      <div class="stat"><div class="n" data-nb-flip>16,000+</div><div class="l">Live gigs</div></div>
+      <div class="stat"><div class="n" data-nb-flip>16,937</div><div class="l">Live gigs</div></div>
       <div class="stat"><div class="n">25+</div><div class="l">Fields</div></div>
       <div class="stat"><div class="n">~2 min</div><div class="l">From post to board</div></div>
     </div>
@@ -580,8 +580,13 @@
   // ── Departure-board reveal for the live-gigs count ─────────────────────
   // The real number sits in the HTML as plain text from the start — this
   // never hides it, only re-plays it as a mechanical flip once JS runs.
-  // Anyone without JS, or with it blocked, still just reads "16,000+"
+  // Anyone without JS, or with it blocked, still just reads the number
   // immediately, correct, no delay.
+  //
+  // Exact figure, not a rounded "+" like the app's own Dashboard uses
+  // (see FEEL.md §7 and fmt_floor in app.py) — a deliberate call for this
+  // page specifically, so it needs a manual bump here as the board grows
+  // instead of self-correcting the way the in-app stat does.
   //
   // A genuine count from 0, not per-digit random noise: each tick computes
   // where an eased 0->final climb actually is at that moment and renders
@@ -597,8 +602,8 @@
       var el = document.querySelector('[data-nb-flip]');
       if (reduce || !el) return;
 
-      var finalText = el.textContent;                      // "16,000+"
-      var suffix = finalText.replace(/[0-9,]/g, '');        // "+"
+      var finalText = el.textContent;                      // "16,937"
+      var suffix = finalText.replace(/[0-9,]/g, '');        // "" (or "+" if a rounded figure is used later)
       var finalNum = parseInt(finalText.replace(/[^0-9]/g, ''), 10);
       if (!finalNum) return;
 
