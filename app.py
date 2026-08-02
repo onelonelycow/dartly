@@ -258,6 +258,54 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
   100%{transform:rotateX(0deg) translateY(0);opacity:1}}
 @media (prefers-reduced-motion:reduce){
   .gr-stat .n span.gr-flip{animation:none}}
+/* Odometer digits — same "climbing" character as the marketing site's hero
+   counter, built the only way it CAN be built here: pure CSS. Streamlit
+   renders this markup via innerHTML, and no browser ever executes a
+   <script> tag inserted that way (a real security restriction, not a
+   Streamlit limitation) — the same reason .gr-flip above never used JS.
+   A JS-driven "count from 0, computed each tick" reveal like the marketing
+   page has just isn't reachable here.
+   Instead: each digit is a vertical reel of stacked values, clipped to one
+   line's height, that spins through two full 0-9 loops and lands on the
+   real digit — a genuine mechanical odometer, not a fade or a random
+   shuffle. Two loops (not a huge number) on purpose: this replays on every
+   visit to the page (Streamlit remounts this markup fresh each time, same
+   as .gr-flip), so it stays a quick flourish rather than something that
+   gets old by the tenth time someone checks their dashboard. */
+.gr-odo{display:inline-block;height:1em;overflow:hidden;vertical-align:top}
+.gr-odo-reel{display:flex;flex-direction:column;animation-duration:.9s;
+  animation-fill-mode:forwards}
+.gr-odo-reel>span{height:1em;line-height:1em}
+/* Both ends spelled out, not just "to" — the static translateY set below
+   (the reduced-motion fallback) becomes the IMPLICIT 0% state for any
+   keyframe that only defines "to", which meant this was animating from
+   its own end value to itself: zero visible distance, landed instantly. */
+@keyframes gr-odo-0{from{transform:translateY(0)}to{transform:translateY(-20em)}}
+@keyframes gr-odo-1{from{transform:translateY(0)}to{transform:translateY(-21em)}}
+@keyframes gr-odo-2{from{transform:translateY(0)}to{transform:translateY(-22em)}}
+@keyframes gr-odo-3{from{transform:translateY(0)}to{transform:translateY(-23em)}}
+@keyframes gr-odo-4{from{transform:translateY(0)}to{transform:translateY(-24em)}}
+@keyframes gr-odo-5{from{transform:translateY(0)}to{transform:translateY(-25em)}}
+@keyframes gr-odo-6{from{transform:translateY(0)}to{transform:translateY(-26em)}}
+@keyframes gr-odo-7{from{transform:translateY(0)}to{transform:translateY(-27em)}}
+@keyframes gr-odo-8{from{transform:translateY(0)}to{transform:translateY(-28em)}}
+@keyframes gr-odo-9{from{transform:translateY(0)}to{transform:translateY(-29em)}}
+/* transform is set here too, not just inside the @keyframes "to" state —
+   animation-fill-mode:forwards already lands there during normal playback,
+   but reduced-motion below kills the animation outright, and without this
+   static fallback the reel would freeze at its STARTING frame (translateY
+   0, showing "0") instead of the real digit. */
+.gr-odo-d0{animation-name:gr-odo-0;animation-timing-function:steps(20,end);transform:translateY(-20em)}
+.gr-odo-d1{animation-name:gr-odo-1;animation-timing-function:steps(21,end);transform:translateY(-21em)}
+.gr-odo-d2{animation-name:gr-odo-2;animation-timing-function:steps(22,end);transform:translateY(-22em)}
+.gr-odo-d3{animation-name:gr-odo-3;animation-timing-function:steps(23,end);transform:translateY(-23em)}
+.gr-odo-d4{animation-name:gr-odo-4;animation-timing-function:steps(24,end);transform:translateY(-24em)}
+.gr-odo-d5{animation-name:gr-odo-5;animation-timing-function:steps(25,end);transform:translateY(-25em)}
+.gr-odo-d6{animation-name:gr-odo-6;animation-timing-function:steps(26,end);transform:translateY(-26em)}
+.gr-odo-d7{animation-name:gr-odo-7;animation-timing-function:steps(27,end);transform:translateY(-27em)}
+.gr-odo-d8{animation-name:gr-odo-8;animation-timing-function:steps(28,end);transform:translateY(-28em)}
+.gr-odo-d9{animation-name:gr-odo-9;animation-timing-function:steps(29,end);transform:translateY(-29em)}
+@media (prefers-reduced-motion:reduce){.gr-odo-reel{animation:none!important}}
 a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
   text-decoration:none !important;line-height:1.35;letter-spacing:-.1px}
 /* The save star. Dim until you go near it, so a column of sixty cards isn't
@@ -1651,6 +1699,26 @@ def _flip_spans(value: str) -> str:
     return " ".join(words_html)
 
 
+def _odometer_spans(value: str) -> str:
+    """
+    A mechanical odometer version of a stat value — see .gr-odo in the
+    stylesheet for why this is built as a pure-CSS spinning reel rather
+    than the JS count-up the marketing site uses. Non-digit characters
+    (a comma, a "+") render as plain static text; only real digits get a
+    reel, spinning through two 0-9 loops before landing on the true value.
+    """
+    out = []
+    for ch in value:
+        if ch.isdigit():
+            d = int(ch)
+            rows = "".join(f"<span>{i % 10}</span>" for i in range(20 + d + 1))
+            out.append(f'<span class="gr-odo"><span class="gr-odo-reel gr-odo-d{d}">'
+                       f'{rows}</span></span>')
+        else:
+            out.append(html.escape(ch))
+    return "".join(out)
+
+
 def founding_badge_html(rank: int | None) -> str:
     """
     A founding member's badge — their actual place in line, not a generic
@@ -1682,9 +1750,14 @@ def stat_cards(items):
     for label, value, accent, *rest in items:
         cls = "n small" if "small" in rest else "n"
         href = next((x for x in rest if x and x != "small"), "")
+        # Odometer is opt-in via "odo" in rest — just the live-gigs total,
+        # not every stat on the row. It's the one number that's genuinely
+        # exciting to watch climb; Fresh/Urgent/Fields don't need the same
+        # weight every single time someone lands on the page.
+        rendered = _odometer_spans(value) if "odo" in rest else _flip_spans(value)
         inner = (f'<div class="accent" style="background:{accent}"></div>'
                  f'<div class="l">{label}</div>'
-                 f'<div class="{cls}">{_flip_spans(value)}</div>')
+                 f'<div class="{cls}">{rendered}</div>')
         if href:
             html += (f'<a class="gr-stat" href="{ilink(href)}" target="_self">{inner}'
                      f'<div class="go">→</div></a>')
@@ -2456,12 +2529,12 @@ def live_stats():
             ("Urgent for you", f"{int((mine['urgency'] == 'Urgent').sum()):,}",
              "#E96250", "?nav=gigs&qf=urgent"),
             ("On the whole board", fmt_floor(len(cur), 10_000), "#35B37E",
-             "?nav=gigs"),
+             "?nav=gigs", "odo"),
         ])
     else:
         stat_cards([
             ("On the board now", fmt_floor(len(cur), 10_000), "#E8933A",
-             "?nav=gigs"),
+             "?nav=gigs", "odo"),
             ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
              "?nav=gigs&qf=recent"),
             ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
