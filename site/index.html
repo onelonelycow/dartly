@@ -581,9 +581,15 @@
   // The real number sits in the HTML as plain text from the start — this
   // never hides it, only re-plays it as a mechanical flip once JS runs.
   // Anyone without JS, or with it blocked, still just reads "16,000+"
-  // immediately. Deliberately slower than the app's own per-digit flip
-  // (35ms/char, built for a stat that updates on every rerun) — this is a
-  // once-per-visit moment, so it's allowed to take its time and be felt.
+  // immediately, correct, no delay.
+  //
+  // A genuine count from 0, not per-digit random noise: each tick computes
+  // where an eased 0->final climb actually is at that moment and renders
+  // the real number for that instant. The "flip" character falls out of
+  // that for free — the ones/tens/hundreds place changes almost every
+  // tick early on (real math, a big board), while the leading digit only
+  // ever changes once, right near the end, so it settles in naturally
+  // left-to-right without any manual per-digit stagger.
   (function () {
     try {
       var reduce = window.matchMedia &&
@@ -591,40 +597,35 @@
       var el = document.querySelector('[data-nb-flip]');
       if (reduce || !el) return;
 
-      var final = el.textContent;
-      el.textContent = '';
-      var spans = final.split('').map(function (ch) {
-        var s = document.createElement('span');
-        s.className = 'nb-flipch';
-        s.textContent = ch;
-        el.appendChild(s);
-        return s;
-      });
+      var finalText = el.textContent;                      // "16,000+"
+      var suffix = finalText.replace(/[0-9,]/g, '');        // "+"
+      var finalNum = parseInt(finalText.replace(/[^0-9]/g, ''), 10);
+      if (!finalNum) return;
 
-      var TICK_MS = 80;          // pace of one digit changing face
-      var STAGGER_MS = 130;      // gap before the next digit starts clacking
-
-      function runDigit(span, finalCh, startDelay) {
-        // Only actual digits cycle — a comma or "+" just sits there; a
-        // punctuation mark "flipping" through random symbols reads as a
-        // glitch, not a departure board.
-        if (!/[0-9]/.test(finalCh)) return;
-        var ticksLeft = 9 + Math.floor(Math.random() * 5); // 9-13 clacks
-        setTimeout(function tick() {
-          span.textContent = ticksLeft > 1
-            ? String(Math.floor(Math.random() * 10))
-            : finalCh;
-          span.classList.remove('nb-tick');
-          void span.offsetWidth;               // restart the CSS animation
-          span.classList.add('nb-tick');
-          ticksLeft--;
-          if (ticksLeft > 0) setTimeout(tick, TICK_MS);
-        }, startDelay);
+      function render(numStr) {
+        el.textContent = '';
+        numStr.split('').forEach(function (ch) {
+          var s = document.createElement('span');
+          s.className = 'nb-flipch nb-tick';
+          s.textContent = ch;
+          el.appendChild(s);
+        });
       }
 
-      spans.forEach(function (span, i) {
-        runDigit(span, final[i], i * STAGGER_MS);
-      });
+      var TICK_MS = 55;      // how often the displayed value updates
+      var DURATION_MS = 1900; // the whole climb, start to landing
+      var startTime = null;
+
+      function ease(t) { return 1 - Math.pow(1 - t, 3); } // fast start, gentle landing
+
+      render('0' + suffix);
+      setTimeout(function tick() {
+        if (startTime === null) startTime = Date.now();
+        var t = Math.min(1, (Date.now() - startTime) / DURATION_MS);
+        var current = Math.floor(finalNum * ease(t));
+        render(current.toLocaleString('en-US') + suffix);
+        if (t < 1) setTimeout(tick, TICK_MS);
+      }, TICK_MS);
     } catch (e) {}
   })();
 </script>
