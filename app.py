@@ -502,7 +502,16 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home){
    travel room the bar needed. Scoped by :has(.gr-home) so it only ever hits
    this one row and not every layout wrapper on the page. */
 [data-testid="stLayoutWrapper"]:has(.gr-home){
-  position:sticky;top:0;z-index:900}
+  position:sticky;top:0;z-index:900;
+  /* Even with stHeader collapsed, this still rested 31.8px down: 20.8px from
+     stMainBlockContainer's own padding-top (1.3rem, meant for the page
+     CONTENT below, not this bar), plus an 11px flex gap the vertical block
+     still applies before its first VISIBLE child — the injected <style>
+     block ahead of it renders at zero height but still counts as a sibling
+     for gap purposes. Pulling it up by that exact measured amount is what
+     actually gets the panel color flush to the true top of the page,
+     instead of leaving a sliver of raw page background above it. */
+  margin-top:-31.8px}
 /* Streamlit's three columns are ratios 2.0 / 4.9 / 1.3 (set in Python so the
    logo has room and the avatar doesn't), which measured out to the nav sitting
    50px right of the page's true centre — unequal flanks push the middle
@@ -553,7 +562,16 @@ section[data-testid="stSidebar"],div[data-testid="stSidebarCollapsedControl"]{di
   padding-top:1.3rem!important;max-width:1040px!important;
   margin-left:auto!important;margin-right:auto!important}
 [data-testid="stMain"] hr{margin:4px 0 12px!important}
-header[data-testid="stHeader"]{height:0;background:transparent}
+/* Measured on the live site: this was rendering at 60px, not the 0 the rule
+   asked for — Streamlit sets its own height on this element with enough
+   specificity to win over a plain, non-!important rule. That 60px, fully
+   transparent, sat ABOVE the real header bar (.gr-home's wrapper starts
+   lower down), showing raw page background through it — the "darker stripe
+   above a lighter stripe" look. Everything this element used to hold
+   (MainMenu, toolbar, deploy button, status widget) is already hidden
+   below, so it has no remaining job; collapsing it for real removes the gap
+   instead of trying to color-match two separate bars. */
+header[data-testid="stHeader"]{height:0!important;min-height:0!important;background:transparent}
 /* Hide Streamlit's own chrome so it reads as a real product, not a demo. */
 #MainMenu,[data-testid="stToolbar"],[data-testid="stDecoration"],
 [data-testid="stStatusWidget"],.stDeployButton,[data-testid="stAppDeployButton"],
