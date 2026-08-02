@@ -166,6 +166,15 @@
     background:linear-gradient(180deg,var(--amber-l),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
   .stat .l{font-size:14px;color:var(--mute);margin-top:5px}
   @media(max-width:560px){.stats{grid-template-columns:1fr}.stat{padding:20px}}
+  /* Departure-board reveal for the live-gigs count. Each digit gets its own
+     span so it can cycle independently — the same gradient-clip that used
+     to live on .stat .n only, repeated per span, so a run of individually
+     positioned characters still reads as one continuous amber number. */
+  .nb-flipch{display:inline-block;background:linear-gradient(180deg,var(--amber-l),var(--amber));
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .nb-flipch.nb-tick{animation:nbFlipTick .1s cubic-bezier(.3,.7,.4,1)}
+  @keyframes nbFlipTick{0%{transform:translateY(-38%);opacity:.35}100%{transform:translateY(0);opacity:1}}
+  @media(prefers-reduced-motion:reduce){.nb-flipch,.nb-flipch.nb-tick{animation:none}}
 
   /* ── sections ── */
   section{padding:76px 0}
@@ -326,8 +335,8 @@
       <!-- Labels cut to two words: on a phone these stack full-width, and the
            long versions read as sentences under a headline number. "~2 min" is
            a real figure — the fetcher's actual cycle (refresh.py, 120s). -->
-      <div class="stat"><div class="n">10,000+</div><div class="l">Live gigs</div></div>
-      <div class="stat"><div class="n">20+</div><div class="l">Fields</div></div>
+      <div class="stat"><div class="n" data-nb-flip>16,000+</div><div class="l">Live gigs</div></div>
+      <div class="stat"><div class="n">25+</div><div class="l">Fields</div></div>
       <div class="stat"><div class="n">~2 min</div><div class="l">From post to board</div></div>
     </div>
   </div>
@@ -564,6 +573,57 @@
         el.setAttribute('data-nb-i', Array.prototype.indexOf.call(sib, el));
         el.classList.add('nb-rise');
         io.observe(el);
+      });
+    } catch (e) {}
+  })();
+
+  // ── Departure-board reveal for the live-gigs count ─────────────────────
+  // The real number sits in the HTML as plain text from the start — this
+  // never hides it, only re-plays it as a mechanical flip once JS runs.
+  // Anyone without JS, or with it blocked, still just reads "16,000+"
+  // immediately. Deliberately slower than the app's own per-digit flip
+  // (35ms/char, built for a stat that updates on every rerun) — this is a
+  // once-per-visit moment, so it's allowed to take its time and be felt.
+  (function () {
+    try {
+      var reduce = window.matchMedia &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var el = document.querySelector('[data-nb-flip]');
+      if (reduce || !el) return;
+
+      var final = el.textContent;
+      el.textContent = '';
+      var spans = final.split('').map(function (ch) {
+        var s = document.createElement('span');
+        s.className = 'nb-flipch';
+        s.textContent = ch;
+        el.appendChild(s);
+        return s;
+      });
+
+      var TICK_MS = 80;          // pace of one digit changing face
+      var STAGGER_MS = 130;      // gap before the next digit starts clacking
+
+      function runDigit(span, finalCh, startDelay) {
+        // Only actual digits cycle — a comma or "+" just sits there; a
+        // punctuation mark "flipping" through random symbols reads as a
+        // glitch, not a departure board.
+        if (!/[0-9]/.test(finalCh)) return;
+        var ticksLeft = 9 + Math.floor(Math.random() * 5); // 9-13 clacks
+        setTimeout(function tick() {
+          span.textContent = ticksLeft > 1
+            ? String(Math.floor(Math.random() * 10))
+            : finalCh;
+          span.classList.remove('nb-tick');
+          void span.offsetWidth;               // restart the CSS animation
+          span.classList.add('nb-tick');
+          ticksLeft--;
+          if (ticksLeft > 0) setTimeout(tick, TICK_MS);
+        }, startDelay);
+      }
+
+      spans.forEach(function (span, i) {
+        runDigit(span, final[i], i * STAGGER_MS);
       });
     } catch (e) {}
   })();
