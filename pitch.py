@@ -309,6 +309,16 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     The no-key fallback. It cannot read the post, so it does not pretend to:
     it opens on what the freelancer does, asks for the missing scope, and gets
     out of the way. Short and honest beats long and hollow.
+
+    Not reading the post is a real, permanent gap next to the AI path — that
+    gap is the reason Pro exists. But nothing about that forces this to read
+    like a form. The old version led with the same fixed sentence every time
+    and turned its questions into a bulleted checklist, which reads as a mail
+    merge even though the WORDS change per gig. This rotates a few honest
+    openers and asks its question(s) as a sentence a person would actually
+    type, picked deterministically off the gig id — same gig always drafts
+    the same way (still cacheable, still consistent), but a results page full
+    of drafts doesn't look like one template with the nouns swapped.
     """
     profile = profile or {}
     # _text, not `(x or "").strip()`: a NaN from an empty DataFrame cell is a
@@ -316,8 +326,7 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     name = _text(profile.get("name"))
     portfolio = _text(profile.get("portfolio"))
     bio = _text(profile.get("bio"))
-    title = gig.get("title", "this")
-    skill = (_text(gig.get("job_type")) or "this work").lower()
+    title = gig.get("title") or "this"
 
     # NEVER falls back to the gig's own category. This used to end with
     # `who = skills or f"a {skill} freelancer"`, where `skill` is the JOB's
@@ -338,25 +347,39 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
 
     intro = f"I'm {who}." if who else ""
     if bio:
-        intro = f"{intro} {bio}.".strip() if intro else f"{bio}."
+        intro = f"{intro} {bio}".strip() if intro else bio
+        if not intro.endswith((".", "!", "?")):
+            intro += "."
 
-    asks = ["What does done look like for you, and by when?"]
+    # Deterministic, not random: a real per-account cache (drafts.py) can hold
+    # this text, and it shouldn't change on a reload just because a fresh
+    # random pick landed differently.
+    openers = (
+        f'Hi, "{title}" caught my eye.',
+        f'Reaching out about "{title}".',
+        f'I\'d like to help with "{title}".',
+    )
+    seed = hashlib.sha256(str(gig.get("id") or title).encode()).hexdigest()
+    opener = openers[int(seed, 16) % len(openers)]
+
     if gig.get("size_tier") in ("Medium", "Large"):
-        lead = "Two things would let me give you a real number rather than a range:"
-        asks.append("Is there an existing setup I'd be working inside, or is "
-                    "this from scratch?")
+        ask = ("A couple things that would help me give you a real number "
+               "instead of a range: is there an existing setup I'd be "
+               "working inside, or is this from scratch? And what does done "
+               "look like for you, and by when?")
     else:
-        lead = "One quick thing so I can scope it properly:"
+        ask = ("Before I quote anything, what does done look like for you, "
+               "and by when?")
 
     # intro is omitted entirely when we don't know who they are, rather than
     # left as an empty line — otherwise the draft opens with a blank gap where
     # a sentence should be, which reads as broken rather than as brief.
-    out = [f'Hi, I\'d like to help with "{title}".', ""]
+    out = [opener, ""]
     if intro:
         out += [intro, ""]
-    out += [lead, "\n".join(f"  • {a}" for a in asks)]
+    out += [ask]
     if portfolio:
-        out += ["", f"Recent work: {portfolio}"]
+        out += ["", f"Here's some recent work: {portfolio}"]
     if name:
         out += ["", f"Thanks,\n{name}"]
     return "\n".join(out)
