@@ -172,8 +172,8 @@
      positioned characters still reads as one continuous amber number. */
   .nb-flipch{display:inline-block;background:linear-gradient(180deg,var(--amber-l),var(--amber));
     -webkit-background-clip:text;background-clip:text;color:transparent}
-  .nb-flipch.nb-tick{animation:nbFlipTick .1s cubic-bezier(.3,.7,.4,1)}
-  @keyframes nbFlipTick{0%{transform:translateY(-38%);opacity:.35}100%{transform:translateY(0);opacity:1}}
+  .nb-flipch.nb-tick{animation:nbFlipTick .16s cubic-bezier(.3,.7,.4,1)}
+  @keyframes nbFlipTick{0%{transform:translateY(-14%);opacity:.55}100%{transform:translateY(0);opacity:1}}
   @media(prefers-reduced-motion:reduce){.nb-flipch,.nb-flipch.nb-tick{animation:none}}
 
   /* ── sections ── */
@@ -602,17 +602,25 @@
       var finalNum = parseInt(finalText.replace(/[^0-9]/g, ''), 10);
       if (!finalNum) return;
 
+      var prevChars = [];   // right-aligned by place value, so a digit that
+                             // hasn't actually changed never re-animates —
+                             // that constant all-digits pulsing, faster than
+                             // each pulse could finish, was the "shakey" part.
       function render(numStr) {
+        var chars = numStr.split('');
+        var offset = chars.length - prevChars.length; // new digits appear on the LEFT
         el.textContent = '';
-        numStr.split('').forEach(function (ch) {
+        chars.forEach(function (ch, i) {
+          var prevCh = i - offset >= 0 ? prevChars[i - offset] : undefined;
           var s = document.createElement('span');
-          s.className = 'nb-flipch nb-tick';
+          s.className = 'nb-flipch' + (ch !== prevCh ? ' nb-tick' : '');
           s.textContent = ch;
           el.appendChild(s);
         });
+        prevChars = chars;
       }
 
-      var TICK_MS = 55;      // how often the displayed value updates
+      var TICK_MS = 70;       // how often the displayed value updates
       var DURATION_MS = 1900; // the whole climb, start to landing
       var startTime = null;
 
