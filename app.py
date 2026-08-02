@@ -259,36 +259,25 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
 @media (prefers-reduced-motion:reduce){
   .gr-stat .n span.gr-flip{animation:none}}
 /* Real count-up, 0 to the true number — same feel as the marketing site's
-   hero counter, not the mechanical digit-reel this replaced. Streamlit
-   renders this markup via innerHTML, and no browser ever executes a
-   <script> tag inserted that way (a real security restriction, not a
-   Streamlit limitation), so the marketing page's tick-loop JS itself isn't
-   reachable here — but a <style> tag, unlike <script>, DOES apply when
-   inserted via innerHTML, and that's enough: register --n as a real
-   animatable integer (not a string) with @property, animate it 0 -> N, and
-   a CSS counter prints whatever --n currently is on every frame the browser
-   paints. The actual target number rides in on a tiny per-card <style>
-   block generated in Python (see _count_up_html) — @keyframes can't take a
-   variable end value, so each card gets its own uniquely-named one.
-   Comma grouping ("16,938") isn't something a CSS counter can do on its
-   own, so the counter runs bare ("16938") and swaps for the real,
-   comma-formatted static text at the exact instant it finishes — an
-   absolutely-positioned overlay, crossfaded by opacity rather than toggled
-   by display: an element that STARTS at display:none is never part of the
-   render tree, so the browser never attaches a running animation to it at
-   all and a none->inline reveal simply never fires (confirmed live — the
-   exit direction, inline->none, works fine; only the entrance direction is
-   broken this way). Opacity has no such restriction either direction. */
-@property --n{syntax:'<integer>';inherits:false;initial-value:0}
-.gr-count-wrap{position:relative;display:inline-block}
-.gr-count-num{display:inline-block;counter-reset:c var(--n)}
-.gr-count-num::before{content:counter(c)}
-.gr-count-final{position:absolute;left:0;top:0;opacity:0}
-@keyframes gr-count-num-out{from{opacity:1}to{opacity:0}}
-@keyframes gr-count-final-in{from{opacity:0}to{opacity:1}}
-@media (prefers-reduced-motion:reduce){
-  .gr-count-num{opacity:0!important}
-  .gr-count-final{opacity:1!important}}
+   hero counter. First cut used a CSS @property counter trick (animate a
+   registered integer custom property, print it live via counter()) — it
+   worked in isolated testing, but this card re-renders on every Streamlit
+   rerun (live_stats() re-reads the feed on a ~60s timer on its own), and a
+   rerun landing mid-animation restarts it from a fresh mount. A slow,
+   continuously-interpolated animation getting cut off and restarted over
+   and over read as noise, not a climb.
+   This version reuses the exact reel mechanism the digit-odometer already
+   proved solid: real intermediate numbers (computed in Python with the
+   same ease-out curve the marketing page's JS uses, not per-digit) stacked
+   in a clipped column, revealed with steps() so each one SNAPS in rather
+   than sliding — sliding differently-wide numbers vertically would look
+   like a glitch. Short and step-based on purpose: fewer frames for a
+   rerun to land on mid-flight, and if one does, the restart just looks
+   like a quick re-tick, not a stall. */
+.gr-count{display:inline-block;height:1em;overflow:hidden;vertical-align:top}
+.gr-count-reel{display:flex;flex-direction:column;animation-fill-mode:forwards}
+.gr-count-reel>span{height:1em;line-height:1em;white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.gr-count-reel{animation:none!important}}
 a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
   text-decoration:none !important;line-height:1.35;letter-spacing:-.1px}
 /* The save star. Dim until you go near it, so a column of sixty cards isn't
@@ -1664,24 +1653,44 @@ def _flip_spans(value: str) -> str:
 def _count_up_html(value: str, uid: str) -> str:
     """
     A real 0 -> N climb, matching the marketing site's hero counter — see
-    the .gr-count-num rules in the stylesheet for how a CSS counter pulls
-    this off without the JS the marketing page uses. `value` is the final,
-    comma-formatted display text (e.g. "16,938"); `uid` only needs to be
-    unique among the stat cards sharing this page, so a slugified label is
-    enough — it names the one-off @keyframes block carrying this card's
-    target number.
+    .gr-count in the stylesheet for why this is a reel of real pre-computed
+    numbers (the same ease-out curve the marketing page's JS ticks through
+    live) rather than a live-animated CSS counter.
+
+    `value` is the final, comma-formatted display text (e.g. "16,938");
+    `uid` only needs to be unique among the stat cards sharing this page,
+    so a slugified label is enough — it names this card's one-off
+    @keyframes block.
     """
     n = int(re.sub(r"[^0-9]", "", value) or 0)
+    if n <= 0:
+        return html.escape(value)
+
+    steps = 14
+    frames = []
+    for i in range(steps):
+        t = i / (steps - 1)
+        eased = 1 - (1 - t) ** 3  # fast start, gentle landing — same curve site/index.html uses
+        frames.append(f"{round(n * eased):,}")
+    frames[-1] = value  # land on the exact, correctly-formatted final text
+    # Small n can round to the same value for several early steps in a row —
+    # collapse those so the reel doesn't visibly "pause" repeating a frame.
+    deduped = [frames[0]]
+    for f in frames[1:]:
+        if f != deduped[-1]:
+            deduped.append(f)
+
+    rows = "".join(f"<span>{html.escape(f)}</span>" for f in deduped)
+    last = len(deduped) - 1
     kf = f"gr-cnt-{uid}"
-    dur = "1.4s"
+    dur = "0.7s"
     return (
-        f'<span class="gr-count-wrap">'
-        f'<style>@keyframes {kf}{{from{{--n:0}}to{{--n:{n}}}}}</style>'
-        f'<span class="gr-count-num" style="animation:{kf} {dur} '
-        f'cubic-bezier(.33,1,.68,1) forwards,gr-count-num-out 1ms linear {dur} forwards">'
-        f'</span>'
-        f'<span class="gr-count-final" style="animation:gr-count-final-in 1ms linear '
-        f'{dur} forwards">{html.escape(value)}</span>'
+        f'<span class="gr-count">'
+        f'<style>@keyframes {kf}{{from{{transform:translateY(0)}}'
+        f'to{{transform:translateY(-{last}em)}}}}</style>'
+        f'<span class="gr-count-reel" style="animation-name:{kf};'
+        f'animation-duration:{dur};animation-timing-function:steps({last},end);'
+        f'transform:translateY(-{last}em)">{rows}</span>'
         f'</span>'
     )
 
