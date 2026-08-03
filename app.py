@@ -3961,24 +3961,25 @@ def signup_card(where="dashboard"):
                         'email works</div>', unsafe_allow_html=True)
 
 
-@st.dialog("Unlock Nabbly Pro")
+@st.dialog("Never start from a blank page")
 def upgrade_dialog(where: str):
     """
     The soft nudge: opened by an explicit click on a real, working button
     ("See what Pro unlocks" and the like) — never shown unprompted, so it
-    never reads as a paywall jumping out at someone. A concrete, benefit-led
-    line up top (this got asked for specifically after the first version
-    just reused signup_card's generic "sign in to save your board" pitch,
-    which doesn't say anything about the drafts feature that got someone
-    here in the first place), then signup_card underneath for the actual
-    ask: same copy, same real actions (start a trial, register interest,
-    sign in) as everywhere else that card lives, so wiring this onto a new
-    page is one call, not a new pitch to write and keep in sync.
+    never reads as a paywall jumping out at someone. One short benefit line
+    up top, then signup_card underneath for the actual ask: same copy, same
+    real actions (start a trial, register interest, sign in) as everywhere
+    else that card lives, so wiring this onto a new page is one call, not a
+    new pitch to write and keep in sync.
+
+    First cut led with a full paragraph explaining the mechanism on top of
+    signup_card's own headline and subtext — two pitches stacked in one
+    modal. Cut to a single line on purpose, closer to how Linear or
+    Superhuman's own upgrade prompts read: say the benefit once, briefly,
+    and get out of the way.
     """
     st.markdown(
-        '<div class="gr-updialog-hook">Stop staring at a blank message. '
-        'On Pro, every gig gets a ready-to-send reply already written from '
-        'your real experience — not a generic template.</div>',
+        '<div class="gr-updialog-hook">Pro drafts every reply for you.</div>',
         unsafe_allow_html=True)
     signup_card(where)
 
