@@ -743,6 +743,11 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   max-width:46ch;margin:2px auto 18px}
 .gr-mini{text-align:center;font-size:13px;color:#9aa1ab;margin:4px 0 8px}
 .gr-mini b{color:#eaa662;font-weight:700}
+.gr-dash-end{text-align:center;font-size:13.5px;color:#868d98;margin:6px 0 4px;
+  padding:18px 0 6px}
+.gr-dash-end a,.gr-dash-end a:link,.gr-dash-end a:visited{color:#eaa662!important;
+  font-weight:600;text-decoration:none!important}
+.gr-dash-end a:hover{text-decoration:underline!important}
 
 /* --- Hero without the paragraph, and the quiet link to the story ---------- */
 .gr-hero-tight{padding-bottom:6px}
@@ -2772,27 +2777,47 @@ def view_dashboard(pro):
     st.divider()
     arrivals_pill()
     draft_showcase(pro)
-    if prof.get("skills"):
-        # .gr-sect marks a heading that STARTS A NEW SECTION mid-page, so it
-        # earns the big gap above it. Page titles deliberately don't carry it —
-        # they'd push the first line of every view down the screen. (Marker goes
-        # after the text: "###" only parses at the start of a line.)
+    # Picked for you IS the dashboard's whole identity — a fit-scored feed,
+    # same shape as a social app's own For You page — not a second Gigs page,
+    # so this deliberately doesn't get Gigs's full filter bar or pagination.
+    # But a feed that just stops at a fixed 12 with no way to see more reads
+    # as broken, not curated. "Load more" grows the SAME feed in place
+    # (session_state, not a page nav) until it's genuinely exhausted — a
+    # real, finite pool once someone's skills narrow it down — at which
+    # point the honest next step is the full Gigs page, not more of this one.
+    picked = bool(prof.get("skills"))
+    if picked:
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = scored(apply_language(apply_city_lock(
             apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                          srcs, False, "")))).head(DASH_FEED)
+                          srcs, False, ""))))
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
-        top = apply_language(apply_city_lock(df)).head(DASH_FEED)
+        top = apply_language(apply_city_lock(df))
 
     if top.empty:
         st.caption("Nothing's clicking yet — try adding a few more skills on the Profile "
                    "tab. The board moves fast; there'll be more any minute.")
-    for r in top.to_dict("records"):
-        gig_card(r, pro)
+    else:
+        shown = st.session_state.get("_dash_shown", DASH_FEED)
+        for r in top.head(shown).to_dict("records"):
+            gig_card(r, pro)
+
+        if shown < len(top):
+            if st.button(f"Load more  ·  {len(top) - shown} more waiting",
+                         key="dash_more", width="stretch"):
+                st.session_state["_dash_shown"] = shown + DASH_FEED
+                st.rerun()
+        else:
+            _qf = "&qf=mine" if picked else ""
+            st.markdown(
+                f'<div class="gr-dash-end">That\'s everything {"matching you" if picked else "on the board"} '
+                f'right now. <a href="{ilink(f"?nav=gigs{_qf}")}" target="_self">'
+                f'See all gigs on the full board →</a></div>',
+                unsafe_allow_html=True)
 
     # The feedback box used to sit here, directly under the gigs. A form asking
     # "what would make this better?" at the end of the reading path interrupts
