@@ -1,5 +1,12 @@
 # Putting Nabbly online (Render) — a preview, before the "real" site
 
+> **✅ SUPERSEDED.** This walks through the very first bare-preview deploy —
+> before accounts existed, before the paid always-on plan, before nabbly.co and
+> app.nabbly.co were real domains. All of that has since shipped; see
+> `DEPLOY_SEO.md` for how the domain split actually happened. Kept here as a
+> historical record of the first "get something on a URL" step, not as a
+> current how-to — the "Good to know" caveats below no longer hold.
+
 This gets Nabbly onto a public URL you can send to people to test. It's a
 **preview**, not the finished product — see "Good to know" at the bottom for what
 changes before it's a real website.
@@ -54,17 +61,15 @@ Even with none of these, the site works and fills with gigs from the free source
 
 ---
 
-## Good to know (preview vs. real website)
+## Good to know (true of that first bare preview — not true anymore)
 
-- **It sleeps when idle.** On the free plan the site nods off after ~15 min and
-  takes ~30–60s to wake on the next visit. Upgrading the Render plan makes it
-  always-on.
-- **Everyone shares one profile + feed.** Right now there are no user accounts, so
-  every visitor sees the same profile and the same "Pro" view. Great for showing a
-  tester; the real website needs **logins** so each person has their own profile.
-  (That's the planned "admin login" step.)
-- **Data refreshes on each deploy.** New gigs are pulled when the site builds, and
-  anyone can hit **"Check for new gigs"** in the app to pull the latest live. For a
-  feed that updates on its own around the clock, we'd add a scheduled job later.
-- **Secrets stay out of the code.** Passwords/keys go in Render's Environment tab,
-  never in the repo (`.env` is ignored by git on purpose).
+- ~~It sleeps when idle.~~ The live service now runs on Render's Standard plan
+  (upgraded 2026-08-01, after the free tier's 512MB ceiling actually crashed it) —
+  always-on, no sleep.
+- ~~Everyone shares one profile + feed.~~ Real accounts shipped: Google OAuth and
+  email-code sign-in, each with its own profile, saved gigs, and drafts.
+- **Data refreshes on each deploy** is still true, plus a background fetcher now
+  pulls fresh gigs on its own on a live schedule — not just at deploy time.
+- **Secrets stay out of the code.** Still true, unchanged: passwords/keys go in
+  Render's Environment tab, never in the repo (`.env` is ignored by git on
+  purpose).

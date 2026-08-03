@@ -331,7 +331,7 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   background:#1e222a;color:#aab2bd;border:0;line-height:1.55}
 .gr-pill.match{background:rgba(232,147,58,.15);color:#eaa662}
 .gr-pill.urgent{background:rgba(233,98,80,.15);color:#e8907e}
-.gr-pill.low{background:rgba(212,160,60,.14);color:#ddb478}
+.gr-pill.low{background:rgba(232,147,58,.15);color:#eaa662}
 .gr-pill.loc{background:rgba(76,141,255,.13);color:#89b0f5}
 /* #35B37E is FEEL.md's actual documented green; a lighter #5EC478 had crept
    in here instead — same hue family, but a second, undocumented shade. */
