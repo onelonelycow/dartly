@@ -5,8 +5,11 @@ Two engines behind one function:
 
   * AI (Claude), when ANTHROPIC_API_KEY is set. It reads the client's actual
     post and answers what they actually asked for.
-  * A template, when it isn't. Better than the old one, and still instant and
-    free, but it cannot read the post, so it stays generic by construction.
+  * A template, when it isn't. Instant and free, and it does a little
+    keyword-level checking of the post (see _DEADLINE_STATED, _SETUP_STATED
+    below) so it doesn't ask a question the post already answered — but it
+    has no real comprehension, so it stays generic by construction next to
+    what the AI path can actually do with the same post.
 
 That gap is the whole point. The old template only ever saw a gig's title and
 budget tier and ignored the body entirely, which is why every draft came out
@@ -86,6 +89,25 @@ company, no contact block. If no name is given, stop after the last sentence.\
 # Reddit's RSS tail. Feeding "submitted by /u/x [link] [comments]" to the model
 # is noise at best, and at worst it writes a reply addressed to the username.
 _FEED_TAIL = re.compile(r"\s*submitted by\s*/u/\S+.*$", re.I | re.S)
+
+# Concrete, keyword-level signals the template can safely check for — NOT
+# reading comprehension, just whether the post already contains the kind of
+# text that would make one of the template's own stock questions redundant.
+# Deliberately narrow: a false "yes, already answered" silently drops the one
+# clarifying question the draft had, which is worse than the rare redundant
+# question a false negative leaves in. When in doubt, still ask.
+_DEADLINE_STATED = re.compile(
+    r"\b(deadline|due\s+(?:date|by|on)|asap|"
+    r"within\s+\d+\s*(?:day|week|month)s?|"
+    r"by\s+(?:end of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*|"
+    r"by\s+(?:mon|tue|wed|thu|fri|sat|sun)\w*|"
+    r"by\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b", re.I)
+_SETUP_STATED = re.compile(
+    r"\b(from scratch|greenfield|new build|starting fresh|"
+    r"existing (?:code(?:base)?|system|site|app(?:lication)?|platform|setup|"
+    r"product|pipeline|infrastructure|database|repo(?:sitory)?|stack|"
+    r"workflow|project)|"
+    r"already (?:have|built|using|set up))\b", re.I)
 
 
 def _clean_body(text: str) -> str:
@@ -306,9 +328,10 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "",
 
 def draft_template(gig: dict, profile: dict | None = None) -> str:
     """
-    The no-key fallback. It cannot read the post, so it does not pretend to:
-    it opens on what the freelancer does, asks for the missing scope, and gets
-    out of the way. Short and honest beats long and hollow.
+    The no-key fallback. It cannot understand the post the way the AI path
+    does, so it does not pretend to: it opens on what the freelancer does,
+    asks for the missing scope, and gets out of the way. Short and honest
+    beats long and hollow.
 
     Not reading the post is a real, permanent gap next to the AI path — that
     gap is the reason Pro exists. But nothing about that forces this to read
@@ -319,6 +342,13 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     type, picked deterministically off the gig id — same gig always drafts
     the same way (still cacheable, still consistent), but a results page full
     of drafts doesn't look like one template with the nouns swapped.
+
+    It also does a little keyword-level checking (_DEADLINE_STATED,
+    _SETUP_STATED) — not comprehension, just "does this post already contain
+    the kind of text that answers one of our stock questions" — so it stops
+    asking "by when?" to a post that already says "deadline is Friday." A
+    client noticing their post already answered the question we just asked
+    is a worse tell than anything about phrasing.
     """
     profile = profile or {}
     # _text, not `(x or "").strip()`: a NaN from an empty DataFrame cell is a
@@ -362,14 +392,25 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     seed = hashlib.sha256(str(gig.get("id") or title).encode()).hexdigest()
     opener = openers[int(seed, 16) % len(openers)]
 
-    if gig.get("size_tier") in ("Medium", "Large"):
-        ask = ("A couple things that would help me give you a real number "
-               "instead of a range: is there an existing setup I'd be "
-               "working inside, or is this from scratch? And what does done "
-               "look like for you, and by when?")
+    body = _clean_body(gig.get("body"))
+    want_setup_q = gig.get("size_tier") in ("Medium", "Large") and \
+        not _SETUP_STATED.search(body)
+    want_deadline_q = not _DEADLINE_STATED.search(body)
+
+    # "What does done look like" (deliverable clarity) stays in every version
+    # of this ask — there's no reliable keyword signal for "the scope is
+    # already clear," so this one is never skipped, only "and by when" is,
+    # and only when the post visibly states a timeframe already.
+    done_q = "what does done look like for you"
+    if want_deadline_q:
+        done_q += ", and by when"
+
+    if want_setup_q:
+        ask = (f"A couple things that would help me give you a real number "
+               f"instead of a range: is there an existing setup I'd be "
+               f"working inside, or is this from scratch? And {done_q}?")
     else:
-        ask = ("Before I quote anything, what does done look like for you, "
-               "and by when?")
+        ask = f"Before I quote anything, {done_q}?"
 
     # intro is omitted entirely when we don't know who they are, rather than
     # left as an empty line — otherwise the draft opens with a blank gap where
