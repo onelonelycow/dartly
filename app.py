@@ -3925,8 +3925,8 @@ def signup_card(where="dashboard"):
             st.markdown('<span class="gr-cta-mark"></span>'
                         '<div class="gr-cta-h">Sign in to save your board</div>'
                         '<div class="gr-cta-s">Keeps your profile and picks for next '
-                        'time. Free, and Pro is there to try whenever you want it.'
-                        '</div>', unsafe_allow_html=True)
+                        'time. No cost to sign in, and Pro\'s there to try whenever '
+                        'you\'re ready.</div>', unsafe_allow_html=True)
             # Email first — any provider, their choice — with Google as a
             # one-tap option beneath when it's configured.
             with st.form(f"signup_{where}", clear_on_submit=False, border=False):
