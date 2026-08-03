@@ -2464,9 +2464,10 @@ def gig_card(r, pro):
             else:
                 st.caption("On **Pro**, we write a ready-to-send reply for this exact "
                            "gig — so you can fire back first, without staring at a blank "
-                           "message. Upgrade any time from your **Profile**.")
-                st.button("Upgrade to Pro", key=f"up_{r['id']}",
-                          disabled=True, width="stretch")
+                           "message.")
+                if st.button("See what Pro unlocks", key=f"up_{r['id']}",
+                              width="stretch"):
+                    upgrade_dialog(f"draft_{gid}")
 
 
 # ---------------------------------------------------------------------------
@@ -2656,6 +2657,11 @@ def draft_showcase(pro):
             'ready-to-send reply for this exact gig, written from your profile, '
             'so you answer in seconds instead of staring at a blank message.</div>'
             '</div>', unsafe_allow_html=True)
+        _s1, _s2, _s3 = st.columns([1, 2, 1])
+        with _s2:
+            if st.button("See what Pro unlocks", key="up_showcase",
+                          width="stretch"):
+                upgrade_dialog("draft_showcase")
         return
 
     text = drafts.load(gid) or pitch.draft_pitch(
@@ -3951,6 +3957,19 @@ def signup_card(where="dashboard"):
                         st.login("google")
             st.markdown('<div class="gr-cta-fine">No card · no password · any '
                         'email works</div>', unsafe_allow_html=True)
+
+
+@st.dialog("Want more from Nabbly?")
+def upgrade_dialog(where: str):
+    """
+    The soft nudge: opened by an explicit click on a real, working button
+    ("See what Pro unlocks" and the like) — never shown unprompted, so it
+    never reads as a paywall jumping out at someone. Just signup_card in a
+    focused modal rather than a second, duplicate upsell: same copy, same
+    real actions (start a trial, register interest, sign in), so wiring this
+    onto a new page is one call, not a new pitch to write and keep in sync.
+    """
+    signup_card(where)
 
 
 def view_legal(which: str):
