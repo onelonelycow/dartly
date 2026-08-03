@@ -98,11 +98,13 @@ _FEED_TAIL = re.compile(r"\s*submitted by\s*/u/\S+.*$", re.I | re.S)
 # clarifying question the draft had, which is worse than the rare redundant
 # question a false negative leaves in. When in doubt, still ask.
 _DEADLINE_STATED = re.compile(
-    r"\b(deadline|due\s+(?:date|by|on)|asap|"
+    r"\b(deadline|due\s+(?:date|by|on)|asap|eod\b|"
     r"within\s+\d+\s*(?:day|week|month)s?|"
     r"by\s+(?:end of\s+)?(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*|"
     r"by\s+(?:mon|tue|wed|thu|fri|sat|sun)\w*|"
-    r"by\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b", re.I)
+    r"by\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|"
+    r"by\s+(?:the\s+)?end of (?:day|week|month)|"
+    r"by\s+tomorrow|by\s+tonight)\b", re.I)
 _SETUP_STATED = re.compile(
     r"\b(from scratch|greenfield|new build|starting fresh|"
     r"existing (?:code(?:base)?|system|site|app(?:lication)?|platform|setup|"
