@@ -672,8 +672,11 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   font-family:inherit;max-width:70ch}
 .gr-draft-body p{margin:0 0 11px}
 .gr-draft-body p:last-child{margin-bottom:0}
-.gr-draft-lock{padding:20px 18px;text-align:center;color:#98a0ab;font-size:14px;line-height:1.6}
-.gr-draft-lock b{color:#eaa662}
+/* The free draft, inside the expander in gig_card — same body typography as
+   the Pro showcase's .gr-draft-body, but a lighter container: the expander
+   itself already draws a border, so a second amber-bordered box nested
+   inside it would be one box too many. */
+.gr-draft-body-free{background:#171a20;border-radius:12px;margin-bottom:10px}
 @media (max-width:640px){
   .gr-draft-t{font-size:15.5px}
   .gr-draft-body{padding:14px 15px 15px;font-size:13.5px;line-height:1.6}
@@ -2464,9 +2467,18 @@ def gig_card(r, pro):
                 elif saved_exists:
                     st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
             else:
-                st.caption("On **Pro**, we write a ready-to-send reply for this exact "
-                           "gig — so you can fire back first, without staring at a blank "
-                           "message.")
+                # A real draft, not just a paywall — see pitch.draft_template
+                # for why this reads like a person and not a form. It just
+                # can't read the post the way the Pro path can, which is the
+                # actual, honest gap Pro closes.
+                free_draft = pitch.draft_template(r, prof)
+                _body = "".join(
+                    "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
+                    for block in free_draft.split("\n\n") if block.strip())
+                st.markdown(f'<div class="gr-draft-body gr-draft-body-free">{_body}</div>',
+                            unsafe_allow_html=True)
+                st.caption("On **Pro**, this reads the actual post and writes a reply "
+                           "tailored to it — not a template.")
                 if st.button("See what Pro unlocks", key=f"up_{r['id']}",
                               width="stretch"):
                     upgrade_dialog(f"draft_{gid}")
@@ -2651,14 +2663,23 @@ def draft_showcase(pro):
         ] if t)
 
     if not pro:
+        # A real draft, not a locked box — see pitch.draft_template for why
+        # this reads like a person and not a form. It can't read the post
+        # the way Pro can; that's the actual, honest gap, so say that
+        # instead of hiding the whole feature behind a lock icon.
+        free_draft = pitch.draft_template(g, prof)
+        _body = "".join(
+            "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
+            for block in free_draft.split("\n\n") if block.strip())
         st.markdown(
             '<div class="gr-draft"><div class="gr-draft-hd">'
-            '<div class="gr-draft-k">Pro · we write the reply for you</div>'
-            f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div></div>'
-            '<div class="gr-draft-lock">On <b>Pro</b> this box already contains a '
-            'ready-to-send reply for this exact gig, written from your profile, '
-            'so you answer in seconds instead of staring at a blank message.</div>'
-            '</div>', unsafe_allow_html=True)
+            '<div class="gr-draft-k">Your draft, ready to edit</div>'
+            f'<div class="gr-draft-t">{html.escape(g.get("title") or "")}</div>'
+            f'<div class="gr-draft-m">{pills_html}</div></div>'
+            f'<div class="gr-draft-body">{_body}</div></div>',
+            unsafe_allow_html=True)
+        st.caption("On **Pro**, this reads the actual post and writes a reply "
+                   "tailored to it — not a template.")
         _s1, _s2, _s3 = st.columns([1, 2, 1])
         with _s2:
             if st.button("See what Pro unlocks", key="up_showcase",
