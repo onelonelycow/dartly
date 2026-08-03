@@ -2478,10 +2478,9 @@ def gig_card(r, pro):
                     for block in free_draft.split("\n\n") if block.strip())
                 st.markdown(f'<div class="gr-draft-body gr-draft-body-free">{_body}</div>',
                             unsafe_allow_html=True)
-                st.caption(pitch.free_draft_note(r))
                 if st.button("See what Pro unlocks", key=f"up_{r['id']}",
                               width="stretch"):
-                    upgrade_dialog(f"draft_{gid}")
+                    upgrade_dialog(f"draft_{gid}", pitch.free_draft_note(r))
 
 
 # ---------------------------------------------------------------------------
@@ -2685,12 +2684,11 @@ def draft_showcase(pro):
             f'<div class="gr-draft-m">{pills_html}</div></div>'
             f'<div class="gr-draft-body">{_body}</div></div>',
             unsafe_allow_html=True)
-        st.caption(pitch.free_draft_note(g))
         _s1, _s2, _s3 = st.columns([1, 2, 1])
         with _s2:
             if st.button("See what Pro unlocks", key="up_showcase",
                           width="stretch"):
-                upgrade_dialog("draft_showcase")
+                upgrade_dialog("draft_showcase", pitch.free_draft_note(g))
         return
 
     text = drafts.load(gid) or pitch.draft_pitch(
@@ -3989,7 +3987,7 @@ def signup_card(where="dashboard"):
 
 
 @st.dialog("Never start from a blank page")
-def upgrade_dialog(where: str):
+def upgrade_dialog(where: str, hook: str = "Pro drafts every reply for you."):
     """
     The soft nudge: opened by an explicit click on a real, working button
     ("See what Pro unlocks" and the like) — never shown unprompted, so it
@@ -4004,9 +4002,16 @@ def upgrade_dialog(where: str):
     modal. Cut to a single line on purpose, closer to how Linear or
     Superhuman's own upgrade prompts read: say the benefit once, briefly,
     and get out of the way.
+
+    `hook` defaults to the generic line but the draft touchpoints pass
+    pitch.free_draft_note(gig) instead — this used to sit as a permanent
+    caption under every single draft on the page, which got noisy across a
+    results page of cards. The specific, per-gig reasoning is worth more at
+    the one moment someone's actually asking what Pro does than as
+    something everyone scrolls past on every card.
     """
     st.markdown(
-        '<div class="gr-updialog-hook">Pro drafts every reply for you.</div>',
+        f'<div class="gr-updialog-hook">{hook}</div>',
         unsafe_allow_html=True)
     signup_card(where)
 

@@ -348,11 +348,16 @@ def _gaps(gig: dict) -> dict:
 
 def free_draft_note(gig: dict) -> str:
     """
-    The honest line under a free draft about what Pro adds — specific to
-    THIS gig when there's something specific to point to, generic only when
-    there isn't. Naming the actual thing the template noticed (a stated
-    deadline, an existing setup) proves the "not a template" claim instead
-    of just asserting it.
+    The honest line about what Pro adds for THIS gig specifically, when
+    there's something specific to point to — generic only when there isn't.
+    Naming the actual thing the template noticed (a stated deadline, an
+    existing setup) proves the "not a template" claim instead of just
+    asserting it.
+
+    Lives in the upgrade popup, not as a caption under every card — real
+    HTML (a literal <b>, not markdown's **) since that's the only place
+    this renders now, via raw unsafe_allow_html rather than st.caption's
+    markdown pass.
     """
     g = _gaps(gig)
     skipped = []
@@ -361,11 +366,11 @@ def free_draft_note(gig: dict) -> str:
     if g["setup_relevant"] and g["setup_stated"]:
         skipped.append("whether there's an existing setup")
     if not skipped:
-        return ("On **Pro**, this reads the actual post and writes a reply "
+        return ("On <b>Pro</b>, this reads the actual post and writes a reply "
                 "tailored to it — not a template.")
     what = skipped[0] if len(skipped) == 1 else " and ".join(skipped)
     return (f"This post already told us {what}, so we skipped asking that. "
-            f"On **Pro**, the reply reads the whole post, not just what "
+            f"On <b>Pro</b>, the reply reads the whole post, not just what "
             f"this template checks for.")
 
 
