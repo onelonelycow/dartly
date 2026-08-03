@@ -11,6 +11,7 @@ import os
 import re
 import html
 import uuid
+import hashlib
 import secrets
 from pathlib import Path
 from urllib.parse import quote
@@ -2477,8 +2478,7 @@ def gig_card(r, pro):
                     for block in free_draft.split("\n\n") if block.strip())
                 st.markdown(f'<div class="gr-draft-body gr-draft-body-free">{_body}</div>',
                             unsafe_allow_html=True)
-                st.caption("On **Pro**, this reads the actual post and writes a reply "
-                           "tailored to it — not a template.")
+                st.caption(pitch.free_draft_note(r))
                 if st.button("See what Pro unlocks", key=f"up_{r['id']}",
                               width="stretch"):
                     upgrade_dialog(f"draft_{gid}")
@@ -2642,18 +2642,25 @@ def draft_showcase(pro):
     """
     Show, don't tell.
 
-    A ready-to-send reply, already written for the single best-matching gig,
-    sitting in the open. It was the strongest thing in the product and it lived
-    behind a collapsed row on every card, which is where features go to die.
+    A ready-to-send reply, already written for a top-matching gig, sitting in
+    the open. It was the strongest thing in the product and it lived behind a
+    collapsed row on every card, which is where features go to die.
+
+    Picks from the top 3 matches rather than always #1, so a daily regular
+    doesn't see the identical card every visit — but the pick is seeded off
+    the date and account, not random, so it holds still for the length of one
+    sitting instead of changing on every unrelated rerun.
     """
     if df.empty or not prof.get("skills"):
         return
     srcs = sorted(df["source"].unique())
     top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                               srcs, False, ""))
+                               srcs, False, "")).head(3)
     if top.empty:
         return
-    g = top.iloc[0].to_dict()
+    seed = f"{datetime.now(timezone.utc).date()}-{paths.get_scope()}"
+    idx = int(hashlib.sha256(seed.encode()).hexdigest(), 16) % len(top)
+    g = top.iloc[idx].to_dict()
     gid = str(g["id"])
     pills_html = "".join(
         f'<span class="gr-pill {c}">{html.escape(str(t))}</span>' for t, c in [
@@ -2678,8 +2685,7 @@ def draft_showcase(pro):
             f'<div class="gr-draft-m">{pills_html}</div></div>'
             f'<div class="gr-draft-body">{_body}</div></div>',
             unsafe_allow_html=True)
-        st.caption("On **Pro**, this reads the actual post and writes a reply "
-                   "tailored to it — not a template.")
+        st.caption(pitch.free_draft_note(g))
         _s1, _s2, _s3 = st.columns([1, 2, 1])
         with _s2:
             if st.button("See what Pro unlocks", key="up_showcase",

@@ -23,6 +23,7 @@ import re
 
 import sources
 import budget
+import location
 import style
 
 # Sonnet, not Opus: a drafted reply is short, direct, everyday business
@@ -326,6 +327,46 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "",
     return text
 
 
+def _gaps(gig: dict) -> dict:
+    """
+    What the free template already knows without needing to ask, read off
+    the post's own text and the location tagger — not comprehension, just
+    "does this post already contain the kind of text that answers one of
+    our stock questions." Shared by draft_template (to decide what to ask)
+    and free_draft_note (to say, honestly, what got skipped and why).
+    """
+    body = _clean_body(gig.get("body"))
+    return {
+        "deadline_stated": bool(_DEADLINE_STATED.search(body)),
+        "setup_relevant": gig.get("size_tier") in ("Medium", "Large"),
+        "setup_stated": bool(_SETUP_STATED.search(body)),
+        "onsite": location.tag(gig)["onsite"],
+    }
+
+
+def free_draft_note(gig: dict) -> str:
+    """
+    The honest line under a free draft about what Pro adds — specific to
+    THIS gig when there's something specific to point to, generic only when
+    there isn't. Naming the actual thing the template noticed (a stated
+    deadline, an existing setup) proves the "not a template" claim instead
+    of just asserting it.
+    """
+    g = _gaps(gig)
+    skipped = []
+    if g["deadline_stated"]:
+        skipped.append("the deadline")
+    if g["setup_relevant"] and g["setup_stated"]:
+        skipped.append("whether there's an existing setup")
+    if not skipped:
+        return ("On **Pro**, this reads the actual post and writes a reply "
+                "tailored to it — not a template.")
+    what = skipped[0] if len(skipped) == 1 else " and ".join(skipped)
+    return (f"This post already told us {what}, so we skipped asking that. "
+            f"On **Pro**, the reply reads the whole post, not just what "
+            f"this template checks for.")
+
+
 def draft_template(gig: dict, profile: dict | None = None) -> str:
     """
     The no-key fallback. It cannot understand the post the way the AI path
@@ -343,12 +384,14 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     the same way (still cacheable, still consistent), but a results page full
     of drafts doesn't look like one template with the nouns swapped.
 
-    It also does a little keyword-level checking (_DEADLINE_STATED,
-    _SETUP_STATED) — not comprehension, just "does this post already contain
-    the kind of text that answers one of our stock questions" — so it stops
-    asking "by when?" to a post that already says "deadline is Friday." A
-    client noticing their post already answered the question we just asked
-    is a worse tell than anything about phrasing.
+    It also does a little keyword-level checking (see _gaps) — not
+    comprehension, just "does this post already contain the kind of text
+    that answers one of our stock questions" — so it stops asking "by
+    when?" to a post that already says "deadline is Friday," and stops
+    asking about remote flexibility for a post that's already explicit
+    about needing someone on-site. A client noticing their post already
+    answered the question we just asked is a worse tell than anything
+    about phrasing.
     """
     profile = profile or {}
     # _text, not `(x or "").strip()`: a NaN from an empty DataFrame cell is a
@@ -392,25 +435,40 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     seed = hashlib.sha256(str(gig.get("id") or title).encode()).hexdigest()
     opener = openers[int(seed, 16) % len(openers)]
 
-    body = _clean_body(gig.get("body"))
-    want_setup_q = gig.get("size_tier") in ("Medium", "Large") and \
-        not _SETUP_STATED.search(body)
-    want_deadline_q = not _DEADLINE_STATED.search(body)
+    g = _gaps(gig)
+    want_setup_q = g["setup_relevant"] and not g["setup_stated"]
+    want_deadline_q = not g["deadline_stated"]
+    # Asked whenever the post reads as on-site and isn't already flexible
+    # about it — the post stating ITS OWN logistics is a fact to ask about,
+    # same as the deadline or the setup; it's not asking the freelancer to
+    # justify their own availability, which is a different (and pushier)
+    # question this deliberately doesn't ask.
+    want_onsite_q = g["onsite"]
 
-    # "What does done look like" (deliverable clarity) stays in every version
-    # of this ask — there's no reliable keyword signal for "the scope is
-    # already clear," so this one is never skipped, only "and by when" is,
-    # and only when the post visibly states a timeframe already.
-    done_q = "what does done look like for you"
-    if want_deadline_q:
-        done_q += ", and by when"
-
+    extra_qs = []
     if want_setup_q:
-        ask = (f"A couple things that would help me give you a real number "
-               f"instead of a range: is there an existing setup I'd be "
-               f"working inside, or is this from scratch? And {done_q}?")
+        extra_qs.append("Is there an existing setup I'd be working inside, "
+                        "or is this from scratch?")
+    if want_onsite_q:
+        extra_qs.append("Is there any room for this to be remote, or does "
+                        "it need to be fully on-site?")
+    when = ", and by when" if want_deadline_q else ""
+
+    if not extra_qs:
+        ask = f"Before I quote anything, what does done look like for you{when}?"
     else:
-        ask = f"Before I quote anything, {done_q}?"
+        # "A couple" for one extra question, "a few" for two — the "done"
+        # question always comes last, so this is never wrong about the count.
+        lead = ("A couple things" if len(extra_qs) == 1 else "A few things"
+                ) + " that would help me give you a real number instead of a range:"
+        done_sentence = f"What does done look like for you{when}?"
+        ask = lead + " " + " ".join(extra_qs) + " " + done_sentence
+
+    # A cheap, honest nod to urgency: the flag is already computed for the
+    # pill on the card, so using it here costs nothing and the draft
+    # shouldn't read as generic when the post is visibly in a hurry.
+    urgent_line = ("I saw this is time-sensitive — happy to start right away."
+                   if gig.get("urgency") == "Urgent" else "")
 
     # intro is omitted entirely when we don't know who they are, rather than
     # left as an empty line — otherwise the draft opens with a blank gap where
@@ -418,6 +476,8 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     out = [opener, ""]
     if intro:
         out += [intro, ""]
+    if urgent_line:
+        out += [urgent_line, ""]
     out += [ask]
     if portfolio:
         out += ["", f"Here's some recent work: {portfolio}"]
