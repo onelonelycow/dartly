@@ -735,6 +735,8 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   border-radius:999px;padding:3px 11px;white-space:nowrap}
 .gr-feat span::before{content:"✓ ";color:#eaa662;font-weight:700}
 .gr-cta-fine{text-align:center;font-size:11.5px;color:var(--faint);margin:9px 0 6px}
+.gr-updialog-hook{font-size:15px;line-height:1.55;color:#d3d9e1;text-align:center;
+  max-width:46ch;margin:2px auto 18px}
 .gr-mini{text-align:center;font-size:13px;color:#9aa1ab;margin:4px 0 8px}
 .gr-mini b{color:#eaa662;font-weight:700}
 
@@ -3959,16 +3961,25 @@ def signup_card(where="dashboard"):
                         'email works</div>', unsafe_allow_html=True)
 
 
-@st.dialog("Want more from Nabbly?")
+@st.dialog("Unlock Nabbly Pro")
 def upgrade_dialog(where: str):
     """
     The soft nudge: opened by an explicit click on a real, working button
     ("See what Pro unlocks" and the like) — never shown unprompted, so it
-    never reads as a paywall jumping out at someone. Just signup_card in a
-    focused modal rather than a second, duplicate upsell: same copy, same
-    real actions (start a trial, register interest, sign in), so wiring this
-    onto a new page is one call, not a new pitch to write and keep in sync.
+    never reads as a paywall jumping out at someone. A concrete, benefit-led
+    line up top (this got asked for specifically after the first version
+    just reused signup_card's generic "sign in to save your board" pitch,
+    which doesn't say anything about the drafts feature that got someone
+    here in the first place), then signup_card underneath for the actual
+    ask: same copy, same real actions (start a trial, register interest,
+    sign in) as everywhere else that card lives, so wiring this onto a new
+    page is one call, not a new pitch to write and keep in sync.
     """
+    st.markdown(
+        '<div class="gr-updialog-hook">Stop staring at a blank message. '
+        'On Pro, every gig gets a ready-to-send reply already written from '
+        'your real experience — not a generic template.</div>',
+        unsafe_allow_html=True)
     signup_card(where)
 
 
