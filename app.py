@@ -2819,7 +2819,7 @@ def view_gigs(pro):
         if st.button("Refresh", key="checknew", width="stretch"):
             with st.spinner("Scanning the web for fresh gigs…"):
                 ingest.run()
-            _public_feed.clear()         # new gigs should show at once, not in 45s
+            _public_feed_at.clear()      # new gigs should show at once, not in 45s
             st.rerun()
 
     if df.empty:
