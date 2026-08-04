@@ -2018,41 +2018,54 @@ people.init()       # who signed up, their profile, and their feedback
 outcomes.init()     # gigs someone actually landed through the board
 match_feedback.init()  # was the match score actually right
 
+# Own-account visits never hit the counters. Checking on the product is the
+# single most frequent kind of visit an owner account makes, and none of it
+# is a real visitor — left in, every number on the Admin page is partly a
+# measure of how often the founder opens their own site. Can only catch this
+# while signed in as owner, so a signed-out check from the same person still
+# counts; there's no way to tell those apart from a stranger's.
+_OWNER_VISIT = ACCESS["signed_in"] and accounts.is_owner(ACCESS.get("email"))
+
 # One id per browser tab. Streamlit reruns this script constantly, so without
 # this every scroll and click would look like a brand-new visitor.
 if "_sid" not in st.session_state:
     st.session_state["_sid"] = uuid.uuid4().hex[:12]
     _sid = st.session_state["_sid"]
-    analytics.track("session", "", _sid)
-    # Where did they come from, and on what? Read once, from the request that
-    # opened the session. We keep only the referring host and a coarse device
-    # bucket — never the full URL, never anything identifying.
-    try:
-        _h = st.context.headers or {}
-        analytics.track("ref", analytics.referrer_label(_h.get("Referer", "")), _sid)
-        analytics.track("device", analytics.device_label(_h.get("User-Agent", "")), _sid)
-    except Exception:
-        pass          # header access must never break a page load
-    # A partner's own tag: ?ref=name (or utm_source=, which is what most
-    # newsletter tools emit by default). Captured HERE, at session start,
-    # because the nav dispatch calls st.query_params.clear() further down —
-    # read it any later and it's already gone. Held in session state so it
-    # survives to whenever they actually sign up, which is the only moment
-    # that answers whether the collaboration worked.
-    try:
-        _tag = analytics.campaign_label(
-            st.query_params.get("ref", "") or st.query_params.get("utm_source", ""))
-        if _tag:
-            st.session_state["_campaign"] = _tag
-            analytics.track("campaign", _tag, _sid)
-    except Exception:
-        pass
+    if not _OWNER_VISIT:
+        analytics.track("session", "", _sid)
+        # Where did they come from, and on what? Read once, from the request
+        # that opened the session. We keep only the referring host and a
+        # coarse device bucket — never the full URL, never anything
+        # identifying.
+        try:
+            _h = st.context.headers or {}
+            analytics.track("ref", analytics.referrer_label(_h.get("Referer", "")), _sid)
+            analytics.track("device", analytics.device_label(_h.get("User-Agent", "")), _sid)
+        except Exception:
+            pass          # header access must never break a page load
+        # A partner's own tag: ?ref=name (or utm_source=, which is what most
+        # newsletter tools emit by default). Captured HERE, at session start,
+        # because the nav dispatch calls st.query_params.clear() further down
+        # — read it any later and it's already gone. Held in session state so
+        # it survives to whenever they actually sign up, which is the only
+        # moment that answers whether the collaboration worked.
+        try:
+            _tag = analytics.campaign_label(
+                st.query_params.get("ref", "") or st.query_params.get("utm_source", ""))
+            if _tag:
+                st.session_state["_campaign"] = _tag
+                analytics.track("campaign", _tag, _sid)
+        except Exception:
+            pass
 SID = st.session_state["_sid"]
 CAMPAIGN = st.session_state.get("_campaign", "")
 
 
 def note(event: str, detail: str = ""):
-    """Record something the visitor did (once per session per thing)."""
+    """Record something the visitor did (once per session per thing). A no-op
+    for the owner's own visits — see _OWNER_VISIT above."""
+    if _OWNER_VISIT:
+        return
     seen = st.session_state.setdefault("_seen_events", set())
     key = f"{event}:{detail}"
     if key in seen:
@@ -4827,7 +4840,8 @@ if "nav" in st.query_params:
                                 ("skill", st.session_state["catfilter"]),
                                 ("stat", st.session_state["quickfilter"])):
                 if _val:
-                    analytics.track("click", f"{_kind}:{_val}", SID)
+                    if not _OWNER_VISIT:
+                        analytics.track("click", f"{_kind}:{_val}", SID)
                     break
         st.session_state["_page"] = ""      # a real tab leaves any info page
     # Keep the sign-in token in the address bar. clear() used to strip it,
