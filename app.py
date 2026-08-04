@@ -2487,9 +2487,12 @@ def gig_card(r, pro):
 
         gid = r["id"]
         saved_exists = drafts.has(gid)
-        # "Pro" carries the gating on its own in bold amber text — a padlock
-        # glyph next to it was decoration on top of a word already doing the job.
-        label = "Draft my reply" if pro else "Draft my reply  ·  Pro"
+        # Used to read "Draft my reply  ·  Pro" for everyone on Free — a
+        # leftover from when the whole feature was a locked box. It isn't:
+        # Free gets a real draft now (see the else branch below), so the
+        # label shouldn't advertise a paywall that's no longer there. The
+        # upsell still shows, just after opening it — "See what Pro unlocks".
+        label = "Draft my reply"
         if pro and saved_exists:
             label += "  ·  draft saved"
         with st.expander(label):
@@ -2881,7 +2884,13 @@ def view_dashboard(pro):
     # the one thing someone came to do — read gigs. It lives on the Profile page
     # now, where settings and account things belong, and a quiet line points at
     # it from here instead.
-    if not (ACCESS["signed_in"] and ACCESS["plan"] == "pro"):
+    #
+    # signup_card() only shows something here for people already signed in
+    # (the trial offer, the keep-Pro ask, the pay-willingness question) — an
+    # anonymous visitor's "sign in" prompt used to live here too, but sign in
+    # is reachable from the account menu in the header now, so there's no
+    # need to repeat it at the bottom of every scroll.
+    if ACCESS["signed_in"] and ACCESS["plan"] != "pro":
         st.divider()
         signup_card("dashboard")
 
@@ -3936,7 +3945,7 @@ def sign_in_here(email: str, where: str):
     return True, ""
 
 
-_FEAT = ('<div class="gr-feat"><span>Ranked picks</span><span>Drafted replies</span>'
+_FEAT = ('<div class="gr-feat"><span>Ranked picks</span><span>Post-aware drafts</span>'
          '<span>Market rates</span><span>Instant alerts</span></div>')
 
 
@@ -4233,8 +4242,9 @@ def view_about():
         'against what you do, so your board is yours.</li>'
         '<li>When something fits, you get an <b>instant alert</b> on whichever '
         'channel you like, before the crowd shows up.</li>'
-        '<li>We even <b>draft the first reply</b> from the actual post, so you '
-        'answer in seconds instead of staring at a blank message.</li>'
+        '<li>We even <b>draft the first reply</b> for you, so you answer in '
+        'seconds instead of staring at a blank message — from the actual '
+        'post on Pro, from a smart template on Free.</li>'
         '</ol>'
 
         # Two cards, not one paragraph: someone deciding between plans should be
@@ -4249,6 +4259,7 @@ def view_about():
         '<li>Search and browse it all</li>'
         '<li>Your profile, so the board sorts around you</li>'
         '<li>Fresh gigs, minutes after they\'re posted</li>'
+        '<li>A drafted reply on every gig, ready to edit</li>'
         '</ul></div>'
         '<div class="gr-ab-plan pro">'
         '<div class="gr-ab-name">Pro</div>'
@@ -4298,18 +4309,22 @@ _FAQ = [
      "Pro is free to try for 14 days whenever you want it; you choose if and "
      "when to start, so you're never dropped into a trial you didn't ask for."),
     ("What's the difference between Free and Pro?",
-     "Free gives you every gig from every source, search and browse. Pro adds "
-     "the parts that help you reply first: gigs ranked by how well they fit "
-     "you, drafted replies, market rate data, and instant alerts."),
+     "Free gives you every gig from every source, search and browse, plus a "
+     "drafted reply on every card to start from. Pro adds the parts that "
+     "help you reply first: gigs ranked by how well they fit you, replies "
+     "drafted from the actual post instead of a template, market rate data, "
+     "and instant alerts."),
     ("How do the alerts work?",
      "You pick the channel — phone push, Slack or Discord, Telegram, SMS or "
      "email — plus how often you'll tolerate being pinged, which sources "
      "count, and how many gigs per message. Then new matches come to you "
      "instead of you refreshing a page."),
     ("Do you really write the reply for me?",
-     "Yes, on Pro. It reads the actual post and your profile and drafts a "
-     "reply you can send or edit. It's a starting point that beats staring at "
-     "a blank message, not a promise you'll never touch it."),
+     "Yes, even on Free — every gig gets a drafted reply built from your "
+     "profile, ready to send or edit. On Pro it reads the actual post too, "
+     "so it can skip questions the listing already answered and speak to "
+     "specifics a template can't. Either way, it's a starting point that "
+     "beats staring at a blank message, not a promise you'll never touch it."),
     ("Are the gigs verified?",
      "No, and be careful. These are public postings gathered as they were "
      "written; we classify and rank them, we don't vet the people behind "
@@ -4323,7 +4338,7 @@ _FAQ = [
     ("Why is a gig in the wrong category?",
      "Categories are worked out from the words in each post, so it gets most "
      "of them right and occasionally gets one wrong. If you spot a bad one, "
-     "the feedback box on the dashboard goes straight to the person building "
+     "the feedback box on your profile goes straight to the person building "
      "this."),
 ]
 
