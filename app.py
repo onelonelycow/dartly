@@ -3789,7 +3789,7 @@ def plan_card():
                 st.session_state["_confirm_downgrade"] = True
         if st.session_state.get("_confirm_downgrade"):
             st.caption("You'll keep the whole board, search and your profile. "
-                       "You'd lose ranked picks, drafted replies, market rates "
+                       "You'd lose ranked picks, post-aware drafts, market rates "
                        "and instant alerts.")
             _c1, _c2, _ = st.columns([1, 1, 2])
             with _c1:
@@ -3989,7 +3989,7 @@ def signup_card(where="dashboard"):
                     '<span class="gr-cta-mark"></span>'
                     '<div class="gr-cta-h">Quick one while you\'re here</div>'
                     '<div class="gr-cta-s">When your Pro ends, would you pay '
-                    '<b>$12/mo</b> to keep ranked picks, drafted replies and '
+                    '<b>$12/mo</b> to keep ranked picks, post-aware drafts and '
                     'instant alerts?</div>', unsafe_allow_html=True)
                 a1, a2, a3 = st.columns(3)
                 for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"),
