@@ -3508,17 +3508,16 @@ def inbox_card():
     a listserv or a paid newsletter that no crawler can reach. This is the way
     in: forward it once and the gigs land on your board like any other.
     """
-    st.markdown('#### Forward your <span class="gr-accent">newsletters</span>'
-                '<span class="gr-soon">Coming soon</span>',
+    st.markdown('#### Forward your <span class="gr-accent">newsletters</span>',
                 unsafe_allow_html=True)
     if not inbox.enabled():
         st.caption("Your own address for forwarding the mailing lists and "
-                   "newsletters the job boards never see. We're finishing it off.")
+                   "newsletters the job boards never see.")
         return
     if not ACCESS["signed_in"]:
-        st.caption("Sign in and you get your own address to forward mailing "
-                   "lists and newsletters to. Whatever you send lands on your "
-                   "board, and only yours.")
+        st.caption("Sign in and you'll get your own address. Forward it a "
+                   "newsletter or listserv digest, and the gigs inside land "
+                   "on your board — visible only to you.")
         return
     st.markdown("A lot of the best work goes out on a listserv or a paid "
                 "newsletter, never a job board. Forward one here and we'll "

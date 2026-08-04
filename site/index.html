@@ -241,6 +241,32 @@
   .mailrow .t b{color:var(--ink);font-weight:600}
   .mailrow .t span{color:var(--mute);display:block;margin-top:2px;font-size:13.5px}
   .arrow{text-align:center;color:var(--amber);font-size:20px;margin:6px 0}
+  /* The "before" half — a forwarded email, styled to actually read as mail
+     (sender, subject, the address it landed on, a jumbled excerpt) rather
+     than another row identical to the gigs pulled out of it below. Nested
+     one shade darker than .card-visual so it reads as something dropped
+     INTO the card, not a section of it. */
+  .nl-email{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .nl-hd{display:flex;align-items:center;gap:11px}
+  .nl-avatar{flex:0 0 36px;height:36px;border-radius:10px;display:grid;place-items:center;
+    font-size:12.5px;font-weight:700;letter-spacing:.01em;color:var(--amber-l);
+    background:radial-gradient(circle at 32% 30%, rgba(247,181,105,.4), rgba(203,111,22,.14) 60%, transparent 78%),
+      var(--bg2);border:1px solid var(--line)}
+  .nl-from{font-size:14.5px;line-height:1.35}
+  .nl-from b{color:var(--ink);font-weight:600;display:block}
+  .nl-from span{color:var(--mute);font-size:13px}
+  /* A real digest runs long — the fade says "this keeps going" rather than
+     pretending three opportunities were the whole email. */
+  .nl-body{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+    font-size:13px;line-height:1.6;color:var(--faint);max-height:58px;overflow:hidden;
+    -webkit-mask-image:linear-gradient(180deg,#000 55%,transparent 100%);
+            mask-image:linear-gradient(180deg,#000 55%,transparent 100%)}
+  .nl-split{text-align:center;margin:16px 0 2px;position:relative}
+  .nl-split span{position:relative;z-index:1;background:var(--panel);padding:0 12px;
+    color:var(--amber);font-size:11.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+  .nl-split::before{content:"";position:absolute;left:0;right:0;top:50%;height:1px;
+    background:var(--line)}
+  .nl-gigs .mailrow:first-child{padding-top:6px}
 
   /* plans */
   .plans{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px;margin:0 auto}
@@ -385,24 +411,26 @@
 <section id="forward" style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap split">
     <div>
-      <!-- Kept on the page because it's the sharpest idea here, but labelled
-           honestly: the mailbox isn't switched on yet (inbox.enabled() is
-           False in the app, which already says "coming shortly"). Promising it
-           in the present tense on the front page while it doesn't run would be
-           the kind of claim FEEL.md §7 exists to stop. -->
-      <div class="soon-tag">Coming soon</div>
-      <h2 style="margin-top:12px">The best gigs never hit a job board</h2>
-      <!-- Short on purpose: the feature isn't live, so this is a tease, not a
-           manual. The example address that sat below promised a specific shape
-           we haven't shipped — it comes back when the mailbox is real. -->
-      <p>The best work often goes out on newsletters and listservs no crawler can reach. Soon, you'll forward yours to a private Nabbly address — and the gigs inside land on your board, visible only to you.</p>
+      <h2>Turn your inbox into your board</h2>
+      <p>Noise in your inbox. Signal on your board. Forward it once, and every gig buried inside gets pulled out, sorted, and added automatically.</p>
     </div>
     <div class="card-visual">
-      <div class="mailrow"><div class="ic"></div><div class="t"><b>Study Hall — Opportunities of the Week</b><span>Forwarded to your Nabbly address</span></div></div>
-      <div class="arrow">↓</div>
-      <div class="mailrow"><div class="ic"></div><div class="t"><b>Freelance science reporter — Wired</b><span>$1/word · pitch by Friday · Writing</span></div></div>
-      <div class="mailrow"><div class="ic"></div><div class="t"><b>Documentary editor — 6-week contract</b><span>Remote · Video · from your newsletter</span></div></div>
-      <div class="mailrow"><div class="ic"></div><div class="t"><b>Brand designer for a nonprofit rebrand</b><span>Project rate · Design · private to you</span></div></div>
+      <div class="nl-email">
+        <div class="nl-hd">
+          <div class="nl-avatar">SH</div>
+          <div class="nl-from">
+            <b>Study Hall</b>
+            <span>Opportunities of the Week</span>
+          </div>
+        </div>
+        <div class="nl-body">Hey all — a few things crossed our desk this week. First up, Wired's looking for a freelance science reporter, $1/word, pitches due Friday. Also heard from a production house after a documentary editor for a 6-week remote contract, and a nonprofit is hunting for someone to handle a full brand refresh…</div>
+      </div>
+      <div class="nl-split"><span>Nabbly splits it into</span></div>
+      <div class="nl-gigs">
+        <div class="mailrow"><div class="ic"></div><div class="t"><b>Freelance science reporter — Wired</b><span>$1/word · pitch by Friday</span></div></div>
+        <div class="mailrow"><div class="ic"></div><div class="t"><b>Documentary editor — 6-week contract</b><span>Remote · Video</span></div></div>
+        <div class="mailrow"><div class="ic"></div><div class="t"><b>Brand designer for a nonprofit rebrand</b><span>Project rate · Design</span></div></div>
+      </div>
     </div>
   </div>
 </section>
@@ -428,6 +456,7 @@
           <li>✓ Your profile, so the board sorts around you</li>
           <li>✓ Fresh gigs, minutes after they're posted</li>
           <li>✓ A drafted reply on every gig, ready to edit</li>
+          <li>✓ Forward newsletters into your private board</li>
         </ul>
       </div>
       <div class="plan pro">
@@ -438,7 +467,6 @@
           <li>✓ Drafted replies from the actual post</li>
           <li>✓ Instant alerts — push, Slack, Telegram, SMS</li>
           <li>✓ Market-rate intelligence, so you price right</li>
-          <li>✓ Forward newsletters into your private board <span class="soon-inline">soon</span></li>
         </ul>
       </div>
     </div>
