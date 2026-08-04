@@ -2234,6 +2234,60 @@ def scored(view):
     return view.sort_values("_score", ascending=False)
 
 
+@st.cache_data(ttl=180, show_spinner=False)
+def _dash_picks(version, skills, srcs):
+    """
+    The dashboard's "Picked for you" feed, cached. scored() alone measured
+    ~90ms against a few thousand matched gigs — cheap once, but the
+    dashboard was recomputing filter + scored from scratch on EVERY rerun,
+    including every "Load more" click, even though neither the board nor
+    the profile had actually changed since the last one. That's what made
+    each successive load feel slower than the last, not the rendering.
+
+    Keyed off the board's own version fingerprint (same one _public_feed_at
+    uses) plus skills, so it invalidates the moment real data changes
+    rather than sitting stale on a timer. Loads the feed itself instead of
+    taking `df` as an argument — load_feed() is already cheap (it just hits
+    _public_feed's own cache) and a DataFrame is an expensive thing to hash
+    as a cache key.
+    """
+    cur, _ = load_feed()
+    cur = apply_language(apply_city_lock(
+        apply_filters(cur, list(skills), ["Small", "Medium", "Large"],
+                      list(srcs), False, "")))
+    return scored(cur)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _cached_free_draft(gid, title, body, size_tier, urgency, job_type,
+                        name, headline, bio, portfolio):
+    """
+    pitch.draft_template() wrapped for caching — it's deterministic (same
+    gig, same profile, same draft, on purpose, per its own docstring), but
+    it was recomputing from scratch for every visible free-tier card on
+    EVERY dashboard rerun, including every "Load more" click. Small per
+    card (~1ms), but it compounds as the shown count grows with repeated
+    Load More clicks, on top of whatever else made that rerun happen.
+
+    Explicit primitive fields rather than the raw gig/profile dicts as the
+    cache key — a DataFrame row's .to_dict() can carry pandas-specific
+    values that don't hash as cleanly or predictably as plain strings.
+    """
+    gig = {"id": gid, "title": title, "body": body, "size_tier": size_tier,
+           "urgency": urgency, "job_type": job_type}
+    profile = {"name": name, "headline": headline, "bio": bio, "portfolio": portfolio}
+    return pitch.draft_template(gig, profile)
+
+
+def _free_draft_for(gig: dict, profile: dict) -> str:
+    """Cache-key extraction for _cached_free_draft — see there for why."""
+    return _cached_free_draft(
+        gig.get("id"), gig.get("title"), gig.get("body"), gig.get("size_tier"),
+        gig.get("urgency"), gig.get("job_type"),
+        profile.get("name"), profile.get("headline"), profile.get("bio"),
+        profile.get("portfolio"))
+
+
 def _save_draft(gig_id, key):
     text = st.session_state.get(key, "")
     drafts.save(gig_id, text)
@@ -2476,8 +2530,9 @@ def gig_card(r, pro):
                 # A real draft, not just a paywall — see pitch.draft_template
                 # for why this reads like a person and not a form. It just
                 # can't read the post the way the Pro path can, which is the
-                # actual, honest gap Pro closes.
-                free_draft = pitch.draft_template(r, prof)
+                # actual, honest gap Pro closes. Cached (_free_draft_for) —
+                # see _cached_free_draft for why.
+                free_draft = _free_draft_for(r, prof)
                 _body = "".join(
                     "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
                     for block in free_draft.split("\n\n") if block.strip())
@@ -2677,8 +2732,9 @@ def draft_showcase(pro):
         # A real draft, not a locked box — see pitch.draft_template for why
         # this reads like a person and not a form. It can't read the post
         # the way Pro can; that's the actual, honest gap, so say that
-        # instead of hiding the whole feature behind a lock icon.
-        free_draft = pitch.draft_template(g, prof)
+        # instead of hiding the whole feature behind a lock icon. Cached
+        # (_free_draft_for) — see _cached_free_draft for why.
+        free_draft = _free_draft_for(g, prof)
         _body = "".join(
             "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
             for block in free_draft.split("\n\n") if block.strip())
@@ -2790,9 +2846,7 @@ def view_dashboard(pro):
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
-        top = scored(apply_language(apply_city_lock(
-            apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                          srcs, False, ""))))
+        top = _dash_picks(db.board_version(), tuple(prof["skills"]), tuple(srcs))
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
@@ -2807,8 +2861,11 @@ def view_dashboard(pro):
             gig_card(r, pro)
 
         if shown < len(top):
-            if st.button(f"Load more  ·  {len(top) - shown} more waiting",
-                         key="dash_more", width="stretch"):
+            # No count on the button — a curated "for you" feed showing
+            # "14,286 more waiting" reads as an undifferentiated firehose,
+            # not a pick. The number's still there for you in the code path
+            # (len(top) - shown) if it's ever needed again, just not surfaced.
+            if st.button("Load more", key="dash_more", width="stretch"):
                 st.session_state["_dash_shown"] = shown + DASH_FEED
                 st.rerun()
         else:
