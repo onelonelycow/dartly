@@ -27,6 +27,53 @@ _TOP_N = 10
 # drains on its own rather than being dropped.
 _MAX_PER_RUN = 40
 
+# A thin profile (no keywords, no rate floor) leaves fit_score() with nothing
+# to differentiate on, so its top matches often cluster on one prolific
+# source or one company reposting several openings — a real digest sampled
+# during testing put 7 of 10 slots on two employers, both via the same
+# source. Capped here rather than in fit_score() itself: the score stays
+# honest about what it actually knows: this only affects which of the
+# already-scored gigs make the cut.
+_MAX_PER_SOURCE = 3
+_MAX_PER_TITLE_TAIL = 2
+
+
+def _diverse_top(scored: list, n: int) -> list:
+    """
+    Best N by score, capped so no one source or company crowds out the rest.
+
+    "Company" isn't a real field — titles just carry it as "Role — Company",
+    inconsistently enough (checked against 2,000 real titles; plenty use
+    " - " for something that isn't a company at all) that parsing it out in
+    general was tried before and shelved. Matching on the exact trailing
+    "— Company" substring sidesteps that: it never has to know what a
+    company name IS, it just has to notice when two titles end in the exact
+    same one, which carries none of the general parser's false-positive risk.
+
+    One pass in score order; anything over a cap goes to `skipped` instead of
+    being dropped, and gets used to top back up to `n` if the caps left the
+    list short — a thin match pool should never show FEWER gigs than before,
+    only a better-mixed ten when there's enough variety to mix.
+    """
+    by_source, by_tail, out, skipped = {}, {}, [], []
+    for s, p in scored:
+        src = p.get("source", "")
+        tail = (p.get("title") or "").rsplit(" — ", 1)
+        tail_key = tail[1].strip().lower() if len(tail) == 2 else None
+        capped = (by_source.get(src, 0) >= _MAX_PER_SOURCE
+                  or (tail_key and by_tail.get(tail_key, 0) >= _MAX_PER_TITLE_TAIL))
+        if capped:
+            skipped.append(p)
+            continue
+        out.append(p)
+        by_source[src] = by_source.get(src, 0) + 1
+        if tail_key:
+            by_tail[tail_key] = by_tail.get(tail_key, 0) + 1
+        if len(out) >= n:
+            return out
+    out.extend(skipped[:n - len(out)])
+    return out
+
 
 def _due(acc: dict) -> bool:
     last = acc.get("last_digest")
@@ -89,9 +136,13 @@ def run_all() -> int:
                 s, why = score.fit_score(p, prof)
                 scored.append((s, {**p, "_score": s, "_reasons": why}))
             scored.sort(key=lambda t: t[0], reverse=True)
-            top = [p for _, p in scored[:_TOP_N]]
+            top = _diverse_top(scored, _TOP_N)
+            # Off the full matched set, not just the ten shown — the point is
+            # to signal there's more time-sensitive stuff on the board than
+            # what fit in this email, the same way `total` does for matches.
+            urgent = sum(1 for p in matched if p.get("urgency") == "Urgent")
             stats = {"applied": activity.applied_count(scope, days=DIGEST_EVERY_DAYS),
-                     "completeness": profile.completeness(prof)}
+                     "urgent": urgent}
             subject, html_body, text_body = mailer.digest_email(
                 prof.get("name", ""), top, len(matched),
                 accounts.email_token(acc["token"]), stats=stats)

@@ -313,9 +313,10 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
     _reasons (its short "why" list) — the exact ranking and reasoning the
     dashboard's "Picked for you" already shows, not a separate email-only
     guess at fit.
-    stats: {"applied": int, "completeness": int} — real counts, both already
-    tracked (activity.py, profile.completeness()). Nothing here is invented;
-    a number this app can't actually back up doesn't go in front of someone.
+    stats: {"applied": int, "urgent": int} — real counts (activity.py,
+    the same urgency field the dashboard's pills read). Nothing here is
+    invented; a number this app can't actually back up doesn't go in front
+    of someone.
     """
     stats = stats or {}
     board_url = f"{APP_URL}/?nav=gigs"
@@ -330,10 +331,16 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
     stat_cells = [(f"{total}", f"gig{plural} matched")]
     if "applied" in stats:
         stat_cells.append((f"{stats['applied']}", "applied this week"))
-    if "completeness" in stats and stats["completeness"] < 100:
-        stat_cells.append((f"{stats['completeness']}%", "profile complete"))
+    if stats.get("urgent"):
+        stat_cells.append((f"{stats['urgent']}", "urgent"))
+    # Explicit equal width per cell — td left to auto-size sizes itself to its
+    # OWN content ("6453 gigs matched" vs "353 urgent" are very different
+    # widths), so the leftover row space bunches up unevenly instead of
+    # splitting between them. Forced here rather than left to flexbox/grid,
+    # which several email clients (Outlook chief among them) don't render.
+    _cell_w = f"{100 / len(stat_cells):.3f}%"
     stats_html = "".join(
-        f'<td style="text-align:center;padding:12px 6px;">'
+        f'<td width="{_cell_w}" style="width:{_cell_w};text-align:center;padding:12px 6px;">'
         f'<div style="font-size:20px;font-weight:700;color:{AMBER};letter-spacing:-.02em;">{n}</div>'
         f'<div style="font-size:11.5px;color:{MUTE};margin-top:2px;">{label}</div></td>'
         for n, label in stat_cells)
