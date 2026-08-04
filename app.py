@@ -1045,14 +1045,17 @@ div[data-testid="stForm"]{border:0;padding:0}
   [data-testid="stApp"][data-test-script-state="rerunRequested"]::before{
     animation:none;background-position:50% 0}}
 
-/* Dashboard header for the no-hero variant: a working title, not a billboard.
-   The pitch already did its job on nabbly.co; once you're inside, the page
-   should get out of the way. */
-.gr-dash-head{margin:2px 0 16px}
-.gr-dash-head h2{font-size:25px;font-weight:600;letter-spacing:-.4px;color:#ECEEF1;
-  margin:0 0 5px}
-.gr-dash-head p{font-size:14.5px;color:#8a919c;margin:0}
-@media (max-width:640px){.gr-dash-head h2{font-size:21px}}
+/* The page title, shared by Dashboard, Gigs, Market and Saved. Used to be a
+   quiet "working title, not a billboard" on Dashboard (25px, its own class)
+   while the other three tabs used the plain ### heading, which the type
+   scale below renders at 30px — so the one place someone actually lands on
+   was the SMALLEST title in the app. One shared, more prominent size now,
+   applied consistently everywhere someone opens a main tab. */
+.gr-page-head{margin:4px 0 22px}
+.gr-page-head h2{font-size:36px;font-weight:700;letter-spacing:-.5px;color:#ECEEF1;
+  margin:0 0 7px}
+.gr-page-head p{font-size:15px;color:#8a919c;margin:0}
+@media (max-width:640px){.gr-page-head h2{font-size:26px}}
 
 /* ── Gigs page: make the controls read as ONE toolbar ───────────────────────
    Streamlit puts a 16px gap between every block, so six stacked control rows
@@ -2802,9 +2805,9 @@ def view_dashboard(pro):
     else:
         _who = (prof.get("name") or "").strip().split(" ")[0]
         st.markdown(
-            f'<div class="gr-dash-head">'
+            f'<div class="gr-page-head">'
             f'<h2>{"Welcome back, " + html.escape(_who) if _who else "Your board"}</h2>'
-            f'<p>Search everything, or pick up where the board left off.</p>'
+            f'<p>Search when you want. The rest comes to you.</p>'
             f'</div>', unsafe_allow_html=True)
 
     if df.empty:
@@ -2902,9 +2905,11 @@ def view_gigs(pro):
     # Refresh belongs with the title, not in the reading path — it's a
     # maintenance action, not something you do before every search.
     _h, _r = st.columns([3.4, 1], vertical_alignment="center")
-    # The marker span goes AFTER the heading: a markdown "###" only parses at the
-    # very start of the line, so leading HTML turns it into literal text.
-    _h.markdown('### The whole <span class="gr-accent">board</span>'
+    # Plain HTML now instead of a markdown "###" — the page-head div needs to be
+    # the outer wrapper, and markdown only parses "###" at the very start of a
+    # line, so a leading div would have turned it into literal text.
+    _h.markdown('<div class="gr-page-head"><h2>The whole '
+                '<span class="gr-accent">board</span></h2></div>'
                 '<span class="gr-tools"></span>', unsafe_allow_html=True)
     with _r:
         if st.button("Refresh", key="checknew", width="stretch"):
@@ -3108,7 +3113,8 @@ def view_gigs(pro):
 
 
 def view_saved(pro):
-    st.markdown('### Gigs you <span class="gr-accent">saved</span>',
+    st.markdown('<div class="gr-page-head"><h2>Gigs you '
+                '<span class="gr-accent">saved</span></h2></div>',
                 unsafe_allow_html=True)
 
     if not ACCESS["signed_in"]:
@@ -3193,7 +3199,8 @@ def view_market(pro):
     # single most likely reason the app went down the night before send. Every
     # chart below is hand-built CSS instead: see hbar_chart/donut_chart/
     # stacked_hbar_chart above pills().
-    st.markdown('### What gigs like yours are <span class="gr-accent">paying</span>',
+    st.markdown('<div class="gr-page-head"><h2>What gigs like yours are '
+                '<span class="gr-accent">paying</span></h2></div>',
                 unsafe_allow_html=True)
     if not pro:
         st.info("This one's a **Pro** perk. See what work like yours actually pays, "
@@ -3747,7 +3754,7 @@ def plan_card():
         + '</div></div></div>', unsafe_allow_html=True)
 
     if not ACCESS["pro"]:
-        st.caption("**Pro** adds instant pings, drafted replies, picks ranked for "
+        st.caption("**Pro** adds instant pings, post-aware drafts, picks ranked for "
                    "you, and what-it-pays market rates.")
         if ACCESS.get("can_trial"):
             if st.button("Try Pro free for 14 days", type="primary", key="trial_profile"):
@@ -4218,7 +4225,11 @@ def view_about():
     The company story, moved off the front page so the hero can stay a headline.
 
     This is where the "freelancing's enough of a hustle" explanation lives now,
-    told properly: the problem, how Nabbly works, and what's free versus Pro.
+    told properly: the problem and how Nabbly works. The Free/Pro breakdown
+    used to live here too, as two cards in the middle of a story someone reads
+    top to bottom — fine the first time, useless the second time they come
+    back just to check what Pro includes. That comparison is its own page now
+    (view_pricing) and this just points there.
     """
     st.markdown(
         '<div class="gr-about">'
@@ -4246,33 +4257,9 @@ def view_about():
         'post on Pro, from a smart template on Free.</li>'
         '</ol>'
 
-        # Two cards, not one paragraph: someone deciding between plans should be
-        # able to compare them at a glance rather than parse a wall of prose.
-        '<h2>Free, and Pro</h2>'
-        '<div class="gr-ab-plans">'
-        '<div class="gr-ab-plan">'
-        '<div class="gr-ab-name">Free</div>'
-        '<div class="gr-ab-sub">The whole board, no catch</div>'
-        '<ul>'
-        '<li>Every gig, every field</li>'
-        '<li>Search and browse it all</li>'
-        '<li>Your profile, so the board sorts around you</li>'
-        '<li>Fresh gigs, minutes after they\'re posted</li>'
-        '<li>A drafted reply on every gig, ready to edit</li>'
-        '</ul></div>'
-        '<div class="gr-ab-plan pro">'
-        '<div class="gr-ab-name">Pro</div>'
-        '<div class="gr-ab-sub">The edge that helps you reply first</div>'
-        '<ul>'
-        '<li>Gigs ranked by how well they fit you</li>'
-        '<li>Drafted replies written from the actual post</li>'
-        '<li>Instant alerts on the channel you choose</li>'
-        '<li>Market rates, so you price right</li>'
-        '</ul></div>'
-        '</div>'
-        '<p>The first 50 members get two months of Pro free, our thank-you to '
-        'the people who back it first. After that, Pro is free to try for 14 '
-        'days whenever you want it, and you choose if and when to start.</p>'
+        '<p>Every gig, every field, is free to search and browse forever — no '
+        f'catch. <a class="gr-about-link" href="{ilink("?nav=pricing")}" '
+        'target="_self">See the full Free vs. Pro breakdown →</a></p>'
 
         # Was "built in the open by one person … goes straight to them" — third
         # person about ourselves, which reads oddly and ages badly the moment
@@ -4288,6 +4275,61 @@ def view_about():
     _b1, _b2, _b3 = st.columns([1, 1.4, 1])
     with _b2:
         if st.button("← Back to the board", width="stretch"):
+            st.query_params["nav"] = "dashboard"
+            st.rerun()
+
+
+def view_pricing():
+    """
+    Free vs. Pro, on its own page.
+
+    Used to be two cards in the middle of the About page's story — fine for a
+    first read, but anyone coming back later just to check what Pro includes
+    had to skim a whole company narrative to find two <ul>s. This is that
+    comparison alone, plus the actual next step (signup_card), since knowing
+    the difference and doing something about it belong on the same screen.
+    """
+    st.markdown(
+        '<div class="gr-about">'
+        '<h2>Free, and Pro</h2>'
+        '<p class="lead">One plan is free forever. The other adds the parts '
+        'that help you reply first. No seat limits, no annual lock-in, no '
+        'hidden tier in between.</p>'
+
+        '<div class="gr-ab-plans">'
+        '<div class="gr-ab-plan">'
+        '<div class="gr-ab-name">Free</div>'
+        '<div class="gr-ab-sub">The whole board, no catch</div>'
+        '<ul>'
+        '<li>Every gig, every field</li>'
+        '<li>Search and browse it all</li>'
+        '<li>Your profile, so the board sorts around you</li>'
+        '<li>Fresh gigs, minutes after they\'re posted</li>'
+        '<li>A drafted reply on every gig, ready to edit</li>'
+        '<li>Forward newsletters into your private board</li>'
+        '</ul></div>'
+        '<div class="gr-ab-plan pro">'
+        '<div class="gr-ab-name">Pro</div>'
+        '<div class="gr-ab-sub">The edge that helps you reply first</div>'
+        '<ul>'
+        '<li>Gigs ranked by how well they fit you</li>'
+        '<li>Drafted replies written from the actual post</li>'
+        '<li>Instant alerts on the channel you choose</li>'
+        '<li>Market rates, so you price right</li>'
+        '</ul></div>'
+        '</div>'
+        '<p>The first 50 members get two months of Pro free, our thank-you to '
+        'the people who back it first. After that, Pro is free to try for 14 '
+        'days whenever you want it, and you choose if and when to start.</p>'
+        '</div>', unsafe_allow_html=True)
+
+    _l, _c, _r = st.columns([1, 2, 1])
+    with _c:
+        signup_card("pricing")
+
+    _b1, _b2, _b3 = st.columns([1, 1.4, 1])
+    with _b2:
+        if st.button("← Back to the board", width="stretch", key="pricing_back"):
             st.query_params["nav"] = "dashboard"
             st.rerun()
 
@@ -4636,7 +4678,7 @@ _TABS = ["Dashboard", "Gigs", "Market", "Saved"]
 # Pages that live outside the tab strip: reachable by ?nav=, linked from the
 # footer and the account menu, and they never light up a tab.
 _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
-               "signin": "Sign in", "admin": "Admin",
+               "pricing": "Pricing", "signin": "Sign in", "admin": "Admin",
                "privacy": "Privacy", "terms": "Terms",
                "unsubscribe": "Unsubscribe"}
 
@@ -4922,6 +4964,8 @@ elif active == "Profile":
     view_profile(PRO)
 elif active == "About":
     view_about()
+elif active == "Pricing":
+    view_pricing()
 elif active == "FAQ":
     view_faq()
 elif active == "Sign in":
@@ -4939,6 +4983,7 @@ st.markdown(
     '<span class="tag">Every gig. The moment it drops.</span>'
     '<div class="foot-links">'
     f'<a class="foot-link" href="{ilink("?nav=about")}" target="_self">About</a>'
+    f'<a class="foot-link" href="{ilink("?nav=pricing")}" target="_self">Pricing</a>'
     f'<a class="foot-link" href="{ilink("?nav=faq")}" target="_self">FAQ</a>'
     f'<a class="foot-link" href="{ilink("?nav=privacy")}" target="_self">Privacy</a>'
     f'<a class="foot-link" href="{ilink("?nav=terms")}" target="_self">Terms</a>'
