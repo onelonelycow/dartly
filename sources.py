@@ -396,6 +396,57 @@ def fetch_weworkremotely() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Soundlister — audio/sound-design jobs, real and live, but not RSS-shaped
+# like everything else here. Its feed publishes one roundup POST a week
+# ("32 great new audio jobs at NBCUniversal, Warner Bros., …"), not one item
+# per opening, so fetch_rss's one-item-per-entry assumption would file 32
+# real jobs as a single garbled listing. This walks the feed for the recent
+# roundup posts, then opens each post and pulls the "direct links" list each
+# one publishes — a plain <li><a href=…>Title</a> at Company (Location)</li>
+# block that links straight to the employer's own ATS (Greenhouse, Workday,
+# Lever, …), not to Soundlister.
+#
+# Each post also leads with 2-3 "featured" jobs told as prose instead of that
+# list — deliberately skipped. They're a minority of each post, and parsing
+# free text for a title/company/link reliably is a different, harder problem
+# than this list; missing a few featured slots is honest, guessing wrong
+# isn't. See sources.py's file docstring for the same reasoning applied
+# everywhere else here.
+# ---------------------------------------------------------------------------
+_SOUNDLISTER_JOB = re.compile(
+    r'<li><strong><a href="([^"]+)"[^>]*>([^<]+)</a></strong>\s*at\s*'
+    r'<strong>([^<]+)</strong>\s*\(([^)]*)\)</li>')
+
+
+def fetch_soundlister() -> list[dict]:
+    r = _get("https://soundlister.com/category/audio-jobs/feed/")
+    if r.status_code != 200:
+        print(f"  ! soundlister: HTTP {r.status_code}"); return []
+    out = []
+    for e in feedparser.parse(r.content).entries:
+        post_url = e.get("link", "")
+        if not post_url:
+            continue
+        posted = to_iso(e.get("published"))
+        try:
+            pr = _get(post_url)
+        except Exception as ex:
+            print(f"  ! soundlister post: {type(ex).__name__}"); continue
+        if pr.status_code != 200:
+            continue
+        for job_url, title, company, location in _SOUNDLISTER_JOB.findall(pr.text):
+            title, company, location = _strip(title), _strip(company), _strip(location)
+            out.append({
+                "source": "soundlister", "source_id": job_url,
+                "url": job_url,
+                "title": f"{title} — {company}" if company else title,
+                "body": _body(f"{company} · {location}" if location else company),
+                "posted_at": posted,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # registry + orchestration
 # ---------------------------------------------------------------------------
 def fetch_rss(key: str) -> list[dict]:
@@ -443,7 +494,14 @@ _FETCHERS = {
     "jobicy": fetch_jobicy,
     "weworkremotely": fetch_weworkremotely,
     "workingnomads": fetch_workingnomads,
+    "soundlister": fetch_soundlister,
 }
+
+# Bespoke fetchers (not config-only RSS_SOURCES entries) that still need the
+# slow cadence below — soundlister posts weekly and costs ~10 requests per
+# pull (the feed, then each roundup post), so running it every 2-minute cycle
+# would hammer one host for content that hasn't moved.
+_SLOW_BESPOKE = {"soundlister"}
 
 
 # Category feeds are breadth, not freshness: the main board feed already brings
@@ -460,6 +518,8 @@ def fetch_all() -> list[dict]:
     _cycle += 1
     out = []
     for name in config.ENABLE_SOURCES:
+        if name in _SLOW_BESPOKE and _cycle % _SLOW_EVERY != 1:
+            continue
         fetcher = _FETCHERS.get(name)
         spec = config.RSS_SOURCES.get(name)
         if fetcher is None and spec is not None:

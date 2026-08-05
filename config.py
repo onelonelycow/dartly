@@ -32,6 +32,8 @@ ENABLE_SOURCES = [
     "jobicy_marketing", "wwr_fullstack", "wwr_product",
     # unique boards filling thin verticals (3D, no-code, healthcare, events)
     "blenderartists", "threejs", "bubble", "nurserecruiter", "entcareers",
+    "soundlister",     # Soundlister — audio/sound-design jobs; bespoke fetcher,
+                        # its feed is weekly roundup posts, not one-item-per-job
 ]
 
 # ---------------------------------------------------------------------------
@@ -329,6 +331,7 @@ SOURCE_LABELS = {
     "jobicy": "Jobicy",
     "freelancer": "Freelancer.com",
     "reddit": "Reddit",
+    "soundlister": "Soundlister",
     "inbox": "Forwarded",     # a gig this person emailed in themselves
 }
 
