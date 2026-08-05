@@ -4326,7 +4326,7 @@ def view_pricing():
         '<div class="gr-ab-sub">The edge that helps you reply first</div>'
         '<ul>'
         '<li>Gigs ranked by how well they fit you</li>'
-        '<li>Drafted replies written from the actual post</li>'
+        '<li>Post-aware drafts, written from the actual post</li>'
         '<li>Instant alerts on the channel you choose</li>'
         '<li>Market rates, so you price right</li>'
         '</ul></div>'
