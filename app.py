@@ -51,6 +51,7 @@ import people
 import paths
 import auth
 import accounts
+import billing
 import store
 import profile as profile_mod
 
@@ -3757,6 +3758,10 @@ def plan_card():
         name, price, note = ("Free", "$0 — the whole board",
                              "Every gig, every field, search and browse.")
 
+    if st.session_state.pop("_pro_activated", False):
+        st.success("You're on Pro. Welcome aboard — ranked picks, post-aware "
+                   "drafts and instant alerts are all live now.")
+
     st.markdown(
         f'<div class="gr-plan">'
         f'<div class="gr-plan-top">'
@@ -3776,8 +3781,19 @@ def plan_card():
                     st.rerun()
                 st.warning(msg)
         elif ACCESS.get("trialed"):
-            st.caption("Your 14-day Pro trial has been used. We'll email you the "
-                       "moment paid Pro opens.")
+            if billing.enabled():
+                _url = billing.checkout_url(
+                    ACCESS["email"],
+                    success_url=f"{mailer.APP_URL}/?from=profile&stripe_session={{CHECKOUT_SESSION_ID}}&u={TOKEN}",
+                    cancel_url=f"{mailer.APP_URL}/?nav=profile&u={TOKEN}")
+                if _url:
+                    st.link_button("Upgrade to Pro — $12/mo", _url,
+                                   type="primary", width="stretch")
+                else:
+                    st.warning("Checkout's briefly unavailable — try again in a moment.")
+            else:
+                st.caption("Your 14-day Pro trial has been used. We'll email you "
+                           "the moment paid Pro opens.")
         return
 
     # The way out. Owner accounts are permanently Pro (accounts.status), so
@@ -3978,6 +3994,9 @@ def signup_card(where="dashboard"):
     """
     a = ACCESS
     if a["signed_in"] and a["plan"] == "pro":
+        if st.session_state.pop("_pro_activated", False):
+            st.success("You're on Pro. Welcome aboard — ranked picks, "
+                       "post-aware drafts and instant alerts are all live now.")
         return
 
     # On an active trial: they already have everything, so no hard sell. Ask the
@@ -4040,8 +4059,24 @@ def signup_card(where="dashboard"):
             st.markdown('<span class="gr-cta-mark"></span>'
                         '<div class="gr-cta-h">Keep Pro after your trial</div>'
                         f'{_FEAT}', unsafe_allow_html=True)
-            # No billing is wired yet, so "I want Pro" honestly records interest.
-            if st.session_state.get("_upgrade_noted"):
+            if billing.enabled():
+                _u1, _u2, _u3 = st.columns([1, 2, 1])
+                with _u2:
+                    _url = billing.checkout_url(
+                        a["email"],
+                        success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&u={TOKEN}",
+                        cancel_url=f"{mailer.APP_URL}/?nav={where}&u={TOKEN}")
+                    if _url:
+                        st.link_button("Upgrade to Pro — $12/mo", _url,
+                                       type="primary", width="stretch")
+                    else:
+                        st.caption("Checkout's briefly unavailable — try again "
+                                   "in a moment.")
+                st.markdown('<div class="gr-cta-fine">Cancel any time from your '
+                            'plan page</div>', unsafe_allow_html=True)
+            # Billing not configured (e.g. local dev): fall back to recording
+            # interest so the ask still means something.
+            elif st.session_state.get("_upgrade_noted"):
                 st.markdown('<div class="gr-mini">Noted — we\'ll email you the '
                             'moment Pro opens. <b>Thanks.</b></div>',
                             unsafe_allow_html=True)
@@ -4706,6 +4741,26 @@ _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
 # in the signed-in person's own store rather than the anonymous scratch scope.
 # Doing this as a link + redirect rather than an st.button keeps the gig card's
 # DOM identical to what the card stylesheet was built against.
+# Stripe Checkout redirects back here after a card is charged. The session id
+# is trusted only as far as "go ask Stripe about it" — billing.confirm_session
+# re-verifies payment_status server-side before flipping anyone to Pro, so a
+# forged query param can't buy a free upgrade. Same redirect-then-stop shape
+# as ?save=/?won=/?rate= below, so the URL doesn't keep the session id around
+# on refresh.
+if st.query_params.get("stripe_session"):
+    _sid = st.query_params.get("stripe_session", "")
+    _ok, _ = billing.confirm_session(_sid)
+    if _ok:
+        st.session_state["_pro_activated"] = True
+    _allowed = {t.lower() for t in _TABS} | set(_SIDE_PAGES)
+    _raw = (st.query_params.get("from") or "").lower()
+    _back = _raw if _raw in _allowed else "profile"
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; '
+        f'url={html.escape(ilink(f"?nav={_back}"), quote=True)}">',
+        unsafe_allow_html=True)
+    st.stop()
+
 if st.query_params.get("save"):
     _sgid = st.query_params.get("save", "")
     if ACCESS["signed_in"] and _sgid:

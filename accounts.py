@@ -56,7 +56,8 @@ PARTNER_GRANTS = {
 
 _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
-         "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest")
+         "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest",
+         "stripe_customer_id", "stripe_subscription_id")
 _rehydrated = False
 
 
@@ -114,14 +115,17 @@ def init():
             last_alert_id INTEGER DEFAULT 0,     -- highest gig id we've pinged them about
             visits        INTEGER DEFAULT 0,
             email_opt_out INTEGER DEFAULT 0,     -- 1 = unsubscribed from all email
-            last_digest   TEXT                   -- when the weekly digest last sent them
+            last_digest   TEXT,                  -- when the weekly digest last sent them
+            stripe_customer_id     TEXT,
+            stripe_subscription_id TEXT
         )
         """
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_accounts_token ON accounts(token)")
     # Safe migration for tables created before these columns existed.
     for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
-                      ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT")):
+                      ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT"),
+                      ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
@@ -512,6 +516,22 @@ def set_plan(email: str, plan: str):
     else:
         conn.execute("UPDATE accounts SET plan=? WHERE email=?",
                      (plan, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
+def set_stripe_ids(email: str, customer_id: str, subscription_id: str):
+    """Record which Stripe customer/subscription paid for this account, so a
+    future reconciliation pass has something to look up."""
+    if not email:
+        return
+    init()
+    conn = _connect()
+    conn.execute(
+        "UPDATE accounts SET stripe_customer_id=?, stripe_subscription_id=? "
+        "WHERE email=?",
+        (customer_id or None, subscription_id or None, email.strip().lower()))
     conn.commit()
     conn.close()
     _mirror(email)
