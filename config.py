@@ -23,8 +23,8 @@ ENABLE_SOURCES = [
     "weworkremotely",  # We Work Remotely — remote jobs
     "workingnomads",   # Working Nomads — curated remote jobs, direct outbound apply
     # Config-only boards (see RSS_SOURCES below)
-    "dribbble", "himalayas", "jobspresso", "pythonjobs", "larajobs", "wpjobs",
-    "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
+    "dribbble", "himalayas", "realworkfromanywhere", "jobspresso", "pythonjobs",
+    "larajobs", "wpjobs", "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
     # vertical backfill
     "jobicy_health", "jobicy_legal", "jobicy_finance", "jobicy_edu",
     "jobicy_writing", "jobicy_hr", "jobicy_admin", "jobicy_support",
@@ -60,6 +60,13 @@ RSS_SOURCES = {
                    "label": "Dribbble"},
     "himalayas":  {"url": "https://himalayas.app/jobs/rss",
                    "label": "Himalayas"},
+    # General remote-jobs board, same shape as RemoteOK/Remotive above. Its
+    # own listing page (not the feed link) carries the real employer apply
+    # link with no login — confirmed on a live posting, an AshbyHQ link sat
+    # right on the page — same one-extra-click pattern several sources here
+    # already have, not a paywall.
+    "realworkfromanywhere": {"url": "https://www.realworkfromanywhere.com/rss.xml",
+                   "label": "Real Work From Anywhere"},
     "pythonjobs": {"url": "https://www.python.org/jobs/feed/rss/",
                    "label": "Python.org"},
     # Replaces nodesk (removed): checked two real listings and the actual
