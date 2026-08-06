@@ -1311,9 +1311,20 @@ a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
 .gr-jump-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px}
 a.gr-jump{font-size:12.5px;font-weight:500;padding:5px 13px;border-radius:999px;
   background:#1e222a;color:#aab2bd;border:0;text-decoration:none!important;
-  transition:background .15s ease,color .15s ease}
+  transition:background .15s ease,color .15s ease,transform .12s ease}
 a.gr-jump:hover{background:rgba(232,147,58,.14);color:#eaa662}
+/* The click itself needed its own punch — a plain browser #anchor jump gives
+   no feedback that anything happened before the page moves. :active covers
+   mouse/touch, :focus-visible covers keyboard, both louder than hover alone
+   since this is the only signal a click landed. */
+a.gr-jump:active,a.gr-jump:focus-visible{background:rgba(232,147,58,.28);
+  color:#f7b569;transform:scale(.94);outline:none}
 .gr-jump-target{scroll-margin-top:76px;display:block}
+/* Real scroll instead of an instant jump — the anchor is a plain browser
+   navigation (no Streamlit rerun involved), so this is the whole fix. */
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}
+  a.gr-jump{transition:none}a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
 
 /* "Switch to Free" — a bordered stButton reads as the loudest thing on the
    card, which is wrong right after someone just paid; it's the exit, not a
