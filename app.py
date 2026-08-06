@@ -3628,7 +3628,7 @@ def view_profile(pro):
                 unsafe_allow_html=True)
     st.caption("The more we know, the better the gigs we surface for you.")
 
-    _jumps = [("#alerts", "Alerts"), ("#forwarding", "Inbox forwarding"),
+    _jumps = [("#alerts", "Alerts"), ("#forwarding", "Forwarding"),
               ("#plan", "Plan"), ("#feedback", "Feedback")]
     if pro:
         _jumps.insert(1, ("#resume", "Resume"))
