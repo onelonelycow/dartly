@@ -290,9 +290,14 @@ a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
    title it read as a rendering artifact rather than something you could press.
    It's the entry point to the entire Saved feature, so being nearly invisible
    defeated the feature. Still the quietest thing on the card at 3.81:1. */
-a.gr-save{display:inline-block;margin-left:9px;font-size:16px;line-height:1;
-  color:#6b7482!important;text-decoration:none!important;vertical-align:2px;
-  transition:color .15s ease,transform .15s ease}
+/* padding+matching-negative-margin: expands the tappable hit area to ~32px
+   (comfortably past the 24px WCAG minimum) without shifting the glyph's
+   visible position or its spacing from neighbours — this was one gig-card
+   icon among several sitting close together, exactly where a mis-tap on a
+   phone is likely. */
+a.gr-save{display:inline-block;margin:-8px -8px -8px 1px;padding:8px;
+  font-size:16px;line-height:1;color:#6b7482!important;text-decoration:none!important;
+  vertical-align:2px;transition:color .15s ease,transform .15s ease}
 a.gr-save:hover{color:var(--amber-l)!important;transform:scale(1.18)}
 a.gr-save.on{color:var(--amber)!important}
 a.gr-save.on:hover{color:var(--amber-l)!important}
@@ -301,8 +306,8 @@ a.gr-save.on:hover{color:var(--amber-l)!important}
    identical DOM-shape reason. Grayscale until it's actually been tapped, so
    an untapped card doesn't read as "you haven't won this one yet" (every
    card would say that); it earns color only once it's true. */
-a.gr-won{display:inline-block;margin-left:7px;font-size:15px;line-height:1;
-  text-decoration:none!important;vertical-align:1px;opacity:.45;
+a.gr-won{display:inline-block;margin:-8px -8px -8px -1px;padding:8px;
+  font-size:15px;line-height:1;text-decoration:none!important;vertical-align:1px;opacity:.45;
   filter:grayscale(1);transition:opacity .15s ease,filter .15s ease,transform .15s ease}
 a.gr-won:hover{opacity:.85;transform:scale(1.15)}
 a.gr-won.on{opacity:1;filter:none}
@@ -359,7 +364,7 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
 .gr-matchfb{display:flex;align-items:center;gap:7px;margin:0 0 11px}
 .gr-matchfb .lead{font-size:10px;font-weight:600;letter-spacing:.8px;
   text-transform:uppercase;color:#6d747f}
-a.gr-thumb{display:inline-block;font-size:14px;line-height:1;
+a.gr-thumb{display:inline-block;margin:-8px;padding:8px;font-size:14px;line-height:1;
   text-decoration:none!important;opacity:.4;filter:grayscale(1);
   transition:opacity .15s ease,filter .15s ease,transform .15s ease}
 a.gr-thumb:hover{opacity:.85;transform:scale(1.15)}
@@ -412,19 +417,26 @@ a.gr-cat:hover{border-color:#E8933A;background:#22262e;color:#fff!important}
 a.gr-cat .n{font-size:11.5px;font-weight:600;color:#8a919c;background:#0f1115;
   border-radius:999px;padding:1px 8px;line-height:1.5}
 a.gr-cat:hover .n{color:#eaa662}
-a.gr-avatar{display:inline-flex;align-items:center;justify-content:center;
+.gr-avatar{display:inline-flex;align-items:center;justify-content:center;
   width:38px;height:38px;border-radius:50%;background:#22262e;border:1px solid #3a4150;
   color:#eaa662!important;font-size:15px;font-weight:600;text-decoration:none!important;
-  cursor:pointer;transition:border-color .15s ease,background .15s ease}
-a.gr-avatar:hover{border-color:#E8933A;background:#2a2f38}
-a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E8933A}
+  cursor:pointer;transition:border-color .15s ease,background .15s ease;user-select:none}
+.gr-avatar:hover{border-color:#E8933A;background:#2a2f38}
+.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E8933A}
 .gr-acct{position:relative;display:inline-block}
+/* The avatar used to be a real <a href> that also revealed this menu on
+   :hover — fine with a mouse, broken on touch (hover barely exists there,
+   and tapping a link just navigates immediately, no menu). It's a hidden
+   checkbox + label now instead (same technique as .gr-more-cb elsewhere in
+   this file): tapping the avatar toggles the menu open on any input type,
+   no JS required. Desktop keeps the hover preview on top of that. */
+.gr-acct-cb{display:none}
 .gr-menu{position:absolute;right:0;top:48px;min-width:196px;background:#1b1e25;
   border:1px solid #2f3540;border-radius:12px;padding:6px;z-index:1000;
   box-shadow:0 14px 34px rgba(0,0,0,.5);opacity:0;visibility:hidden;
   transform:translateY(-6px);transition:opacity .14s ease,transform .14s ease,visibility .14s}
-.gr-acct:hover .gr-menu,.gr-acct:focus-within .gr-menu{opacity:1;visibility:visible;
-  transform:translateY(0)}
+.gr-acct:hover .gr-menu,.gr-acct:focus-within .gr-menu,
+.gr-acct-cb:checked ~ .gr-menu{opacity:1;visibility:visible;transform:translateY(0)}
 .gr-menu-hd{padding:8px 10px 7px;color:#eaeef4;font-weight:600;font-size:14px;
   display:flex;flex-direction:column;line-height:1.55;text-align:left}
 .gr-menu-hd span{color:#eaa662;font-weight:500;font-size:11.5px;letter-spacing:.02em}
@@ -5075,7 +5087,6 @@ st.session_state["_active_tab"] = active
 with _rcol:
     _name = (prof.get("name") or "").strip()
     _acls = "gr-avatar active" if _on_profile else "gr-avatar"
-    _href = ilink(f"?nav={selected.lower()}") if _on_profile else ilink("?nav=profile")
     # The plan shown here used to read a session key that no longer exists, so
     # it said "Free plan" to everyone — including people mid-trial. Read the
     # real entitlement instead.
@@ -5111,7 +5122,8 @@ with _rcol:
     st.markdown(
         f'<div style="display:flex;justify-content:flex-end;padding-right:2px">'
         f'<div class="gr-acct">'
-        f'<a class="{_acls}" href="{_href}" target="_self" title="Your account">{_init}</a>'
+        f'<input type="checkbox" id="acct-menu-toggle" class="gr-acct-cb">'
+        f'<label class="{_acls}" for="acct-menu-toggle" title="Your account">{_init}</label>'
         f'<div class="gr-menu">'
         # gr-menu-hd is flex-column, so the name and the badge share a wrapper
         # div to stay on one row — as separate direct children they'd each
