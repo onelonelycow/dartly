@@ -423,7 +423,8 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
   border:1px solid #2f3540;border-radius:12px;padding:6px;z-index:1000;
   box-shadow:0 14px 34px rgba(0,0,0,.5);opacity:0;visibility:hidden;
   transform:translateY(-6px);transition:opacity .14s ease,transform .14s ease,visibility .14s}
-.gr-acct:hover .gr-menu{opacity:1;visibility:visible;transform:translateY(0)}
+.gr-acct:hover .gr-menu,.gr-acct:focus-within .gr-menu{opacity:1;visibility:visible;
+  transform:translateY(0)}
 .gr-menu-hd{padding:8px 10px 7px;color:#eaeef4;font-weight:600;font-size:14px;
   display:flex;flex-direction:column;line-height:1.55;text-align:left}
 .gr-menu-hd span{color:#eaa662;font-weight:500;font-size:11.5px;letter-spacing:.02em}
