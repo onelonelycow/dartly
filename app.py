@@ -431,6 +431,8 @@ a.gr-avatar.active{background:#E8933A;color:#141414!important;border-color:#E893
   color:#cdd3dc!important;text-decoration:none!important;font-size:13.5px;transition:background .12s}
 .gr-menu a:hover{background:#262b34;color:#fff!important}
 .gr-menu .gr-mi.muted{color:#6b7178!important;cursor:default}
+.gr-menu a.gr-menu-pro{color:#eaa662!important;font-weight:600}
+.gr-menu a.gr-menu-pro:hover{background:rgba(232,147,58,.12)}
 .gr-menu-sep{height:1px;background:#2a2f38;margin:5px 4px}
 /* --- Top bar: put the logo, the nav and the avatar on one line -----------
    Streamlit centres the three columns, but their contents drifted apart:
@@ -1260,6 +1262,65 @@ a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
   border-radius:100px;padding:3px 9px;vertical-align:4px}
 .gr-plan{background:var(--bg2);border:1px solid var(--line);border-radius:14px;
   padding:16px 18px}
+
+/* The one-time "just paid" reveal — plays exactly once, the render right
+   after Stripe redirects back (see _pro_activated in plan_card). Perks tick
+   in one at a time, then a longer pause before "Switch to Free" drifts in
+   noticeably slower than the rest — a soft close, not another beat in the
+   rhythm, so the last thing anyone sees isn't a big exit control. */
+.gr-plan-anim{opacity:0;animation:gr-plan-in .4s ease-out .1s forwards}
+.gr-unlocks{display:flex;flex-direction:column;gap:9px;margin-top:14px;
+  padding-top:14px;border-top:1px solid var(--line)}
+.gr-unlock{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink2);
+  opacity:0;transform:translateY(7px);animation:gr-rise-in .38s cubic-bezier(.22,.9,.35,1) forwards}
+.gr-tick{width:16px;height:16px;border-radius:50%;flex:0 0 auto;
+  background:rgba(84,185,90,.14);color:#54B95A;font-size:10px;font-weight:900;
+  display:flex;align-items:center;justify-content:center;transform:scale(0);
+  animation:gr-tick-pop .32s cubic-bezier(.3,1.6,.4,1) forwards}
+.gr-unlock:nth-child(1){animation-delay:.55s}.gr-unlock:nth-child(1) .gr-tick{animation-delay:.63s}
+.gr-unlock:nth-child(2){animation-delay:.73s}.gr-unlock:nth-child(2) .gr-tick{animation-delay:.81s}
+.gr-unlock:nth-child(3){animation-delay:.91s}.gr-unlock:nth-child(3) .gr-tick{animation-delay:.99s}
+.gr-unlock:nth-child(4){animation-delay:1.09s}.gr-unlock:nth-child(4) .gr-tick{animation-delay:1.17s}
+@keyframes gr-plan-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes gr-rise-in{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes gr-tick-pop{from{opacity:0;transform:scale(0)}to{opacity:1;transform:scale(1)}}
+@keyframes gr-rise-in-slow{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+[data-testid="stElementContainer"]:has(.gr-downgrade-mark.anim)
+  + [data-testid="stElementContainer"] button{
+  opacity:0;animation:gr-rise-in-slow .7s ease-out 1.6s forwards}
+@media (prefers-reduced-motion:reduce){
+  .gr-plan-anim,.gr-unlock,.gr-tick{animation:none!important;opacity:1!important;transform:none!important}
+  [data-testid="stElementContainer"]:has(.gr-downgrade-mark.anim)
+    + [data-testid="stElementContainer"] button{animation:none!important;opacity:1!important}
+}
+
+/* Quick-jump row on Profile — the page grew to seven sections (details,
+   resume, alerts, forwarding, plan, sign-in link, feedback) and finding
+   "where's the plan card" meant scrolling past all of it. Same tinted-pill
+   look as .gr-pill, real anchor links so a click is a plain browser scroll
+   with no rerun. scroll-margin-top clears the sticky 64px top bar so a
+   jumped-to heading doesn't land tucked underneath it. */
+.gr-jump-row{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 22px}
+a.gr-jump{font-size:12.5px;font-weight:500;padding:5px 13px;border-radius:999px;
+  background:#1e222a;color:#aab2bd;border:0;text-decoration:none!important;
+  transition:background .15s ease,color .15s ease}
+a.gr-jump:hover{background:rgba(232,147,58,.14);color:#eaa662}
+.gr-jump-target{scroll-margin-top:76px;display:block}
+
+/* "Switch to Free" — a bordered stButton reads as the loudest thing on the
+   card, which is wrong right after someone just paid; it's the exit, not a
+   second call to action. Restyled down to quiet link text, same marker+:has
+   technique as .gr-cta-mark elsewhere. */
+[data-testid="stElementContainer"]:has(.gr-downgrade-mark)
+  + [data-testid="stElementContainer"] button{
+  background:transparent!important;border:none!important;box-shadow:none!important;
+  color:var(--mute)!important;font-weight:400!important;font-size:13px!important;
+  text-decoration:underline!important;text-underline-offset:2px!important;
+  padding:2px 0!important;min-height:0!important}
+[data-testid="stElementContainer"]:has(.gr-downgrade-mark)
+  + [data-testid="stElementContainer"] button:hover{color:var(--amber)!important}
+[data-testid="stElementContainer"]:has(.gr-downgrade-mark)
+  + [data-testid="stElementContainer"]{display:flex;justify-content:center;margin-top:4px}
 
 /* Signed-in confirmation. Was a stock st.success — Streamlit's own bright
    green, the one colour on the page that answers to nothing in FEEL.md §2,
@@ -3558,6 +3619,15 @@ def view_profile(pro):
     st.markdown('### Tell us about <span class="gr-accent">you</span>',
                 unsafe_allow_html=True)
     st.caption("The more we know, the better the gigs we surface for you.")
+
+    _jumps = [("#alerts", "Alerts"), ("#forwarding", "Inbox forwarding"),
+              ("#plan", "Plan"), ("#feedback", "Feedback")]
+    if pro:
+        _jumps.insert(1, ("#resume", "Resume"))
+    st.markdown(
+        '<div class="gr-jump-row">' +
+        "".join(f'<a class="gr-jump" href="{h}">{t}</a>' for h, t in _jumps) +
+        "</div>", unsafe_allow_html=True)
     # A flash flag, not a toast shown right before the rerun below that follows
     # a save: st.success() immediately followed by st.rerun() throws away its
     # own message before a human ever sees it — the rerun aborts THIS script
@@ -3677,21 +3747,26 @@ def view_profile(pro):
 
     if pro:
         st.divider()
+        st.markdown('<span id="resume" class="gr-jump-target"></span>', unsafe_allow_html=True)
         resume_card()
 
     st.divider()
+    st.markdown('<span id="alerts" class="gr-jump-target"></span>', unsafe_allow_html=True)
     alerts_section(pro)
 
     st.divider()
+    st.markdown('<span id="forwarding" class="gr-jump-target"></span>', unsafe_allow_html=True)
     inbox_card()
 
     st.divider()
+    st.markdown('<span id="plan" class="gr-jump-target"></span>', unsafe_allow_html=True)
     plan_card()
 
     st.divider()
     signin_link_card()
 
     st.divider()
+    st.markdown('<span id="feedback" class="gr-jump-target"></span>', unsafe_allow_html=True)
     feedback_card("profile")
 
     # Sign out lives at the very bottom: it's the one destructive control on
@@ -3742,7 +3817,10 @@ def plan_card():
         _left = "1 day left" if days == 1 else f"{days} days left"
         renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
-    if ACCESS["plan"] == "pro" and not days:
+    if ACCESS["plan"] == "pro" and not days and ACCESS.get("paid"):
+        name, price, note = ("Pro", "$12/mo",
+                             "Renews automatically. Cancel anytime.")
+    elif ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
     elif ACCESS["pro"] and ACCESS.get("founding"):
         # The badge itself lives in the account menu only (see
@@ -3758,18 +3836,34 @@ def plan_card():
         name, price, note = ("Free", "$0 — the whole board",
                              "Every gig, every field, search and browse.")
 
-    if st.session_state.pop("_pro_activated", False):
-        st.success("You're on Pro. Welcome aboard — ranked picks, post-aware "
-                   "drafts and instant alerts are all live now.")
+    # Plays once — the render right after Stripe redirects back. Every render
+    # after that (this session or a future visit) is the plain card below.
+    _activated = st.session_state.pop("_pro_activated", False) and ACCESS.get("paid")
 
-    st.markdown(
-        f'<div class="gr-plan">'
-        f'<div class="gr-plan-top">'
-        f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
-        f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
-        f'<div class="gr-plan-price">{html.escape(price)}'
-        + (f'<span>{html.escape(renews)}</span>' if renews else "")
-        + '</div></div></div>', unsafe_allow_html=True)
+    if _activated:
+        st.markdown(
+            f'<div class="gr-plan gr-plan-anim">'
+            f'<div class="gr-plan-top">'
+            f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
+            f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
+            f'<div class="gr-plan-price">{html.escape(price)}'
+            + (f'<span>{html.escape(renews)}</span>' if renews else "")
+            + '</div></div>'
+            '<div class="gr-unlocks">'
+            '<div class="gr-unlock"><span class="gr-tick">✓</span>Ranked picks</div>'
+            '<div class="gr-unlock"><span class="gr-tick">✓</span>Post-aware drafts</div>'
+            '<div class="gr-unlock"><span class="gr-tick">✓</span>Instant alerts</div>'
+            '<div class="gr-unlock"><span class="gr-tick">✓</span>Market rates</div>'
+            '</div></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(
+            f'<div class="gr-plan">'
+            f'<div class="gr-plan-top">'
+            f'<div><div class="gr-plan-name">{html.escape(name)}</div>'
+            f'<div class="gr-plan-note">{html.escape(note)}</div></div>'
+            f'<div class="gr-plan-price">{html.escape(price)}'
+            + (f'<span>{html.escape(renews)}</span>' if renews else "")
+            + '</div></div></div>', unsafe_allow_html=True)
 
     if not ACCESS["pro"]:
         st.caption("**Pro** adds instant pings, post-aware drafts, picks ranked for "
@@ -3799,10 +3893,10 @@ def plan_card():
     # The way out. Owner accounts are permanently Pro (accounts.status), so
     # there's nothing to downgrade and the control would do nothing.
     if not accounts.is_owner(ACCESS.get("email")):
-        _d1, _ = st.columns([1, 2])
-        with _d1:
-            if st.button("Switch to Free", width="stretch", key="downgrade"):
-                st.session_state["_confirm_downgrade"] = True
+        _dg_cls = "gr-downgrade-mark anim" if _activated else "gr-downgrade-mark"
+        st.markdown(f'<span class="{_dg_cls}"></span>', unsafe_allow_html=True)
+        if st.button("Switch to Free", key="downgrade"):
+            st.session_state["_confirm_downgrade"] = True
         if st.session_state.get("_confirm_downgrade"):
             st.caption("You'll keep the whole board, search and your profile. "
                        "You'd lose ranked picks, post-aware drafts, market rates "
@@ -3995,8 +4089,11 @@ def signup_card(where="dashboard"):
     a = ACCESS
     if a["signed_in"] and a["plan"] == "pro":
         if st.session_state.pop("_pro_activated", False):
-            st.success("You're on Pro. Welcome aboard — ranked picks, "
-                       "post-aware drafts and instant alerts are all live now.")
+            st.markdown(
+                '<div class="gr-confirm"><span class="gr-confirm-dot"></span>'
+                '<span class="gr-confirm-txt">You\'re on <b>Pro</b>. Ranked picks, '
+                'post-aware drafts and instant alerts are all live now.</span></div>',
+                unsafe_allow_html=True)
         return
 
     # On an active trial: they already have everything, so no hard sell. Ask the
@@ -5000,6 +5097,13 @@ with _rcol:
         # menu with a broken item. Profile genuinely IS the settings page now —
         # it holds your details, location, alerts, resume and plan.
         f'<a href="{ilink("?nav=profile")}" target="_self">Profile &amp; settings</a>'
+        # One line, every tab, opt-in (the menu only opens on click) — the
+        # actual upgrade card still lives at the bottom of the Dashboard feed
+        # for anyone reading gigs, but that's a long scroll away on a busy
+        # board. This is the always-there path that doesn't compete with the
+        # gigs themselves for attention.
+        + (f'<a class="gr-menu-pro" href="{ilink("?nav=pricing")}" target="_self">'
+           f'Upgrade to Pro</a>' if ACCESS["signed_in"] and not ACCESS["pro"] else '')
         # Owners only — everyone else never sees this link exists.
         + (f'<a href="{ilink("?nav=admin")}" target="_self">Admin</a>' if IS_ADMIN else '') +
         f'<div class="gr-menu-sep"></div>'

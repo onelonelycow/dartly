@@ -403,7 +403,11 @@ def status(acc: dict | None) -> dict:
     base = {"signed_in": True, "plan": plan, "email": acc.get("email", ""),
             "days_left": 0, "expired": False, "trialed": trialed,
             "founding": founding, "founding_rank": _founding_rank(acc),
-            "can_trial": False}
+            "can_trial": False,
+            # A real Stripe subscription behind this account, vs. a manual/
+            # founding/partner grant — plan_card uses this to tell a paying
+            # member "you're on the $12/mo plan" instead of "on the house".
+            "paid": bool(acc.get("stripe_subscription_id"))}
 
     # The founder's own account: Pro for life, not a 60-day clock. Checked
     # here rather than written once as plan='pro' in the database, so it
