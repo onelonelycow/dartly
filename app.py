@@ -4095,6 +4095,12 @@ def signup_card(where="dashboard"):
     upsell). Pro members see nothing here; there's nothing to sell them.
     """
     a = ACCESS
+    # On Pricing, the Free/Pro comparison lists just rendered a few pixels
+    # above this card — repeating the same four items here as a pill row
+    # read as the same sentence twice. Everywhere else (Dashboard etc.) this
+    # is the first and only place someone sees the Pro feature list, so it
+    # stays.
+    _feat_html = "" if where == "pricing" else _FEAT
     if a["signed_in"] and a["plan"] == "pro":
         if st.session_state.pop("_pro_activated", False):
             st.markdown(
@@ -4138,7 +4144,7 @@ def signup_card(where="dashboard"):
         with st.container(border=True):
             st.markdown('<span class="gr-cta-mark"></span>'
                         '<div class="gr-cta-h">Want to try Pro?</div>'
-                        f'{_FEAT}'
+                        f'{_feat_html}'
                         '<div class="gr-cta-s">Free for 14 days, whenever you like. '
                         'No card, nothing charged, and you drop back to Free on your '
                         'own if you don\'t upgrade.</div>', unsafe_allow_html=True)
@@ -4163,7 +4169,7 @@ def signup_card(where="dashboard"):
         if signed:
             st.markdown('<span class="gr-cta-mark"></span>'
                         '<div class="gr-cta-h">Keep Pro after your trial</div>'
-                        f'{_FEAT}', unsafe_allow_html=True)
+                        f'{_feat_html}', unsafe_allow_html=True)
             if billing.enabled():
                 _u1, _u2, _u3 = st.columns([1, 2, 1])
                 with _u2:
