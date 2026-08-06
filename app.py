@@ -851,11 +851,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-ab-plan.pro{border-color:rgba(232,147,58,.55);border-width:1.5px;
   background:linear-gradient(180deg,rgba(232,147,58,.10),rgba(232,147,58,.02));
   box-shadow:0 0 0 1px rgba(232,147,58,.08),0 22px 44px -22px rgba(232,147,58,.45);
-  transform:translateY(-6px);padding-top:22px}
-.gr-ab-badge{position:absolute;top:-11px;left:18px;font-size:10.5px;font-weight:700;
-  letter-spacing:.05em;text-transform:uppercase;color:#241605;
-  background:linear-gradient(180deg,var(--amber-l),var(--amber-d));
-  border-radius:100px;padding:3px 11px;box-shadow:0 4px 10px -3px rgba(232,147,58,.5)}
+  transform:translateY(-6px)}
 @media (max-width:640px){.gr-ab-plan.pro{transform:none}}
 .gr-ab-name{font-size:17px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
 .gr-ab-plan.pro .gr-ab-name{color:var(--amber)}
@@ -4466,7 +4462,6 @@ def view_pricing():
         '<li>Forward newsletters into your private board</li>'
         '</ul></div>'
         '<div class="gr-ab-plan pro">'
-        '<span class="gr-ab-badge">Reply first</span>'
         '<div class="gr-ab-name">Pro</div>'
         '<div class="gr-ab-sub">The edge that helps you reply first</div>'
         '<ul>'
