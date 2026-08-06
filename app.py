@@ -2608,37 +2608,51 @@ def gig_card(r, pro):
         with st.expander(label):
             if pro:
                 key = f"pitch_{gid}"
-                # Seed once: your saved edit if you have one, else a fresh draft.
+                # A saved edit is just a DB read — cheap, shows immediately.
+                # A FRESH draft calls the real model (pitch.draft_pitch), which
+                # used to run unconditionally the moment this card was seeded
+                # into session_state — i.e. for every card on the board, the
+                # instant it rendered, whether or not anyone opened it. On a
+                # Dashboard with dozens of cards behind "Load more", that's
+                # dozens of sequential API calls stacking up before the page
+                # finishes — a card scrolling into view isn't the same as
+                # someone asking for a reply to it. Now it's a deliberate
+                # click, same shape as "Start fresh" below.
                 if key not in st.session_state:
-                    st.session_state[key] = drafts.load(gid) or pitch.draft_pitch(
-                        r, prof, resume_text=st.session_state.get("_resume_text", ""),
-                        who=paths.get_scope())
-                st.text_area("Your draft", height=240, key=key,
-                             label_visibility="collapsed")
-                bc1, bc2 = st.columns(2)
-                bc1.button("Save draft", key=f"save_{gid}", width="stretch",
-                           on_click=_save_draft, args=(gid, key))
-                bc2.button("Start fresh", key=f"regen_{gid}", width="stretch",
-                           on_click=_regen_draft, args=(r, key),
-                           help="Replace your edits with a new auto-draft")
-                # Some postings have no apply button at all — they just say
-                # "email us". For those we know the address, so the draft stops
-                # being something to copy somewhere and becomes something to
-                # send. Reads the CURRENT textarea, so any edit goes with it.
-                _to = (r.get("apply_email") or "").strip()
-                if _to:
-                    _link = contact.mailto(
-                        _to, f"Re: {r.get('title', '')}",
-                        st.session_state.get(key, ""))
-                    st.markdown(
-                        f'<a class="gr-sendmail" href="{html.escape(_link, quote=True)}">'
-                        f'Send to {html.escape(_to)}</a>', unsafe_allow_html=True)
-                    st.caption("Opens your mail app with this draft already in it. "
-                               "Read it once before you send.")
-                if st.session_state.pop(f"_saved_{gid}", False):
-                    st.caption("Saved — your edits will be here when you come back.")
-                elif saved_exists:
-                    st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
+                    saved = drafts.load(gid)
+                    if saved:
+                        st.session_state[key] = saved
+                if key in st.session_state:
+                    st.text_area("Your draft", height=240, key=key,
+                                 label_visibility="collapsed")
+                    bc1, bc2 = st.columns(2)
+                    bc1.button("Save draft", key=f"save_{gid}", width="stretch",
+                               on_click=_save_draft, args=(gid, key))
+                    bc2.button("Start fresh", key=f"regen_{gid}", width="stretch",
+                               on_click=_regen_draft, args=(r, key),
+                               help="Replace your edits with a new auto-draft")
+                    # Some postings have no apply button at all — they just say
+                    # "email us". For those we know the address, so the draft stops
+                    # being something to copy somewhere and becomes something to
+                    # send. Reads the CURRENT textarea, so any edit goes with it.
+                    _to = (r.get("apply_email") or "").strip()
+                    if _to:
+                        _link = contact.mailto(
+                            _to, f"Re: {r.get('title', '')}",
+                            st.session_state.get(key, ""))
+                        st.markdown(
+                            f'<a class="gr-sendmail" href="{html.escape(_link, quote=True)}">'
+                            f'Send to {html.escape(_to)}</a>', unsafe_allow_html=True)
+                        st.caption("Opens your mail app with this draft already in it. "
+                                   "Read it once before you send.")
+                    if st.session_state.pop(f"_saved_{gid}", False):
+                        st.caption("Saved — your edits will be here when you come back.")
+                    elif saved_exists:
+                        st.caption("Editing your saved draft. Tweak it, hit **Save**, and you're set.")
+                else:
+                    st.caption("Post-aware — written from this listing, not a template.")
+                    st.button("Generate my draft", key=f"gen_{gid}", type="primary",
+                              width="stretch", on_click=_regen_draft, args=(r, key))
             else:
                 # A real draft, not just a paywall — see pitch.draft_template
                 # for why this reads like a person and not a form. It just
