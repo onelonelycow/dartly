@@ -840,11 +840,23 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
    bolded fragments — you had to read it to compare two things that a reader
    wants to scan side by side. Pro carries the one amber edge on the page
    (FEEL.md §2: one focal point), Free stays neutral. */
-.gr-ab-plans{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 20px}
+.gr-ab-plans{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 20px;
+  align-items:start}
 .gr-ab-plan{background:var(--bg2);border:1px solid var(--line);
-  border-radius:14px;padding:18px 18px 6px;text-align:left}
-.gr-ab-plan.pro{border-color:rgba(232,147,58,.32);
-  background:linear-gradient(180deg,rgba(232,147,58,.06),rgba(232,147,58,.015))}
+  border-radius:14px;padding:18px 18px 6px;text-align:left;position:relative}
+/* The card we actually want someone to pick — stronger border, a real glow
+   instead of a tint, and a small lift so it reads as the featured option
+   without a second accent colour entering the page (still one amber focal
+   point, just a louder one). */
+.gr-ab-plan.pro{border-color:rgba(232,147,58,.55);border-width:1.5px;
+  background:linear-gradient(180deg,rgba(232,147,58,.10),rgba(232,147,58,.02));
+  box-shadow:0 0 0 1px rgba(232,147,58,.08),0 22px 44px -22px rgba(232,147,58,.45);
+  transform:translateY(-6px);padding-top:22px}
+.gr-ab-badge{position:absolute;top:-11px;left:18px;font-size:10.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:#241605;
+  background:linear-gradient(180deg,var(--amber-l),var(--amber-d));
+  border-radius:100px;padding:3px 11px;box-shadow:0 4px 10px -3px rgba(232,147,58,.5)}
+@media (max-width:640px){.gr-ab-plan.pro{transform:none}}
 .gr-ab-name{font-size:17px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
 .gr-ab-plan.pro .gr-ab-name{color:var(--amber)}
 .gr-ab-sub{font-size:13.5px;color:var(--mute);margin:3px 0 10px}
@@ -4437,9 +4449,9 @@ def view_pricing():
     st.markdown(
         '<div class="gr-about">'
         '<h2>Free, and Pro</h2>'
-        '<p class="lead">One plan is free forever. The other adds the parts '
-        'that help you reply first. No seat limits, no annual lock-in, no '
-        'hidden tier in between.</p>'
+        '<p class="lead">Everyone gets the whole board, free, forever. Pro gets '
+        'you there first — ranked picks, faster drafts, real-time alerts. No '
+        'seats, no contracts, no confusing tier in between.</p>'
 
         '<div class="gr-ab-plans">'
         '<div class="gr-ab-plan">'
@@ -4454,6 +4466,7 @@ def view_pricing():
         '<li>Forward newsletters into your private board</li>'
         '</ul></div>'
         '<div class="gr-ab-plan pro">'
+        '<span class="gr-ab-badge">Reply first</span>'
         '<div class="gr-ab-name">Pro</div>'
         '<div class="gr-ab-sub">The edge that helps you reply first</div>'
         '<ul>'
