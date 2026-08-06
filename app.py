@@ -2879,9 +2879,19 @@ def draft_showcase(pro):
                 upgrade_dialog("draft_showcase", pitch.free_draft_note(g))
         return
 
-    text = drafts.load(gid) or pitch.draft_pitch(
-        g, prof, resume_text=st.session_state.get("_resume_text", ""),
-        who=paths.get_scope())
+    # Same class of bug as the per-card fix above, different shape: this pick
+    # is a single stable item (seeded per day+account, not per rerun), but
+    # with no cache here it was still calling the real model fresh on EVERY
+    # unrelated rerun on this page — a search, a save, anything — until the
+    # day it happened to get saved. One session_state seed, same as before,
+    # is the right fix for a single slot (it isn't the "load more grows
+    # without bound" shape that made per-card caching wrong there).
+    _sk = f"_showcase_pitch_{gid}"
+    if _sk not in st.session_state:
+        st.session_state[_sk] = drafts.load(gid) or pitch.draft_pitch(
+            g, prof, resume_text=st.session_state.get("_resume_text", ""),
+            who=paths.get_scope())
+    text = st.session_state[_sk]
     body = "".join(
         "<p>" + html.escape(block.strip("\n")).replace("\n", "<br>") + "</p>"
         for block in text.split("\n\n") if block.strip())
