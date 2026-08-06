@@ -4447,7 +4447,7 @@ def view_pricing():
         '<h2>Free, and Pro</h2>'
         '<p class="lead">Everyone gets the whole board, free, forever. Pro gets '
         'you there first — ranked picks, faster drafts, real-time alerts. No '
-        'seats, no contracts, no confusing tier in between.</p>'
+        'seats, no contracts.</p>'
 
         '<div class="gr-ab-plans">'
         '<div class="gr-ab-plan">'
