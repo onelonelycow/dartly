@@ -1,0 +1,16 @@
+{
+  "name": "Nabbly",
+  "short_name": "Nabbly",
+  "description": "Every freelance gig, the moment it drops.",
+  "start_url": "https://app.nabbly.co/",
+  "id": "https://nabbly.co/",
+  "display": "standalone",
+  "background_color": "#121418",
+  "theme_color": "#121418",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
