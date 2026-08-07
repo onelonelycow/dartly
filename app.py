@@ -2984,6 +2984,19 @@ def view_dashboard(pro):
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = _dash_picks(db.board_version(), tuple(prof["skills"]), tuple(srcs))
+        # Nudge rank by this person's own thumbs history — _dash_picks is
+        # cached and shared across everyone with the same skills/sources, so
+        # this stays OUTSIDE that cache and runs fresh per render instead.
+        # Cheap: a handful of category totals, not a rescore of the board.
+        if ACCESS["signed_in"] and not top.empty:
+            _bias = match_feedback.my_category_bias(ACCESS["email"])
+            if _bias:
+                top = top.copy()
+                top["_score"] = [
+                    max(0, min(100, s + _bias.get(jt, 0)))
+                    for s, jt in zip(top["_score"], top["job_type"])
+                ]
+                top = top.sort_values("_score", ascending=False)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)

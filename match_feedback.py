@@ -107,6 +107,46 @@ def rate(email: str, gig_id, rating: str, job_type: str = "", source: str = ""):
         return None
 
 
+def my_category_bias(email: str) -> dict[str, int]:
+    """
+    {job_type: point adjustment} from this person's OWN up/down history —
+    the loop worst_categories() was supposed to close but never did. That
+    function tells the founder a category's ranking wrong for people in
+    general; this tells the ranking it's wrong for THIS person specifically,
+    which is the whole reason the thumbs live right next to the score.
+
+    Net votes (up minus down) per category, scaled modestly and capped —
+    this nudges rank, it doesn't override it. Someone who's downvoted every
+    "Marketing" gig they've seen shouldn't need to keep re-teaching that on
+    every visit; someone who's upvoted "Development / tech" every time
+    should see more of it float up. Two or fewer net votes doesn't move
+    anything — that's noise, not a preference yet.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return {}
+    try:
+        conn = _connect()
+        rows = conn.execute(
+            "SELECT job_type, "
+            "  SUM(CASE WHEN rating='up' THEN 1 ELSE -1 END) AS net "
+            "FROM ratings WHERE email = ? AND job_type != '' "
+            "GROUP BY job_type", (email,)).fetchall()
+        conn.close()
+        out = {}
+        for row in rows:
+            net = row["net"]
+            if abs(net) <= 2:
+                continue
+            # +/-4 points per net vote past the noise floor, capped at +/-20
+            # — enough to move a borderline gig a few ranks, not enough to
+            # override a real skill/budget mismatch on its own.
+            out[row["job_type"]] = max(-20, min(20, net * 4))
+        return out
+    except sqlite3.Error:
+        return {}
+
+
 def worst_categories(days: int = 30, limit: int = 15) -> list[dict]:
     """
     Job types with the most down-votes, net of up-votes — where the ranking
