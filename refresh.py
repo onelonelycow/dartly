@@ -20,6 +20,7 @@ _INTERVAL_S = 120          # ~2 min between fetches
 _FIRST_DELAY_S = 30        # let the app finish booting before the first pull
 _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
+_NUDGE_CHECK_S = 3600      # how often to check for a lapsed "yes I'd pay" trial
 _ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
 _started = False
 _lock = threading.Lock()
@@ -114,6 +115,9 @@ def _loop(on_update=None):
     # sweep within seconds of booting instead of an hour in. Starting the clock
     # at "now" is what actually makes this an hourly check.
     last_digest_check = time.time()
+    # Same reasoning as last_digest_check — starts the hourly clock at boot
+    # rather than at zero.
+    last_nudge_check = time.time()
     # Same reasoning: the boot-time call above already archived anything stale
     # as of right now, so the clock for the NEXT pass starts here, not at zero.
     last_archive_check = time.time()
@@ -234,6 +238,19 @@ def _loop(on_update=None):
                 except Exception:
                     pass
                 last_digest_check = time.time()
+
+            # Same hourly cadence as the digest check — this only ever sends
+            # once per account, so there's no cost to checking often, but no
+            # benefit to checking more than hourly either.
+            if time.time() - last_nudge_check >= _NUDGE_CHECK_S:
+                try:
+                    import lapsed_nudge
+                    nd = lapsed_nudge.run_all()
+                    if nd:
+                        _state["nudges_sent"] = _state.get("nudges_sent", 0) + nd
+                except Exception:
+                    pass
+                last_nudge_check = time.time()
 
             # Daily is plenty — a 45-day cutoff doesn't need a 2-minute clock,
             # and this is a full-table scan (see archive_stale) so it shouldn't

@@ -211,6 +211,46 @@ def welcome_email(email: str, name: str, founding: bool, token: str) -> tuple[st
 
 
 # ---------------------------------------------------------------------------
+# lapsed-trial nudge — the one email to someone who told us, in their own
+# words, that they'd pay for this (people.set_pay), then let the trial that
+# would have proven it lapse without upgrading. Sent once, ever, per account
+# — see lapsed_nudge.py.
+# ---------------------------------------------------------------------------
+def lapsed_payer_email(name: str, signin_token: str, unsub_token: str) -> tuple[str, str, str]:
+    # The real sign-in token, not the derived email_token: the whole point is
+    # a one-click path straight to a working "Upgrade to Pro" button, and
+    # that button only renders for someone the app recognizes as signed in
+    # (app.py's "Keep Pro after your trial" card checks ACCESS["signed_in"]
+    # first). Same tradeoff signin_link_email already makes, for the same
+    # reason.
+    link = f"{APP_URL}/?u={signin_token}&nav=pricing"
+    hi = f"{name}, y" if name else "Y"
+    subject = "Your Nabbly trial has ended"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  Sorry to see your trial end.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  {hi}our 14 days of Pro are up. Everything you've built here, your profile,
+  your saved gigs, your board, is exactly where you left it. You're just
+  back on the free plan for now.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  If you'd like Pro back, it's one click below. If not, there's nothing
+  else to do.
+</p>
+{_button("Upgrade to Pro — $12/mo", link)}
+"""
+    text = ("Sorry to see your trial end.\n\n"
+            f"{hi}our 14 days of Pro are up. Everything you've built here, "
+            "your profile, your saved gigs, your board, is exactly where you "
+            "left it. You're just back on the free plan for now.\n\n"
+            "If you'd like Pro back, it's one click below. If not, there's "
+            f"nothing else to do.\n\nUpgrade to Pro — $12/mo: {link}\n")
+    return subject, _shell("Sorry to see your trial end.", body, unsub_token), text
+
+
+# ---------------------------------------------------------------------------
 # sign-in code — the one email that has to arrive fast
 # ---------------------------------------------------------------------------
 def signin_code_email(code: str) -> tuple[str, str, str]:

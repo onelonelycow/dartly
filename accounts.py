@@ -116,6 +116,7 @@ def init():
             visits        INTEGER DEFAULT 0,
             email_opt_out INTEGER DEFAULT 0,     -- 1 = unsubscribed from all email
             last_digest   TEXT,                  -- when the weekly digest last sent them
+            pay_nudge_sent TEXT,                 -- stamped once the lapsed-payer nudge sends
             stripe_customer_id     TEXT,
             stripe_subscription_id TEXT
         )
@@ -125,6 +126,7 @@ def init():
     # Safe migration for tables created before these columns existed.
     for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
                       ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT"),
+                      ("pay_nudge_sent", "TEXT"),
                       ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
@@ -570,6 +572,18 @@ def set_last_digest(email: str, when: str):
     init()
     conn = _connect()
     conn.execute("UPDATE accounts SET last_digest=? WHERE email=?",
+                 (when, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
+def set_pay_nudge_sent(email: str, when: str):
+    """Stamp the moment the lapsed-payer nudge sends this account, so it can
+    never fire twice for the same person — see lapsed_nudge.py."""
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET pay_nudge_sent=? WHERE email=?",
                  (when, email.strip().lower()))
     conn.commit()
     conn.close()

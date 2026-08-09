@@ -8,6 +8,8 @@ Weights (roughly): skill 50, keywords 25, budget fit 20, urgency 5.
 """
 import re
 
+import config
+
 MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*)")
 
 # Freelancer.com (and several job boards) post a budget as a fixed tier —
@@ -44,10 +46,20 @@ def gig_amount(gig: dict):
     return max(amounts) if amounts else None
 
 
-def fit_score(gig: dict, profile: dict) -> tuple[int, list[str]]:
+def fit_score(gig: dict, profile: dict, resume_text: str = "") -> tuple[int, list[str]]:
     """Returns (0-100 score, short 'why' notes). The notes only mention the
     *extra* signal — skill/budget/urgent already show as pills, so we skip those
-    and keep this to a glanceable line."""
+    and keep this to a glanceable line.
+
+    resume_text is optional and session-only (see resume.py — it is never
+    persisted, by design). When present it adds a small, ADDITIVE bonus on
+    top of the existing skill/keyword/budget/urgency weights below, rather
+    than taking a slice of their point budget: those four were already
+    calibrated against real cards before this existed, and reshuffling them
+    to make room for a fifth signal would shift everyone's match numbers as
+    a side effect of a feature most gigs won't even trigger (most scores
+    don't sit at the 100 ceiling, so a few extra points below the cap are
+    still visible, not silently clipped away)."""
     score = 0
     why = []
     skills = profile.get("skills") or []
@@ -82,5 +94,20 @@ def fit_score(gig: dict, profile: dict) -> tuple[int, list[str]]:
     # --- Urgency (up to 5) — no note; the 🔥 pill already says it ---
     if gig.get("urgency") == "Urgent":
         score += 5
+
+    # --- Resume relevance (up to 8, additive — see docstring above) ---
+    # config.JOB_TYPES gives, per category, the curated skill/tool phrases
+    # that classify a gig INTO that category in the first place. Reusing it
+    # here checks whether the resume actually uses that category's real
+    # vocabulary ("figma", "logo", "branding" for Design / creative) rather
+    # than matching arbitrary prose against arbitrary prose, and it credits
+    # real experience even when someone never got around to typing keywords.
+    if resume_text:
+        resume_lower = resume_text.lower()
+        cat_terms = config.JOB_TYPES.get(gig.get("job_type"), [])
+        hits = [t for t in cat_terms if t in resume_lower]
+        if hits:
+            score += min(8, 4 * len(hits))
+            why.append(f"resume: {hits[0]}")
 
     return min(100, score), why

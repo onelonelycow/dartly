@@ -2323,7 +2323,7 @@ def apply_location(view, mode):
     return view[view["id"].isin(keep)]
 
 
-def scored(view):
+def scored(view, resume_text=""):
     """
     Fit scores, but ONLY when there is something to fit against.
 
@@ -2334,13 +2334,49 @@ def scored(view):
     match, and showing it teaches people the number means nothing. With no
     skills we return the view unscored, so no pill is drawn and the board
     keeps its newest-first order, which is the honest default.
+
+    resume_text is an explicit param, never read from session_state in here,
+    because this function also runs inside _dash_picks — an @st.cache_data
+    function shared across every signed-in user with the same skills/sources.
+    Reading session_state directly would bake whichever person's resume
+    happened to populate that cache key into everyone else's Dashboard feed.
+    Callers outside a cache (the Gigs page, draft_showcase) pass it through;
+    _dash_picks deliberately doesn't, so the Dashboard's "Picked for you"
+    just doesn't get the resume nudge — the same tradeoff apply_bias() makes
+    for rating history, for the same reason.
     """
     if view.empty or not (prof.get("skills") or []):
         return view
-    sc = [score.fit_score(r, prof) for r in view.to_dict("records")]
+    sc = [score.fit_score(r, prof, resume_text=resume_text) for r in view.to_dict("records")]
     view = view.copy()
     view["_score"] = [s for s, _ in sc]
     view["_reasons"] = [r for _, r in sc]
+    return view.sort_values("_score", ascending=False)
+
+
+def apply_bias(view):
+    """
+    Nudge a scored() view by this person's OWN thumbs-up/down history.
+
+    Deliberately separate from scored() rather than folded into it: scored()
+    runs inside _dash_picks, which is @st.cache_data'd and SHARED across every
+    signed-in user with the same skills/sources. Baking one person's bias into
+    that result would leak into everyone else's cached feed. This runs after
+    the cache, every render, on whichever view scored() already produced —
+    cheap (a handful of category totals), and it's what makes "ranked by how
+    well they fit you, and it keeps learning from what you rate" true
+    everywhere that claim appears, not just on the Dashboard.
+    """
+    if not ACCESS["signed_in"] or view.empty or "_score" not in view.columns:
+        return view
+    _bias = match_feedback.my_category_bias(ACCESS["email"])
+    if not _bias:
+        return view
+    view = view.copy()
+    view["_score"] = [
+        max(0, min(100, s + _bias.get(jt, 0)))
+        for s, jt in zip(view["_score"], view["job_type"])
+    ]
     return view.sort_values("_score", ascending=False)
 
 
@@ -2840,8 +2876,9 @@ def draft_showcase(pro):
     if df.empty or not prof.get("skills"):
         return
     srcs = sorted(df["source"].unique())
-    top = scored(apply_filters(df, prof["skills"], ["Small", "Medium", "Large"],
-                               srcs, False, "")).head(3)
+    top = apply_bias(scored(
+        apply_filters(df, prof["skills"], ["Small", "Medium", "Large"], srcs, False, ""),
+        resume_text=st.session_state.get("_resume_text", ""))).head(3)
     if top.empty:
         return
     seed = f"{datetime.now(timezone.utc).date()}-{paths.get_scope()}"
@@ -2984,19 +3021,7 @@ def view_dashboard(pro):
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
         top = _dash_picks(db.board_version(), tuple(prof["skills"]), tuple(srcs))
-        # Nudge rank by this person's own thumbs history — _dash_picks is
-        # cached and shared across everyone with the same skills/sources, so
-        # this stays OUTSIDE that cache and runs fresh per render instead.
-        # Cheap: a handful of category totals, not a rescore of the board.
-        if ACCESS["signed_in"] and not top.empty:
-            _bias = match_feedback.my_category_bias(ACCESS["email"])
-            if _bias:
-                top = top.copy()
-                top["_score"] = [
-                    max(0, min(100, s + _bias.get(jt, 0)))
-                    for s, jt in zip(top["_score"], top["job_type"])
-                ]
-                top = top.sort_values("_score", ascending=False)
+        top = apply_bias(top)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
@@ -3128,7 +3153,7 @@ def view_gigs(pro):
         view = apply_language(apply_city_lock(view))
         view = apply_location(view, loc_mode)
         if pro:
-            view = scored(view)
+            view = apply_bias(scored(view, resume_text=st.session_state.get("_resume_text", "")))
         if kw:
             # Best matches first — after scoring, so relevance to what they
             # actually typed wins over a generic fit score.
