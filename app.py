@@ -3140,6 +3140,25 @@ def view_gigs(pro):
                                default=["Small", "Medium", "Large"], placeholder="")
         srcs = sorted(df["source"].unique())
         sources = st.multiselect("Source", srcs, default=srcs, placeholder="")
+        # A real filter, not a buried Profile checkbox: apply_language() hides
+        # anything outside reading_languages() by default, which is the right
+        # call for the Dashboard and other overview surfaces, but on the one
+        # page whose whole job is "go find gigs," silently hiding ~9% of the
+        # board is hiding real demand, not decluttering it. Same default
+        # (home language only) so nobody's view changes unasked, but now it's
+        # a visible, one-click choice right next to Skill/Budget/Source
+        # instead of a setting most people will never find.
+        _board_langs = (sorted(df["_lang"].dropna().unique())
+                        if "_lang" in df.columns else ["en"])
+        _lang_default = [c for c in _board_langs if c in reading_languages()] or _board_langs
+        # Counts in the label, not just names — the point is to make the
+        # non-English volume legible at a glance, not just technically
+        # selectable.
+        _lang_counts = df["_lang"].value_counts().to_dict() if "_lang" in df.columns else {}
+        languages = st.multiselect(
+            "Language", _board_langs, default=_lang_default,
+            format_func=lambda c: f"{lang.label(c)} · {_lang_counts.get(c, 0)}",
+            placeholder="")
         urgent = st.checkbox("Urgent only")
         if skills and set(skills) != set(ALL_SKILLS) and set(skills) != set(prof.get("skills") or []):
             if st.button("Save these as my skills", key="savefilterskills"):
@@ -3150,7 +3169,9 @@ def view_gigs(pro):
 
     with st.spinner(f"Searching for “{kw}”…" if kw else "Loading the board…"):
         view = apply_filters(df, skills, sizes, sources, urgent, kw)
-        view = apply_language(apply_city_lock(view))
+        view = apply_city_lock(view)
+        if "_lang" in view.columns:
+            view = view[view["_lang"].isin(languages)]
         view = apply_location(view, loc_mode)
         if pro:
             view = apply_bias(scored(view, resume_text=st.session_state.get("_resume_text", "")))
