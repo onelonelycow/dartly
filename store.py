@@ -37,6 +37,43 @@ _lock = threading.Lock()
 _ready = False
 _last_error = ""      # sanitised reason the mirror is unreachable, for the admin page
 
+# Passive health of the WRITE path. healthy() below is an active probe, and it
+# only runs when somebody opens the admin page — so it answers "is it up right
+# now", never "has anything been saved in the last six hours". Every mirror
+# write returns False on failure and every caller ignores that, by design: a
+# dead mirror must not break a signup. The consequence is that losing the
+# durable store is completely invisible while the app carries on looking fine,
+# right up until a redeploy wipes the disk and takes the accounts, the wins and
+# the board with it. These counters are what make that audible.
+_w = {"ok": 0, "failed": 0, "streak": 0, "last_ok": 0.0, "last_error": ""}
+
+
+def _note_write(ok: bool, exc: Exception | None = None):
+    """Record one mirror write, and speak up when the streak says it's real."""
+    import time as _t
+    if ok:
+        if _w["streak"]:
+            print(f"  store: durable store back after {_w['streak']} failed "
+                  f"write(s)", flush=True)
+        _w["ok"] += 1
+        _w["streak"] = 0
+        _w["last_ok"] = _t.time()
+        return
+    _w["failed"] += 1
+    _w["streak"] += 1
+    _w["last_error"] = f"{type(exc).__name__}: {_sanitise(exc)}" if exc else ""
+    # 1st says it happened, 5th and 25th say it isn't a blip, then hourly-ish
+    # so a long outage stays on the record without burying the log.
+    if _w["streak"] in (1, 5, 25) or _w["streak"] % 100 == 0:
+        print(f"  ! store: durable write failed ({_w['streak']} in a row) — "
+              f"nothing is being persisted; a redeploy would lose it: "
+              f"{_w['last_error']}", flush=True)
+
+
+def write_health() -> dict:
+    """Counters for the admin page. See _w."""
+    return dict(_w)
+
 
 def _is_pg(url: str) -> bool:
     return url.startswith(("postgres://", "postgresql://"))
@@ -111,8 +148,10 @@ def put(scope: str, name: str, obj) -> bool:
              "ON CONFLICT (scope, name) DO UPDATE SET "
              "data = excluded.data, updated = excluded.updated",
              (scope, name, json.dumps(obj), stamp))
+        _note_write(True)
         return True
-    except Exception:
+    except Exception as e:
+        _note_write(False, e)
         return False
 
 

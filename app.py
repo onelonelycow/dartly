@@ -14,6 +14,7 @@ import uuid
 import hashlib
 import hmac
 import secrets
+import time
 from pathlib import Path
 from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
@@ -4980,6 +4981,22 @@ def view_admin():
         if store.healthy():
             st.success("Durable backup: **connected**. Profiles and accounts "
                        "survive redeploys.")
+            # healthy() is a probe of this instant. It says nothing about
+            # whether the writes that matter have been landing, and a mirror
+            # that has been refusing writes all afternoon still answers
+            # SELECT 1. The counters are the part that would have told you.
+            _wh = store.write_health()
+            if _wh["streak"]:
+                st.error(f"But the last **{_wh['streak']}** durable writes "
+                         f"failed — data since then is only on the disk, and "
+                         f"the disk does not survive a redeploy.")
+                if _wh["last_error"]:
+                    st.caption(f"Reason: `{_wh['last_error']}`")
+            elif _wh["ok"] or _wh["failed"]:
+                _ago = (f"{int(time.time() - _wh['last_ok'])}s ago"
+                        if _wh["last_ok"] else "not yet this boot")
+                st.caption(f"{_wh['ok']:,} writes saved this boot, "
+                           f"{_wh['failed']:,} failed · last saved {_ago}")
         else:
             st.error("Durable backup: **configured but unreachable**. Check the "
                      "DATABASE_URL value in Render.")

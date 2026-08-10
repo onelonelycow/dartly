@@ -281,8 +281,28 @@ def _loop(on_update=None):
                 except Exception:
                     pass
                 last_archive_check = time.time()
-        except Exception:
-            pass  # a bad fetch or a dead webhook shouldn't kill the loop
+            _state["fails"] = 0          # a clean cycle clears the streak
+        except Exception as e:
+            # A bad fetch or a dead webhook still shouldn't kill the loop — but
+            # it must not be silent either. This handler wraps the WHOLE cycle,
+            # so anything that throws every time (a source changing shape, a
+            # dependency break, a bad migration) turned into a loop that span
+            # forever doing nothing: no gigs, no alerts, no output, and a
+            # "runs" counter frozen where it stopped. The board just quietly
+            # stopped being live, which is the one failure this product cannot
+            # afford to hide.
+            _state["fails"] = _state.get("fails", 0) + 1
+            _state["last_error"] = f"{type(e).__name__}: {e}"[:300]
+            _state["last_error_at"] = time.time()
+            print(f"  ! refresh cycle failed ({_state['fails']} in a row): "
+                  f"{_state['last_error']}", flush=True)
+            if _state["fails"] in (3, 10) or _state["fails"] % 30 == 0:
+                # Escalate at the points where "transient" stops being a
+                # credible explanation, with the stack this time.
+                import traceback
+                print(f"  ! refresh has failed {_state['fails']} cycles in a row "
+                      f"— the board is not updating", flush=True)
+                traceback.print_exc()
         time.sleep(_INTERVAL_S)
 
 
