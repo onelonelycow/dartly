@@ -1595,6 +1595,11 @@ PAGE_SIZE = 25   # a couple of screens of scroll, not sixty cards in one column
 # The dashboard showed five gigs and then stopped, which made a board of
 # thousands feel thin — the point of the page is that there's always more.
 DASH_FEED = 12
+# How deep the cached "Picked for you" feed goes. 25 Load More clicks, which
+# nobody reaches — and the Dashboard is a curated pick, not the full board;
+# there's a link to that at the end of the list. Caching the whole matched
+# board instead was costing tens of MB per signed-in person (see _dash_picks).
+DASH_CACHE_ROWS = 300
 
 
 # ---------------------------------------------------------------------------
@@ -2448,9 +2453,18 @@ def _dash_picks(version, scope, prof_key, skills, srcs):
     chips on every card. Anything this body reads that isn't an argument has
     to be added to _prof_cache_key().
 
-    max_entries bounds it too: this returns a board-sized DataFrame, and
-    cache_data is unbounded by default — the same shape of mistake that
-    twice took the instance over its memory ceiling (see _public_feed).
+    max_entries bounds the COUNT, and DASH_CACHE_ROWS bounds the SIZE. The
+    count alone was not enough. This is keyed per person, so 24 entries means
+    24 different people, and each one used to hold their whole filtered board:
+    ~26MB for someone who picks five popular fields, 51MB for someone who
+    picks all of them. Two dozen people on at once was 0.6-1.2GB of cache on
+    top of a ~400MB baseline, to render twelve cards. That is the same shape
+    of mistake that twice took the instance over its memory ceiling (see
+    _public_feed), just wearing a bound that looked responsible.
+
+    Returns (rows, total). The rows are capped; the total is the honest count
+    of everything that matched, so the end of the list can tell the difference
+    between "you have seen everything" and "you have seen the first 300".
 
     Keyed off the board's own version fingerprint (same one _public_feed_at
     uses), so it invalidates the moment real data changes rather than
@@ -2463,7 +2477,8 @@ def _dash_picks(version, scope, prof_key, skills, srcs):
     cur = apply_language(apply_city_lock(
         apply_filters(cur, list(skills), ["Small", "Medium", "Large"],
                       list(srcs), False, "")))
-    return scored(cur)
+    out = scored(cur)
+    return out.head(DASH_CACHE_ROWS), len(out)
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -3091,13 +3106,17 @@ def view_dashboard(pro):
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
-        top = _dash_picks(db.board_version(), paths.get_scope(),
-                          _prof_cache_key(), tuple(prof["skills"]), tuple(srcs))
+        top, matched_total = _dash_picks(
+            db.board_version(), paths.get_scope(),
+            _prof_cache_key(), tuple(prof["skills"]), tuple(srcs))
         top = apply_bias(top)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         top = apply_language(apply_city_lock(df))
+        # Not capped: this branch isn't cached, so it costs one frame for the
+        # duration of the render rather than one per person held for 3 minutes.
+        matched_total = len(top)
 
     if top.empty:
         st.caption("Nothing's clicking yet — try adding a few more skills on the Profile "
@@ -3117,9 +3136,17 @@ def view_dashboard(pro):
                 st.rerun()
         else:
             _qf = "&qf=mine" if picked else ""
+            # "That's everything" is only true when the list really ended. The
+            # cached pick stops at DASH_CACHE_ROWS, so past that there are more
+            # matches and saying otherwise would send someone away believing
+            # the board was empty for them.
+            _more = matched_total > len(top)
+            _lead = (f"That's the top {len(top)} for you."
+                     if _more else
+                     f'That\'s everything {"matching you" if picked else "on the board"} right now.')
             st.markdown(
-                f'<div class="gr-dash-end">That\'s everything {"matching you" if picked else "on the board"} '
-                f'right now. <a href="{ilink(f"?nav=gigs{_qf}")}" target="_self">'
+                f'<div class="gr-dash-end">{_lead} '
+                f'<a href="{ilink(f"?nav=gigs{_qf}")}" target="_self">'
                 f'See all gigs on the full board →</a></div>',
                 unsafe_allow_html=True)
 
