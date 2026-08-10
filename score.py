@@ -46,6 +46,16 @@ def gig_amount(gig: dict):
     return max(amounts) if amounts else None
 
 
+# Every gig field fit_score() reads, including through gig_amount(). Callers
+# ranking a whole board narrow to these before building dicts — a board frame
+# carries 18 columns and converting the other 13 per gig is pure waste.
+#
+# IF YOU READ A NEW FIELD BELOW, ADD IT HERE. A field missing from this list
+# doesn't raise; .get() hands back "" and the gig is simply scored as though it
+# had nothing there, which is the kind of wrong that never shows up as an error.
+FIT_FIELDS = ("title", "body", "job_type", "size_tier", "urgency")
+
+
 def fit_score(gig: dict, profile: dict, resume_text: str = "") -> tuple[int, list[str]]:
     """Returns (0-100 score, short 'why' notes). The notes only mention the
     *extra* signal — skill/budget/urgent already show as pills, so we skip those
