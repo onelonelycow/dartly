@@ -12,6 +12,7 @@ import re
 import html
 import uuid
 import hashlib
+import hmac
 import secrets
 from pathlib import Path
 from urllib.parse import quote
@@ -2560,8 +2561,17 @@ def gig_card(r, pro):
                    f'href="{ilink(f"?won={gid}&from={_from}")}" target="_self" '
                    f'title="{"You got hired for this — click to undo" if _iwon else "I got hired!"}">'
                    f'{"🎉" if _iwon else "🎯"}</a>')
+        # rel is not optional on a target="_blank" we write by hand. noreferrer
+        # stops the Referer header telling the poster which page on Nabbly the
+        # click came from — that URL carries the filters, and on a signed-in
+        # session it is the one place a token could ride along. noopener cuts
+        # the opened tab's window.opener handle, without which the destination
+        # can navigate the tab it came from somewhere of its own choosing.
+        # Streamlit sets both on the links it renders itself; this anchor is
+        # ours, so it has to say so.
         st.markdown(
-            f'{new}<a class="gr-title" href="{out_url}" target="_blank">{title}</a>{star}{won}',
+            f'{new}<a class="gr-title" href="{out_url}" target="_blank" '
+            f'rel="noopener noreferrer">{title}</a>{star}{won}',
             unsafe_allow_html=True)
 
         # Pills carry their meaning in colour (FEEL.md §2: match is amber,
@@ -5140,8 +5150,24 @@ if st.query_params.get("nav", "").lower() == "out" and st.query_params.get("gid"
 # The admin panel replaces the whole page — nothing else needs to render.
 # Two ways in: the secret ?admin= key (works signed out), or simply being signed
 # in as an owner account, so the founder doesn't have to keep a URL around.
-IS_ADMIN = ((analytics.ADMIN_KEY
-             and st.query_params.get("admin", "") == analytics.ADMIN_KEY)
+def _admin_key_ok(supplied) -> bool:
+    """
+    Constant-time check of the ?admin= key.
+
+    `==` on a secret returns as soon as two bytes differ, so how long it takes
+    to say no leaks how much of the key was right — enough, over many tries, to
+    recover it a character at a time. compare_digest always looks at every byte.
+    Encoded to bytes first because the str form raises TypeError on anything
+    non-ASCII, and ?admin= is whatever the visitor decided to type.
+    """
+    key = analytics.ADMIN_KEY or ""
+    if not key:
+        return False
+    return hmac.compare_digest(str(supplied or "").encode("utf-8"),
+                               key.encode("utf-8"))
+
+
+IS_ADMIN = (_admin_key_ok(st.query_params.get("admin", ""))
             or (ACCESS["signed_in"] and accounts.is_owner(ACCESS.get("email"))))
 # This gate runs BEFORE the ?nav= dispatch below, so check the raw query param
 # as well as the page already in session — otherwise the first click on the

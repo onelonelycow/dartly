@@ -66,6 +66,9 @@ _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
          "pay_nudge_sent", "stripe_customer_id", "stripe_subscription_id",
          "stripe_session_id")
 _rehydrated = False
+# Schema setup is process-wide, but init() sits at app.py's module scope, which
+# Streamlit re-runs on every interaction. See init().
+_inited = False
 
 
 def _now() -> str:
@@ -106,7 +109,25 @@ def _connect():
 
 
 def init():
-    """Create the table. Safe to call on every run."""
+    """
+    Create the table. Safe to call on every run, and cheap after the first.
+
+    app.py calls this at module scope, which Streamlit re-executes on every
+    rerun — so every widget click, every filter change, every keystroke in a
+    search box was reopening the database, re-running CREATE TABLE and CREATE
+    INDEX, firing eight ALTERs that each raise and get swallowed, and
+    committing. None of it could ever do anything after the first call: the
+    schema is fixed for the life of the process.
+
+    Guarded rather than moved so callers don't have to know the difference.
+    The flag is set after the work, so a failed boot retries instead of
+    leaving a half-made table behind a flag that says it's done. Two threads
+    racing here would both run it, which is harmless — every statement is
+    idempotent.
+    """
+    global _inited
+    if _inited:
+        return
     conn = _connect()
     conn.execute(
         """
@@ -144,6 +165,7 @@ def init():
     conn.commit()
     conn.close()
     _rehydrate()
+    _inited = True
 
 
 def _mirror(email: str):
