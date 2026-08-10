@@ -5007,6 +5007,36 @@ def view_admin():
         st.warning("Durable backup: **off**. Set DATABASE_URL (Supabase) in "
                    "Render, or profiles reset on every deploy.")
 
+    # Which feeds are actually producing. One source of forty going quiet moves
+    # the total so little that nothing looks wrong — the board just gets a bit
+    # thinner in one field, for weeks, until someone notices that category dried
+    # up. This is the page that would have told you on day one.
+    _sh = sources.health()
+    if _sh:
+        _broken = [(n, h) for n, h in _sh.items() if h["err_run"] >= 3]
+        _quiet = [(n, h) for n, h in _sh.items()
+                  if h["best"] and h["zero_run"] >= 12 and h["err_run"] < 3]
+        if _broken:
+            st.error("Sources failing: " + ", ".join(
+                f"**{n}** ({h['err_run']} cycles)" for n, h in _broken))
+            for n, h in _broken[:3]:
+                st.caption(f"{n}: `{h['last_error']}`")
+        if _quiet:
+            st.warning("Sources returning nothing despite having worked before: "
+                       + ", ".join(f"**{n}** ({h['zero_run']} cycles, best "
+                                   f"{h['best']})" for n, h in _quiet))
+        if not _broken and not _quiet:
+            _live = sum(1 for h in _sh.values() if h["total"])
+            st.success(f"Sources: **{_live} of {len(_sh)}** have produced gigs "
+                       f"this boot, none failing.")
+        with st.expander("Per-source detail"):
+            st.dataframe(pd.DataFrame([
+                {"source": n, "last": h["last"], "best": h["best"],
+                 "total": h["total"], "zero run": h["zero_run"],
+                 "err run": h["err_run"], "last error": h["last_error"][:60]}
+                for n, h in sorted(_sh.items(), key=lambda kv: -kv[1]["total"])
+            ]), width="stretch", hide_index=True)
+
     rows = people.people_rows()
     if rows:
         cols = ["created", "email", "pay", "name", "headline", "skills",

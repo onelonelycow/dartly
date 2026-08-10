@@ -510,14 +510,85 @@ _SLOW_BESPOKE = {"soundlister"}
 # at one host, which is both rude and a good way to get blocked, so anything
 # marked "slow" is fetched once every _SLOW_EVERY passes instead.
 _SLOW_EVERY = 15          # ~every 30 min against a 2-minute loop
+_rotate = 0               # where the next cycle starts (see fetch_all)
 _cycle = 0
+
+
+# One cycle may not run longer than this. 40 sources at a 25s timeout is a
+# 16-minute worst case against a 120-second loop, so a bad afternoon upstream
+# turns "every gig the moment it drops" into a cycle every quarter hour with
+# nothing saying why.
+_CYCLE_BUDGET_S = 90
+
+# Per-source health, so a single feed going quiet is visible. Total volume
+# barely moves when one of forty stops, which is what makes this the easiest
+# kind of failure to miss: everything still works, just less.
+#   best       most this source has ever returned — evidence it used to work
+#   zero_run   consecutive cycles it was asked and returned nothing
+#   err_run    consecutive cycles it raised
+_HEALTH: dict[str, dict] = {}
+
+
+def health() -> dict:
+    """Per-source counters for the admin page. See _HEALTH."""
+    return {k: dict(v) for k, v in _HEALTH.items()}
+
+
+def _note_source(name: str, got: int, err: str = ""):
+    import time as _t
+    h = _HEALTH.setdefault(
+        name, {"best": 0, "last": 0, "total": 0, "zero_run": 0, "err_run": 0,
+               "last_ok": 0.0, "last_error": ""})
+    h["last"] = got
+    h["total"] += got
+    h["best"] = max(h["best"], got)
+    if err:
+        h["err_run"] += 1
+        h["last_error"] = err[:200]
+        if h["err_run"] in (3, 12) or h["err_run"] % 50 == 0:
+            print(f"  ! source {name} has failed {h['err_run']} cycles in a row: "
+                  f"{h['last_error']}", flush=True)
+        return
+    h["err_run"] = 0
+    h["last_error"] = ""
+    if got:
+        h["zero_run"] = 0
+        h["last_ok"] = _t.time()
+        return
+    h["zero_run"] += 1
+    # Zero is normal in a quiet cycle. Zero over and over from a source that
+    # has produced before is a feed that changed shape and is now parsing to
+    # nothing — no error, no gigs, no sign.
+    if h["best"] and (h["zero_run"] in (12, 60) or h["zero_run"] % 200 == 0):
+        print(f"  ! source {name} has returned nothing for {h['zero_run']} "
+              f"cycles (best was {h['best']}) — it may have changed shape",
+              flush=True)
 
 
 def fetch_all() -> list[dict]:
     global _cycle
     _cycle += 1
     out = []
-    for name in config.ENABLE_SOURCES:
+    started = time.time()
+
+    # Resume where the last cycle ran out of time. The budget below cuts the
+    # tail off, and a fixed order would cut the SAME sources every time,
+    # forever — they would simply never be fetched, while the log still showed
+    # a healthy cycle finding gigs. Starting at the first one we didn't get to
+    # means the cut moves and every source gets its turn.
+    global _rotate
+    names = list(config.ENABLE_SOURCES)
+    if names:
+        _rotate %= len(names)
+        names = names[_rotate:] + names[:_rotate]
+
+    skipped = 0
+    considered = 0
+    for i, name in enumerate(names):
+        if time.time() - started > _CYCLE_BUDGET_S:
+            skipped = len(names) - i
+            break
+        considered = i + 1
         if name in _SLOW_BESPOKE and _cycle % _SLOW_EVERY != 1:
             continue
         fetcher = _FETCHERS.get(name)
@@ -531,9 +602,19 @@ def fetch_all() -> list[dict]:
         print(f"Fetching {name}…")
         try:
             got = fetcher()
+            _note_source(name, len(got))
         except Exception as e:
             print(f"  ! {name} failed: {e}")
+            _note_source(name, 0, f"{type(e).__name__}: {e}")
             got = []
         print(f"  → {len(got)} from {name}")
         out += got
+
+    # Advance by what we actually got through, so the deferred ones are first
+    # in line next cycle rather than waiting for the rotation to come round.
+    if names:
+        _rotate = (_rotate + considered) % len(names)
+    if skipped:
+        print(f"  cycle hit its {_CYCLE_BUDGET_S}s budget — {skipped} source(s) "
+              f"deferred; they lead the next pass", flush=True)
     return out
