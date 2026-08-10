@@ -136,9 +136,13 @@ def upsert_many(records) -> int:
     records = [r for r in (records or []) if r.get("source") and r.get("source_id")]
     if not records:
         return 0
-    cols = ("source", "source_id", "url", "title", "body", "posted_at",
-            "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner")
-    defaults = {"is_demand": 1, "owner": ""}
+    # Read the column list off the mirror instead of repeating it. These two
+    # lists have to agree exactly — the mirror decides what gets saved, this
+    # decides what comes back — and when they were two hand-kept copies they
+    # drifted: the mirror later gained columns this side still dropped on the
+    # floor. Lazy import for the same reason rehydrate_board() uses one.
+    import board_store
+    cols, defaults = board_store.COLS, board_store.DEFAULTS
     conn = connect()
     try:
         before = conn.total_changes

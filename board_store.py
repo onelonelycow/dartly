@@ -24,14 +24,36 @@ this runs identically to how it runs against Supabase, which is how it's tested.
 import store
 
 _TABLE = "nabbly_posts"
-CAP = 15000          # rehydrate the newest N; keeps boot quick and storage bounded
+# Rehydrate the newest N. This has to stay comfortably ahead of the real board
+# or the mirror quietly becomes lossy in a way nothing reports: gigs past the
+# cap never come back, and because they're gone their source_ids stop blocking
+# re-ingest, so old postings can reappear later as brand new. At 15,000 against
+# a ~25,600-gig board that was already happening to the oldest 10,000.
+CAP = 40000
 
 # Everything except the local autoincrement id, which is meaningless across
 # instances — rows are keyed on (source, source_id), the same natural key the
 # local table dedupes on.
+#
+# A column missing from this tuple is a column that silently does not survive a
+# redeploy. That is not theoretical: apply_email, page_checked and link_checked
+# were all absent here, so every gig lost its extracted apply-to address on each
+# deploy and the two backfill sweeps restarted from zero at a few pages a cycle,
+# never catching up. Add a column to posts, add it here too.
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
-         "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner")
-_DEFAULTS = {"is_demand": 1, "owner": ""}
+         "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
+         "apply_email", "page_checked", "link_checked")
+# page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
+# with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
+# already swept, and an "" would fail outright against an integer column in
+# Postgres — taking the whole executemany, and the batch, down with it.
+_DEFAULTS = {"is_demand": 1, "owner": "",
+             "page_checked": None, "link_checked": None}
+
+# db.upsert_many() restores exactly these columns, so it reads them from here
+# rather than keeping a second copy that can drift out of sync (it did).
+COLS = _COLS
+DEFAULTS = _DEFAULTS
 
 
 def enabled() -> bool:
@@ -53,8 +75,47 @@ def _ensure(conn):
                 size_tier  text,
                 urgency    text,
                 owner      text DEFAULT '',
+                apply_email text,
+                page_checked integer,
+                link_checked integer,
                 PRIMARY KEY (source, source_id)
             )""")
+    _migrate(conn)
+
+
+# Columns added after the mirror table was first created. CREATE TABLE IF NOT
+# EXISTS above is a no-op against the table already live in Supabase, so new
+# columns only ever arrive through here.
+_ADDED = (("apply_email", "text"),
+          ("page_checked", "integer"),
+          ("link_checked", "integer"))
+
+
+def _migrate(conn):
+    """
+    Add any missing columns to an already-created mirror table.
+
+    Asks what the table has before altering it rather than firing ALTERs and
+    catching the failures: psycopg runs in a transaction, and one failed
+    statement aborts it, so a redundant "column already exists" would poison the
+    connection and make the INSERT that follows fail — push() would swallow that
+    and return 0, mirroring nothing, silently. SELECT ... LIMIT 0 gets the
+    column names off the cursor description on both drivers.
+    """
+    try:
+        cur = conn.execute(f"SELECT * FROM {_TABLE} LIMIT 0")
+        have = {d[0] for d in (cur.description or ())}
+    except Exception:
+        return
+    added = False
+    for col, decl in _ADDED:
+        if col not in have:
+            conn.execute(f"ALTER TABLE {_TABLE} ADD COLUMN {col} {decl}")
+            added = True
+    if added:
+        # pull()/count() never commit, so without this the DDL rolls back on
+        # close and every boot re-runs the migration.
+        conn.commit()
 
 
 def _row(rec: dict) -> tuple:
