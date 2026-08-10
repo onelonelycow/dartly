@@ -17,6 +17,7 @@ import os
 import re
 import ssl
 import json
+import time
 import smtplib
 import subprocess
 from email.message import EmailMessage
@@ -380,6 +381,29 @@ def notify_new(prefs: dict | None = None, desktop: bool = True) -> int:
     return total
 
 
+# How long one alert pass may hold the fetch thread. Generous enough that a
+# normal pass never notices it, short enough that a pile of dead webhooks
+# can't stall ingest for minutes. See the check inside notify_everyone().
+_ALERT_PASS_BUDGET_S = 60
+
+
+def _advance(accounts, acc, newest: int):
+    """
+    Move someone's alert marker, but only when it would actually change.
+
+    set_last_alert_id() writes the row AND mirrors it to the durable store, so
+    it is a database write plus a network round trip. This used to fire for
+    every Pro account on every pass, including the ones already caught up —
+    the loop runs whenever ANY single person is behind, and everyone else got
+    a redundant write for it. At a few dozen accounts that is a few dozen
+    pointless round trips every alert cycle, on the fetch thread, forever.
+    """
+    if int(acc.get("last_alert_id") or 0) == int(newest):
+        return
+    accounts.set_last_alert_id(acc["email"], newest)
+    acc["last_alert_id"] = newest
+
+
 def notify_everyone(desktop: bool = False) -> int:
     """
     Alert every signed-in person, each against their own channels and skills.
@@ -444,7 +468,26 @@ def notify_everyone(desktop: bool = False) -> int:
         return 0                          # nothing new since the earliest marker
     public = _db.posts_since(floor, demand_only=True)
 
-    for acc in live:
+    # Most-behind first. This pass shares its thread with ingest and can run out
+    # of budget below, so the order decides who gets served when it does. By
+    # marker age, whoever has been waiting longest goes first and the same
+    # people can't be starved every cycle — which is exactly what a fixed order
+    # would do to whoever sits at the tail of the account list.
+    live.sort(key=lambda a: int(a.get("last_alert_id") or 0))
+    started = time.time()
+
+    for done, acc in enumerate(live):
+        # HARD STOP, because this runs on the fetch thread. Every configured
+        # channel is a blocking request with a 10-15s timeout, so a handful of
+        # people with a dead webhook can hold the loop for minutes — and while
+        # it's held, nothing is being fetched. The board silently stops
+        # updating, which breaks the one promise the product makes. Whoever is
+        # left keeps their marker and leads the next pass.
+        if time.time() - started > _ALERT_PASS_BUDGET_S:
+            print(f"  alerts: pass hit its {_ALERT_PASS_BUDGET_S}s budget with "
+                  f"{len(live) - done} account(s) unserved — they lead the "
+                  f"next pass", flush=True)
+            break
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prefs = load_prefs()
@@ -452,7 +495,7 @@ def notify_everyone(desktop: bool = False) -> int:
                    ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):
             # Still advance the marker so they don't bank a backlog that fires
             # the moment they switch a channel on.
-            accounts.set_last_alert_id(acc["email"], newest)
+            _advance(accounts, acc, newest)
             continue
         # Their own forwarded gigs count as theirs to be alerted about, and are
         # often the most valuable ones on their board.
@@ -474,5 +517,5 @@ def notify_everyone(desktop: bool = False) -> int:
             pinged += 1
         # Move the marker even when nothing matched, so a quiet person doesn't
         # accumulate a backlog that fires the moment they change their skills.
-        accounts.set_last_alert_id(acc["email"], newest)
+        _advance(accounts, acc, newest)
     return pinged

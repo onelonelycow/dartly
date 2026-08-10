@@ -22,6 +22,7 @@ _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
 _NUDGE_CHECK_S = 3600      # how often to check for a lapsed "yes I'd pay" trial
 _ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
+_GAP_RECHECK_S = 300       # how often to re-read everyone's alert interval
 _started = False
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
@@ -113,6 +114,10 @@ def _loop(on_update=None):
         pass
 
     last_alert = 0.0
+    # The alert gap is derived from every account's prefs file, so it is
+    # recomputed on a clock rather than every tick — see where it's used.
+    gap = None
+    last_gap_calc = 0.0
     # NOT 0.0: `time.time() - 0.0 >= 3600` is true on the very first pass, so
     # a zero here means every deploy and every idle-wake restart fires a digest
     # sweep within seconds of booting instead of an hour in. Starting the clock
@@ -176,11 +181,22 @@ def _loop(on_update=None):
             try:
                 # Shortest gap anyone has asked for, so a user who wants alerts
                 # every 5 minutes isn't held to someone else's hourly setting.
-                gaps = []
-                for _a in accounts.all_accounts():
-                    paths.set_scope(paths.scope_for(_a["email"]))
-                    gaps.append(max(1, int(alerts.load_prefs().get("every_min") or 15)))
-                gap = (min(gaps) if gaps else 15) * 60
+                #
+                # Recomputed every _GAP_RECHECK_S rather than every tick. It
+                # opens and parses one prefs file PER ACCOUNT, and the loop
+                # ticks every 2 minutes — at a few hundred users that is
+                # hundreds of file reads a minute, on the fetch thread, to
+                # produce a number that changes when somebody edits a setting.
+                # The cost was invisible with three accounts and grows with
+                # every signup. A change now takes up to five minutes to take
+                # effect instead of two, which is well inside the gap it sets.
+                if time.time() - last_gap_calc >= _GAP_RECHECK_S or gap is None:
+                    gaps = []
+                    for _a in accounts.all_accounts():
+                        paths.set_scope(paths.scope_for(_a["email"]))
+                        gaps.append(max(1, int(alerts.load_prefs().get("every_min") or 15)))
+                    gap = (min(gaps) if gaps else 15) * 60
+                    last_gap_calc = time.time()
             except Exception:
                 gap = _ALERT_MIN_GAP_S
             # Mirror traffic to the durable store each cycle. Cheap (one small
