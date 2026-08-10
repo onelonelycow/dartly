@@ -83,8 +83,11 @@ def _loop(on_update=None):
         # because idle sleep and the OOM crashes restarted the process often
         # enough to keep re-triggering it. An always-on paid instance can run
         # for weeks without a restart, and without the loop call a gig that
-        # crosses 45 days mid-run would simply never age out.
+        # crosses the cutoff mid-run would simply never age out.
         _state["archived"] = db.archive_stale()
+        # Reclaims the text of gigs retired before archiving started dropping
+        # it. Real work once, then reports 0 for the life of the deployment.
+        _state["compacted"] = db.compact_archived()
         # Nodesk turned out to be a paid subscription, not a job board — pulled
         # from ENABLE_SOURCES already; this clears the ~43 rows it had already
         # placed on the board so they don't linger under a source we no longer
@@ -252,12 +255,13 @@ def _loop(on_update=None):
                     pass
                 last_nudge_check = time.time()
 
-            # Daily is plenty — a 45-day cutoff doesn't need a 2-minute clock,
+            # Daily is plenty — a freshness cutoff doesn't need a 2-minute clock,
             # and this is a full-table scan (see archive_stale) so it shouldn't
             # run any more often than the thing it's protecting against.
             if time.time() - last_archive_check >= _ARCHIVE_CHECK_S:
                 try:
                     _state["archived"] = db.archive_stale()
+                    _state["compacted"] = db.compact_archived()
                 except Exception:
                     pass
                 last_archive_check = time.time()

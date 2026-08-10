@@ -430,7 +430,11 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
     try:
         conn.executemany(
             "UPDATE posts SET link_checked = 1, "
-            "is_demand = CASE WHEN ?1 = 1 THEN 0 ELSE is_demand END "
+            "is_demand = CASE WHEN ?1 = 1 THEN 0 ELSE is_demand END, "
+            # Same as archive_stale: a dead link is off the board for good, so
+            # its body is dead weight. Guarded on the verdict so a live gig
+            # that merely got checked keeps everything.
+            "body = CASE WHEN ?1 = 1 THEN '' ELSE body END "
             "WHERE id = ?2", verdicts)
         conn.commit()
     finally:
@@ -447,7 +451,16 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
     return sum(d for d, _ in verdicts)
 
 
-STALE_DAYS = 45
+# How long a gig stays on the board. This, not any row cap, is what decides how
+# big the board gets: intake times retention. At ~1,200 new gigs a day, 45 days
+# meant the board was converging on ~54,000 rows, and it was already at 33,000
+# and climbing. 21 days settles it around ~25,000.
+#
+# 21 rather than 45 because freelance work moves faster than salaried hiring. A
+# six-week-old gig is nearly always filled, and a dead listing is worse than no
+# listing (see archive_stale). The board is a marketing number; the part a
+# member actually feels is whether the links they click are still alive.
+STALE_DAYS = 21
 
 
 def archive_stale(days: int = STALE_DAYS) -> int:
@@ -473,8 +486,14 @@ def archive_stale(days: int = STALE_DAYS) -> int:
             "SELECT source, source_id FROM posts WHERE is_demand = 1 "
             "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?",
             (cutoff,)).fetchall()]
+        # body is dropped, not kept. An archived row exists to block its own
+        # source_id from being re-ingested and to keep the history; it is never
+        # displayed, because every board read filters is_demand = 1. Its body
+        # averages 1,640 bytes and is 93% of what a row weighs, so keeping it
+        # meant the archive tail grew forever and had to be hauled back over
+        # the network at every boot for nothing.
         cur = conn.execute(
-            "UPDATE posts SET is_demand = 0 "
+            "UPDATE posts SET is_demand = 0, body = '' "
             "WHERE is_demand = 1 "
             "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (cutoff,))
         conn.commit()
@@ -488,6 +507,36 @@ def archive_stale(days: int = STALE_DAYS) -> int:
         try:
             import board_store
             board_store.mark_archived(aged)
+        except Exception:
+            pass
+    return n
+
+
+def compact_archived() -> int:
+    """
+    Drop the body from gigs that were archived before we started doing it.
+
+    archive_stale() and sweep_dead_links() only ever touch rows that are still
+    live, so everything retired before this change kept its text. Without a
+    pass like this the old tail is never reclaimed — it just sits there being
+    pulled over the network at every boot.
+
+    Effectively a one-time job that reports 0 forever after, so it's safe to
+    leave on the daily cycle rather than making it a migration someone has to
+    remember to run.
+    """
+    conn = connect()
+    try:
+        cur = conn.execute(
+            "UPDATE posts SET body = '' WHERE is_demand = 0 AND body != ''")
+        conn.commit()
+        n = cur.rowcount or 0
+    finally:
+        conn.close()
+    if n:
+        try:
+            import board_store
+            board_store.compact_archived()
         except Exception:
             pass
     return n
@@ -509,7 +558,8 @@ def archive_source(source: str) -> int:
             "SELECT source, source_id FROM posts WHERE is_demand = 1 AND source = ?",
             (source,)).fetchall()]
         cur = conn.execute(
-            "UPDATE posts SET is_demand = 0 WHERE is_demand = 1 AND source = ?",
+            "UPDATE posts SET is_demand = 0, body = '' "   # see archive_stale
+            "WHERE is_demand = 1 AND source = ?",
             (source,))
         conn.commit()
         n = cur.rowcount or 0

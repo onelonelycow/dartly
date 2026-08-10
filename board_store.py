@@ -149,6 +149,31 @@ def push(records) -> int:
         return 0
 
 
+def compact_archived() -> int:
+    """
+    Mirror-side twin of db.compact_archived(): reclaim old archived bodies.
+
+    Rows retired before mark_archived() started clearing body still carry their
+    text here, and this is the copy that gets read back at boot, so leaving it
+    would mean the local side got smaller while the boot cost stayed put.
+    """
+    if not enabled():
+        return 0
+    try:
+        conn, _ = store._connect()
+        try:
+            _ensure(conn)
+            with conn:
+                cur = conn.execute(
+                    f"UPDATE {_TABLE} SET body = '' "
+                    f"WHERE is_demand = 0 AND COALESCE(body, '') != ''")
+            return cur.rowcount or 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
 def pull(cap: int = CAP) -> list[dict]:
     """The newest `cap` mirrored gigs as dicts. Empty on any failure/disabled."""
     if not enabled():
@@ -205,7 +230,11 @@ def mark_archived(pairs) -> int:
         conn, ph = store._connect()
         try:
             _ensure(conn)
-            sql = (f"UPDATE {_TABLE} SET is_demand = 0 "
+            # Drop the body here too, or the saving is local-only: the mirror
+            # would keep every archived gig's text forever and hand it back at
+            # the next boot, which is the one moment the whole board crosses
+            # the network. The row still blocks re-ingest without it.
+            sql = (f"UPDATE {_TABLE} SET is_demand = 0, body = '' "
                    f"WHERE source = {ph} AND source_id = {ph}")
             with conn:
                 conn.cursor().executemany(sql, pairs)
