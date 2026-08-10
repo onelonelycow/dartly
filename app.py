@@ -1460,6 +1460,19 @@ def _resolve_account():
             # difference matters: this line signs someone out permanently, and
             # a moment of lock contention must never be what triggers it.
             st.session_state.pop("_tok", None)   # stale or forged token
+
+        # Coming back from somewhere we deliberately did NOT hand the real
+        # sign-in token to — Stripe Checkout is the only one today. ?e= is the
+        # HMAC-derived email token, which identifies the account without being
+        # a credential, so we resolve it here and restore the real session
+        # server-side. Without this the redirect back from a successful
+        # payment would land the payer on an anonymous page.
+        etok = st.query_params.get("e") or ""
+        if etok:
+            acc = accounts.by_email_token(etok)
+            if acc:
+                st.session_state["_tok"] = acc["token"]
+                return acc
     except accounts.StoreUnavailable:
         pass
     return None
@@ -1497,6 +1510,14 @@ PRO = ACCESS["pro"]
 
 # The token for whoever is signed in by email, or "" — see ilink() below.
 TOKEN = (ACCOUNT or {}).get("token", "") if ACCOUNT else ""
+# The same person, identified by a value that is NOT a credential (HMAC of the
+# sign-in token; see accounts.email_token). Used anywhere the identifier leaves
+# our control and gets stored by someone else — Stripe's Checkout session
+# objects being the case that matters: they're retained indefinitely and are
+# readable from the Stripe dashboard, so the real sign-in token must never ride
+# in a return URL. _resolve_account never accepts this value, so on its own it
+# grants nothing.
+EMAIL_TOKEN = accounts.email_token(TOKEN) if TOKEN else ""
 
 
 def saved_ids() -> list:
@@ -2380,8 +2401,34 @@ def apply_bias(view):
     return view.sort_values("_score", ascending=False)
 
 
-@st.cache_data(ttl=180, show_spinner=False)
-def _dash_picks(version, skills, srcs):
+def _prof_cache_key():
+    """
+    Every profile field that changes what _dash_picks returns.
+
+    This exists because _dash_picks is @st.cache_data, and a cache_data cache
+    is shared by EVERY visitor in the process — so anything the cached body
+    reads that isn't in the key is served across users. The body reads this
+    person's profile through five different helpers (mute in apply_filters,
+    city/relocate in apply_city_lock, country/show_all in apply_language,
+    keywords/rate_floor in scored), so all of it has to ride in the key.
+
+    Fingerprinted rather than passed as one dict because cache keys must be
+    hashable, and because listing the fields makes it obvious what has to be
+    added here when a new profile field starts affecting the feed.
+    """
+    return (
+        (prof.get("keywords") or ""),
+        str(prof.get("rate_floor") or ""),
+        (prof.get("mute") or ""),
+        (prof.get("city") or ""),
+        (prof.get("country") or ""),
+        bool(prof.get("open_to_relocate")),
+        bool(prof.get("show_all_languages")),
+    )
+
+
+@st.cache_data(ttl=180, show_spinner=False, max_entries=24)
+def _dash_picks(version, scope, prof_key, skills, srcs):
     """
     The dashboard's "Picked for you" feed, cached. scored() alone measured
     ~90ms against a few thousand matched gigs — cheap once, but the
@@ -2390,10 +2437,24 @@ def _dash_picks(version, skills, srcs):
     the profile had actually changed since the last one. That's what made
     each successive load feel slower than the last, not the rendering.
 
+    `scope` and `prof_key` ARE NOT USED IN THE BODY AND MUST NOT BE REMOVED.
+    They exist purely to make the cache key identify a person. Without them
+    this function was keyed on (version, skills, srcs) alone while its body
+    read the current visitor's scope and profile — so two people who happened
+    to share a skill set were served each other's frames: one person's
+    privately forwarded gigs (load_feed pulls db.owned_posts for the current
+    scope) and their profile keywords, which render as the visible "why"
+    chips on every card. Anything this body reads that isn't an argument has
+    to be added to _prof_cache_key().
+
+    max_entries bounds it too: this returns a board-sized DataFrame, and
+    cache_data is unbounded by default — the same shape of mistake that
+    twice took the instance over its memory ceiling (see _public_feed).
+
     Keyed off the board's own version fingerprint (same one _public_feed_at
-    uses) plus skills, so it invalidates the moment real data changes
-    rather than sitting stale on a timer. Loads the feed itself instead of
-    taking `df` as an argument — load_feed() is already cheap (it just hits
+    uses), so it invalidates the moment real data changes rather than
+    sitting stale on a timer. Loads the feed itself instead of taking `df`
+    as an argument — load_feed() is already cheap (it just hits
     _public_feed's own cache) and a DataFrame is an expensive thing to hash
     as a cache key.
     """
@@ -3020,7 +3081,8 @@ def view_dashboard(pro):
         st.markdown('### Picked for <span class="gr-accent">you</span>'
                     '<span class="gr-sect"></span>', unsafe_allow_html=True)
         srcs = sorted(df["source"].unique())
-        top = _dash_picks(db.board_version(), tuple(prof["skills"]), tuple(srcs))
+        top = _dash_picks(db.board_version(), paths.get_scope(),
+                          _prof_cache_key(), tuple(prof["skills"]), tuple(srcs))
         top = apply_bias(top)
     else:
         st.markdown('### Fresh off the <span class="gr-accent">boards</span>'
@@ -3993,8 +4055,8 @@ def plan_card():
             if billing.enabled():
                 _url = billing.checkout_url(
                     ACCESS["email"],
-                    success_url=f"{mailer.APP_URL}/?from=profile&stripe_session={{CHECKOUT_SESSION_ID}}&u={TOKEN}",
-                    cancel_url=f"{mailer.APP_URL}/?nav=profile&u={TOKEN}")
+                    success_url=f"{mailer.APP_URL}/?from=profile&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
+                    cancel_url=f"{mailer.APP_URL}/?nav=profile&e={EMAIL_TOKEN}")
                 if _url:
                     st.link_button("Upgrade to Pro — $12/mo", _url,
                                    type="primary", width="stretch")
@@ -4282,8 +4344,8 @@ def signup_card(where="dashboard"):
                 with _u2:
                     _url = billing.checkout_url(
                         a["email"],
-                        success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&u={TOKEN}",
-                        cancel_url=f"{mailer.APP_URL}/?nav={where}&u={TOKEN}")
+                        success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
+                        cancel_url=f"{mailer.APP_URL}/?nav={where}&e={EMAIL_TOKEN}")
                     if _url:
                         st.link_button("Upgrade to Pro — $12/mo", _url,
                                        type="primary", width="stretch")

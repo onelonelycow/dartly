@@ -1,17 +1,29 @@
 # PINNED ON PURPOSE. Render installs the newest match on every build, so an
 # unbounded range means an upstream release can break a deploy on a commit
-# that changed nothing. 1.59 is the floor we test against (st.login/st.user
-# need >=1.42; width="stretch" needs a recent one); <2 keeps a major out.
-streamlit>=1.59,<2
-pandas>=2.0
-altair>=5.0
-requests>=2.31
-feedparser>=6.0
-praw>=7.7
-python-dotenv>=1.0
-anthropic>=0.40
-Authlib>=1.3.2           # OIDC handshake behind st.login
-psycopg[binary]>=3.1        # Supabase (Postgres) durable store
-pypdf>=4.0               # reads an uploaded resume in memory; nothing written to disk
-python-docx>=1.1         # same, for .docx — a Word resume, not stored either
-stripe>=11.0              # Pro checkout
+# that changed nothing.
+#
+# Every line now carries an UPPER bound, which is what the note above always
+# claimed and only streamlit actually had. Without it the floors had drifted
+# badly — a build was resolving stripe 15.x against a >=11.0 floor and pandas
+# 3.x against >=2.0, i.e. four majors and one major past what the comment
+# called "the floor we test against". Nothing was broken (all 37 modules
+# import cleanly against the versions below), but the next major of any of
+# these would have landed straight in production on a commit that changed
+# nothing.
+#
+# Upper bounds are the NEXT major, so patch and minor updates still flow in
+# and only a breaking release is held back. Raising one is a deliberate
+# commit: bump it, deploy, watch it.
+streamlit>=1.59,<2       # st.login/st.user need >=1.42; width="stretch" needs recent
+pandas>=2.0,<4           # 3.x is what runs today; 4.0 is the next break
+altair>=5.0,<7           # 6.x today
+requests>=2.31,<3
+feedparser>=6.0,<7
+praw>=7.7,<9             # 8.x today
+python-dotenv>=1.0,<2
+anthropic>=0.40,<1       # pre-1.0 SDK: minor bumps can break, watch this one
+Authlib>=1.3.2,<2        # OIDC handshake behind st.login
+psycopg[binary]>=3.1,<4  # Supabase (Postgres) durable store
+pypdf>=4.0,<8            # 6.x today; reads an uploaded resume in memory only
+python-docx>=1.1,<2      # same, for .docx — a Word resume, not stored either
+stripe>=11.0,<16         # 15.x today — Pro checkout

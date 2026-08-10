@@ -67,18 +67,58 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     if not enabled() or not session_id:
         return False, ""
     try:
-        session = stripe.checkout.Session.retrieve(session_id)
+        session = stripe.checkout.Session.retrieve(
+            session_id, expand=["line_items"], timeout=15)
     except Exception as e:
         print(f"  ! stripe confirm: {type(e).__name__}: {e}")
         return False, ""
     if getattr(session, "payment_status", "") != "paid":
         return False, ""
+
+    # A paid session stays retrievable from Stripe forever, so "payment_status
+    # is paid" on its own is not proof of a CURRENT entitlement — it is proof
+    # that money changed hands once. Re-opening the old success URL out of
+    # browser history months after cancelling would otherwise hand back
+    # lifetime Pro, free, as many times as you like. Three checks close that:
+
+    # 1. It has to be the subscription product, not merely *a* paid session on
+    #    this Stripe account. Without this, any future one-off purchase could
+    #    be replayed here as a Pro grant.
+    if getattr(session, "mode", "") != "subscription":
+        return False, ""
+    try:
+        bought = {li.price.id for li in session.line_items.data if li.price}
+        if PRICE_ID not in bought:
+            return False, ""
+    except Exception:
+        return False, ""      # can't prove what was bought -> don't grant
+
     email = (getattr(session, "client_reference_id", "") or
              getattr(session, "customer_email", "") or "").strip().lower()
     if not email:
         return False, ""
+
+    # 2. The subscription behind it has to still be live. This is what a
+    #    webhook would tell us; asking Stripe at redemption time gets the same
+    #    answer without needing an endpoint Streamlit can't host.
+    sub_id = getattr(session, "subscription", "") or ""
+    if not sub_id:
+        return False, ""
+    try:
+        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        if getattr(sub, "status", "") not in ("active", "trialing"):
+            return False, ""
+    except Exception as e:
+        print(f"  ! stripe sub check: {type(e).__name__}: {e}")
+        return False, ""
+
+    # 3. One session grants Pro once. A replay of the same id is a no-op
+    #    rather than a re-grant.
     import accounts
+    if accounts.session_already_used(sub_id, session_id):
+        return True, email
+
     accounts.set_plan(email, "pro")
-    accounts.set_stripe_ids(email, getattr(session, "customer", ""),
-                            getattr(session, "subscription", ""))
+    accounts.set_stripe_ids(email, getattr(session, "customer", ""), sub_id)
+    accounts.mark_session_used(email, session_id)
     return True, email

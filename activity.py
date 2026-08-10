@@ -16,9 +16,12 @@ can ever know, and the digest email says so plainly rather than implying more.
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+import table_mirror
 from paths import data_file
 
 DB_PATH = data_file("activity.db")
+# Namespace inside store.py's shared key-value table, one row per account.
+_MIRROR_SCOPE = "_activity"
 
 
 def _connect():
@@ -45,7 +48,25 @@ def init():
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_apply_who_ts ON apply_clicks(who, ts)")
     conn.commit()
+    # Without this the weekly digest tells everyone "0 gigs applied to" after
+    # any redeploy, because the local file came back empty.
+    table_mirror.rehydrate(
+        _MIRROR_SCOPE, conn, "apply_clicks",
+        ("who", "gig_id", "ts"),
+        "SELECT COUNT(*) FROM apply_clicks")
     conn.close()
+
+
+def _rows(who: str) -> list:
+    """Every logged click for one account, as plain dicts (for the mirror)."""
+    try:
+        conn = _connect()
+        rows = [dict(r) for r in conn.execute(
+            "SELECT who, gig_id, ts FROM apply_clicks WHERE who = ?", (who,))]
+        conn.close()
+        return rows
+    except Exception:
+        return []
 
 
 def log_apply(who: str, gig_id):
@@ -61,6 +82,7 @@ def log_apply(who: str, gig_id):
             (who, int(gig_id), datetime.now(timezone.utc).isoformat(timespec="seconds")))
         conn.commit()
         conn.close()
+        table_mirror.mirror_rows(_MIRROR_SCOPE, who, _rows(who))
     except Exception:
         pass
 

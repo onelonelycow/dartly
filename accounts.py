@@ -55,9 +55,16 @@ PARTNER_GRANTS = {
 }
 
 _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
+# EVERY column that must survive a wiped disk belongs here — this tuple is
+# what _mirror/_rehydrate copy. A column missing from this list looks fine
+# until a redeploy silently resets it: pay_nudge_sent was missing, which
+# would have let the one-time lapsed-payer email fire again after every
+# deploy, and stripe_session_id would have re-opened the Checkout replay
+# this list is meant to close.
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
          "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest",
-         "stripe_customer_id", "stripe_subscription_id")
+         "pay_nudge_sent", "stripe_customer_id", "stripe_subscription_id",
+         "stripe_session_id")
 _rehydrated = False
 
 
@@ -118,7 +125,8 @@ def init():
             last_digest   TEXT,                  -- when the weekly digest last sent them
             pay_nudge_sent TEXT,                 -- stamped once the lapsed-payer nudge sends
             stripe_customer_id     TEXT,
-            stripe_subscription_id TEXT
+            stripe_subscription_id TEXT,
+            stripe_session_id      TEXT           -- last redeemed Checkout session; blocks replay
         )
         """
     )
@@ -127,7 +135,8 @@ def init():
     for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
                       ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT"),
                       ("pay_nudge_sent", "TEXT"),
-                      ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT")):
+                      ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT"),
+                      ("stripe_session_id", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
@@ -495,14 +504,25 @@ def downgrade(email: str) -> bool:
     status() reads the deadline first — leaving a live pro_until behind would
     keep handing them Pro after they asked to leave it, which is the kind of
     "we heard you and did nothing" bug people don't report, they just distrust.
+
+    pro_until is set to NOW rather than NULL. Clearing it outright made
+    _pro_deadline() return None, which status() reads as "never had a grant"
+    and answers with can_trial: True — so downgrading from a 90-day partner
+    grant unlocked a fresh 14-day trial on top of it. A deadline in the past
+    says the honest thing instead: a grant existed and it is over. status()
+    takes that branch and returns pro False / expired True / can_trial False.
+
+    (Stamping trial_start instead does NOT work: _pro_deadline falls back to
+    trial_start + TRIAL_DAYS, so writing today's date there hands the person
+    14 more days of Pro at the exact moment they asked to leave it.)
     """
     email = (email or "").strip().lower()
     if not email:
         return False
     init()
     conn = _connect()
-    conn.execute("UPDATE accounts SET plan='free', pro_until=NULL, founding=0 "
-                 "WHERE email=?", (email,))
+    conn.execute("UPDATE accounts SET plan='free', pro_until=?, founding=0 "
+                 "WHERE email=?", (_now(), email))
     conn.commit()
     conn.close()
     _mirror(email)
@@ -541,6 +561,47 @@ def set_stripe_ids(email: str, customer_id: str, subscription_id: str):
     conn.commit()
     conn.close()
     _mirror(email)
+
+
+def mark_session_used(email: str, session_id: str):
+    """
+    Record that a Stripe Checkout session has already been redeemed.
+
+    Stripe keeps a completed session retrievable indefinitely, so the success
+    URL is replayable forever unless we remember which ids we've already
+    honoured. Stored on the account row (and mirrored) rather than in a new
+    table, because it's one short string per person and it has to survive the
+    same wipe everything else here does.
+    """
+    if not email or not session_id:
+        return
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET stripe_session_id=? WHERE email=?",
+                 (session_id, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
+def session_already_used(subscription_id: str, session_id: str) -> bool:
+    """
+    Has this exact Checkout session already granted Pro?
+
+    Matched against the subscription rather than the email so that redeeming
+    is idempotent even if the address on the session differs in case or
+    aliasing from the one on the account.
+    """
+    if not session_id:
+        return False
+    init()
+    conn = _connect()
+    row = conn.execute(
+        "SELECT 1 FROM accounts WHERE stripe_session_id = ? "
+        "   OR (stripe_subscription_id = ? AND stripe_session_id IS NOT NULL)",
+        (session_id, subscription_id or "")).fetchone()
+    conn.close()
+    return row is not None
 
 
 # ---------------------------------------------------------------------------

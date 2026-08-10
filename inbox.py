@@ -41,6 +41,9 @@ INBOX_DOMAIN = os.environ.get("INBOX_DOMAIN", "").strip()
 
 MAX_PER_POLL = 25          # messages per pass; a backlog drains over a few passes
 MAX_BODY = 12000           # plenty for a newsletter, keeps the model call cheap
+# Generous enough for a slow mailbox, short enough that a dead one costs one
+# cycle instead of the whole background thread — see the note at the connect.
+IMAP_TIMEOUT_S = 30
 
 
 def enabled() -> bool:
@@ -241,7 +244,16 @@ def poll(max_messages: int = MAX_PER_POLL) -> dict:
     fresh = []
 
     try:
-        box = imaplib.IMAP4_SSL(IMAP_HOST)
+        # timeout is NOT optional. This runs inside refresh.py's single
+        # background thread, which also does ingest, alerts, the weekly
+        # digest and archiving. imaplib defaults to a blocking socket with
+        # no deadline, so a mail host that accepts the connection and then
+        # stops responding parks this thread forever: no exception, no
+        # crash, nothing in the logs, and every background job silently
+        # stops running until the next deploy. Every other network call in
+        # the app already carries a timeout (sources 25s, mailer 15s,
+        # alerts 10-15s, store 8s) — this was the one that didn't.
+        box = imaplib.IMAP4_SSL(IMAP_HOST, timeout=IMAP_TIMEOUT_S)
         box.login(INBOX_EMAIL, INBOX_PASSWORD)
         box.select("INBOX")
         typ, data = box.search(None, "UNSEEN")

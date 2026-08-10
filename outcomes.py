@@ -21,9 +21,12 @@ new durability mechanism invented for a feature this size.
 import sqlite3
 from datetime import datetime, timezone
 
+import table_mirror
 from paths import data_file
 
 DB_PATH = data_file("nabbly_outcomes.db")
+# Namespace inside store.py's shared key-value table, one row per person.
+_MIRROR_SCOPE = "_outcomes"
 
 
 def _now():
@@ -61,7 +64,19 @@ def init():
         """
     )
     conn.commit()
+    # A win is the one thing a user can't reconstruct — they'd have to
+    # remember which gigs they landed. Refill from the durable mirror when
+    # the local file came back empty after a redeploy.
+    table_mirror.rehydrate(
+        _MIRROR_SCOPE, conn, "outcomes",
+        ("email", "gig_id", "amount", "ts"),
+        "SELECT COUNT(*) FROM outcomes")
     conn.close()
+
+
+def _mirror(email: str):
+    """Push this person's whole win list to the durable store."""
+    table_mirror.mirror_rows(_MIRROR_SCOPE, email, my_wins(email))
 
 
 def has_won(email: str, gig_id) -> bool:
@@ -95,12 +110,14 @@ def toggle(email: str, gig_id, amount: int = 0) -> bool:
                          (email, gid))
             conn.commit()
             conn.close()
+            _mirror(email)          # an undo has to reach the mirror too
             return False
         conn.execute(
             "INSERT INTO outcomes (email, gig_id, amount, ts) VALUES (?,?,?,?)",
             (email, gid, max(0, int(amount or 0)), _now()))
         conn.commit()
         conn.close()
+        _mirror(email)
         return True
     except sqlite3.Error:
         return False

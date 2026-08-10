@@ -14,9 +14,12 @@ writes, no new durability mechanism invented for a feature this size.
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+import table_mirror
 from paths import data_file
 
 DB_PATH = data_file("nabbly_match_feedback.db")
+# Namespace inside store.py's shared key-value table, one row per person.
+_MIRROR_SCOPE = "_match_feedback"
 
 
 def _now():
@@ -53,7 +56,35 @@ def init():
         """
     )
     conn.commit()
+    # Ratings are what my_category_bias() ranks on, so losing them doesn't
+    # just clear the thumbs — it silently turns personalisation back into a
+    # generic feed while the app still claims to be learning.
+    table_mirror.rehydrate(
+        _MIRROR_SCOPE, conn, "ratings",
+        ("email", "gig_id", "job_type", "source", "rating", "ts"),
+        "SELECT COUNT(*) FROM ratings")
     conn.close()
+
+
+def _all_rows(email: str) -> list:
+    """Every stored rating for one person, as plain dicts (for the mirror)."""
+    email = (email or "").strip().lower()
+    if not email:
+        return []
+    try:
+        conn = _connect()
+        rows = [dict(r) for r in conn.execute(
+            "SELECT email, gig_id, job_type, source, rating, ts "
+            "FROM ratings WHERE email = ?", (email,))]
+        conn.close()
+        return rows
+    except sqlite3.Error:
+        return []
+
+
+def _mirror(email: str):
+    """Push this person's whole rating history to the durable store."""
+    table_mirror.mirror_rows(_MIRROR_SCOPE, email, _all_rows(email))
 
 
 def my_ratings(email: str) -> dict:
@@ -92,6 +123,7 @@ def rate(email: str, gig_id, rating: str, job_type: str = "", source: str = ""):
                          (email, gid))
             conn.commit()
             conn.close()
+            _mirror(email)          # an undo has to reach the mirror too
             return None
         conn.execute(
             "INSERT INTO ratings (email, gig_id, job_type, source, rating, ts) "
@@ -102,6 +134,7 @@ def rate(email: str, gig_id, rating: str, job_type: str = "", source: str = ""):
             (email, gid, job_type, source, rating, _now()))
         conn.commit()
         conn.close()
+        _mirror(email)
         return rating
     except sqlite3.Error:
         return None
