@@ -307,7 +307,14 @@ def draft_ai(gig: dict, profile: dict, resume_text: str = "",
     # a 4096-token prefix is needed before anything caches. Marking it would
     # look like an optimisation while doing nothing. The cache above is the
     # real saving, since it stops us paying twice for the same gig.
-    client = anthropic.Anthropic()
+    # timeout is explicit because this call sits on the USER REQUEST PATH —
+    # someone clicked "generate my draft" and is watching a spinner. The SDK
+    # default is 600s, so a degraded API would hold that page for ten minutes
+    # before failing, which reads as "the product is broken" rather than "one
+    # draft didn't work". 45s is well past a normal completion (these run in
+    # a few seconds) and still short enough to fail while the person is
+    # plausibly still waiting.
+    client = anthropic.Anthropic(timeout=45.0, max_retries=1)
     resp = client.messages.create(
         model=MODEL,
         max_tokens=1200,

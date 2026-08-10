@@ -198,7 +198,12 @@ def extract_gigs(subject: str, body: str) -> list[dict]:
         if pitch.ai_available():
             import anthropic
             import json
-            client = anthropic.Anthropic()
+            # Background path, but same reasoning as pitch.py: this runs up
+            # to MAX_PER_POLL times per cycle inside the one refresh thread,
+            # so an unbounded default would let a slow API stall ingest and
+            # alerts behind it. Longer than the draft timeout because the
+            # payload is a whole newsletter, not one posting.
+            client = anthropic.Anthropic(timeout=90.0, max_retries=1)
             resp = client.messages.create(
                 model=pitch.MODEL,
                 max_tokens=4000,

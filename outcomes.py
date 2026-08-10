@@ -74,9 +74,32 @@ def init():
     conn.close()
 
 
+def _rows(email: str) -> list:
+    """
+    This person's wins WITH the email column, for the mirror.
+
+    Deliberately not my_wins(): that one selects (gig_id, amount, ts) for the
+    UI, so mirroring it restored rows with a null email — they came back into
+    the table but belonged to nobody, and my_count() read zero. The mirror
+    needs whatever rehydrate() will insert, which is every column it names.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return []
+    try:
+        conn = _connect()
+        rows = [dict(r) for r in conn.execute(
+            "SELECT email, gig_id, amount, ts FROM outcomes WHERE email = ?",
+            (email,))]
+        conn.close()
+        return rows
+    except sqlite3.Error:
+        return []
+
+
 def _mirror(email: str):
     """Push this person's whole win list to the durable store."""
-    table_mirror.mirror_rows(_MIRROR_SCOPE, email, my_wins(email))
+    table_mirror.mirror_rows(_MIRROR_SCOPE, email, _rows(email))
 
 
 def has_won(email: str, gig_id) -> bool:

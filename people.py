@@ -24,10 +24,18 @@ import json
 import sqlite3
 from datetime import datetime, timezone
 
+import table_mirror
 from paths import data_file
 
 DB_PATH = data_file("nabbly_people.db")
 WEBHOOK_URL = os.environ.get("SIGNUP_WEBHOOK_URL", "").strip()
+
+# Durable mirror (store.py), separate from the write-only webhook above.
+_PEOPLE_SCOPE = "_people"
+_FEEDBACK_SCOPE = "_people_feedback"
+_PEOPLE_COLS = ("email", "created", "updated", "source", "pay", "name",
+                "headline", "skills", "rate_floor", "rate_unit", "keywords",
+                "portfolio", "bio", "country", "city", "campaign")
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$")
 
@@ -99,6 +107,22 @@ def init():
     except sqlite3.OperationalError:
         pass
     conn.commit()
+
+    # SIGNUP_WEBHOOK_URL below is write-only: it ships a copy off-box but
+    # nothing ever reads it back, so on Render's ephemeral disk this table
+    # returned empty after every deploy. That silently disables the
+    # lapsed-payer email — lapsed_nudge builds its list from the people whose
+    # `pay` answer was "yes", and an empty table means it finds nobody and
+    # sends nothing, with no error anywhere. Same durable store accounts.py
+    # uses, so the two halves of one identity survive together.
+    table_mirror.rehydrate(
+        _PEOPLE_SCOPE, conn, "people", _PEOPLE_COLS,
+        "SELECT COUNT(*) FROM people")
+    table_mirror.rehydrate(
+        _FEEDBACK_SCOPE, conn, "feedback",
+        ("ts", "email", "rating", "message", "page"),
+        "SELECT COUNT(*) FROM feedback")
+    conn.commit()
     conn.close()
 
 
@@ -111,6 +135,37 @@ def _mirror(payload: dict):
         requests.post(WEBHOOK_URL, json=payload, timeout=6)
     except Exception:
         pass  # a dead webhook must never block a signup
+
+
+def _mirror_person(email: str):
+    """Push one person's row to the durable store (readable back at boot)."""
+    email = (email or "").strip().lower()
+    if not email:
+        return
+    try:
+        conn = _connect()
+        row = conn.execute(
+            f"SELECT {', '.join(_PEOPLE_COLS)} FROM people WHERE email = ?",
+            (email,)).fetchone()
+        conn.close()
+        if row:
+            table_mirror.mirror_rows(_PEOPLE_SCOPE, email, [dict(row)])
+    except sqlite3.Error:
+        pass
+
+
+def _mirror_feedback(email: str):
+    """Push this person's feedback rows to the durable store."""
+    key = (email or "").strip().lower() or "_anon"
+    try:
+        conn = _connect()
+        rows = [dict(r) for r in conn.execute(
+            "SELECT ts, email, rating, message, page FROM feedback "
+            "WHERE COALESCE(NULLIF(email,''),'_anon') = ?", (key,))]
+        conn.close()
+        table_mirror.mirror_rows(_FEEDBACK_SCOPE, key, rows)
+    except sqlite3.Error:
+        pass
 
 
 def add_person(email: str, source: str = "", campaign: str = "") -> tuple:
@@ -139,6 +194,7 @@ def add_person(email: str, source: str = "", campaign: str = "") -> tuple:
         return False, "Couldn't save that just now. Try again in a moment."
     _mirror({"type": "signup", "email": email, "source": source,
              "campaign": campaign, "at": _now()})
+    _mirror_person(email)
     return True, "You're on the list."
 
 
@@ -154,6 +210,7 @@ def set_pay(email: str, answer: str):
     except sqlite3.Error:
         return
     _mirror({"type": "pay", "email": email, "pay": answer, "at": _now()})
+    _mirror_person(email)
 
 
 def attach_profile(email: str, prof: dict):
@@ -183,6 +240,7 @@ def attach_profile(email: str, prof: dict):
     except sqlite3.Error:
         return
     _mirror({"type": "profile", "email": email, "at": _now(), **vals})
+    _mirror_person(email)
 
 
 def add_feedback(message: str, email: str = "", rating: str = "", page: str = "") -> bool:
@@ -201,6 +259,7 @@ def add_feedback(message: str, email: str = "", rating: str = "", page: str = ""
         return False
     _mirror({"type": "feedback", "email": email, "rating": rating,
              "message": message[:4000], "page": page, "at": _now()})
+    _mirror_feedback(email)
     return True
 
 
