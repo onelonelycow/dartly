@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- ── Primary SEO ─────────────────────────────────────────────── -->
-<title>Nabbly — every freelance gig, the moment it drops</title>
-<meta name="description" content="Nabbly watches every freelance job board and hiring community around the clock and puts new gigs in one place the moment they post — across 20+ fields, from design and writing to video, dev and marketing. Real-time demand, so you reply first.">
+<title>Nabbly — every gig and remote role, the moment it drops</title>
+<meta name="description" content="Nabbly watches every job board and hiring community around the clock and puts new freelance projects and remote roles in one place the moment they post, across 25+ fields from design and writing to video, dev and marketing. Real-time demand, so you reply first.">
 <link rel="canonical" href="https://nabbly.co/">
 <meta name="theme-color" content="#121418">
 <meta name="robots" content="index, follow, max-image-preview:large">
@@ -15,18 +15,18 @@
 <!-- ── Open Graph (Slack, iMessage, LinkedIn, Facebook) ────────── -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Nabbly">
-<meta property="og:title" content="Nabbly — every freelance gig, the moment it drops">
-<meta property="og:description" content="Real-time freelance demand from every board and community, in one place. Across 20+ fields, refreshed every couple of minutes — so you reply first.">
+<meta property="og:title" content="Nabbly — every gig and remote role, the moment it drops">
+<meta property="og:description" content="Freelance projects and remote roles from every board and community, in one place. Across 25+ fields, refreshed every couple of minutes, so you reply first.">
 <meta property="og:url" content="https://nabbly.co/">
 <meta property="og:image" content="https://nabbly.co/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Nabbly — every freelance gig, the moment it drops">
+<meta property="og:image:alt" content="Nabbly — every gig and remote role, the moment it drops">
 
 <!-- ── Twitter / X ─────────────────────────────────────────────── -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Nabbly — every freelance gig, the moment it drops">
-<meta name="twitter:description" content="Real-time freelance demand from every board and community, in one place — so you reply first.">
+<meta name="twitter:title" content="Nabbly — every gig and remote role, the moment it drops">
+<meta name="twitter:description" content="Freelance projects and remote roles from every board and community, in one place, so you reply first.">
 <meta name="twitter:image" content="https://nabbly.co/og-image.png">
 
 <!-- ── Icons + installable app (Add to Home Screen) ─────────────── -->
@@ -62,7 +62,7 @@
       "@id": "https://nabbly.co/#website",
       "url": "https://nabbly.co/",
       "name": "Nabbly",
-      "description": "Real-time freelance gig demand from every board and community, in one place.",
+      "description": "Real-time freelance and remote work demand from every board and community, in one place.",
       "potentialAction": {
         "@type": "SearchAction",
         "target": { "@type": "EntryPoint", "urlTemplate": "https://app.nabbly.co/?q={search_term_string}" },
@@ -85,7 +85,7 @@
       "applicationCategory": "BusinessApplication",
       "operatingSystem": "Web",
       "url": "https://app.nabbly.co/",
-      "description": "Nabbly aggregates freelance gigs from every job board and hiring community in real time, sorts them by skill, budget and urgency, and alerts you the moment a match drops.",
+      "description": "Nabbly aggregates freelance projects and remote roles from every job board and hiring community in real time, sorts them by skill, budget and urgency, and alerts you the moment a match drops.",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
     },
     {
@@ -94,7 +94,7 @@
         {
           "@type": "Question",
           "name": "How fresh are the gigs?",
-          "acceptedAnswer": { "@type": "Answer", "text": "The board refreshes itself every couple of minutes, around the clock. Most gigs appear within minutes of being posted — the person who answers first usually gets the work." }
+          "acceptedAnswer": { "@type": "Answer", "text": "The board refreshes itself every couple of minutes, around the clock. Most gigs appear within minutes of being posted, and being early is the part you can control." }
         },
         {
           "@type": "Question",
@@ -163,29 +163,8 @@
   .hero p.lead{font-size:clamp(17px,2.1vw,21px);color:var(--ink2);max-width:600px;margin:22px auto 0;line-height:1.5}
   .cta-row{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;margin-top:34px}
   .cta-row .btn{padding:14px 24px;font-size:16px}
-  .microcopy{margin-top:16px;font-size:14px;color:var(--mute)}
-  .microcopy a{color:var(--amber);font-weight:600;text-decoration:underline;
-    text-underline-offset:2px}
-  .microcopy a:hover{color:var(--amber-l)}
 
   /* ── live stat strip ── */
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);
-    border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin:56px 0 0}
-  .stat{background:var(--bg2);padding:26px 20px;text-align:center}
-  .stat .n{font-size:clamp(26px,4vw,38px);font-weight:700;letter-spacing:-.02em;
-    background:linear-gradient(180deg,var(--amber-l),var(--amber));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .stat .l{font-size:14px;color:var(--mute);margin-top:5px}
-  @media(max-width:560px){.stats{grid-template-columns:1fr}.stat{padding:20px}}
-  /* Departure-board reveal for the live-gigs count. Each digit gets its own
-     span so it can cycle independently — the same gradient-clip that used
-     to live on .stat .n only, repeated per span, so a run of individually
-     positioned characters still reads as one continuous amber number. */
-  .nb-flipch{display:inline-block;background:linear-gradient(180deg,var(--amber-l),var(--amber));
-    -webkit-background-clip:text;background-clip:text;color:transparent}
-  .nb-flipch.nb-tick{animation:nbFlipTick .16s cubic-bezier(.3,.7,.4,1)}
-  @keyframes nbFlipTick{0%{transform:translateY(-14%);opacity:.55}100%{transform:translateY(0);opacity:1}}
-  @media(prefers-reduced-motion:reduce){.nb-flipch,.nb-flipch.nb-tick{animation:none}}
-
   /* ── sections ── */
   section{padding:76px 0}
   .sec-head{text-align:center;max-width:640px;margin:0 auto 44px}
@@ -203,21 +182,24 @@
   @media(max-width:860px){.steps{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:480px){.steps{grid-template-columns:1fr}}
 
-  /* verticals */
-  .verticals{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;max-width:820px;margin:0 auto}
-  /* Static, and styled so they don't pretend otherwise: a soft amber wash
-     with no hover shift. The old hover (border turning amber) made every pill
-     read as a button that then did nothing — the one thing worse than not
-     being clickable is looking clickable. */
-  .vpill{font-size:15px;color:var(--ink2);background:rgba(232,147,58,.07);
-    border:1px solid rgba(232,147,58,.16);padding:10px 16px;border-radius:100px}
-  /* "and more" is the ONE live element here — it goes to the real board, where
-     every field is browsable. Dashed edge + amber text set it apart from the
-     static pills around it. */
-  a.vpill.vmore{background:transparent;border:1px dashed rgba(232,147,58,.45);
-    color:var(--amber);text-decoration:none;transition:.15s;cursor:pointer}
-  a.vpill.vmore:hover{border-style:solid;border-color:var(--amber);
-    background:rgba(232,147,58,.10)}
+  /* ── what's on the board ──
+     A screenshot of the running app. Framed only at the top and sides: the
+     bottom of the image is already faded in the file itself, so a border all
+     the way round would draw a hard line across the fade and undo it. */
+  .board-shot{display:block;width:100%;max-width:960px;height:auto;margin:0 auto;
+    border:1px solid var(--line);border-bottom:0;
+    border-radius:var(--radius) var(--radius) 0 0;background:var(--bg2)}
+  /* The screenshot shows one board, so the two-kinds point it replaced has to
+     be carried in words. Reads as a caption, not as another row of features. */
+  .board-kinds{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;
+    margin:22px auto 0;padding:0;color:var(--mute);font-size:14px}
+  .board-kinds span{position:relative}
+  .board-kinds span+span::before{content:"";position:absolute;left:-12px;top:50%;
+    width:3px;height:3px;border-radius:50%;background:var(--line2);transform:translateY(-50%)}
+  .board-foot{text-align:center;color:var(--mute);font-size:14.5px;margin:14px auto 0}
+  .board-foot a{color:var(--amber);font-weight:600}
+  .board-foot a:hover{text-decoration:underline}
+
   /* "Coming soon" — quiet and factual, not a launch badge shouting for
      attention. Same amber, pulled well back. */
   .soon-tag{display:inline-block;font-size:11.5px;font-weight:650;letter-spacing:.09em;
@@ -285,8 +267,7 @@
   .plan.pro{border-color:rgba(232,147,58,.4);box-shadow:0 0 0 1px rgba(232,147,58,.12),0 20px 50px rgba(0,0,0,.3)}
   .plan .pname{font-weight:650;font-size:19px;display:flex;align-items:center;gap:9px}
   .plan .tag{font-size:11px;font-weight:700;letter-spacing:.05em;color:#2a1806;background:var(--amber-l);padding:3px 9px;border-radius:100px}
-  .plan .price{font-size:15px;color:var(--mute);margin:6px 0 18px}
-  .plan ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:11px}
+  .plan ul{list-style:none;padding:0;margin:20px 0 0;display:flex;flex-direction:column;gap:11px}
   .plan li{font-size:15px;color:var(--ink2);display:flex;gap:10px;align-items:flex-start}
   .plan li svg{flex:0 0 18px;margin-top:2px}
 
@@ -302,10 +283,6 @@
   details p{margin:0 0 18px;color:var(--mute);font-size:15.5px;line-height:1.6}
 
   /* closing cta */
-  .final{text-align:center;background:linear-gradient(180deg,var(--bg2),var(--bg));
-    border:1px solid var(--line);border-radius:24px;padding:60px 24px;margin:20px 0}
-  .final h2{font-size:clamp(28px,4vw,42px)}
-  .final p{color:var(--ink2);margin:16px auto 0;max-width:480px}
 
   /* footer */
   footer{border-top:1px solid var(--line);padding:44px 0 60px;margin-top:40px}
@@ -339,8 +316,8 @@
       <span>Nabb<span class="amber">ly</span></span>
     </a>
     <nav class="nav-links">
+      <a href="#board">The board</a>
       <a href="#how">How it works</a>
-      <a href="#fields">Fields</a>
       <a href="#forward">Forwarding</a>
       <a href="#plans">Pricing</a>
       <!-- Points at the app's FAQ tab now; the duplicate FAQ block that used to
@@ -356,67 +333,107 @@
 <div class="glow">
 <section class="hero">
   <div class="wrap">
-    <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
-    <p class="lead">Freelancing is enough of a hustle without refreshing ten job boards all day. Nabbly watches all of them for you and puts every new gig in one place — so you're the one who replies first.</p>
+    <!-- "gig and remote role", not "freelance gig". The board is roughly 40%
+         freelance projects and 60% full-time remote roles, and promising only
+         the first meant a visitor's first scroll was full of work the headline
+         hadn't mentioned. Widening it costs nothing and matches what the app
+         itself already says on the Dashboard ("Every gig, the moment it
+         drops"), so the two stopped disagreeing as a side effect. -->
+    <h1>Every gig and remote role,<br>the moment it <span class="amber">drops</span>.</h1>
+    <!-- Was "and both go to whoever answers first". That claims the market
+         works one way, and it doesn't — a fast reply doesn't beat a better
+         fit. What early actually buys you is being read at all, before a
+         hundred others land on top of you. Same correction the deck already
+         took: it isn't always the best reply that wins, it's the one that
+         gets read. Hedged claims survive contact with a freelancer who has
+         been outbid by someone slower. -->
+    <p class="lead">Freelance projects and full-time remote work are scattered across a dozen boards, and the replies that land early are the ones that get read. Nabbly watches all of them and puts every new one in a single place, minutes after it posts.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://app.nabbly.co/">Open the board — it's free →</a>
+      <a class="btn btn-primary" href="https://app.nabbly.co/">Open the board, it's free →</a>
       <a class="btn btn-ghost" href="#how">See how it works</a>
     </div>
-    <p class="microcopy">No account needed to browse · First 50 members get <a href="#plans">2 months of Pro free</a></p>
 
-    <div class="stats">
-      <!-- Ceilings, not exact counts: a hard number on a static page goes stale
-           the moment the board moves, and "6,000+ gigs" already died that death
-           once (FEEL.md §7). These stay true as the board grows. "board", not
-           "feed" — that's the vocabulary the rest of the product uses. -->
-      <!-- Labels cut to two words: on a phone these stack full-width, and the
-           long versions read as sentences under a headline number. "~2 min" is
-           a real figure — the fetcher's actual cycle (refresh.py, 120s). -->
-      <div class="stat"><div class="n" data-nb-flip>16,937</div><div class="l">Live gigs</div></div>
-      <div class="stat"><div class="n">25+</div><div class="l">Fields</div></div>
-      <div class="stat"><div class="n">~2 min</div><div class="l">From post to board</div></div>
-    </div>
-  </div>
 </section>
 </div>
+
+<!-- ══ WHAT'S ON THE BOARD ══
+     This is the first thing after the hero on purpose. The page used to open
+     with four abstract steps about how the product works, so a stranger read
+     "we watch everything / sorted for you / alerted instantly" before seeing a
+     single piece of actual work. Real titles do the convincing that a numbered
+     diagram can't, and they're also the only honest way to show that the board
+     carries both project work and salaried remote roles.
+
+     NO TIMESTAMPS ON THESE. They're real listings but they're baked into a
+     static page, so "posted 7 min ago" would be a lie within the hour. The
+     freshness claim lives in the stats above, which stay true. And no source or
+     company names: the feed is the product, where it comes from is plumbing,
+     and a visitor handed that list has somewhere else to go. -->
+<section id="board" style="padding-bottom:24px">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="kicker">On the board</span>
+      <h2>Two kinds of work. One board.</h2>
+      <p>One-off projects and full-time remote work, side by side, minutes after they post.</p>
+    </div>
+    <!-- The real board, not a drawing of one. This replaced a hand-built HTML
+         approximation of the same thing, which was the weaker version of the
+         identical idea: every comparable SaaS page carries product imagery and
+         this page carried none at all, which is why 590 words felt longer than
+         Linear's 1,029.
+         CROPPED ABOVE THE "Posted 5 min ago · via …" LINE, deliberately. That
+         line names the source, which we never advertise, and a frozen relative
+         timestamp becomes a lie within the hour. What survives the crop is the
+         part that can't go stale: the fields you can browse and a real posting.
+         Recaptured after the Dashboard dropped its counter strip, so there is
+         no tally in here either. Bottom edge fades so the cut reads as
+         "continues" rather than as a screenshot sliced in half. -->
+    <!-- Relative, unlike /favicon.png above. index.html is served from the site
+         root so it resolves identically in production, and it keeps the page
+         reviewable by opening the file directly. -->
+    <img class="board-shot" src="board-live.png" width="1600" height="710"
+         loading="lazy" decoding="async"
+         alt="The Nabbly board: a search box, then Tech and Data, Design and Media, Business and Support, Marketing and Sales, and Writing and Language to browse, above a freshly posted listing.">
+    <p class="board-kinds"><span>Freelance projects</span><span>Remote roles</span><span>Contract work</span></p>
+    <!-- "the rest of the board", not "what's on it". Eight listings sit
+         directly above this link, so "the rest" is both literally accurate and
+         the strongest thing it can say: there are tens of thousands more. It
+         also avoids repeating "Open the board", which the hero and the nav
+         already say twice between them. -->
+    <p class="board-foot"><a href="https://app.nabbly.co/">See the rest of the board →</a></p>
+  </div>
+</section>
 
 <!-- ══ PROBLEM ══ -->
 <section id="how">
   <div class="wrap">
     <div class="sec-head">
-      <h2>The work is out there. It's just scattered.</h2>
-      <p>Good gigs are spread across boards, subreddits and communities, and the person who answers a strong post <b style="color:var(--ink2)">first</b> is usually the one who gets it. Nabbly closes that gap.</p>
+      <!-- Two rewrites, for two different reasons.
+           WHAT IT SAYS: was "The work is out there. It's just scattered." That
+           is a problem statement, and it used to open the page, where it
+           belonged. With real listings sitting above it now, telling someone
+           the work is scattered directly under proof that it isn't reads as an
+           argument with itself.
+           HOW IT SAYS IT: the replacement was "How it gets to you", which is a
+           label, not a line. Every other head on this page is two beats with a
+           turn in the middle — "Noise in your inbox. Signal on your board.",
+           "Stop refreshing. Start replying first." A functional caption in
+           that company reads like a different site wrote it.
+           And nothing here claims speed decides who wins the work. It doesn't;
+           a fast reply loses to a better fit all day. Early is just the part a
+           freelancer can actually do something about. -->
+      <h2>Close the tabs. The work finds you.</h2>
+      <p>Good work is scattered across boards, subreddits and communities. Being <b style="color:var(--ink2)">early</b> is the part you can control, and we handle the rest.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="num">1</div><h3>We watch everything</h3><p>Every board and hiring community, continuously — so you don't keep a single tab open.</p></div>
-      <div class="step"><div class="num">2</div><h3>Sorted for you</h3><p>Each gig is tagged by skill, budget and urgency, then matched to what you do. Your board is yours.</p></div>
-      <div class="step"><div class="num">3</div><h3>Alerted instantly</h3><p>When something fits, you get a ping on whichever channel you like — before the crowd shows up.</p></div>
-      <div class="step"><div class="num">4</div><h3>Reply in seconds</h3><p>We draft the first reply for you, so you answer fast instead of staring at a blank box — from the actual post on Pro, from a smart template on Free.</p></div>
+      <div class="step"><div class="num">1</div><h3>We watch everything</h3><p>Every board and hiring community, continuously. You never keep a single tab open.</p></div>
+      <div class="step"><div class="num">2</div><h3>Sorted for you</h3><p>Each gig is tagged by skill, budget and urgency, then matched to what you do. You set the rules it sorts by.</p></div>
+      <div class="step"><div class="num">3</div><h3>Alerted instantly</h3><p>When something fits, you get a ping on whichever channel you like, before the crowd shows up.</p></div>
+      <div class="step"><div class="num">4</div><h3>Reply in seconds</h3><p>We draft the first reply for you, so you answer fast instead of staring at a blank box. Pro writes it from the actual post. Free gives you a template worth sending.</p></div>
     </div>
   </div>
 </section>
 
-<!-- ══ VERTICALS ══ -->
-<section id="fields" style="padding-top:20px">
-  <div class="wrap">
-    <div class="sec-head">
-      <h2>Whatever you do, the demand is here</h2>
-      <p>From quick $20 tasks to full projects — pick your fields and the board shapes itself around them.</p>
-    </div>
-    <!-- Ten, then "and more". Listing all of them said "21" in a header while
-         showing 21 pills, and the real count is already 24 and climbing — so
-         the page contradicted itself the moment a field was added. A sample
-         plus an open end can't go stale, and reads lighter. -->
-    <div class="verticals">
-      <span class="vpill">Design &amp; creative</span><span class="vpill">Writing &amp; content</span>
-      <span class="vpill">Video &amp; animation</span><span class="vpill">Development &amp; tech</span>
-      <span class="vpill">Marketing &amp; SEO</span><span class="vpill">Data &amp; analytics</span>
-      <span class="vpill">Audio &amp; music</span><span class="vpill">Product &amp; PM</span>
-      <span class="vpill">Finance &amp; accounting</span><span class="vpill">Healthcare</span>
-      <a class="vpill vmore" href="https://app.nabbly.co/?nav=gigs">and more →</a>
-    </div>
-  </div>
-</section>
 
 <!-- ══ FORWARDING FEATURE ══ -->
 <section id="forward" style="background:var(--bg2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
@@ -455,14 +472,13 @@
            right below — restating it here too read as the same sentence
            twice in one screen. This paragraph's job is the OTHER fact: how
            trying Pro actually works once that offer's gone. -->
-      <p>One plan is free forever. Pro is free to try for 14 days whenever you want it — no card, no commitment, you choose when to start.</p>
+      <p>Free isn't a trial, it's the whole board. Pro is free for 14 days whenever you're ready, no card.</p>
     </div>
     <div class="plans">
       <div class="plan">
         <div class="pname">Free</div>
-        <div class="price">Every gig, no catch</div>
         <ul>
-          <li>✓ The whole board — every gig, every source</li>
+          <li>✓ The whole board: every gig, every source</li>
           <li>✓ Search and browse every field</li>
           <li>✓ Your profile, so the board sorts around you</li>
           <li>✓ Fresh gigs, minutes after they're posted</li>
@@ -472,18 +488,23 @@
       </div>
       <div class="plan pro">
         <div class="pname">Pro <span class="tag">FIRST 50 GET 2 MONTHS FREE</span></div>
-        <div class="price">The edge that helps you reply first</div>
         <ul>
           <li>✓ Gigs ranked by how well they fit you</li>
           <li>✓ Drafted replies from the actual post</li>
-          <li>✓ Instant alerts — push, Slack, Telegram, SMS</li>
+          <li>✓ Instant alerts: push, Slack, Telegram, SMS</li>
           <li>✓ Market-rate intelligence, so you price right</li>
         </ul>
       </div>
     </div>
-    <!-- No CTA here: the final "Stop refreshing" block right below carries the
-         page's closing button, and on a phone the two amber buttons stacked
-         within a screen of each other. One ask, made once. -->
+    <!-- The page's one closing ask. It used to live in a "Stop refreshing.
+         Start replying first." block below this, which was a whole extra
+         section to say what the nav, the hero, the board link and this button
+         all already say. Cut it; the ask moved up here so the page still ends
+         on something to click instead of on a price list. -->
+    <div class="cta-row" style="justify-content:center;margin-top:34px">
+      <a class="btn btn-primary" href="https://app.nabbly.co/"
+         style="padding:15px 30px;font-size:17px">Open the board →</a>
+    </div>
   </div>
 </section>
 
@@ -494,13 +515,6 @@
      sources. The feed is the product; where it comes from is plumbing, and a
      visitor shouldn't be handed the list of places to go instead of us. -->
 
-<!-- ══ FINAL CTA ══ -->
-<div class="wrap">
-  <div class="final">
-    <h2>Stop refreshing. Start replying first.</h2>
-    <p>The board's live right now, free to browse, no account needed to look around.</p>
-    <div class="cta-row"><a class="btn btn-primary" href="https://app.nabbly.co/" style="padding:15px 30px;font-size:17px">Open Nabbly →</a></div>
-  </div>
 </div>
 
 <!-- ══ FOOTER ══ -->
@@ -617,70 +631,6 @@
     } catch (e) {}
   })();
 
-  // ── Departure-board reveal for the live-gigs count ─────────────────────
-  // The real number sits in the HTML as plain text from the start — this
-  // never hides it, only re-plays it as a mechanical flip once JS runs.
-  // Anyone without JS, or with it blocked, still just reads the number
-  // immediately, correct, no delay.
-  //
-  // Exact figure, not a rounded "+" like the app's own Dashboard uses
-  // (see FEEL.md §7 and fmt_floor in app.py) — a deliberate call for this
-  // page specifically, so it needs a manual bump here as the board grows
-  // instead of self-correcting the way the in-app stat does.
-  //
-  // A genuine count from 0, not per-digit random noise: each tick computes
-  // where an eased 0->final climb actually is at that moment and renders
-  // the real number for that instant. The "flip" character falls out of
-  // that for free — the ones/tens/hundreds place changes almost every
-  // tick early on (real math, a big board), while the leading digit only
-  // ever changes once, right near the end, so it settles in naturally
-  // left-to-right without any manual per-digit stagger.
-  (function () {
-    try {
-      var reduce = window.matchMedia &&
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      var el = document.querySelector('[data-nb-flip]');
-      if (reduce || !el) return;
-
-      var finalText = el.textContent;                      // "16,937"
-      var suffix = finalText.replace(/[0-9,]/g, '');        // "" (or "+" if a rounded figure is used later)
-      var finalNum = parseInt(finalText.replace(/[^0-9]/g, ''), 10);
-      if (!finalNum) return;
-
-      var prevChars = [];   // right-aligned by place value, so a digit that
-                             // hasn't actually changed never re-animates —
-                             // that constant all-digits pulsing, faster than
-                             // each pulse could finish, was the "shakey" part.
-      function render(numStr) {
-        var chars = numStr.split('');
-        var offset = chars.length - prevChars.length; // new digits appear on the LEFT
-        el.textContent = '';
-        chars.forEach(function (ch, i) {
-          var prevCh = i - offset >= 0 ? prevChars[i - offset] : undefined;
-          var s = document.createElement('span');
-          s.className = 'nb-flipch' + (ch !== prevCh ? ' nb-tick' : '');
-          s.textContent = ch;
-          el.appendChild(s);
-        });
-        prevChars = chars;
-      }
-
-      var TICK_MS = 70;       // how often the displayed value updates
-      var DURATION_MS = 1400; // the whole climb, start to landing
-      var startTime = null;
-
-      function ease(t) { return 1 - Math.pow(1 - t, 3); } // fast start, gentle landing
-
-      render('0' + suffix);
-      setTimeout(function tick() {
-        if (startTime === null) startTime = Date.now();
-        var t = Math.min(1, (Date.now() - startTime) / DURATION_MS);
-        var current = Math.floor(finalNum * ease(t));
-        render(current.toLocaleString('en-US') + suffix);
-        if (t < 1) setTimeout(tick, TICK_MS);
-      }, TICK_MS);
-    } catch (e) {}
-  })();
 </script>
 </body>
 </html>

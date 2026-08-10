@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
-<title>Nabbly for NextNW · every freelance gig, the moment it drops</title>
-<meta name="description" content="Next Northwest members get Nabbly Pro free for 90 days. Every freelance gig in marketing, design, writing and video, in one place, the moment it posts.">
+<title>Nabbly for NextNW · every gig and remote role, the moment it drops</title>
+<meta name="description" content="Next Northwest members get Nabbly Pro free for 90 days. Every gig and remote role in marketing, design, writing and video, in one place, the moment it posts.">
 <link rel="canonical" href="https://nabbly.co/nextnw.html">
 <meta name="theme-color" content="#0E1613">
 <!-- One group, arriving on one link. Not something to surface in search. -->
@@ -14,7 +14,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Nabbly">
 <meta property="og:title" content="Nabbly for NextNW members">
-<meta property="og:description" content="Every freelance gig, the moment it drops. Free Pro for 90 days, for Next Northwest members.">
+<meta property="og:description" content="Every gig and remote role, the moment it drops. Free Pro for 90 days, for Next Northwest members.">
 <meta property="og:url" content="https://nabbly.co/nextnw.html">
 <meta property="og:image" content="https://nabbly.co/og-image.png">
 <meta property="og:image:width" content="1200">
@@ -104,23 +104,9 @@
   h1{font-size:clamp(38px,6.6vw,64px)}
   .hero .lead{font-size:clamp(17px,2.1vw,20px);color:var(--ink2);max-width:520px;
     margin:22px auto 0}
-  /* A quick, real-numbers credibility beat before the ask — small and quiet
-     on purpose, a fact to skim in passing, not a second headline. */
-  .stats{display:flex;justify-content:center;gap:36px;margin:26px 0 4px;flex-wrap:wrap}
-  .stat .n{font-size:22px;font-weight:700;color:var(--amber-l);letter-spacing:-.02em}
-  .stat .l{font-size:12.5px;color:var(--mute);margin-top:2px}
   .cta-row{margin-top:34px}
   .cta-row .btn{padding:15px 28px;font-size:17px}
 
-  /* Quiet on purpose — the offer card below is the loud thing on this page,
-     and an announcement competing with it would just be two things shouting.
-     Warmth without exclamation marks: FEEL.md's voice rule is "warm is fine,
-     salesy is not", so the excitement is carried by specific, plain words
-     ("built with our community in mind") rather than emphasis or punctuation.
-     "Our", not "your" — the founder is a NextNW member himself, so this
-     isn't Nabbly addressing someone else's community from the outside. */
-  .announce{text-align:center;color:var(--ink2);font-size:15.5px;line-height:1.6;
-    max-width:520px;margin:0 auto 30px}
 
   /* ── the offer: the single loudest thing on the page ── */
   .offer{border:1px solid rgba(84,185,90,.34);border-radius:20px;
@@ -144,6 +130,31 @@
   .card p{color:var(--mute);font-size:14.5px;margin:8px 0 0;line-height:1.5}
   @media(max-width:760px){.three{grid-template-columns:1fr}}
 
+  /* ── ported from index.html so the two pages read as one site ──
+     Same tokens, same shapes. A member who clicks through from the email and
+     then lands on nabbly.co later shouldn't feel like they changed companies. */
+  .board-shot{display:block;width:100%;max-width:900px;height:auto;margin:0 auto;
+    border:1px solid var(--line);border-bottom:0;
+    border-radius:var(--radius) var(--radius) 0 0;background:var(--bg2)}
+  .board-kinds{display:flex;flex-wrap:wrap;gap:8px 22px;justify-content:center;
+    margin:22px auto 0;color:var(--mute);font-size:14px}
+  .board-kinds span{position:relative}
+  .board-kinds span+span::before{content:"";position:absolute;left:-12px;top:50%;
+    width:3px;height:3px;border-radius:50%;background:var(--line2);transform:translateY(-50%)}
+  .sec-lead{text-align:center;color:var(--ink2);max-width:560px;margin:14px auto 30px}
+
+  .verticals{display:flex;flex-wrap:wrap;gap:11px;justify-content:center;max-width:760px;margin:0 auto}
+  .vpill{font-size:15px;color:var(--ink2);background:rgba(232,147,58,.07);
+    border:1px solid rgba(232,147,58,.16);padding:10px 16px;border-radius:100px}
+  a.vpill.vmore{background:transparent;border:1px dashed rgba(232,147,58,.45);
+    color:var(--amber);text-decoration:none;transition:.15s;cursor:pointer}
+  a.vpill.vmore:hover{border-style:solid;border-color:var(--amber)}
+
+  .final{text-align:center;background:linear-gradient(180deg,var(--bg2),var(--bg));
+    border:1px solid var(--line);border-radius:24px;padding:56px 24px;margin:20px 0}
+  .final h2{font-size:clamp(26px,3.6vw,36px);margin:0}
+  .final p{color:var(--ink2);margin:16px auto 26px;max-width:460px}
+
   section{padding:56px 0}
   .sec-title{text-align:center;font-size:clamp(24px,3.4vw,32px);font-weight:680;
     letter-spacing:-.03em;margin:0}
@@ -164,7 +175,7 @@
       </a>
       <span class="lk-x"></span>
       <a class="lk-mark" href="https://nextnw.org/" target="_blank" rel="noopener" aria-label="Next Northwest">
-        <img class="lk-icon" src="/nextnw-icon.png" alt="">
+        <img class="lk-icon" src="nextnw-icon.png" alt="">
       </a>
     </div>
   </div>
@@ -173,18 +184,11 @@
 <div class="glow">
 <section class="hero">
   <div class="wrap">
-    <h1>Every freelance gig,<br>the moment it <span class="amber">drops</span>.</h1>
-    <p class="lead">Advertising, marketing, design, writing and video work, from every board and community, in one place. You just reply first.</p>
-    <!-- Real, current numbers — not a static claim baked into copy. Pulled the
-         same way the one-pager's stats were: honest ceilings, rounded down. -->
-    <div class="stats">
-      <div class="stat"><div class="n">10,000+</div><div class="l">gigs live now</div></div>
-      <div class="stat"><div class="n">20+</div><div class="l">fields covered</div></div>
-      <div class="stat"><div class="n">1,000+</div><div class="l">new every day</div></div>
-    </div>
-    <div class="cta-row">
-      <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board →</a>
-    </div>
+    <h1>Every gig and remote role,<br>the moment it <span class="amber">drops</span>.</h1>
+    <p class="lead">Freelance projects and full-time remote work, from every board and community, in one place. You just reply first.</p>
+    <!-- The stat strip that sat here is gone. Board size is a commodity
+         claim and a hardcoded one rots (see index.html); this page has one
+         job, which is the 90-day offer, and a tally competed with it. -->
   </div>
 </section>
 </div>
@@ -198,9 +202,8 @@
 <div class="wrap">
   <div class="collab">
     <span class="collab-label">In collaboration with</span>
-    <span class="collab-mark"><img class="collab-icon" src="/nextnw-icon.png" alt="">NextNW</span>
+    <span class="collab-mark"><img class="collab-icon" src="nextnw-icon.png" alt="">NextNW</span>
   </div>
-  <p class="announce">A private beta, opened to you first. Built with our community in mind.</p>
 </div>
 
 <!-- ══ THE OFFER ══ -->
@@ -212,6 +215,14 @@
          is the whole ask, and it's a small one, so say it plainly rather than
          let someone discover the offer didn't apply. -->
     <p>No card, nothing to cancel. Sign in with your email or Google and it's on.</p>
+  </div>
+  <!-- The button moved down here from the hero. It used to sit above both the
+       collab mark and this card, so the page asked for the click, THEN said
+       who vouches for it, THEN said what you get — the ask arriving before
+       either reason to take it. Now the top reads in one line: what it is,
+       who it's with, what you get, go. -->
+  <div class="cta-row" style="text-align:center">
+    <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open the board →</a>
   </div>
 </div>
 
@@ -236,10 +247,56 @@
   </div>
 </section>
 
+<!-- ══ THE BOARD ══
+     The page described the product three times and never showed it. Same
+     screenshot and same crop discipline as index.html: above the "Posted … ·
+     via …" line, so no source names and no timestamp that freezes. -->
+<section>
+  <div class="wrap">
+    <h2 class="sec-title">Two kinds of work. One board.</h2>
+    <p class="sec-lead">One-off projects and full-time remote work, side by side,
+      minutes after they post.</p>
+    <img class="board-shot" src="board-live.png" width="1600" height="794"
+         loading="lazy" decoding="async"
+         alt="The Nabbly board: a search box, then Tech and Data, Design and Media, Business and Support, Marketing and Sales, and Writing and Language to browse, above a freshly posted listing.">
+    <p class="board-kinds"><span>Freelance projects</span><span>Remote roles</span><span>Contract work</span></p>
+  </div>
+</section>
+
+<!-- ══ FIELDS ══
+     The one question this audience actually has. NextNW is a marketing and
+     creative membership, so those fields lead — but the board is wider than
+     that, and a member whose work sits outside the obvious five should see
+     themselves here rather than assume they're not covered. -->
+<section style="padding-top:0">
+  <div class="wrap">
+    <h2 class="sec-title">Whatever you do, the demand is here</h2>
+    <p class="sec-lead">Pick your fields and the board shapes itself around them.</p>
+    <div class="verticals">
+      <span class="vpill">Design &amp; creative</span><span class="vpill">Writing &amp; content</span>
+      <span class="vpill">Video &amp; animation</span><span class="vpill">Marketing &amp; SEO</span>
+      <span class="vpill">Development &amp; tech</span><span class="vpill">Audio &amp; music</span>
+      <span class="vpill">Data &amp; analytics</span><span class="vpill">Product &amp; PM</span>
+      <a class="vpill vmore" href="https://app.nabbly.co/?nav=gigs&amp;ref=nextnw">and more →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CLOSING ══ -->
+<div class="wrap">
+  <div class="final">
+    <h2>Stop refreshing. Start replying first.</h2>
+    <p>You're one tab away from all of it, with Pro on for the first 90 days.</p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="https://app.nabbly.co/?ref=nextnw">Open that tab →</a>
+    </div>
+  </div>
+</div>
+
 <footer>
   <div class="wrap">
     <div class="fine">
-      Nabbly · real-time freelance demand, in one place.<br>
+      Nabbly · real-time freelance and remote work demand, in one place.<br>
       hello@nabbly.co<br>
       © <span id="yr">2026</span> Nabbly ·
       <a href="https://app.nabbly.co/?nav=about&ref=nextnw">About</a> ·

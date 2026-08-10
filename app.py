@@ -2840,17 +2840,57 @@ def live_stats():
              "?nav=gigs", "count"),
         ])
     else:
-        stat_cards([
-            ("On the board now", f"{len(cur):,}", "#E8933A",
-             "?nav=gigs", "count"),
-            ("Fresh · last 24h", f"{recent_count(cur, 24):,}", "#4C8DFF",
-             "?nav=gigs&qf=recent"),
-            ("Urgent", f"{int((cur['urgency'] == 'Urgent').sum()):,}", "#E96250",
-             "?nav=gigs&qf=urgent"),
-            # Not "sources" — no need to advertise where the gigs come from. Breadth
-            # of fields is the more useful, and more discreet, fourth number.
-            ("Fields hiring", f"{cur['job_type'].nunique()}", "#35B37E", "?nav=gigs"),
-        ])
+        # SIGNED OUT: fields to click, not a scoreboard to admire.
+        #
+        # This used to be four counters — board total, fresh, urgent, fields
+        # hiring. Two of those were filters worth having and two were vanity,
+        # and all four answered "how big is this" for somebody who had not yet
+        # been shown a single piece of work. A first-time visitor cannot act on
+        # 32,194. They can act on "Design & Media".
+        #
+        # It also picks up the thing every other surface depends on: nothing
+        # here ranks, alerts or drafts until we know what someone does, and the
+        # first screen never asked. Now it does, and each answer is one click
+        # into a filtered board (?group= is already handled at dispatch and
+        # tracked, so we learn which fields people actually come for).
+        category_cards(cur)
+
+
+def category_cards(cur):
+    """
+    The broad fields, as links, for the signed-out dashboard.
+
+    Same card shell as stat_cards so the row sits where the counters sat, minus
+    the number: a field name and an arrow. Deliberately no per-field count —
+    the point of this row is "which of these is you", and a tally next to each
+    name turns a choice back into a leaderboard, which is what it replaced.
+
+    Only fields that actually have gigs behind them are shown, so nobody clicks
+    into an empty board. Ordered by volume, which is the one place size still
+    earns its keep: it puts the likeliest match first without printing it.
+    """
+    if cur.empty:
+        return
+    counts = cur["job_type"].value_counts().to_dict()
+    groups = [(g, sum(counts.get(s, 0) for s in subs))
+              for g, subs in config.CATEGORY_GROUPS.items()]
+    groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
+    if not groups:
+        return
+    accents = ["#E8933A", "#4C8DFF", "#35B37E", "#E96250", "#A78BFA"]
+    # `out`, not `html` — stat_cards gets away with that name because it never
+    # needs the html module, and every group name here contains an ampersand.
+    out = ('<div class="gr-stats" style="max-width:980px;margin-left:auto;'
+           'margin-right:auto;justify-content:center">')
+    for i, (g, _n) in enumerate(groups):
+        out += (
+            f'<a class="gr-stat" href="{ilink(f"?nav=gigs&group={quote(g)}")}" '
+            f'target="_self">'
+            f'<div class="accent" style="background:{accents[i % len(accents)]}"></div>'
+            f'<div class="n small">{html.escape(g)}</div>'
+            f'<div class="go">→</div></a>')
+    out += "</div>"
+    st.markdown(out, unsafe_allow_html=True)
 
 
 def category_strip(col=None):
