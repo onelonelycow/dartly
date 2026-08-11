@@ -224,6 +224,38 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
   justify-content:center;max-width:none}
 .gr-stat{flex:1;min-width:150px;background:#15181d;border:1px solid #262a31;
   border-radius:14px;padding:15px 16px 16px;position:relative;overflow:hidden}
+
+/* ── the fields, for a signed-out first screen ─────────────────────────────
+   Pills, not stat cards. Borrowed straight from nabbly.co's .vpill so the
+   first thing a visitor sees here is the shape they just clicked away from,
+   in the same amber wash and the same 100px radius.
+   Reusing .gr-stat for these was wrong on two counts: it is a container built
+   to hold a big number and a label, so a bare field name floated in a box
+   sized for something else, and the names wrap at different lengths, which
+   left "Tech & Data" a line shorter than "Marketing & Sales" beside it. A
+   pill sizes to its own text, so five uneven names still make one clean row.
+   Unlike the site's pills these ARE links, so they get a hover — the one
+   thing worse than not being clickable is looking unclickable. */
+.gr-cat{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:8px 0 0}
+/* !important because Streamlit styles every markdown link amber and
+   underlined, which turned the pills into five underlined amber phrases in
+   boxes. Same override a.gr-save already needs, for the same reason. */
+.gr-cat a{display:inline-block;font-size:15px;font-weight:600;letter-spacing:-.01em;
+  color:var(--ink2)!important;background:rgba(232,147,58,.07);
+  border:1px solid rgba(232,147,58,.18);padding:11px 19px;border-radius:100px;
+  white-space:nowrap;transition:.15s;text-decoration:none!important}
+.gr-cat a:hover{color:var(--ink)!important;border-color:var(--amber);
+  background:rgba(232,147,58,.14);transform:translateY(-1px)}
+
+/* Fresh and Urgent were two of the four counters this row replaced, and they
+   were the two worth keeping — a way into the board, not a boast about its
+   size. Back as filters, deliberately quieter than the fields above: what you
+   do comes first, when it landed is a refinement of that. */
+.gr-quick{display:flex;flex-wrap:wrap;gap:8px 20px;justify-content:center;
+  margin:14px 0 2px;font-size:13.5px}
+.gr-quick a{color:var(--mute)!important;text-decoration:none!important;
+  transition:.15s;border-bottom:1px solid transparent;padding-bottom:1px}
+.gr-quick a:hover{color:var(--amber-l)!important;border-bottom-color:rgba(232,147,58,.5)}
 /* This is the one moment in the whole app that's actually worth celebrating
    — FEEL.md's one-amber-focal-point rule earns its keep here rather than
    fighting it. Sits between the live stats and the divider: after "here's
@@ -2877,19 +2909,26 @@ def category_cards(cur):
     groups = sorted([(g, n) for g, n in groups if n], key=lambda x: -x[1])
     if not groups:
         return
-    accents = ["#E8933A", "#4C8DFF", "#35B37E", "#E96250", "#A78BFA"]
     # `out`, not `html` — stat_cards gets away with that name because it never
     # needs the html module, and every group name here contains an ampersand.
-    out = ('<div class="gr-stats" style="max-width:980px;margin-left:auto;'
-           'margin-right:auto;justify-content:center">')
-    for i, (g, _n) in enumerate(groups):
-        out += (
-            f'<a class="gr-stat" href="{ilink(f"?nav=gigs&group={quote(g)}")}" '
-            f'target="_self">'
-            f'<div class="accent" style="background:{accents[i % len(accents)]}"></div>'
-            f'<div class="n small">{html.escape(g)}</div>'
-            f'<div class="go">→</div></a>')
+    out = '<div class="gr-cat">'
+    for g, _n in groups:
+        out += (f'<a href="{ilink(f"?nav=gigs&group={quote(g)}")}" '
+                f'target="_self">{html.escape(g)}</a>')
     out += "</div>"
+
+    # Only offered when there is actually something behind them. "Urgent" that
+    # lands on an empty board is worse than no link, and on a quiet night the
+    # last 24 hours can genuinely be thin.
+    quick = []
+    if recent_count(cur, 24):
+        quick.append(("Posted today", "?nav=gigs&qf=recent"))
+    if int((cur["urgency"] == "Urgent").sum()):
+        quick.append(("Urgent only", "?nav=gigs&qf=urgent"))
+    if quick:
+        out += '<div class="gr-quick">' + "".join(
+            f'<a href="{ilink(h)}" target="_self">{t}</a>' for t, h in quick
+        ) + "</div>"
     st.markdown(out, unsafe_allow_html=True)
 
 
