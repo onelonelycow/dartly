@@ -16,15 +16,23 @@ do not skip to Tier 3 because it looks more impressive.
 
 ## Tier 1 — Directories that accept submissions
 
-These exist to list job boards. Submission is a form, approval is usually
-automatic or within a few days, and most give a dofollow link, which is the
-kind that actually passes value.
+These exist to list job boards. Submission is a form and approval is usually
+days rather than weeks.
 
-| Where | Link | Notes |
+**Read the dofollow question before paying anyone.** JobBoardSearch's page
+says plainly that "any of the PAID listings include a do-follow backlink",
+which means the free one almost certainly does not. That is worth knowing
+because the SEO value people imagine they are buying is the dofollow link, and
+paying for a link that passes PageRank is exactly what Google's link scheme
+guidance prohibits. Take the free listing. It still puts Nabbly in front of a
+26k subreddit and a 16k newsletter, and those are real people rather than a
+ranking signal.
+
+| Where | Link | What it is |
 |---|---|---|
-| JobBoardSearch | jobboardsearch.com/add-board | The best of the three by some distance. Their own numbers: DR 44 backlink, ~132k pageviews a month, a 26k subreddit, a 16k newsletter. Free listing available, paid ranks higher. Start free. |
-| Job Board Fast | jobboardfast.com/job-board-directory/remote | Remote category is the right fit. |
-| Job Search Database | jobsearchdb.com/submissions | Accepts job search sites and tools. |
+| JobBoardSearch | jobboardsearch.com/add-board | The biggest of the three. Their own numbers: DR 44, ~132k pageviews a month, 26k subreddit, 16k newsletter. Free tier is "Basic listing with logo", goes on a waiting list and ranks below paid. Paid starts at $19 and **auto-renews every 30 days unless you disable it after submitting** — if you ever do pay, turn that off immediately. |
+| Job Search Database | jobsearchdb.com/submissions | Reviewed and published by a real person, which makes it a genuine editorial listing rather than a link farm. Asks for name, URL, audience, description, and whether the tool is free or paid. Do not submit twice. |
+| Job Board Fast | jobboardfast.com/job-board-directory/remote | Smallest of the three. Remote category is the right fit. Low effort, submit and forget. |
 
 Submit `https://nabbly.co/`, not the app. The app is a nine-word page to a
 crawler and cannot carry a link's value anywhere useful.
