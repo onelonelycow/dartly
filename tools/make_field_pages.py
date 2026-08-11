@@ -301,6 +301,8 @@ def write_sitemap(written):
     # a thin page to judge it by.
     urls = [(f"{BASE}/", "daily", "1.0"),
             *[(w["url"], "daily", "0.8") for w in written],
+            (f"{BASE}/about.html", "monthly", "0.6"),
+            (f"{BASE}/faq.html", "monthly", "0.6"),
             (f"{BASE}/privacy.html", "yearly", "0.3"),
             (f"{BASE}/terms.html", "yearly", "0.3")]
     body = "\n".join(
@@ -316,10 +318,110 @@ def write_sitemap(written):
         f"{body}\n</urlset>\n", encoding="utf-8")
 
 
+
+
+# ── About and FAQ ───────────────────────────────────────────────────────────
+# These existed only inside the Streamlit app, where a crawler sees nine words.
+# ~500 words of the most searchable prose Nabbly has — "where do the gigs come
+# from", "is it free", "are they verified" — was invisible. Both pages read
+# from content.py, the same literal the app renders, so the copy cannot drift
+# the way it did when the FAQ lived in two places.
+import content                                            # noqa: E402
+
+PROSE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content="{desc}">
+<link rel="canonical" href="{url}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#121418">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nabbly">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{desc}">
+<meta property="og:url" content="{url}">
+<meta property="og:image" content="{base}/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/favicon.png">
+{schema}
+<style>{css}
+dt{{font-weight:650;font-size:17.5px;letter-spacing:-.01em;margin:30px 0 0}}
+dd{{margin:10px 0 0;color:var(--ink2)}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="nav" href="/">Nabb<span class="amber">ly</span></a></div></header>
+<main class="wrap">
+  <h1>{h1}</h1>
+  <p class="lead">{lead}</p>
+  {body}
+  <a class="btn" href="https://app.nabbly.co/">Open the board &rarr;</a>
+  <h2>Browse by field</h2>
+  <ul class="more">{siblings}</ul>
+</main>
+<footer><div class="wrap">
+  <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
+  &middot; <a href="/about.html">About</a> &middot; <a href="/faq.html">FAQ</a>
+  &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="/terms.html">Terms</a>
+</div></footer>
+</body>
+</html>
+"""
+
+
+def write_prose_pages(written):
+    sibs = "".join(
+        f'<li><a href="/freelance-{w["slug"]}-jobs/">{html.escape(w["noun"]).title()}</a></li>'
+        for w in written)
+
+    # FAQPage schema is legitimate HERE and only here: every question below is
+    # rendered visibly on the page. index.html carried this markup for a while
+    # with no visible FAQ at all, which is what Google's guidelines forbid.
+    import json
+    faq_schema = json.dumps({
+        "@context": "https://schema.org", "@type": "FAQPage",
+        "mainEntity": [{"@type": "Question", "name": q,
+                        "acceptedAnswer": {"@type": "Answer", "text": a}}
+                       for q, a in content.FAQ]}, indent=None)
+
+    faq_body = "<dl>" + "".join(
+        f"<dt>{html.escape(q)}</dt><dd>{html.escape(a)}</dd>"
+        for q, a in content.FAQ) + "</dl>"
+    (OUT / "faq.html").write_text(PROSE.format(
+        title="Frequently asked questions &middot; Nabbly",
+        desc=("Where the gigs come from, how fresh they are, what is free and "
+              "what Pro adds, and what Nabbly does with your data."),
+        url=f"{BASE}/faq.html", base=BASE, css=CSS,
+        schema=f'<script type="application/ld+json">{faq_schema}</script>',
+        h1="Frequently asked questions",
+        lead=("Everything people ask before they trust a board with their "
+              "week's work."),
+        body=faq_body, siblings=sibs), encoding="utf-8")
+
+    about_body = "".join(
+        f"<h2>{html.escape(h)}</h2><p>{html.escape(p)}</p>"
+        for h, p in content.ABOUT)
+    (OUT / "about.html").write_text(PROSE.format(
+        title="About Nabbly &middot; freelance and remote work in one place",
+        desc=("Nabbly gathers freelance projects and remote roles from every "
+              "job board and hiring community into a single board, minutes "
+              "after they post. What it does, and what it deliberately "
+              "doesn't."),
+        url=f"{BASE}/about.html", base=BASE, css=CSS, schema="",
+        h1="About Nabbly", lead=html.escape(content.ABOUT_LEAD),
+        body=about_body, siblings=sibs), encoding="utf-8")
+    return ["about.html", "faq.html"]
+
 if __name__ == "__main__":
     pages = build()
+    prose = write_prose_pages(pages)
     write_sitemap(pages)
-    print(f"wrote {len(pages)} field pages + sitemap.xml\n")
+    print(f"wrote {len(pages)} field pages, {len(prose)} prose pages, sitemap.xml\n")
     for w in pages:
         print(f"  /freelance-{w['slug']}-jobs/{'':<{max(0, 22 - len(w['slug']))}} "
               f"{w['n']:>6,} gigs   {w['field']}")

@@ -28,6 +28,7 @@ load_dotenv()
 
 import db
 import config
+import content
 import ingest
 import sources
 import alerts
@@ -4785,54 +4786,12 @@ def view_pricing():
             st.rerun()
 
 
-_FAQ = [
-    ("Where do the gigs come from?",
-     "Public job boards and hiring communities: We Work Remotely, RemoteOK, "
-     "Remotive, Jobicy, Arbeitnow, Freelancer.com and the hiring subreddits. "
-     "We read them continuously and put everything in one place, so you're not "
-     "keeping ten tabs open."),
-    ("How fresh are they?",
-     "The board refreshes itself every couple of minutes, around the clock. "
-     "Most gigs show up here within minutes of being posted, which is the "
-     "whole point — the person who answers first usually gets the work."),
-    ("Do I have to sign up?",
-     "No. The entire board is free to search and browse without an account. "
-     "Signing in saves your profile so the board can sort itself around you. "
-     "Pro is free to try for 14 days whenever you want it; you choose if and "
-     "when to start, so you're never dropped into a trial you didn't ask for."),
-    ("What's the difference between Free and Pro?",
-     "Free gives you every gig from every source, search and browse, plus a "
-     "drafted reply on every card to start from. Pro adds the parts that "
-     "help you reply first: gigs ranked by how well they fit you, replies "
-     "drafted from the actual post instead of a template, market rate data, "
-     "and instant alerts."),
-    ("How do the alerts work?",
-     "You pick the channel — phone push, Slack or Discord, Telegram, SMS or "
-     "email — plus how often you'll tolerate being pinged, which sources "
-     "count, and how many gigs per message. Then new matches come to you "
-     "instead of you refreshing a page."),
-    ("Do you really write the reply for me?",
-     "Yes, even on Free — every gig gets a drafted reply built from your "
-     "profile, ready to send or edit. On Pro it reads the actual post too, "
-     "so it can skip questions the listing already answered and speak to "
-     "specifics a template can't. Either way, it's a starting point that "
-     "beats staring at a blank message, not a promise you'll never touch it."),
-    ("Are the gigs verified?",
-     "No, and be careful. These are public postings gathered as they were "
-     "written; we classify and rank them, we don't vet the people behind "
-     "them. Treat anything asking for money up front or unpaid \"test work\" "
-     "the way you would anywhere else."),
-    ("What do you do with my data?",
-     "We keep your email so you can sign back in, plus the profile you fill "
-     "in so we can match gigs to you. Analytics are counted on our own server "
-     "with no third-party trackers and no advertising cookies. Nothing is "
-     "sold, and nothing is shared."),
-    ("Why is a gig in the wrong category?",
-     "Categories are worked out from the words in each post, so it gets most "
-     "of them right and occasionally gets one wrong. If you spot a bad one, "
-     "the feedback box on your profile goes straight to the person building "
-     "this."),
-]
+# Imported, not defined here. Two hand-kept copies of this text drifted:
+# this one still named every source we read long after that was removed
+# from the marketing site, and still said the first reply wins. See
+# content.py.
+_FAQ = content.FAQ
+
 
 
 def view_faq():
