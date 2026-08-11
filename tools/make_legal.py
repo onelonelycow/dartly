@@ -31,6 +31,7 @@ PAGE = """<!doctype html>
 <title>{title} · Nabbly</title>
 <meta name="description" content="{desc}">
 <link rel="icon" href="/favicon.png">
+<link rel="canonical" href="https://nabbly.co/{slug}">
 <meta name="robots" content="index, follow">
 <style>
   :root{{--bg:#0B0D10;--card:#12151a;--ink:#ECEEF1;--mute:#98A0AB;--faint:#6C737E;
@@ -91,5 +92,5 @@ for name, md, title, desc in (
      "drafted replies work."),
 ):
     body = md_to_html(md).replace(f"<h2>{title}</h2>", f"<h1>{title}</h1>", 1)
-    (SITE / name).write_text(PAGE.format(title=title, desc=html.escape(desc), body=body))
+    (SITE / name).write_text(PAGE.format(title=title, desc=html.escape(desc), body=body, slug=name))
     print("wrote", SITE / name)
