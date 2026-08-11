@@ -41,6 +41,9 @@ DB_PATH = data_file("nabbly_people.db")   # same file as people.py
 TRIAL_DAYS = 14               # the opt-in trial anyone can start
 FOUNDING_DAYS = 60           # ~2 months, the thank-you for the first backers
 FOUNDING_LIMIT = 50          # how many of them get it
+FOUNDING_ALERT_DAYS = 4      # how recent a founding signup has to be before the
+                             # admin page treats it as possible partner leakage
+                             # rather than the programme simply working
 
 # Partner groups testing Nabbly under an in-kind agreement: their people get Pro
 # free for the length of the test, unlocked by arriving on the partner's own
@@ -1030,6 +1033,18 @@ def stats() -> dict:
         "founding": sum(1 for r in rows if (r.get("founding") or 0)),
         "founding_left": max(0, FOUNDING_LIMIT
                              - sum(1 for r in rows if (r.get("founding") or 0))),
+        # Founding slots taken in the last few days, which is the only version
+        # of this number that can indicate a problem. A founding account on its
+        # own is just the programme working — someone found Nabbly on their own
+        # and got the thank-you. It is only suspicious when it happens WHILE a
+        # partner announcement is out, because then it is likely a partner
+        # member who lost their ?ref= tag on the way through Google. Counting
+        # all founding accounts ever made the admin page cry wolf about signups
+        # from long before any partner existed.
+        "founding_recent": sum(
+            1 for r in rows if (r.get("founding") or 0)
+            and (_parse(r.get("created")) or datetime(1970, 1, 1, tzinfo=timezone.utc))
+            > datetime.now(timezone.utc) - timedelta(days=FOUNDING_ALERT_DAYS)),
         # Accounts holding a partner grant, i.e. the offer actually landed.
         # Compare against the partner's own signup count: a gap between them
         # is people who were promised something they did not get.

@@ -5071,14 +5071,20 @@ def view_admin():
         ("Founding members", f"{acc['founding']:,}", "#E8933A"),
         ("Founding slots left", f"{acc['founding_left']:,}", "#868D98"),
     ])
-    if acc["founding"] and not acc["partner"]:
+    # Only RECENT founding signups can mean anything is wrong. An old founding
+    # account is the programme doing its job; one created while a partner
+    # announcement is out is more likely a member who lost their ?ref= tag to
+    # the Google redirect. Counting every founding account ever cried wolf
+    # about signups from long before any partner existed.
+    if acc["founding_recent"] and not acc["partner"]:
         st.warning(
-            f"**{acc['founding']}** founding slot(s) taken and no partner "
-            f"grants issued. If a partner announcement is live, those signups "
-            f"are likely partner members who lost their `?ref=` tag to the "
-            f"Google sign-in redirect — they are on 60 days instead of 90. "
-            f"Opening the partner link again fixes an account and returns its "
-            f"slot.")
+            f"**{acc['founding_recent']}** founding slot(s) taken in the last "
+            f"{accounts.FOUNDING_ALERT_DAYS} days, with no partner grants "
+            f"issued. If a partner announcement is live, those are likely "
+            f"members who lost their `?ref=` tag to the Google sign-in "
+            f"redirect, so they are on {accounts.FOUNDING_DAYS} days instead "
+            f"of the partner's. Opening the partner link again fixes an "
+            f"account and returns its slot.")
     # Whether profiles will actually survive the next redeploy. This is the one
     # signal that tells you if the Supabase connection string is really wired.
     if store.enabled():
