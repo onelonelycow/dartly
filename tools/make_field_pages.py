@@ -1,0 +1,325 @@
+"""
+make_field_pages.py — one crawlable page per field, built from the real board.
+
+WHY THIS EXISTS: every gig Nabbly holds lives inside a Streamlit app, and a
+crawler asking app.nabbly.co for HTML gets nine words and the title
+"Streamlit". So the entire product — tens of thousands of postings, the only
+text anyone actually searches for — is invisible to search engines. The
+marketing site is one page. There is nothing for "freelance video editing
+work" to match on.
+
+These pages are the fix, and they are how job boards have always ranked: not
+on the app, on a static page per category that a crawler can read.
+
+THE RISK, AND WHAT KEEPS US ON THE RIGHT SIDE OF IT: twenty-odd pages that
+differ only by a swapped noun are doorway pages, and Google demotes them on
+purpose. So nothing here is templated filler — every page is built from facts
+that are only true of its own field:
+
+  * the curated vocabulary that classifies a gig INTO that field
+    (config.JOB_TYPES), which is also, not by coincidence, the words people
+    type when they search for that work
+  * real, current titles from that field, so no two pages share a sentence
+  * that field's own budget and urgency mix, described in words
+
+TWO RULES INHERITED FROM THE REST OF THE SITE, both load-bearing:
+
+  * NO SOURCE NAMES. Titles are shown, "via <board>" never is. The feed is the
+    product; where it comes from is plumbing, and a visitor handed that list
+    has somewhere else to go.
+  * NO RELATIVE TIMESTAMPS. These are static files. "Posted 5 min ago" becomes
+    a lie within the hour, and a page that lies about freshness is worse for
+    trust than one that says nothing.
+
+Run:  .venv/bin/python tools/make_field_pages.py
+Out:  site/freelance-<slug>-jobs/index.html, one per field, plus a refreshed
+      site/sitemap.xml
+"""
+import html
+import re
+import sqlite3
+import sys
+from urllib.parse import quote
+from datetime import date
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+import config                                             # noqa: E402
+
+DB = ROOT / "demand-radar.db" if (ROOT / "demand-radar.db").exists() \
+    else ROOT / "demand_radar.db"
+OUT = ROOT / "site"
+BASE = "https://nabbly.co"
+
+# A field needs enough behind it to be worth a page of its own. Below this a
+# visitor lands on something nearly empty, which is exactly the thin-content
+# result the whole exercise is trying to avoid.
+MIN_GIGS = 150
+SAMPLE = 16         # real titles shown per page. The single strongest
+                    # thing separating one page from the next: no two
+                    # fields share a posting, so this is where the
+                    # uniqueness actually comes from. Eight left the
+                    # pages at ~270 words, thin enough that the
+                    # boilerplate outweighed the substance.
+
+# "Design / creative" -> ("design", "design"). The slug drives the URL, the
+# noun drives the prose, and both read better than the raw category label.
+def slug_and_noun(field: str) -> tuple[str, str]:
+    head = field.split("/")[0].strip().lower()
+    head = re.sub(r"[^a-z0-9]+", "-", head).strip("-")
+    return head, head.replace("-", " ")
+
+
+def clean(title: str) -> str:
+    """A gig title fit to print: no separator junk, no hiring boilerplate."""
+    t = re.sub(r"\s+", " ", (title or "")).strip(" -–—|·")
+    t = re.sub(r"\s*[-–—|]\s*(hiring|urgent|remote)\s*$", "", t, flags=re.I)
+    return t
+
+
+def read_board():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT job_type, title, size_tier, urgency "
+        "FROM posts WHERE is_demand = 1 AND COALESCE(title,'') != '' "
+        "ORDER BY COALESCE(posted_at, fetched_at) DESC").fetchall()
+    conn.close()
+    by = {}
+    for r in rows:
+        by.setdefault(r["job_type"] or "", []).append(r)
+    return by
+
+
+# ── the page ────────────────────────────────────────────────────────────────
+# Deliberately self-contained: no shared stylesheet to fetch, so each page is
+# one request and renders instantly. The tokens are index.html's, copied, so
+# the pages belong to the same site rather than merely linking to it.
+CSS = """
+:root{--bg:#121418;--bg2:#15181d;--panel:#171a20;--line:#262a31;--line2:#2f343d;
+--ink:#F6F8FA;--ink2:#AEB4BE;--mute:#868D98;--amber:#E8933A;--amber-l:#F7B569;
+--amber-d:#CB6F16;--radius:16px;--maxw:800px;
+--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--line)}
+/* no flex gap here: the wordmark is "Nabb" + a coloured "ly" span, and a gap
+   between flex children split the brand into two words. */
+.nav{display:flex;align-items:center;height:64px;font-weight:650;font-size:19px;
+letter-spacing:-.02em;text-decoration:none}
+.amber{color:var(--amber)}
+h1{font-size:clamp(30px,4.6vw,42px);font-weight:650;letter-spacing:-.02em;line-height:1.12;
+margin:44px 0 0;text-wrap:balance}
+.lead{color:var(--ink2);margin:18px 0 0;font-size:18px}
+h2{font-size:21px;font-weight:650;letter-spacing:-.02em;margin:44px 0 0}
+p{margin:14px 0 0}
+.terms{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0;padding:0;list-style:none}
+.terms li{font-size:14px;color:var(--ink2);background:rgba(232,147,58,.07);
+border:1px solid rgba(232,147,58,.16);padding:7px 13px;border-radius:100px}
+.gigs{list-style:none;padding:0;margin:18px 0 0;border-top:1px solid var(--line)}
+.gigs li{padding:13px 0;border-bottom:1px solid var(--line);font-size:15.5px;color:var(--ink2)}
+.btn{display:inline-block;margin:26px 0 0;font-weight:600;font-size:16px;border-radius:11px;
+padding:14px 24px;text-decoration:none;color:#2a1806;
+background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
+.more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
+.more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
+border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+.more a:hover{border-color:var(--amber);color:var(--ink)}
+footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
+color:var(--mute);font-size:13px}
+footer a{color:var(--mute)}
+"""
+
+PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content="{desc}">
+<link rel="canonical" href="{url}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#121418">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nabbly">
+<meta property="og:title" content="{title}">
+<meta property="og:description" content="{desc}">
+<meta property="og:url" content="{url}">
+<meta property="og:image" content="{base}/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/favicon.png">
+<script type="application/ld+json">
+{{"@context":"https://schema.org","@type":"CollectionPage",
+"name":{name_json},"description":{desc_json},"url":"{url}",
+"isPartOf":{{"@type":"WebSite","name":"Nabbly","url":"{base}/"}}}}
+</script>
+<style>{css}</style>
+</head>
+<body>
+<header><div class="wrap"><a class="nav" href="/">Nabb<span class="amber">ly</span></a></div></header>
+<main class="wrap">
+  <h1>{h1}</h1>
+  <p class="lead">{lead}</p>
+
+  <h2>What lands here</h2>
+  <p>Nabbly reads {noun} briefs and roles from job boards and hiring
+     communities around the clock, and puts each one on the board minutes after
+     it posts. A gig reaches this page when it talks about work like this:</p>
+  <ul class="terms">{terms}</ul>
+
+  <h2>Recently on the board</h2>
+  <p>Real {noun} postings Nabbly picked up. The live board carries far more,
+     and it changes through the day.</p>
+  <ul class="gigs">{gigs}</ul>
+  <a class="btn" href="https://app.nabbly.co/?nav=gigs&amp;cat={cat}">See live {noun} work &rarr;</a>
+
+  <h2>Why speed matters here</h2>
+  <p>{speed}</p>
+
+  <h2>Other fields</h2>
+  <ul class="more">{siblings}</ul>
+</main>
+<footer><div class="wrap">
+  <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
+  &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="/terms.html">Terms</a>
+</div></footer>
+</body>
+</html>
+"""
+
+
+def speed_line(noun, large, urgent, total):
+    """
+    A sentence about THIS field's own shape, not a slogan.
+
+    Built from the field's real budget and urgency mix so no two pages argue
+    the same way — a field where a third of the work is large-budget earns a
+    different sentence from one that is mostly quick turnarounds. Nothing here
+    claims a fast reply wins the work, which is a line the rest of the site
+    deliberately does not make: early is the part you can control, not a
+    guarantee.
+    """
+    big = round(100 * large / total) if total else 0
+    urg = round(100 * urgent / total) if total else 0
+    bits = []
+    if big >= 25:
+        bits.append(f"a good share of {noun} work here is posted at the larger "
+                    f"end, and those briefs attract replies quickly")
+    else:
+        bits.append(f"most {noun} work here turns around fast, and a brief that "
+                    f"sits unanswered tends to get filled by whoever saw it first")
+    if urg >= 8:
+        bits.append(f"roughly one in {max(2, round(100 / urg))} is posted with a "
+                    f"deadline attached")
+    bits.append("being early is the part you can actually control, which is the "
+                "whole job of a board that updates every couple of minutes")
+    return ". ".join(s[0].upper() + s[1:] for s in bits) + "."
+
+
+def build():
+    by = read_board()
+    fields = []
+    for field, rows in by.items():
+        if not field or field.lower().startswith("other"):
+            continue                      # nothing to search for, nothing to say
+        if len(rows) < MIN_GIGS:
+            continue                      # a page nobody should land on
+        s, noun = slug_and_noun(field)
+        if s:
+            fields.append((field, s, noun, rows))
+    fields.sort(key=lambda f: -len(f[3]))
+
+    written = []
+    for field, s, noun, rows in fields:
+        terms = [t for t in config.JOB_TYPES.get(field, []) if len(t) > 2][:22]
+        titles, seen = [], set()
+        for r in rows:
+            t = clean(r["title"])
+            k = t.lower()
+            if 12 < len(t) < 78 and k not in seen:
+                seen.add(k); titles.append(t)
+            if len(titles) >= SAMPLE:
+                break
+        if len(titles) < 4 or len(terms) < 3:
+            continue                      # too thin to be worth indexing
+
+        large = sum(1 for r in rows if r["size_tier"] == "Large")
+        urgent = sum(1 for r in rows if r["urgency"] == "Urgent")
+        url = f"{BASE}/freelance-{s}-jobs/"
+        title = f"Freelance and remote {noun} work · Nabbly"
+        desc = (f"New freelance {noun} briefs and remote {noun} roles from every "
+                f"job board and hiring community, in one place, minutes after "
+                f"they post.")
+        page = PAGE.format(
+            title=html.escape(title), desc=html.escape(desc), url=url, base=BASE,
+            css=CSS, # quote(), not a naive space swap: every job_type here contains a slash
+            # ("Design / creative"), and an unescaped one in a query value is at
+            # best ambiguous and at worst truncates the filter.
+            cat=html.escape(quote(field, safe="")), noun=html.escape(noun),
+            name_json=repr(title).replace("'", '"'),
+            desc_json=repr(desc).replace("'", '"'),
+            h1=f"Freelance and remote {html.escape(noun)} work,<br>the moment it posts.",
+            lead=(f"Every new {html.escape(noun)} brief and {html.escape(noun)} role "
+                  f"Nabbly finds, from across the job boards and hiring communities "
+                  f"it watches, gathered on one board you can read in a minute."),
+            terms="".join(f"<li>{html.escape(t)}</li>" for t in terms),
+            gigs="".join(f"<li>{html.escape(t)}</li>" for t in titles),
+            speed=speed_line(html.escape(noun), large, urgent, len(rows)),
+            siblings="",   # filled below, once every slug is known
+        )
+        written.append({"field": field, "slug": s, "noun": noun, "page": page,
+                        "url": url, "n": len(rows)})
+
+    # Sibling links last, so every page can point at every other one. Without
+    # them each page is an orphan reachable only from the sitemap, which is a
+    # weak signal; with them the set is a small connected site.
+    for w in written:
+        links = "".join(
+            f'<li><a href="/freelance-{o["slug"]}-jobs/">{html.escape(o["noun"]).title()}</a></li>'
+            for o in written if o["slug"] != w["slug"])
+        w["page"] = w["page"].replace('<ul class="more"></ul>',
+                                      f'<ul class="more">{links}</ul>')
+        d = OUT / f"freelance-{w['slug']}-jobs"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "index.html").write_text(w["page"], encoding="utf-8")
+
+    return written
+
+
+def write_sitemap(written):
+    today = date.today().isoformat()
+    # app.nabbly.co is NOT listed. It answers a crawler with nine words and the
+    # title "Streamlit" — everything it holds is rendered client side — so
+    # pointing search engines at it hourly (which this file used to do, at
+    # priority 0.9) spent crawl budget on an empty room and offered the domain
+    # a thin page to judge it by.
+    urls = [(f"{BASE}/", "daily", "1.0"),
+            *[(w["url"], "daily", "0.8") for w in written],
+            (f"{BASE}/privacy.html", "yearly", "0.3"),
+            (f"{BASE}/terms.html", "yearly", "0.3")]
+    body = "\n".join(
+        f"  <url>\n    <loc>{u}</loc>\n    <lastmod>{today}</lastmod>\n"
+        f"    <changefreq>{c}</changefreq>\n    <priority>{p}</priority>\n  </url>"
+        for u, c, p in urls)
+    (OUT / "sitemap.xml").write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<!--\n  Generated by tools/make_field_pages.py. Do not hand-edit; the\n"
+        "  next run overwrites it. app.nabbly.co is deliberately absent - see\n"
+        "  write_sitemap() for why.\n-->\n"
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        f"{body}\n</urlset>\n", encoding="utf-8")
+
+
+if __name__ == "__main__":
+    pages = build()
+    write_sitemap(pages)
+    print(f"wrote {len(pages)} field pages + sitemap.xml\n")
+    for w in pages:
+        print(f"  /freelance-{w['slug']}-jobs/{'':<{max(0, 22 - len(w['slug']))}} "
+              f"{w['n']:>6,} gigs   {w['field']}")

@@ -271,6 +271,16 @@
 
   /* closing cta */
 
+  /* footer field directory — see the block in the body for why it exists */
+  .fielddir{display:flex;flex-wrap:wrap;align-items:center;gap:9px;
+    border-top:1px solid var(--line);padding:26px 0 4px;margin-top:34px}
+  .fielddir span{color:var(--mute);font-size:13px;font-weight:600;
+    letter-spacing:.06em;text-transform:uppercase;margin-right:4px}
+  .fielddir a{color:var(--ink2);font-size:14px;text-decoration:none;
+    background:var(--bg2);border:1px solid var(--line);padding:7px 13px;
+    border-radius:100px;transition:.15s}
+  .fielddir a:hover{border-color:var(--amber);color:var(--ink)}
+
   /* footer */
   footer{border-top:1px solid var(--line);padding:44px 0 60px;margin-top:40px}
   .foot{display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap}
@@ -502,6 +512,22 @@
      sources. The feed is the product; where it comes from is plumbing, and a
      visitor shouldn't be handed the list of places to go instead of us. -->
 
+</div>
+
+<!-- ══ FIELD DIRECTORY ══
+     Two jobs, one block. It is the only path a crawler has from this page to
+     the per-field pages, which otherwise sit reachable from the sitemap alone
+     — a weak signal, and orphan pages rank badly.
+     It also puts the subject matter back. When the fields section was cut from
+     the body, the page lost every phrase anyone actually searches for: it says
+     "gig", "remote role" and "board", and never "writing", "healthcare" or
+     "video". A footer directory carries those words without putting a wall of
+     pills back in the middle of the page. -->
+<div class="wrap">
+  <nav class="fielddir" aria-label="Browse work by field">
+    <span>Browse by field</span>
+    <a href="/freelance-admin-jobs/">Admin</a><a href="/freelance-architecture-jobs/">Architecture</a><a href="/freelance-consulting-jobs/">Consulting</a><a href="/freelance-customer-support-jobs/">Customer Support</a><a href="/freelance-data-jobs/">Data</a><a href="/freelance-design-jobs/">Design</a><a href="/freelance-development-jobs/">Development</a><a href="/freelance-engineering-jobs/">Engineering</a><a href="/freelance-finance-jobs/">Finance</a><a href="/freelance-healthcare-jobs/">Healthcare</a><a href="/freelance-hr-jobs/">Hr</a><a href="/freelance-legal-jobs/">Legal</a><a href="/freelance-management-jobs/">Management</a><a href="/freelance-marketing-jobs/">Marketing</a><a href="/freelance-photography-jobs/">Photography</a><a href="/freelance-product-jobs/">Product</a><a href="/freelance-qa-jobs/">Qa</a><a href="/freelance-sales-jobs/">Sales</a><a href="/freelance-teaching-jobs/">Teaching</a><a href="/freelance-video-jobs/">Video</a><a href="/freelance-writing-jobs/">Writing</a>
+  </nav>
 </div>
 
 <!-- ══ FOOTER ══ -->
