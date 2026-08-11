@@ -46,6 +46,40 @@ JobPosting pages, arriving early and through a side door. Leave the feed field
 empty for now and take the plain directory listing, which is the part with the
 backlink. The feed can always be added later; it cannot be taken back.
 
+### Submitted 2026-08-11: JobBoardSearch (free tier)
+
+Recorded so the other submissions match, and so nobody re-derives it later.
+
+| Field | Value |
+|---|---|
+| Job board name | Nabbly |
+| URL | https://nabbly.co |
+| API / RSS URL | **left empty, deliberately** — see the note above |
+| Job board title | Freelance and remote work from every board, in one place |
+| Job board software | Custom / Built in-house |
+| Tier | Basic listing with logo, free. No upgrades ticked. |
+
+Feature tags used, all of them true of the product:
+
+> Data from multiple job boards · Job alerts · Category Filters · Skills
+> Filter · Posting Date Filter · Role Filter · Timezone/location-based
+> filtering · Freelance · Remote Jobs · Jobs (full time, part time, contract
+> positions) · Software Engineering · Design Jobs · Sales · Marketing Jobs ·
+> Video Editing · Data science and data engineering jobs · Healthcare ·
+> Finance · Content Writing
+
+**Tags deliberately NOT used, because they would be untrue.** A reviewer who
+catches one false tag discounts the rest, and these directories are read by
+people:
+
+- *Remote jobs only* — much of the board is not remote
+- *Hand Curated Jobs* — classification is automated
+- *Fast apply jobs* — Nabbly drafts a reply, it does not submit applications
+- *Payments through platform* — there are none
+- *Salary / Salary required / Salary data extracted by hand* — what Nabbly has
+  is a budget tier inferred from the wording of a post, which is a different
+  claim
+
 **What to put in the description field**, since most of these ask for one:
 
 > Nabbly gathers freelance projects and remote roles from job boards and hiring
