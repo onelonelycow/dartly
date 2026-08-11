@@ -263,6 +263,25 @@ def _sign_in_locked(email: str, source: str, campaign: str) -> tuple[dict | None
             if not have or have < _parse(until):
                 conn.execute("UPDATE accounts SET pro_until=? WHERE email=?",
                              (until, email))
+            # GIVE THE FOUNDING SLOT BACK. A partner member can reach the
+            # founding branch below by accident: "Continue with Google" leaves
+            # the app and comes back on a bare URL, so ?ref= is gone by the
+            # time the account is created and they fall through as an ordinary
+            # early signup. That spends one of the fifty on somebody the
+            # partner deal was already covering — the exact outcome the
+            # founding branch says it must avoid — and hands them 60 days where
+            # the landing page promised 90.
+            #
+            # Releasing it here is safe in the one direction that matters: the
+            # partner grant is longer than the founding one, so nobody loses
+            # time. A genuine founding member who later opens a partner link
+            # does trade the label for the longer grant, which is a fair swap
+            # and rare next to the case this fixes.
+            if row["founding"] if "founding" in row.keys() else 0:
+                conn.execute("UPDATE accounts SET founding=0 WHERE email=?",
+                             (email,))
+                print(f"  accounts: released a founding slot to the "
+                      f"{grant['name']} grant", flush=True)
         conn.commit()
         acc = dict(conn.execute("SELECT * FROM accounts WHERE email=?",
                                 (email,)).fetchone())
@@ -1002,4 +1021,36 @@ def stats() -> dict:
         "pro": sum(1 for r in rows if (r.get("plan") or "") == "pro"),
         "with_access": len(live),
         "returning": sum(1 for r in rows if (r.get("visits") or 0) > 1),
+        # How the founding fifty are going, and how many are left. Worth its
+        # own number because a partner announcement can eat the whole
+        # allocation by accident: a member who signs in with Google arrives
+        # without their ?ref= tag and falls through to this branch instead of
+        # the partner one. If `founding` climbs in step with a campaign, that
+        # is what is happening — see _sign_in_locked.
+        "founding": sum(1 for r in rows if (r.get("founding") or 0)),
+        "founding_left": max(0, FOUNDING_LIMIT
+                             - sum(1 for r in rows if (r.get("founding") or 0))),
+        # Accounts holding a partner grant, i.e. the offer actually landed.
+        # Compare against the partner's own signup count: a gap between them
+        # is people who were promised something they did not get.
+        "partner": sum(1 for r in rows if _has_partner_grant(r)),
     }
+
+
+def _has_partner_grant(row) -> bool:
+    """
+    Is this account's Pro coming from a partner deal rather than founding,
+    a trial or a payment?
+
+    Inferred from the shape of the grant rather than stored, because nothing
+    records WHY pro_until was set: a partner grant runs longer than the
+    founding gift, so a non-founding account sitting on more days than
+    FOUNDING_DAYS could give it can only have come from a partner link.
+    """
+    if (row.get("plan") or "") == "pro" or (row.get("founding") or 0):
+        return False
+    until = _parse(row.get("pro_until"))
+    if not until:
+        return False
+    longest_non_partner = datetime.now(timezone.utc) + timedelta(days=FOUNDING_DAYS)
+    return until > longest_non_partner

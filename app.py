@@ -5060,6 +5060,25 @@ def view_admin():
         ("Trial ended", f"{acc['expired']:,}", "#e5675f"),
         ("Came back", f"{acc['returning']:,}", "#35b37e"),
     ])
+    # Where the free Pro is actually going. These two belong side by side: a
+    # partner announcement can quietly spend the founding fifty on people the
+    # partner deal already covered, because a member who signs in with Google
+    # comes back from the redirect without their ?ref= tag and falls through to
+    # the founding branch. Founding climbing while partner sits still is that
+    # happening, and it is otherwise invisible.
+    stat_cards([
+        ("On a partner grant", f"{acc['partner']:,}", "#a78bfa"),
+        ("Founding members", f"{acc['founding']:,}", "#E8933A"),
+        ("Founding slots left", f"{acc['founding_left']:,}", "#868D98"),
+    ])
+    if acc["founding"] and not acc["partner"]:
+        st.warning(
+            f"**{acc['founding']}** founding slot(s) taken and no partner "
+            f"grants issued. If a partner announcement is live, those signups "
+            f"are likely partner members who lost their `?ref=` tag to the "
+            f"Google sign-in redirect — they are on 60 days instead of 90. "
+            f"Opening the partner link again fixes an account and returns its "
+            f"slot.")
     # Whether profiles will actually survive the next redeploy. This is the one
     # signal that tells you if the Supabase connection string is really wired.
     if store.enabled():
