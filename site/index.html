@@ -50,9 +50,16 @@
 <link rel="preconnect" href="https://app.nabbly.co" crossorigin>
 <link rel="dns-prefetch" href="https://app.nabbly.co">
 
-<!-- ── Structured data: search engines read this to build rich
-     results (site name + sitelinks search box, the app card, and the
-     FAQ accordion straight in Google). ───────────────────────────── -->
+<!-- ── Structured data: the site name, a sitelinks search box, and the
+     app card.
+     NO FAQPage HERE, DELIBERATELY. There was one, describing three questions
+     that appeared nowhere on the page — the visible FAQ block was removed
+     (it duplicated the app's own FAQ tab) and the markup was left behind.
+     Google requires FAQ content to be visible on the page it is marked up
+     on, so that was a guidelines violation earning nothing: FAQ rich results
+     have been limited to health and government sites since 2023. If a
+     visible FAQ ever returns to this page, the markup can come back with
+     it. ─────────────────────────────────────────────────────────── -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -87,26 +94,6 @@
       "url": "https://app.nabbly.co/",
       "description": "Nabbly aggregates freelance projects and remote roles from every job board and hiring community in real time, sorts them by skill, budget and urgency, and alerts you the moment a match drops.",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
-    },
-    {
-      "@type": "FAQPage",
-      "mainEntity": [
-        {
-          "@type": "Question",
-          "name": "How fresh are the gigs?",
-          "acceptedAnswer": { "@type": "Answer", "text": "The board refreshes itself every couple of minutes, around the clock. Most gigs appear within minutes of being posted, and being early is the part you can control." }
-        },
-        {
-          "@type": "Question",
-          "name": "Do I have to sign up?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No. The entire board is free to search and browse without an account. Signing in saves your profile so the board sorts itself around you. Pro is free to try for 14 days whenever you want it, and you choose when to start." }
-        },
-        {
-          "@type": "Question",
-          "name": "What's the difference between Free and Pro?",
-          "acceptedAnswer": { "@type": "Answer", "text": "Free gives you every gig from every source, plus search, browse, and a drafted reply on every card. Pro adds the parts that help you reply first: gigs ranked by fit, replies drafted from the actual post, market-rate data, and instant alerts." }
-        }
-      ]
     }
   ]
 }

@@ -178,11 +178,15 @@ f_h = font(56, "Semibold")
 f_sub = font(24, "Regular", ARIAL)
 f_url = font(23, "Semibold", ARIAL_B)
 
-d.text((X, H * 0.335), "Every freelance gig,", font=f_h, fill=INK, anchor="lm")
+# Matches the page headline. This card is what renders in Slack, LinkedIn and
+# iMessage, so when the promise on the site widened from "every freelance gig"
+# to gigs AND remote roles, an unregenerated card kept selling the narrower one
+# to everyone who shared a link.
+d.text((X, H * 0.335), "Every gig and remote role,", font=f_h, fill=INK, anchor="lm")
 d.text((X, H * 0.445), "the moment it drops.", font=f_h, fill=SOFT_AMBER, anchor="lm")
-d.text((X, H * 0.565), "One feed for every freelance board,", font=f_sub,
+d.text((X, H * 0.565), "Freelance projects and remote work,", font=f_sub,
        fill=MUTE, anchor="lm")
-d.text((X, H * 0.625), "so you reply first.", font=f_sub, fill=MUTE, anchor="lm")
+d.text((X, H * 0.625), "in one place.", font=f_sub, fill=MUTE, anchor="lm")
 
 # Sign-off lockup: the mark beside the domain, same as the weekly posts.
 MK = 34
