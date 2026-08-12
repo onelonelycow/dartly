@@ -625,9 +625,72 @@ def backfill_freelancer_descriptions() -> int:
     return n
 
 
-def reclassify_all() -> int:
+def _classifier_fingerprint() -> str:
+    """
+    A short hash of everything that decides how a gig gets tagged.
+
+    Covers classify.py's own source and the keyword vocabulary in config, so
+    editing either one changes the fingerprint and earns a full re-tag. Editing
+    neither does not.
+    """
+    import hashlib
+    from pathlib import Path
+    h = hashlib.sha256()
+    try:
+        h.update(Path(__file__).with_name("classify.py").read_bytes())
+    except OSError:
+        pass
+    try:
+        import config
+        h.update(repr(sorted(config.JOB_TYPES.items())).encode())
+    except Exception:
+        pass
+    return h.hexdigest()[:16]
+
+
+def _last_reclassify() -> str:
+    """The fingerprint of the classifier that last re-tagged the whole board."""
+    try:
+        import store
+        if store.enabled():
+            return (store.get("_classifier", "reclassified_at") or {}).get("fp", "")
+    except Exception:
+        pass
+    try:
+        return data_file("classifier.stamp").read_text().strip()
+    except OSError:
+        return ""
+
+
+def _mark_reclassified(fp: str):
+    """Durable, because Render wipes the disk and this must survive a deploy."""
+    try:
+        import store
+        if store.enabled() and store.put("_classifier", "reclassified_at", {"fp": fp}):
+            return
+    except Exception:
+        pass
+    try:
+        data_file("classifier.stamp").write_text(fp)
+    except OSError:
+        pass
+
+
+def reclassify_all(force: bool = False) -> int:
     """
     Re-run the classifier over every stored post, updating any whose tags moved.
+
+    SKIPPED UNLESS THE CLASSIFIER CHANGED. This is the single most expensive
+    thing at boot: 82 seconds over a 25,600-gig board, and Render restarts on
+    every deploy with a board nearer 40,000. It is CPU-bound Python, so the GIL
+    hands the whole process to it and page renders queue behind it. Measured
+    live: a board that rendered in 5s while idle took 32s during this.
+    The docstring used to say a second run was "a cheap no-op". That was true
+    of the writes and false of the work — it re-classified every row to
+    discover it had nothing to write. Now a fingerprint of classify.py plus the
+    keyword vocabulary decides: unchanged means skip in microseconds, changed
+    means run once and stamp it. The stamp lives in the durable store because
+    the local disk does not survive the deploy that would have changed it.
 
     upsert_post() never touches a row it has already seen, so a classifier
     improvement would otherwise only reach new gigs while the existing board
@@ -648,6 +711,9 @@ def reclassify_all() -> int:
     what the board says a gig IS, not just how much text is held in memory.
     Streaming gets the memory back without touching the result.
     """
+    fp = _classifier_fingerprint()
+    if not force and fp == _last_reclassify():
+        return 0
     import classify
     conn = connect()
     try:
@@ -675,6 +741,10 @@ def reclassify_all() -> int:
                 "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
                 pending)
         conn.commit()
+        # Stamped only after the pass completed. A crash or a killed process
+        # part-way leaves the stamp untouched, so the next boot does the work
+        # again rather than recording a re-tag that never finished.
+        _mark_reclassified(fp)
         return len(pending)
     finally:
         conn.close()
