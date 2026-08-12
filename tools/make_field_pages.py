@@ -263,8 +263,10 @@ def speed_line(noun, large, urgent, total):
     return ". ".join(s[0].upper() + s[1:] for s in bits) + "."
 
 
-def build():
-    by = read_board()
+def build(by=None):
+    # Takes the board so __main__ can read it once and hand the same
+    # snapshot to both the page builder and the recorder.
+    by = by if by is not None else read_board()
     fields = []
     for field, rows in by.items():
         if not field or field.lower().startswith("other"):
@@ -501,10 +503,51 @@ def write_prose_pages(written):
     return ["about.html", "faq.html",
             "guides/how-to-reply-to-a-freelance-job-post/"]
 
+
+def record_snapshot(by):
+    """
+    Write down what the board looked like today, so a trend can exist later.
+
+    NOTHING IN NABBLY RECORDS HISTORY. The live board holds 21 days by design,
+    and once a gig ages out its row survives in the mirror but nobody ever
+    counted what was there at the time. So the interesting claim — "the share
+    of postings in this field grew" — cannot be made from current data however
+    it is queried, and every week that passes without recording is a week of it
+    lost permanently.
+
+    One row per run, keyed by date, holding a count per field. Tiny, written to
+    the same durable store as everything else, and it accumulates on its own
+    once the weekly workflow runs. Twelve of these and a quarterly report
+    becomes possible; without them it never does, however long we wait.
+
+    Counts, not money, deliberately. What a gig pays cannot be published — the
+    parser cannot tell an hourly rate from a project budget, so a median across
+    both means nothing — but how many were posted is unambiguous.
+    """
+    try:
+        import store
+        if not store.enabled():
+            print("  snapshot: no durable store configured, skipped")
+            return False
+        counts = {f: len(rows) for f, rows in by.items() if f}
+        today = date.today().isoformat()
+        ok = store.put("_board_snapshots", today,
+                       {"date": today, "fields": counts,
+                        "total": sum(counts.values())})
+        print(f"  snapshot: {'recorded' if ok else 'FAILED'} {today} "
+              f"({len(counts)} fields, {sum(counts.values()):,} gigs)")
+        return ok
+    except Exception as e:
+        print(f"  ! snapshot failed ({type(e).__name__}: {e})")
+        return False
+
+
 if __name__ == "__main__":
-    pages = build()
+    board = read_board()
+    pages = build(board)
     prose = write_prose_pages(pages)
     write_sitemap(pages)
+    record_snapshot(board)
     print(f"wrote {len(pages)} field pages, {len(prose)} prose pages, sitemap.xml\n")
     for w in pages:
         print(f"  /freelance-{w['slug']}-jobs/{'':<{max(0, 22 - len(w['slug']))}} "
