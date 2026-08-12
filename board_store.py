@@ -35,6 +35,15 @@ CAP = 40000
 # instances — rows are keyed on (source, source_id), the same natural key the
 # local table dedupes on.
 #
+# posted_at MUST ARRIVE ISO. This table is text, so a mix of formats sorts
+# alphabetically: 1,956 rows written before ingest normalised dates held RFC
+# 2822 ("Wed, 29 Apr 2026 ...") and made MAX(posted_at) return an April string
+# as the newest row on the board. Backfilled 2026-08-12; ingest has applied
+# sources.to_iso() on the way in since July, so nothing new arrives broken.
+# Deliberately not re-normalised here: that would make this module import
+# sources, which drags in requests and feedparser, and the weekly CI job
+# installs neither.
+#
 # A column missing from this tuple is a column that silently does not survive a
 # redeploy. That is not theoretical: apply_email, page_checked and link_checked
 # were all absent here, so every gig lost its extracted apply-to address on each
