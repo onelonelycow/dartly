@@ -153,6 +153,62 @@ guidelines and can be penalised.
 
 ---
 
+## Where the audience actually is
+
+Startup directories are the obvious next step and mostly the wrong one. Lists
+of "931 directories to submit to" exist, and submitting to them is precisely
+what the section at the bottom of this file warns against: the links come from
+sites nobody reads, and a young domain looks worse for having them. They also
+send founders, not freelancers. A backlink from a startup directory is worth
+something; the traffic behind it is worth almost nothing to Nabbly.
+
+Freelancers gather in three places, and only two are worth approaching.
+
+### Roundups that already rank (best use of an hour)
+
+Same pitch as Tier 3, but these are confirmed live and specific rather than
+"go and search":
+
+| Where | Why it fits |
+|---|---|
+| lettuce.co/resources/50-best-places-to-find-work-for-freelancers | A list of places to find freelance work. Nabbly is literally that. |
+| elnacain.com — 12 freelance writing job boards, newsletters and communities | Writing-specific, independently run, kept current. Pair the pitch with /freelance-writing-jobs/ rather than the homepage. |
+
+Pitch the field page that matches the article, not nabbly.co. A writing
+roundup linking to /freelance-writing-jobs/ is a better fit for their reader
+and a stronger signal for that page.
+
+### Newsletters: know which half you are writing to
+
+Two kinds, and treating them the same is how a pitch gets ignored.
+
+**Lead newsletters** — The Daily Lead, Kaitlyn Arford's Freelance
+Opportunities, Freelance Writing Jobs. These curate and send gigs. They are
+competitors, not partners. Do not pitch them a board that does the same job
+faster and for free; at best it is ignored, at worst it is rude.
+
+**Advice and business-of-freelancing newsletters** — the ones about rates,
+clients, contracts and burnout rather than leads. These have no reason to
+protect a feed, and a tool their readers can use is genuinely useful to them.
+paved.com/freelance-newsletters lists them with subscriber counts, which is a
+faster way to find the ones worth writing to than searching.
+
+### Communities
+
+r/freelance, r/forhire, r/digitalnomad and the field-specific ones. Read the
+self-promotion rules first, every time. Several ban links outright, and a ban
+costs more than the post was ever going to earn. Where posting is allowed, a
+build-log about the problem lands better than an announcement.
+
+### Free launch platforms worth one submission each
+
+Launching Next (launchingnext.com/submit) takes free submissions with a
+permanent dofollow link. Product Hunt is worth scheduling properly rather than
+firing off. Beyond those two, the returns fall away fast, and the marginal
+directory is closer to the link-farm end than the useful end.
+
+---
+
 ## What not to bother with
 
 - **Paid link packages and "we'll submit you to 500 directories"** services.
