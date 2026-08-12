@@ -45,6 +45,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+# Pick up .env when running on a laptop, so a local run reads the same mirror
+# CI does instead of silently falling back to the gitignored SQLite copy and
+# writing pages from a stale board. Guarded because CI installs psycopg and
+# nothing else, and sets DATABASE_URL directly, so python-dotenv is neither
+# present nor needed there.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+except ImportError:
+    pass
+
 import config                                             # noqa: E402
 
 DB = ROOT / "demand-radar.db" if (ROOT / "demand-radar.db").exists() \
@@ -63,12 +75,31 @@ SAMPLE = 16         # real titles shown per page. The single strongest
                     # pages at ~270 words, thin enough that the
                     # boilerplate outweighed the substance.
 
+# Fields whose first word does not survive being lowercased into prose. Derived
+# nouns are fine for most ("Design / creative" -> "design work"), and actively
+# broken for three:
+#
+#   "IT / support"   -> "remote it work, the moment it posts"   <- pronoun
+#   "HR / recruiting"-> "remote hr work"
+#   "QA / testing"   -> "remote qa work"
+#
+# The IT one shipped live and read as a typo in the h1, the title tag and the
+# meta description of a page we are about to point outreach at. Acronyms keep
+# their case; anything else derives as before.
+NOUN_OVERRIDES = {
+    "it": "IT",
+    "hr": "HR",
+    "qa": "QA",
+}
+
+
 # "Design / creative" -> ("design", "design"). The slug drives the URL, the
 # noun drives the prose, and both read better than the raw category label.
 def slug_and_noun(field: str) -> tuple[str, str]:
     head = field.split("/")[0].strip().lower()
     head = re.sub(r"[^a-z0-9]+", "-", head).strip("-")
-    return head, head.replace("-", " ")
+    noun = NOUN_OVERRIDES.get(head, head.replace("-", " "))
+    return head, noun
 
 
 def clean(title: str) -> str:
@@ -324,7 +355,7 @@ def build(by=None):
     # weak signal; with them the set is a small connected site.
     for w in written:
         links = "".join(
-            f'<li><a href="/freelance-{o["slug"]}-jobs/">{html.escape(o["noun"]).title()}</a></li>'
+            f'<li><a href="/freelance-{o["slug"]}-jobs/">{html.escape(o["noun"]) if o["noun"].isupper() else html.escape(o["noun"]).title()}</a></li>'
             for o in written if o["slug"] != w["slug"])
         w["page"] = w["page"].replace('<ul class="more"></ul>',
                                       f'<ul class="more">{links}</ul>')
@@ -434,7 +465,7 @@ dd{{margin:10px 0 0;color:var(--ink2)}}
 
 def write_prose_pages(written):
     sibs = "".join(
-        f'<li><a href="/freelance-{w["slug"]}-jobs/">{html.escape(w["noun"]).title()}</a></li>'
+        f'<li><a href="/freelance-{w["slug"]}-jobs/">{html.escape(w["noun"]) if w["noun"].isupper() else html.escape(w["noun"]).title()}</a></li>'
         for w in written)
 
     # FAQPage schema is legitimate HERE and only here: every question below is
