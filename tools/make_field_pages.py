@@ -210,6 +210,12 @@ PAGE = """<!doctype html>
   <h2>Why speed matters here</h2>
   <p>{speed}</p>
 
+  <h2>Replying to these</h2>
+  <p>Most replies to a posting are interchangeable, which is the opening.
+     <a href="/guides/how-to-reply-to-a-freelance-job-post/">What to put in the
+     first two lines</a>, how many questions to ask, and the tells that make a
+     reply look pasted.</p>
+
   <h2>Other fields</h2>
   <ul class="more">{siblings}</ul>
 </main>
@@ -331,6 +337,8 @@ def write_sitemap(written):
             *[(w["url"], "daily", "0.8") for w in written],
             (f"{BASE}/about.html", "monthly", "0.6"),
             (f"{BASE}/faq.html", "monthly", "0.6"),
+            (f"{BASE}/guides/how-to-reply-to-a-freelance-job-post/",
+             "monthly", "0.7"),
             (f"{BASE}/privacy.html", "yearly", "0.3"),
             (f"{BASE}/terms.html", "yearly", "0.3")]
     body = "\n".join(
@@ -355,6 +363,19 @@ def write_sitemap(written):
 # from content.py, the same literal the app renders, so the copy cannot drift
 # the way it did when the FAQ lived in two places.
 import content                                            # noqa: E402
+
+# Only the guide needs these: the two example replies sit side by side so the
+# difference is visible before either is read.
+GUIDE_CSS = """
+.ex{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--line2);
+border-radius:0 var(--radius) var(--radius) 0;padding:16px 20px;margin:16px 0 0}
+.ex-good{border-left-color:var(--amber)}
+.ex-l{font-size:12px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;
+color:var(--mute)}
+.ex p{margin:8px 0 0;font-size:15.5px;color:var(--ink2)}
+.ex-good p{color:var(--ink)}
+.close{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);color:var(--mute)}
+"""
 
 PROSE = """<!doctype html>
 <html lang="en">
@@ -443,7 +464,35 @@ def write_prose_pages(written):
         url=f"{BASE}/about.html", base=BASE, css=CSS, schema="",
         h1="About Nabbly", lead=html.escape(content.ABOUT_LEAD),
         body=about_body, siblings=sibs), encoding="utf-8")
-    return ["about.html", "faq.html"]
+    # ── the applying guide ──────────────────────────────────────────────
+    # A directory rather than a flat .html because this is the first of a kind
+    # and /guides/ is where the next one goes. Every rule on it is one the
+    # drafter in pitch.py already follows, which is what makes it ours to
+    # publish rather than advice reassembled from other people's blogs.
+    ex = (f'<div class="ex"><div class="ex-l">The usual reply</div>'
+          f'<p>{html.escape(content.GUIDE_APPLY_EXAMPLE_BAD)}</p></div>'
+          f'<div class="ex ex-good"><div class="ex-l">A reply about their post</div>'
+          f'<p>{html.escape(content.GUIDE_APPLY_EXAMPLE_GOOD)}</p></div>')
+    guide_body = "".join(
+        f"<h2>{html.escape(h)}</h2><p>{html.escape(b)}</p>"
+        for h, b in content.GUIDE_APPLY)
+    guide_body += ("<h2>What it looks like</h2>" + ex +
+                   f'<p class="close">{html.escape(content.GUIDE_APPLY_CLOSE)}</p>')
+    d = OUT / "guides" / "how-to-reply-to-a-freelance-job-post"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "index.html").write_text(PROSE.format(
+        title=html.escape(content.GUIDE_APPLY_TITLE) + " &middot; Nabbly",
+        desc=("What to put in the first two lines, how many questions to ask, "
+              "how long to make it, and the tells that make a reply look "
+              "pasted. With a worked example."),
+        url=f"{BASE}/guides/how-to-reply-to-a-freelance-job-post/", base=BASE,
+        css=CSS + GUIDE_CSS, schema="",
+        h1=html.escape(content.GUIDE_APPLY_TITLE),
+        lead=html.escape(content.GUIDE_APPLY_LEAD),
+        body=guide_body, siblings=sibs), encoding="utf-8")
+
+    return ["about.html", "faq.html",
+            "guides/how-to-reply-to-a-freelance-job-post/"]
 
 if __name__ == "__main__":
     pages = build()

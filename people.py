@@ -94,7 +94,8 @@ def init():
             email   TEXT DEFAULT '',      -- blank if they didn't sign up
             rating  TEXT DEFAULT '',      -- 'good' / 'ok' / 'bad'
             message TEXT NOT NULL,
-            page    TEXT DEFAULT ''       -- which view they were on
+            page    TEXT DEFAULT '',      -- which view they were on
+            quotable INTEGER DEFAULT 0    -- 1 = they ticked "you can quote me"
         )
         """
     )
@@ -104,6 +105,14 @@ def init():
     # signup, not just the first page view.
     try:
         conn.execute("ALTER TABLE people ADD COLUMN campaign TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
+    # Consent to be quoted, asked for explicitly. Feedback is written to report
+    # a problem, not to be published, and the FAQ promises nothing is shared —
+    # so a note is only quotable if its author said so at the time. Defaults to
+    # 0, which means every note collected before this existed stays private.
+    try:
+        conn.execute("ALTER TABLE feedback ADD COLUMN quotable INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
     conn.commit()
@@ -120,7 +129,7 @@ def init():
         "SELECT COUNT(*) FROM people")
     table_mirror.rehydrate(
         _FEEDBACK_SCOPE, conn, "feedback",
-        ("ts", "email", "rating", "message", "page"),
+        ("ts", "email", "rating", "message", "page", "quotable"),
         "SELECT COUNT(*) FROM feedback")
     conn.commit()
     conn.close()
@@ -160,7 +169,7 @@ def _mirror_feedback(email: str):
     try:
         conn = _connect()
         rows = [dict(r) for r in conn.execute(
-            "SELECT ts, email, rating, message, page FROM feedback "
+            "SELECT ts, email, rating, message, page, quotable FROM feedback "
             "WHERE COALESCE(NULLIF(email,''),'_anon') = ?", (key,))]
         conn.close()
         table_mirror.mirror_rows(_FEEDBACK_SCOPE, key, rows)
@@ -243,16 +252,23 @@ def attach_profile(email: str, prof: dict):
     _mirror_person(email)
 
 
-def add_feedback(message: str, email: str = "", rating: str = "", page: str = "") -> bool:
-    """Store what someone told us. Email optional — never gate feedback on it."""
+def add_feedback(message: str, email: str = "", rating: str = "", page: str = "",
+                 quotable: bool = False) -> bool:
+    """Store what someone told us. Email optional — never gate feedback on it.
+
+    `quotable` records an explicit yes to being quoted publicly. Absent that,
+    a note is private: it was written to tell us something was broken.
+    """
     message = (message or "").strip()
     if not message:
         return False
     try:
         conn = _connect()
         conn.execute(
-            "INSERT INTO feedback (ts, email, rating, message, page) VALUES (?,?,?,?,?)",
-            (_now(), (email or "").strip().lower(), rating, message[:4000], page[:40]))
+            "INSERT INTO feedback (ts, email, rating, message, page, quotable) "
+            "VALUES (?,?,?,?,?,?)",
+            (_now(), (email or "").strip().lower(), rating, message[:4000],
+             page[:40], 1 if quotable else 0))
         conn.commit()
         conn.close()
     except sqlite3.Error:
@@ -278,7 +294,7 @@ def feedback_rows() -> list:
     try:
         conn = _connect()
         rows = [dict(r) for r in conn.execute(
-            "SELECT ts, email, rating, message, page FROM feedback ORDER BY id DESC")]
+            "SELECT ts, email, rating, message, page, quotable FROM feedback ORDER BY id DESC")]
         conn.close()
         return rows
     except sqlite3.Error:

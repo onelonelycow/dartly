@@ -117,3 +117,97 @@ ABOUT = [
      "tabs to find the work. It is still small and still being built, which is "
      "why the feedback box goes straight to a person rather than a queue."),
 ]
+
+
+# ── The applying guide ───────────────────────────────────────────────────────
+# Every rule here is one Nabbly's own drafter already follows. pitch.py's SYSTEM
+# prompt is the product's working opinion about what makes a first reply land,
+# arrived at by writing thousands of them against real postings, so this page is
+# not repackaged advice from elsewhere. It is the thing the software does,
+# explained to the person doing it by hand.
+#
+# Deliberately no promise that any of it wins the work. The rest of the site
+# stopped claiming speed or technique decides who gets hired, and a guide is
+# exactly where that claim would sneak back in.
+GUIDE_APPLY_TITLE = "How to reply to a freelance job post"
+GUIDE_APPLY_LEAD = (
+    "Most replies to a job post are interchangeable. That is the whole "
+    "opportunity: a client reading twenty of them is looking for a reason to "
+    "stop, and being the one that is obviously about their post is usually "
+    "enough to get read.")
+
+GUIDE_APPLY = [
+    ("Name something specific from the post in the first two lines",
+     "This is the single biggest thing, and almost nobody does it. Not \"I saw "
+     "your posting and would love to help\" — the actual deliverable, their "
+     "tool, their deadline, their industry, a constraint they mentioned. A "
+     "client can tell in one line whether you read what they wrote or pasted "
+     "the same message you sent to forty other people. Everything else in this "
+     "guide matters less than this."),
+
+    ("Lead with the part of their problem you have already handled",
+     "Not your whole background. The bit that maps onto what they asked for. "
+     "If they need a five minute explainer animated and you have made "
+     "explainers, that is the first thing they should learn about you. "
+     "Never invent experience, clients, numbers or credentials to make the "
+     "match closer. Clients check, and a fabricated line costs you far more "
+     "than the gap it was covering."),
+
+    ("Ask at most two questions, and only about what the post does not answer",
+     "Questions are good. They show you are thinking about the work rather "
+     "than the job. But asking about a detail they already stated proves you "
+     "skimmed it, and a client noticing their post already answered your "
+     "question is a worse impression than any amount of clumsy phrasing. Read "
+     "it twice, then ask about the thing that is genuinely missing: scope, "
+     "budget shape, who signs off, what done looks like."),
+
+    ("Match how they wrote",
+     "A scrappy one line post gets a short human reply. A detailed corporate "
+     "brief gets something more structured. Sending a formal three paragraph "
+     "letter to someone who wrote \"need a logo by friday, budget 300\" reads "
+     "as badly as sending one line to a brief that took someone an hour to "
+     "write."),
+
+    ("Keep it to roughly 90 to 150 words",
+     "Short replies get read. Long ones get skimmed for the price and closed. "
+     "If you cannot say why you fit in a paragraph, the problem is usually that "
+     "you have not decided which part of the job you are answering."),
+
+    ("Sound like a person typing",
+     "Use contractions. Vary your sentence length, because two long balanced "
+     "sentences in a row is the clearest tell that something was generated. A "
+     "four word sentence is fine. So is a fragment. And do not explain their "
+     "own business or trade back to them, which is the most common way a "
+     "confident sounding reply becomes annoying."),
+
+    ("Watch for the posts worth skipping",
+     "Anything asking for money up front, or for unpaid \"test work\" beyond a "
+     "few minutes, is a bad trade however good the brief looks. Public "
+     "postings are gathered as they were written and nobody vets who is behind "
+     "them, on Nabbly or anywhere else. Treat a stranger on the internet the "
+     "way you would anywhere else."),
+]
+
+# Shown side by side. The weak one is not a strawman: it is what most replies
+# actually look like, which is exactly why the specific one stands out.
+GUIDE_APPLY_EXAMPLE_BAD = (
+    "Hi there, I hope this message finds you well. I came across your posting "
+    "and I would love the opportunity to work with you. I am a highly "
+    "experienced professional with a strong background in a wide range of "
+    "projects, and I pride myself on delivering high quality work on time and "
+    "on budget. I am confident I would be a great fit for this role. Please "
+    "find my portfolio attached. I look forward to hearing from you.")
+
+GUIDE_APPLY_EXAMPLE_GOOD = (
+    "Hi Sam, the five minute explainer for the onboarding flow is the kind of "
+    "thing I do most weeks. Last one was a similar length for a fintech app, "
+    "storyboard through final cut. Your Friday date is doable if we lock the "
+    "script by Tuesday. Two things the post does not say: do you have brand "
+    "assets and a voiceover already, or is that part of this? And is it one "
+    "video or a series with this as the first? Happy to send the fintech one "
+    "over if it helps.")
+
+GUIDE_APPLY_CLOSE = (
+    "None of this guarantees the work. A well aimed reply loses to a better "
+    "fit all the time, and it should. What it does is get you read, which is "
+    "the part you can actually control.")

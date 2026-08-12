@@ -4843,10 +4843,17 @@ def feedback_card(where="dashboard"):
             with c2:
                 sent = st.form_submit_button("Send", type="primary",
                                              width="stretch")
+            # Opt IN, unticked, and asked here rather than assumed later. These
+            # notes are written to report that something is broken, and the FAQ
+            # promises nothing is shared — so quoting one publicly is a use its
+            # author never agreed to unless they say so on the spot.
+            quotable = st.checkbox(
+                "You can quote this on the site (first name only, no email)",
+                value=False, key=f"fb_q_{where}")
         if sent:
             code = {"Useful": "good", "It's ok": "ok", "Not for me": "bad"}.get(rating, "")
             if people.add_feedback(msg, email=ACCESS.get("email", ""),
-                                   rating=code, page=where):
+                                   rating=code, page=where, quotable=quotable):
                 st.session_state[f"_fb_sent_{where}"] = True
                 note("click", f"feedback:{code or 'none'}")
                 st.rerun()
