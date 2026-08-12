@@ -79,16 +79,44 @@ def clean(title: str) -> str:
 
 
 def read_board():
-    conn = sqlite3.connect(DB)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        "SELECT job_type, title, size_tier, urgency "
-        "FROM posts WHERE is_demand = 1 AND COALESCE(title,'') != '' "
-        "ORDER BY COALESCE(posted_at, fetched_at) DESC").fetchall()
-    conn.close()
+    """
+    The live board, from Supabase when it is reachable, local SQLite otherwise.
+
+    THIS HAS TO WORK WITHOUT THE LOCAL FILE. demand_radar.db is gitignored, so
+    a scheduled run in CI has no copy of it and never will — and a generator
+    that only reads a developer's laptop can only ever be run by hand, which is
+    how "Recently on the board" quietly becomes a lie about work that closed
+    weeks ago. Supabase holds the same board and is reachable from anywhere
+    DATABASE_URL is set, so the pages can rebuild themselves on a schedule.
+
+    Local SQLite stays as the fallback so running this on a laptop with no
+    DATABASE_URL still does the obvious thing.
+    """
+    rows = []
+    try:
+        import board_store
+        if board_store.enabled():
+            rows = [r for r in board_store.pull()
+                    if r.get("is_demand") and (r.get("title") or "").strip()]
+            rows.sort(key=lambda r: str(r.get("posted_at") or r.get("fetched_at") or ""),
+                      reverse=True)
+            print(f"  board: {len(rows):,} gigs from the durable mirror")
+    except Exception as e:
+        print(f"  ! mirror unavailable ({type(e).__name__}), falling back to local")
+
+    if not rows:
+        conn = sqlite3.connect(DB)
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute(
+            "SELECT job_type, title, size_tier, urgency "
+            "FROM posts WHERE is_demand = 1 AND COALESCE(title,'') != '' "
+            "ORDER BY COALESCE(posted_at, fetched_at) DESC")]
+        conn.close()
+        print(f"  board: {len(rows):,} gigs from local sqlite")
+
     by = {}
     for r in rows:
-        by.setdefault(r["job_type"] or "", []).append(r)
+        by.setdefault(r.get("job_type") or "", []).append(r)
     return by
 
 
