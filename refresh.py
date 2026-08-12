@@ -48,6 +48,7 @@ def _rss_mb() -> float:
 
 
 def _loop(on_update=None):
+    import db
     import ingest
     import alerts
     import accounts
@@ -55,9 +56,15 @@ def _loop(on_update=None):
     # Top the board up from the durable mirror BEFORE the first fetch, but off
     # the request path — app.py used to do this synchronously at import, which
     # put a multi-thousand-row network read in front of the first page render.
+    # Retry here rather than once: the board at this moment is the bundled
+    # seed (June listings), and this window is precisely when a visitor would
+    # see it. A few quick attempts cover a cold Supabase or a blip without
+    # making anyone wait for the 2-minute loop to come round.
     try:
-        import db as _db
-        _db.rehydrate_board()
+        for attempt in range(4):
+            if db.rehydrate_board():
+                break
+            time.sleep(3 * (attempt + 1))      # 3s, 6s, 9s
     except Exception:
         pass
     time.sleep(_FIRST_DELAY_S)
@@ -72,7 +79,6 @@ def _loop(on_update=None):
     # are already stored (new ingests are classified correctly on the way in).
     # Cheap and idempotent: a second pass finds nothing to change.
     try:
-        import db
         # Dates BEFORE anything else reads the board: posted_at arrived from
         # feeds in RFC 2822 and the sort is a text sort, so until these are one
         # format "newest first" is really "weekday name, Z to A".
@@ -132,6 +138,11 @@ def _loop(on_update=None):
 
     while True:
         try:
+            # No-op once the board is genuinely filled. Until then this is the
+            # thing standing between a visitor and a board of June seed data,
+            # so it gets another go every cycle rather than being abandoned
+            # after one failed pull at boot.
+            db.rehydrate_board()
             result = ingest.run()
             _state["runs"] += 1
             _state["last"] = time.time()

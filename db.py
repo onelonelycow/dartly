@@ -159,31 +159,49 @@ def upsert_many(records) -> int:
 _board_rehydrated = False
 
 
-def rehydrate_board():
+def rehydrate_board() -> bool:
     """
     After a wiped disk, refill the board from the durable Supabase mirror.
+    Returns True once the board is genuinely populated (or the mirror is off).
 
-    Runs once per process, at boot, before the first page renders — the only
-    time the whole board crosses the network (every later read is local). No-op
-    when the mirror is disabled or already done, so it's safe to call on the
-    app's module load even though that re-executes on every rerun.
+    THE FLAG IS SET ON SUCCESS, NOT ON ENTRY. It used to be set on the first
+    line, before the network call, so a single failed pull — a blip, a cold
+    Supabase, the 8s connect timeout under load — permanently gave up for the
+    life of that process. Render's disk is wiped on every deploy, so the board
+    at that moment is the bundled seed: 1,569 posts from 19-24 June. Visitors
+    got a board of June listings that never filled in, with the 2-minute
+    fetcher trickling new gigs on top, and nothing anywhere said why.
+
+    Now a failure leaves the flag down and the caller retries. The work is
+    idempotent (upsert_many is INSERT OR IGNORE), so a retry costs a pull and
+    changes nothing if it turns out the board was already fine.
     """
     global _board_rehydrated
     if _board_rehydrated:
-        return
-    _board_rehydrated = True
+        return True
     try:
         import board_store
         if not board_store.enabled():
-            return
+            _board_rehydrated = True      # nothing to wait for; this is terminal
+            return True
         rows = board_store.pull()
-        if rows:
-            init_db()
-            added = upsert_many(rows)
-            if added:
-                print(f"  board: rehydrated {added} gigs from the durable mirror")
+        if not rows:
+            # Reachable but empty is not success. Either the mirror is genuinely
+            # bare (a brand new deployment) or the read failed quietly, and
+            # retrying is right in both cases.
+            print("  ! board rehydrate: mirror returned no rows, will retry",
+                  flush=True)
+            return False
+        init_db()
+        added = upsert_many(rows)
+        _board_rehydrated = True
+        print(f"  board: rehydrated {added:,} gigs from the durable mirror "
+              f"({len(rows):,} pulled)", flush=True)
+        return True
     except Exception as e:
-        print(f"  ! board rehydrate: {type(e).__name__}: {e}")
+        print(f"  ! board rehydrate failed, will retry: "
+              f"{type(e).__name__}: {e}", flush=True)
+        return False
 
 
 def normalize_dates() -> int:
