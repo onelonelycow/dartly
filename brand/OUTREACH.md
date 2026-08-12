@@ -126,25 +126,44 @@ form; a real person is what you are after.
 
 Short. Editors skim. Nothing about "reaching out" or "circling back".
 
-> **Subject:** A board for your freelance job boards list
+**Send the field page that matches their article, not the homepage.** A piece
+about freelance writing gigs linking to /freelance-writing-jobs/ is a better
+fit for their reader, more likely to survive an editor's judgement, and puts
+the signal on the page that needs it. The homepage already gets every other
+link on this list.
+
+| If the article is about | Send |
+|---|---|
+| Freelance writing | nabbly.co/freelance-writing-jobs/ |
+| Design or creative work | nabbly.co/freelance-design-jobs/ |
+| Developer or tech work | nabbly.co/freelance-development-jobs/ |
+| Video, editing, animation | nabbly.co/freelance-video-jobs/ |
+| Marketing, SEO, social | nabbly.co/freelance-marketing-jobs/ |
+| Virtual assistants, admin | nabbly.co/freelance-admin-jobs/ |
+| Freelancing generally | nabbly.co |
+
+> **Subject:** A board for your freelance writing gigs list
 >
 > Hi <name>,
 >
-> Your piece on the best freelance job boards is what comes up when I search
-> for this, so I wanted to put one more on your radar.
+> Your piece on where to find freelance writing work is what comes up when I
+> search for this, so I wanted to put one more on your radar.
 >
-> Nabbly pulls freelance projects and remote roles from job boards and hiring
-> communities into one board, usually within minutes of a posting going live.
-> It is free to search without an account, and it covers 25 fields, so it is
-> useful to more than one kind of reader.
->
-> If it is a fit for the list: https://nabbly.co/
+> Nabbly pulls writing briefs and remote writing roles from job boards and
+> hiring communities into one board, usually within minutes of a posting going
+> live. Free to search without an account. The writing side of it is here:
+> https://nabbly.co/freelance-writing-jobs/
 >
 > Either way, thanks for keeping that article current. It is genuinely one of
 > the better ones.
 >
 > <name>
 > nabbly.co
+
+Swap the noun and the link for whatever their article is about. The version
+above is written for a writing roundup on purpose: a pitch that names their
+subject reads as though a person sent it, which is the same argument the
+applying guide makes about replying to a job post.
 
 **Rules for this email.** Name the actual article. Never send the same text to
 two people on the same site. Do not follow up more than once, and leave at
