@@ -160,6 +160,9 @@ border:1px solid var(--line);padding:8px 14px;border-radius:100px}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
 footer a{color:var(--mute)}
+.guidelink{margin-top:30px;font-size:15px;color:var(--mute)}
+.guidelink a{color:var(--amber);text-decoration:none;font-weight:600}
+.guidelink a:hover{text-decoration:underline}
 """
 
 PAGE = """<!doctype html>
@@ -210,11 +213,15 @@ PAGE = """<!doctype html>
   <h2>Why speed matters here</h2>
   <p>{speed}</p>
 
-  <h2>Replying to these</h2>
-  <p>Most replies to a posting are interchangeable, which is the opening.
-     <a href="/guides/how-to-reply-to-a-freelance-job-post/">What to put in the
-     first two lines</a>, how many questions to ask, and the tells that make a
-     reply look pasted.</p>
+  <!-- One line, and it carries the field noun so it is not the same sentence
+       twenty-one times. The first version of this was a 37 word paragraph
+       repeated verbatim on every page, which pushed body similarity between
+       pages from 40% to 45% - padding, by the standard the rest of this
+       generator is held to. The link matters (these pages are the guide's
+       only crawl path besides the sitemap); the paragraph did not. -->
+  <p class="guidelink">Replying to {noun} briefs:
+     <a href="/guides/how-to-reply-to-a-freelance-job-post/">what to put in the
+     first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
   <ul class="more">{siblings}</ul>
