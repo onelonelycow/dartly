@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if q %}{{ q }} — {% endif %}The whole board · Nabbly</title>
+<meta name="description" content="Freelance projects and remote roles from job boards and hiring communities, in one place, minutes after they post.">
+<style>
+:root{
+  --bg:#121418; --panel:#171a20; --line:#262a31; --ink:#F6F8FA;
+  --mute:#868D98; --faint:#7d8590;
+  --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
+  --green:#3ddc84;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:900px;margin:0 auto;padding:28px 18px 64px}
+header{display:flex;align-items:baseline;gap:12px;margin-bottom:22px}
+h1{font-size:26px;margin:0;letter-spacing:-.3px}
+h1 .accent{color:var(--amber)}
+.count{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
+
+form.search{display:flex;gap:8px;margin:0 0 14px}
+input[type=search]{flex:1;background:var(--panel);border:1px solid var(--line);
+  color:var(--ink);border-radius:10px;padding:11px 13px;font-size:15px;font-family:inherit}
+input[type=search]::placeholder{color:var(--faint)}
+input[type=search]:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:transparent}
+button.go{background:var(--amber);color:#1b1205;border:0;border-radius:10px;
+  padding:0 18px;font-weight:650;font-size:14px;cursor:pointer;font-family:inherit}
+button.go:hover{background:var(--amber-l)}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 20px}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+  border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;
+  color:var(--ink);text-decoration:none;white-space:nowrap}
+.chip:hover{border-color:var(--amber-d)}
+.chip.on{background:rgba(232,147,58,.14);border-color:var(--amber-d);color:var(--amber-l)}
+.chip .n{color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
+.chip.on .n{color:var(--amber)}
+
+ul.gigs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+li.gig{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+li.gig:hover{border-color:#33393f}
+.gig a.t{font-size:15.5px;font-weight:600;text-decoration:none;display:block;
+  margin-bottom:7px;letter-spacing:-.15px}
+.gig a.t:hover{color:var(--amber-l);text-decoration:underline}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-size:11.5px;padding:2.5px 8px;border-radius:999px;border:1px solid var(--line);
+  color:var(--mute);background:rgba(255,255,255,.02)}
+.tag.urgent{color:#ffb4a2;border-color:#5c2f24;background:rgba(255,120,90,.09)}
+.tag.size{color:var(--amber-l);border-color:var(--amber-d);background:rgba(232,147,58,.09)}
+.tag.when{font-family:var(--mono);font-size:11px}
+
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:26px;text-align:center;color:var(--mute)}
+.empty b{color:var(--ink)}
+
+nav.pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:26px}
+nav.pager a,nav.pager span{padding:8px 14px;border-radius:9px;border:1px solid var(--line);
+  font-size:13.5px;text-decoration:none;background:var(--panel)}
+nav.pager span.at{color:var(--mute);border-color:transparent;background:none;
+  font-variant-numeric:tabular-nums}
+nav.pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
+
+footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);
+  color:var(--faint);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer .took{font-family:var(--mono)}
+@media (max-width:560px){
+  .wrap{padding:20px 13px 48px} h1{font-size:22px}
+  header{flex-direction:column;gap:3px;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>The whole <span class="accent">board</span></h1>
+    <span class="count">{{ "{:,}".format(res.total) }} {{ "gig" if res.total == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
+  </header>
+
+  <form class="search" method="get" action="/">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
+    {% if sel_field %}<input type="hidden" name="field" value="{{ sel_field|join(',') }}">{% endif %}
+    <button class="go" type="submit">Search</button>
+  </form>
+
+  <div class="chips">
+    <a class="chip {% if not sel_field %}on{% endif %}"
+       href="/?{% if q %}q={{ q|urlencode }}{% endif %}">All fields <span class="n">{{ "{:,}".format(res.total if not sel_field else 0) if not sel_field else "" }}</span></a>
+    {% for name, n in facets.job_type.items() %}
+      {% if n > 200 %}
+      <a class="chip {% if name in sel_field %}on{% endif %}"
+         href="/?field={{ name|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+        {{ name }} <span class="n">{{ "{:,}".format(n) }}</span></a>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  {% if res.rows %}
+  <ul class="gigs">
+    {% for g in res.rows %}
+    <li class="gig">
+      <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+      <div class="meta">
+        {% if g.job_type %}<span class="tag">{{ g.job_type }}</span>{% endif %}
+        {% if g.size_tier %}<span class="tag size">{{ g.size_tier }}</span>{% endif %}
+        {% if g.urgency == 'Urgent' %}<span class="tag urgent">Urgent</span>{% endif %}
+        {% if g.sort_at %}<span class="tag when">{{ g.sort_at[:10] }}</span>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <nav class="pager">
+    {% if res.page > 0 %}
+      <a href="/?page={{ res.page - 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if sel_field %}&field={{ sel_field|join(',')|urlencode }}{% endif %}">← Newer</a>
+    {% endif %}
+    <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}</span>
+    {% if res.page + 1 < res.pages %}
+      <a href="/?page={{ res.page + 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if sel_field %}&field={{ sel_field|join(',')|urlencode }}{% endif %}">Older →</a>
+    {% endif %}
+  </nav>
+  {% else %}
+  <div class="empty">
+    Nothing matches <b>{{ q }}</b> right now. Try a broader word, or browse a field above.
+  </div>
+  {% endif %}
+
+  <footer>
+    <span>Nabbly · Every gig. The moment it drops.</span>
+    <span class="took">rendered in {{ "%.1f"|format(took_ms) }} ms</span>
+  </footer>
+
+</div>
+</body>
+</html>

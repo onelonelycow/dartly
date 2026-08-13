@@ -201,6 +201,64 @@ def pull(cap: int = CAP) -> list[dict]:
         return []
 
 
+def pull_since(since: str, cap: int = CAP) -> list[dict]:
+    """
+    Only the gigs mirrored since `since` (an ISO fetched_at watermark).
+
+    For the board service, which keeps its own local copy and refreshes it on a
+    timer. Pulling all 48,000 rows every minute to collect the twenty that
+    changed is the same "walk the whole board to answer a small question"
+    mistake that cost the Streamlit app its memory twice — so it asks the
+    database for the small answer instead.
+
+    fetched_at, not posted_at: posted_at is when the CLIENT wrote the post,
+    which can be older than when we saw it, so a backfilled gig would arrive
+    with a timestamp behind the watermark and be missed forever.
+    """
+    if not enabled() or not since:
+        return []
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            cur = conn.execute(
+                f"SELECT {', '.join(_COLS)} FROM {_TABLE} "
+                f"WHERE fetched_at > {ph} "
+                f"ORDER BY fetched_at ASC LIMIT {int(cap)}", (since,))
+            return [dict(zip(_COLS, r)) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    except Exception:
+        return []
+
+
+def pull_flags(cap: int = CAP) -> list[tuple]:
+    """
+    Every gig's (source, source_id, is_demand) — the keys and nothing else.
+
+    Archival is why this exists. mark_archived() flips is_demand without
+    touching fetched_at, so an incremental pull keyed on that watermark can
+    never see a gig LEAVE the board — it would sit on a mirror-fed copy
+    forever, which is exactly the "dead gig reappears" class of bug the mirror
+    was built to fix. Three small columns over the whole table is ~2MB and
+    cheap enough to reconcile on a slow timer.
+    """
+    if not enabled():
+        return []
+    try:
+        conn, _ = store._connect()
+        try:
+            _ensure(conn)
+            cur = conn.execute(
+                f"SELECT source, source_id, is_demand FROM {_TABLE} "
+                f"ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT {int(cap)}")
+            return [(r[0], r[1], r[2]) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    except Exception:
+        return []
+
+
 def count() -> int:
     """How many gigs are in the mirror (for the admin page). -1 if unreachable."""
     if not enabled():

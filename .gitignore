@@ -37,3 +37,8 @@ nabbly_match_feedback.db
 # Written at boot by auth.py from environment variables. Contains the Google
 # OAuth client secret and the cookie signing key.
 .streamlit/secrets.toml
+
+# The board service's local mirror copy — rebuilt from Supabase on boot.
+web/board.db
+web/board.db-wal
+web/board.db-shm
