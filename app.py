@@ -2091,6 +2091,22 @@ def _build_feed(posts):
     # it's computed once here rather than per render.
     df["_lang"] = [lang.detect(t, b) for t, b in
                    zip(df["title"].fillna(""), df["body"].fillna(""))]
+    # Whether a gig is remote, on-site, or region-restricted is ALSO a property
+    # of the post — location.tag() only ever reads the gig's own title and body.
+    # It used to be called per row, per render, by both location_counts() and
+    # apply_location(): 53,000 f-string concatenations of title+body and a
+    # dozen regex passes over each, on every board load, for every visitor.
+    # That was the second-largest per-request cost in the app after
+    # skill_stats, and the reason 25 concurrent readers still peaked past 3GB
+    # once skill_stats was fixed. Computed once here, it costs one pass per
+    # board rebuild and turns both callers into vectorised boolean masks.
+    _tags = [location.tag({"title": t, "body": b}) for t, b in
+             zip(df["title"].fillna(""), df["body"].fillna(""))]
+    df["_rem"] = [t["remote"] for t in _tags]
+    df["_ons"] = [t["onsite"] for t in _tags]
+    # "" rather than None: the eligibility test below compares this column
+    # against a region code, and NaN would make every comparison false.
+    df["_res"] = [t["restrict"] or "" for t in _tags]
     return df, before - len(df)
 
 
@@ -2230,7 +2246,70 @@ def note(event: str, detail: str = ""):
 
 
 df, merged = load_feed()
-stats = market.skill_stats(df.to_dict("records")) if not df.empty else {}
+
+# Every field market.skill_stats() reads, including through score.gig_amount().
+# ADD TO THIS if skill_stats starts reading another one — a missing field
+# silently becomes an empty string rather than raising.
+_STAT_FIELDS = ("job_type", "source", "title", "body")
+
+
+def _lazy_records(frame, fields):
+    """
+    A frame's rows as dicts, LAZILY, over only the columns asked for.
+
+    THE PATTERN THAT MADE THE APP FALL OVER: `frame.to_dict("records")` builds
+    every dict up front, so a whole-board call materialises 53,525 dicts of all
+    22 columns before the caller reads one — measured at ~192MB of transient
+    allocation, per call, per visitor. Sequential visitors freed it between
+    renders and looked healthy; concurrent visitors each held their own, which
+    is what put a 2GB instance on the floor at five people.
+
+    Every caller here walks its rows exactly once and reads a handful of
+    fields, so none of them ever needed a list. This yields the same dicts one
+    at a time and the peak never forms.
+
+    Use it for anything board-sized. `to_dict("records")` is correct for a
+    single rendered page (25 rows), and nowhere else.
+    """
+    cols = [c for c in fields if c in frame.columns]
+    if not cols:
+        return iter(())
+    return (dict(zip(cols, row)) for row in zip(*(frame[c] for c in cols)))
+
+
+@st.cache_resource(max_entries=1, ttl=900, show_spinner=False)
+def _skill_stats_at(version):
+    """
+    Demand and typical-budget stats per skill, built ONCE and shared.
+
+    THIS WAS THE APP'S BIGGEST PER-REQUEST COST. It ran at module level, so
+    every script run — every visitor, every rerun, every keystroke that
+    triggered one — rebuilt the whole board as Python dicts to produce numbers
+    that are identical for everybody. One call allocated ~192MB transiently.
+    Sequential visitors freed it between runs and looked fine; concurrent
+    visitors each held their own, which is what put a 2GB instance on the floor
+    at five people. Measured: the filter chain that looked like the obvious
+    suspect costs ~3MB for a hundred concurrent requests. This was the whole
+    problem.
+
+    Keyed on the board's fingerprint (same one _public_feed_at uses) so it
+    rebuilds when gigs actually arrive, and cache_resource rather than
+    cache_data so every caller shares one dict instead of unpickling a copy.
+    Nothing mutates the result: market.lowball() only ever reads it.
+
+    Computed from the PUBLIC board rather than load_feed()'s per-reader frame.
+    A reader's own forwarded gigs used to be folded into these medians, which
+    made "typical budget for this skill" mean something slightly different for
+    each person — and a market rate shouldn't move because of what you
+    forwarded yourself.
+    """
+    pub, _ = _public_feed()
+    if pub.empty:
+        return {}
+    return market.skill_stats(_lazy_records(pub, _STAT_FIELDS))
+
+
+stats = _skill_stats_at(db.board_version())
 
 
 def apply_filters(data, skills, sizes, sources, urgent_only, keyword):
@@ -2302,14 +2381,43 @@ def location_counts(data):
         return 0, 0, 0
     region = location.country_region(prof.get("country"))
     city = prof.get("city")
-    remote = local = 0
-    for r in data.to_dict("records"):
-        t = location.tag(r)
-        if t["remote"] and location.eligible(t, region):
-            remote += 1
-        if t["onsite"] or location.is_local(r, city):
-            local += 1
-    return len(data), remote, local
+    if "_rem" not in data.columns:      # a frame that didn't come through _build_feed
+        remote = local = 0
+        for r in _lazy_records(data, ("title", "body")):
+            t = location.tag(r)
+            if t["remote"] and location.eligible(t, region):
+                remote += 1
+            if t["onsite"] or location.is_local(r, city):
+                local += 1
+        return len(data), remote, local
+    rem, loc = _location_masks(data, region, city)
+    return len(data), int(rem.sum()), int(loc.sum())
+
+
+def _location_masks(data, region, city):
+    """
+    (remote-I-can-take, on-site/local) as boolean masks over a tagged frame.
+
+    The vectorised twin of location.eligible() and location.is_local(), reading
+    the _rem/_ons/_res columns _build_feed computed once for the whole board.
+    Kept in one place because location_counts() and apply_location() have to
+    agree exactly: the counts on the toggle are a promise about what the toggle
+    gives you, and they were previously computed by two separate loops.
+    """
+    # eligible(): a gig with no restriction is open to everyone, and an unknown
+    # reader region assumes yes — so only a KNOWN region excludes anything.
+    rem = data["_rem"].fillna(False).astype(bool)
+    if region:
+        rem = rem & data["_res"].fillna("").isin(["", region])
+    loc = data["_ons"].fillna(False).astype(bool)
+    city = (city or "").strip().lower()
+    if city:
+        # is_local(): the reader's city named anywhere in the post. _t/_b are
+        # already lower-cased by _build_feed, matching is_local's own .lower().
+        esc = re.escape(city)
+        loc = loc | (data["_t"].str.contains(esc, na=False)
+                     | data["_b"].str.contains(esc, na=False))
+    return rem, loc
 
 
 def reading_languages():
@@ -2374,14 +2482,20 @@ def apply_location(view, mode):
         return view
     region = location.country_region(prof.get("country"))
     city = prof.get("city")
-    recs = view.to_dict("records")
-    if mode.startswith("On-site"):
-        keep = [r["id"] for r in recs
-                if location.tag(r)["onsite"] or location.is_local(r, city)]
-    else:  # "Remote I can take" — drop gigs geo-locked to other regions
-        keep = [r["id"] for r in recs
-                if location.tag(r)["remote"] and location.eligible(location.tag(r), region)]
-    return view[view["id"].isin(keep)]
+    if "_rem" not in view.columns:      # frame not built by _build_feed
+        keep = []
+        for r in _lazy_records(view, ("id", "title", "body")):
+            t = location.tag(r)
+            if (t["onsite"] or location.is_local(r, city)) if mode.startswith("On-site") \
+               else (t["remote"] and location.eligible(t, region)):
+                keep.append(r["id"])
+        return view[view["id"].isin(keep)]
+    # Same masks the toggle's own counts are built from, so the number on the
+    # chip and the number of cards below it cannot drift apart. This used to
+    # build a dict of all 22 columns for every row and call location.tag()
+    # TWICE per gig on the remote branch.
+    rem, loc = _location_masks(view, region, city)
+    return view[loc if mode.startswith("On-site") else rem]
 
 
 def scored(view, resume_text=""):
@@ -2414,7 +2528,7 @@ def scored(view, resume_text=""):
     # popular fields, on every cache miss, and the board's version changes
     # whenever new gigs land. Same scores, verified identical, ~19% quicker.
     sc = [score.fit_score(r, prof, resume_text=resume_text)
-          for r in view[list(score.FIT_FIELDS)].to_dict("records")]
+          for r in _lazy_records(view, score.FIT_FIELDS)]
     view = view.copy()
     view["_score"] = [s for s, _ in sc]
     view["_reasons"] = [r for _, r in sc]

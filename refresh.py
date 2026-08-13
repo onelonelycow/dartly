@@ -13,6 +13,7 @@ Free-tier reality: when the instance goes idle it sleeps and this pauses; on the
 next wake it restarts from the bundled seed (persistence needs a paid always-on
 plan). That's the tradeoff we chose for $0.
 """
+import os
 import threading
 import time
 
@@ -327,6 +328,13 @@ def start(on_update=None):
     module to start it, so the reverse import would be circular).
     """
     global _started
+    # Local runs (load tests, UI work) otherwise fetch from ~40 live sources and
+    # mirror the results, so a developer's laptop writes to the production
+    # board. Off by default: production sets nothing and behaves exactly as
+    # before. Set NABBLY_DISABLE_REFRESH=1 to run the app read-only.
+    if os.environ.get("NABBLY_DISABLE_REFRESH") == "1":
+        _state["note"] = "refresh disabled by NABBLY_DISABLE_REFRESH"
+        return
     with _lock:
         if _started:
             return
