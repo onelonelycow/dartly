@@ -92,6 +92,21 @@ def _csv(v: str | None) -> list[str]:
     return [x for x in (v or "").split(",") if x.strip()]
 
 
+# Off by default. This board is incomplete, and an incomplete version of a page
+# you already rank for is worse than no page: Google would have it competing
+# with the 23 static field pages for the same queries. Flip NABBLY_INDEXABLE=1
+# only once it is the real board and something links to it.
+_INDEXABLE = os.environ.get("NABBLY_INDEXABLE") == "1"
+
+
+@app.get("/robots.txt")
+def robots():
+    from fastapi.responses import PlainTextResponse
+    body = ("User-agent: *\nAllow: /\n" if _INDEXABLE
+            else "User-agent: *\nDisallow: /\n")
+    return PlainTextResponse(body)
+
+
 @app.get("/health")
 def health():
     """
@@ -132,6 +147,8 @@ def board(request: Request,
     finally:
         conn.close()
 
+    # robots.txt alone does not stop a page that gets linked to from being
+    # indexed; the header does. Belt and braces while this is unfinished.
     resp = templates.TemplateResponse(request, "board.html", {
         "res": res, "facets": facets, "q": q,
         "sel_field": _csv(field), "sel_size": _csv(size),
@@ -141,4 +158,6 @@ def board(request: Request,
                "source": source, "urgent": urgent},
     })
     resp.headers["Cache-Control"] = _CACHE
+    if not _INDEXABLE:
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp

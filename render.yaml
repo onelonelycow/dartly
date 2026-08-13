@@ -42,6 +42,41 @@ services:
     #   mountPath: /var/data
     #   sizeGB: 1
 
+  # The public board, served as plain HTML instead of through Streamlit.
+  #
+  # Streamlit re-executes the whole app per visitor per click, holding every
+  # gig in memory to render 25 cards: 25 concurrent readers took 10.67s and 50
+  # failed outright. This serves the same board from one indexed query —
+  # measured at 143ms for 100 concurrent and 245ms for 200, peaking at 123MB.
+  #
+  # STARTER, NOT STANDARD, ON PURPOSE. It peaked at 123MB against Starter's
+  # 512MB. The app above needs Standard because it holds the whole board in
+  # memory; this one never does, which is the entire point. Do not "match" the
+  # app's plan — that is paying Standard prices for 123MB of usage.
+  #
+  # NOT WIRED TO ANYTHING YET. No custom domain, so it answers on its
+  # onrender.com URL only and nothing links to it. Adding board.nabbly.co is a
+  # CNAME at Namecheap plus a domain entry here, deliberately deferred until
+  # the board has been reviewed against the live one.
+  - type: web
+    name: nabbly-board
+    runtime: python
+    plan: starter
+    buildCommand: "pip install --no-cache-dir -r requirements.txt"
+    # One worker. Requests are ~1ms of Python over an indexed SQLite read, so
+    # concurrency is bounded by I/O rather than CPU, and a second worker would
+    # mean a second copy of the board file and a second sync loop pulling the
+    # same rows. Scale by adding instances, not workers.
+    startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT --workers 1"
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # Reaches the durable mirror to build and refresh its own local copy.
+      # Same value as the app's; set it in the dashboard, not here.
+      - key: DATABASE_URL
+        sync: false
+
   # The marketing front door: a plain static site served at nabbly.co.
   # Streamlit renders everything in JavaScript, so search engines and link
   # previews see almost nothing — this page is real HTML they can read, and it
