@@ -202,6 +202,15 @@ def fetch_reddit() -> list[dict]:
         if not resp or resp.status_code != 200:
             print(f"  ! reddit r/{sub}: HTTP {resp.status_code if resp else 'ERR'}")
             continue
+        # Reddit answers a blocked request with HTTP 200 and an HTML login
+        # wall — "Your request has been blocked by network security" — not an
+        # error status and not a feed. Without this check the parse simply
+        # finds no entries and we sleep 18s and ask the next subreddit, which
+        # is also blocked: 54 seconds of a 90-second cycle budget spent to
+        # return nothing, every cycle, deferring real sources behind it.
+        if b"<rss" not in resp.content[:2000] and b"<feed" not in resp.content[:2000]:
+            raise RuntimeError(
+                f"r/{sub} returned HTML, not a feed — anonymous RSS is blocked")
         for e in feedparser.parse(resp.content).entries:
             link = e.get("link", "")
             sid = e.get("id", link)
@@ -559,9 +568,17 @@ def _note_source(name: str, got: int, err: str = ""):
     # Zero is normal in a quiet cycle. Zero over and over from a source that
     # has produced before is a feed that changed shape and is now parsing to
     # nothing — no error, no gigs, no sign.
-    if h["best"] and (h["zero_run"] in (12, 60) or h["zero_run"] % 200 == 0):
+    # `best` is NOT required here, and that guard was the bug. _HEALTH lives in
+    # memory and resets on every deploy, so a source that is dead from the
+    # first cycle never records a good one — best stays 0, this never fires,
+    # and the source that most needs reporting is the only one that cannot be.
+    # Reddit sat blocked and silent behind exactly that gap. A source is
+    # configured because it is expected to produce; a long run of nothing is
+    # worth saying either way, and the message says which case it is.
+    if h["zero_run"] in (12, 60) or h["zero_run"] % 200 == 0:
+        ever = f"best was {h['best']}" if h["best"] else "has NEVER produced"
         print(f"  ! source {name} has returned nothing for {h['zero_run']} "
-              f"cycles (best was {h['best']}) — it may have changed shape",
+              f"cycles ({ever}) — it may have changed shape or been blocked",
               flush=True)
 
 

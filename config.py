@@ -14,7 +14,18 @@ freshest matching opportunities so a user can respond first.
 # Each is a public API or feed that needs no login or API key.
 # ---------------------------------------------------------------------------
 ENABLE_SOURCES = [
-    "reddit",          # r/forhire & friends — freelance [Hiring] gigs + micro-tasks
+    # DISABLED 2026-08-13 — Reddit blocks anonymous RSS. It answers with HTTP
+    # 200 and an HTML login wall ("Your request has been blocked by network
+    # security"), so nothing errored and nothing parsed: measured 0 gigs from
+    # all four subreddits, while spending 54 seconds of the 90-second cycle
+    # budget on the deliberate 18s pauses between them. Sixty per cent of
+    # every fetch cycle, returning nothing, pushing real sources past the
+    # budget and into the next pass.
+    #
+    # To bring it back it needs the official API (praw is already a
+    # dependency) and REDDIT_CLIENT_ID / REDDIT_CLIENT_SECRET. Re-enabling it
+    # without those puts the same 54-second hole straight back.
+    # "reddit",        # r/forhire & friends — freelance [Hiring] gigs
     "freelancer",      # Freelancer.com — many small fixed-price projects
     "remoteok",        # RemoteOK — remote jobs/contracts
     "remotive",        # Remotive — remote jobs
