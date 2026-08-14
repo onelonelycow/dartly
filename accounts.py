@@ -389,6 +389,81 @@ def by_token(token: str) -> dict | None:
                 pass
 
 
+_HINT_TTL_S = 1800          # 30 minutes: long enough for a slow OAuth detour
+
+
+def _init_hints(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS campaign_hints (
+            fp text PRIMARY KEY, tag text, created text)""")
+
+
+def remember_campaign(fp: str, tag: str):
+    """
+    Park a partner tag where it can survive a sign-in with Google.
+
+    WHY THIS EXISTS AT ALL. A partner link is ?ref=nextnw. app.py reads it at
+    session start and holds it in st.session_state, which is correct for the
+    email-code flow because that never leaves the page. Signing in with Google
+    does leave the page, and BOTH carriers die on the way:
+
+      * st.session_state does not survive a full page navigation (proven with
+        a two-line test app);
+      * Streamlit's own callback ends at _redirect_to_base(), which is
+        RedirectResponse(base_url + "/") — the app root with NO query string,
+        so ?ref= is gone too.
+
+    So the tag was empty at the moment sign_in() decided which grant to give,
+    and every NextNW member arriving through Google fell through to the
+    founding-50 gift: 60 days instead of 90, AND consuming one of the fifty
+    slots the partner path is specifically meant not to touch.
+
+    The fingerprint is an HMAC of the client's IP and user agent, never the
+    raw values, and rows expire after 30 minutes. It is deliberately fuzzy:
+    two people behind one NAT within half an hour could share a hint, and the
+    consequence is that someone gets a better deal than they were owed. That
+    is the right way for this to fail.
+    """
+    fp, tag = (fp or "").strip(), (tag or "").strip()
+    if not fp or not tag:
+        return
+    try:
+        init()
+        conn = _connect()
+        _init_hints(conn)
+        conn.execute("INSERT INTO campaign_hints (fp, tag, created) VALUES (?,?,?) "
+                     "ON CONFLICT(fp) DO UPDATE SET tag=excluded.tag, "
+                     "created=excluded.created", (fp, tag, _now()))
+        conn.execute("DELETE FROM campaign_hints WHERE created < ?",
+                     ((datetime.now(timezone.utc)
+                       - timedelta(seconds=_HINT_TTL_S)).isoformat(),))
+        conn.commit()
+        conn.close()
+    except sqlite3.Error:
+        pass            # a lost hint costs a longer grant, never a sign-in
+
+
+def recall_campaign(fp: str) -> str:
+    """The tag parked by remember_campaign, or "" if there isn't a fresh one."""
+    fp = (fp or "").strip()
+    if not fp:
+        return ""
+    try:
+        init()
+        conn = _connect()
+        _init_hints(conn)
+        row = conn.execute("SELECT tag, created FROM campaign_hints WHERE fp=?",
+                           (fp,)).fetchone()
+        conn.close()
+        if not row:
+            return ""
+        when = _parse(row["created"])
+        if not when or (datetime.now(timezone.utc) - when).total_seconds() > _HINT_TTL_S:
+            return ""
+        return (row["tag"] or "").strip()
+    except sqlite3.Error:
+        return ""
+
+
 def by_email(email: str, touch: bool = False) -> dict | None:
     """
     The account for this address, or None. A READ, not a find-or-create.

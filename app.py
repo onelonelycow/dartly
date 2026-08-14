@@ -1450,6 +1450,44 @@ accounts.init()
 # read depends on the answer. Signed-in people are identified by a token in
 # the URL; everyone else gets a scratch space unique to their browser session,
 # so two strangers browsing at once never see each other's data.
+# Key for the campaign-hint fingerprint below. Defined here, not inside the
+# function, because _resolve_account() runs near the top of the script and SID
+# does not exist yet at that point. Falls back to a per-process random value
+# when AUTH_COOKIE_SECRET is unset: hints then stop matching across a restart,
+# which is the right failure — a lost hint costs a longer grant, while a
+# guessable key would let anyone claim one.
+_FP_KEY = (os.environ.get("AUTH_COOKIE_SECRET", "").strip()
+           or secrets.token_urlsafe(32)).encode()
+
+
+def _client_fingerprint() -> str:
+    """
+    A short-lived, non-identifying handle for "this browser, right now".
+
+    Exists only to carry a partner tag across a sign-in with Google, which
+    destroys both st.session_state and the query string — see
+    accounts.remember_campaign for the full story.
+
+    HMAC of the client IP and user agent, never the raw values, so nothing
+    stored can be read back as an address. Keyed on the app's own cookie
+    secret when there is one; without it the key is per-process, which means
+    hints stop matching after a restart. That is the correct failure: a lost
+    hint costs a longer grant, and a guessable key would let anyone claim one.
+    """
+    try:
+        h = st.context.headers or {}
+    except Exception:
+        return ""
+    # Render terminates TLS and proxies, so the socket peer is the proxy.
+    # Trust the first hop only; the rest of the chain is client-supplied.
+    ip = (h.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+    ua = h.get("User-Agent", "") or ""
+    if not ip and not ua:
+        return ""
+    return hmac.new(_FP_KEY, f"{ip}|{ua}".encode(),
+                    hashlib.sha256).hexdigest()[:32]
+
+
 def _resolve_account():
     # This is the FIRST thing that touches the database on every single render,
     # so an unhandled error here doesn't degrade one component — it replaces the
@@ -1481,6 +1519,15 @@ def _resolve_account():
                 _camp = analytics.campaign_label(
                     st.query_params.get("ref", "")
                     or st.query_params.get("utm_source", ""))
+            if not _camp:
+                # BOTH of the above are empty on a Google sign-in, always.
+                # session_state does not survive the navigation, and
+                # Streamlit's callback ends at the app root with no query
+                # string, so ?ref= is gone as well. Without this every NextNW
+                # member arriving through Google got the founding-50 gift (60
+                # days, and a slot) instead of their partner grant (90 days,
+                # no slot). See accounts.remember_campaign.
+                _camp = accounts.recall_campaign(_client_fingerprint())
             acc, _ = accounts.sign_in(gmail, source="google", campaign=_camp)
             if acc:
                 return acc
@@ -2226,6 +2273,11 @@ if "_sid" not in st.session_state:
             if _tag:
                 st.session_state["_campaign"] = _tag
                 analytics.track("campaign", _tag, _sid)
+                # session_state alone is not enough: signing in with Google
+                # navigates away and comes back to a bare app root, losing
+                # both this and the ?ref= that set it. Park it server-side so
+                # the grant still knows where they came from.
+                accounts.remember_campaign(_client_fingerprint(), _tag)
         except Exception:
             pass
 SID = st.session_state["_sid"]
