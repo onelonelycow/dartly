@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{% if not indexable %}<meta name="robots" content="noindex, nofollow">{% endif %}
+<title>{% block title %}Nabbly{% endblock %}</title>
+<meta name="description" content="{% block description %}Freelance projects and remote roles from job boards and hiring communities, in one place, minutes after they post.{% endblock %}">
+{# The app's own stylesheet, extracted from app.py by tools/extract_css.py so
+   the two cannot drift. Versioned by mtime so a deploy busts the cache without
+   anyone remembering to. #}
+<link rel="stylesheet" href="/static/nabbly.css?v={{ css_v }}">
+<style>
+/* Only what plain HTML needs and Streamlit provided for itself: a page frame,
+   and the handful of controls Streamlit rendered as widgets. Everything with a
+   .gr- class comes from the shared sheet above. */
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px 72px}
+.topbar{display:flex;align-items:center;gap:18px;padding:14px 20px;
+  border-bottom:1px solid var(--line);background:var(--bg2);
+  position:sticky;top:0;z-index:20}
+.topbar .brand{display:flex;align-items:center;gap:9px;text-decoration:none;
+  font-size:20px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.topbar .brand .mk{width:26px;height:26px;border-radius:7px;background:var(--amber);
+  display:inline-flex;align-items:center;justify-content:center;color:#191106;
+  font-weight:800;font-size:15px}
+.topbar .brand .ly{color:var(--amber)}
+.topbar nav{display:flex;gap:4px;margin:0 auto}
+.topbar nav a{font-size:15.5px;font-weight:500;color:#aeb4be;text-decoration:none;
+  padding:7px 13px;border-radius:9px}
+.topbar nav a:hover{background:rgba(232,147,58,.09);color:#eaa662}
+.topbar nav a.on{color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber);border-radius:9px 9px 0 0}
+.topbar .who{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--mute)}
+.linkish{background:none;border:0;padding:0;font:inherit;font-size:12.5px;
+  color:var(--faint);cursor:pointer;text-decoration:none}
+.linkish:hover{color:var(--amber-l);text-decoration:underline}
+form.inline{display:inline;margin:0}
+input[type=search],input[type=email],input[type=text]{
+  background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  border-radius:12px;padding:13px 16px;font-size:15.5px;font-family:inherit;width:100%}
+input::placeholder{color:var(--faint)}
+input:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:transparent}
+button.go{background:var(--amber);color:#1b1205;border:0;border-radius:12px;
+  padding:0 26px;font-weight:650;font-size:15px;cursor:pointer;font-family:inherit}
+button.go:hover{background:var(--amber-l)}
+.searchrow{display:flex;gap:10px;max-width:880px;margin:0 auto 16px}
+footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
+  color:var(--faint);font-size:12px;display:flex;justify-content:space-between;
+  gap:12px;flex-wrap:wrap}
+@media (max-width:640px){
+  .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
+  .topbar nav{order:3;width:100%;margin:0;overflow-x:auto}
+  .wrap{padding:0 13px 56px}
+}
+{% block extra_css %}{% endblock %}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/"><span class="mk">✓</span>Nabb<span class="ly">ly</span></a>
+  <nav>
+    <a href="/" class="{% if tab == 'dashboard' %}on{% endif %}">Dashboard</a>
+    <a href="/gigs" class="{% if tab == 'gigs' %}on{% endif %}">Gigs</a>
+    <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
+  </nav>
+  <span class="who">
+    {% if me %}
+      <span>{{ me }}</span>
+      <form method="post" action="/signout" class="inline">
+        <button class="linkish" type="submit">Sign out</button>
+      </form>
+    {% else %}
+      <a class="linkish" href="/signin">Sign in</a>
+    {% endif %}
+  </span>
+</header>
+
+<div class="wrap">
+{% block body %}{% endblock %}
+
+  <footer>
+    <span>Nabbly · Every gig. The moment it drops.</span>
+    <span style="font-family:ui-monospace,Menlo,monospace">{{ "%.0f"|format(took_ms) }} ms</span>
+  </footer>
+</div>
+
+</body>
+</html>

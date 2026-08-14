@@ -19,11 +19,17 @@ import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-# Columns a card actually renders. body is DELIBERATELY ABSENT: it is the
-# heaviest column on the table and nothing on the list view shows it. Fetching
-# it "just in case" is how the frame got expensive in the first place.
+# Columns a card renders, body included — the app's cards show a clamped
+# preview, so the board has to have it.
+#
+# THIS IS NOT A RETREAT FROM THE ORIGINAL RULE, it is the point of it. body is
+# the heaviest column on the table, and the Streamlit board pays for it 53,525
+# times to display 25 previews. Here it is fetched for the 25 rows on the page
+# and nowhere else: the filter, the sort, the counts and the ranking window all
+# run over the narrow columns and never touch it. Twenty-five bodies is about
+# 40KB; the whole column is 40MB.
 CARD_COLS = ("id", "title", "url", "source", "sort_at", "posted_at",
-             "job_type", "size_tier", "urgency")
+             "job_type", "size_tier", "urgency", "body")
 
 PAGE_SIZE = 25
 MAX_LIMIT = 100          # a caller cannot ask for the whole board
