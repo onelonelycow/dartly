@@ -197,6 +197,56 @@ Pitch the field page that matches the article, not nabbly.co. A writing
 roundup linking to /freelance-writing-jobs/ is a better fit for their reader
 and a stronger signal for that page.
 
+### The target list (built 2026-08-14)
+
+Nine live targets, found by searching the queries a freelancer actually types.
+Pitch each one the field page that matches its article — a writing roundup
+linking to /freelance-writing-jobs/ is a better fit for its reader and puts the
+signal on the page that needs it.
+
+**Writing** — the strongest set, because there is a matching field page and
+these are the most independently run.
+
+| Where | The article | Send |
+|---|---|---|
+| elnacain.com | "17 Best Freelance Writing Job Boards" AND "12 Freelance Writing Job Boards, Newsletters and Communities" | /freelance-writing-jobs/ |
+| peakfreelance.com | "The 12 Best Freelance Writing Job Boards to Find Writing Gigs" | /freelance-writing-jobs/ |
+| amysuto.com | "Freelance Writing Jobs 2026: 5 Boards That Actually Pay" | /freelance-writing-jobs/ |
+| bestwriting.com | "17 Best Writing Job Boards in 2026" | /freelance-writing-jobs/ |
+| sidehustles.com | "16 Best Freelance Writing Job Boards to Find Gigs in 2026" | /freelance-writing-jobs/ |
+
+**Design**
+
+| Where | The article | Send |
+|---|---|---|
+| magier.com | "Best Design Job Boards for Designers in 2026" | /freelance-design-jobs/ |
+| roamjobs.com | "Best Remote Job Boards for Designers in 2026" | /freelance-design-jobs/ |
+| uxcel.com | "11 best job boards for UX designers in 2026" | /freelance-design-jobs/ |
+
+**General**
+
+| Where | The article | Send |
+|---|---|---|
+| lettuce.co | "Where to Find Work: 50+ Resources for Freelancers & Independent Pros" — a tax and accounting company for solopreneurs, so not a competitor. Guest-curated by Samantha Anderl of Harlow; pitch Lettuce, not her. | nabbly.co |
+
+**OPEN EACH ARTICLE BEFORE YOU WRITE.** These came from search results, not
+from reading every page. The first line of the email names the actual piece,
+and that line is doing all the work — an article that has been retitled or
+rewritten turns the one personal sentence into the tell that it was automated.
+It also catches the case where Nabbly is already listed.
+
+### Deliberately NOT on the list
+
+**Sites that run their own job board.** allfreelancewriting.com,
+writerswrite.com and ProBlogger all operate boards of their own. Pitching a
+board to a board owner is pitching a competitor: at best ignored, at worst
+rude. Same rule as the lead newsletters below.
+
+**Anyone selling a competing product.** Upwork, Fiverr, Hostinger, Bonsai,
+useme, flowlu, fastlancer and the rest publish these lists to rank for the
+query and funnel readers into their own marketplace. They will not add a
+competitor, and an hour spent on them is an hour not spent on the nine above.
+
 ### Newsletters: know which half you are writing to
 
 Two kinds, and treating them the same is how a pitch gets ignored.
