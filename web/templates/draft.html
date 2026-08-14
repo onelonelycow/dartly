@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Draft your reply · Nabbly{% endblock %}
+
+{% block extra_css %}
+.back{display:inline-block;font-size:13px;color:var(--faint);text-decoration:none;
+  margin:22px 0 10px}
+.back:hover{color:var(--amber-l)}
+.gig{border:1px solid var(--line);border-radius:14px;background:#14171b;
+  padding:16px 18px;margin:0 0 18px}
+.gig .t{font-size:19px;font-weight:600;letter-spacing:-.2px;display:block;
+  margin-bottom:8px;color:#eaeef4;text-decoration:none}
+.gig .t:hover{color:var(--amber)}
+.sec{font-size:17px;font-weight:650;margin:22px 0 8px}
+.hint{color:var(--mute);font-size:13.5px;margin:0 0 12px;line-height:1.6}
+textarea{width:100%;min-height:270px;background:var(--panel);
+  border:1px solid var(--line);color:var(--ink);border-radius:12px;
+  padding:14px 16px;font-size:14.5px;line-height:1.65;font-family:inherit;
+  resize:vertical}
+textarea:focus{outline:2px solid var(--amber-d);outline-offset:1px;
+  border-color:transparent}
+.row{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px;align-items:center}
+button.go,a.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+  padding:11px 20px;font-weight:650;font-size:14px;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-block}
+button.go:hover,a.go:hover{background:var(--amber-l)}
+button.ghost,a.ghost{background:none;border:1px solid var(--line);color:#c8ced6;
+  border-radius:11px;padding:11px 18px;font-size:14px;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-block}
+button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.said{font-size:12.5px;color:#8fe3b0}
+.note{background:rgba(232,147,58,.07);border:1px solid #3a2b17;border-radius:12px;
+  padding:14px 16px;color:#c8ced6;font-size:13.5px;line-height:1.65;margin:14px 0 0}
+.note a{color:var(--amber-l)}
+.cap{font-size:12.5px;color:var(--faint);margin-top:9px;line-height:1.6}
+{% endblock %}
+
+{% block body %}
+
+<a class="back" href="{{ back }}">← Back to the board</a>
+
+<div class="gig">
+  <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+  <div class="gr-pills">
+    {% if g.job_type %}<span class="gr-pill">{{ g.job_type }}</span>{% endif %}
+    {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
+    {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}
+  </div>
+</div>
+
+<div class="sec">Your reply</div>
+<p class="hint">
+  {% if pro %}Written against this post and your profile. Edit it — it's a
+    starting point, not a script.
+  {% else %}A starting point built from your profile. Edit it before you send.
+  {% endif %}
+</p>
+
+<form method="post" action="/draft/{{ g.id }}/save">
+  <input type="hidden" name="back" value="{{ back }}">
+  <textarea name="text" aria-label="Your draft">{{ draft }}</textarea>
+  <div class="row">
+    <button class="go" type="submit">Save draft</button>
+    {% if mailto %}
+      <a class="ghost" href="{{ mailto }}">Open in email</a>
+    {% endif %}
+    <a class="ghost" href="/draft/{{ g.id }}?regen=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write a new one</a>
+    {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
+  </div>
+</form>
+
+{% if mailto %}
+  <p class="cap">Opens your mail app with this draft already in it, addressed to
+    the contact on the posting.</p>
+{% endif %}
+
+{% if not pro and upsell %}
+  <div class="note">{{ upsell }}
+    <a href="{{ app_url }}/?nav=pricing">See what Pro unlocks →</a></div>
+{% endif %}
+
+{% endblock %}

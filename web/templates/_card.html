@@ -36,10 +36,20 @@
     <div class="gr-body">{{ g.preview }}</div>
     <label class="gr-more-lbl" for="gm{{ g.id }}"></label>
     <div class="gr-posted">{{ g.posted_line }}</div>
+  {% if me %}
+    {# A link, not an inline generator. Drafting happens when someone asks for
+       it — 25 cards must never mean 25 model calls to render a page. #}
+    <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  {% endif %}
   </div>
   {% else %}
   <div class="gr-bodywrap gr-nobody">
     <div class="gr-posted">{{ g.posted_line }}</div>
+  {% if me %}
+    {# A link, not an inline generator. Drafting happens when someone asks for
+       it — 25 cards must never mean 25 model calls to render a page. #}
+    <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  {% endif %}
   </div>
   {% endif %}
 </div>

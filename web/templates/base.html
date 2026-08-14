@@ -55,6 +55,12 @@ button.go{background:var(--amber);color:#1b1205;border:0;border-radius:12px;
   padding:0 26px;font-weight:650;font-size:15px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
 .searchrow{display:flex;gap:10px;max-width:620px;margin:0 auto 16px}
+/* Cards appear on both the board and Saved, so the draft link lives here
+   rather than being defined twice and drifting. */
+.draftlink{display:inline-block;margin-top:10px;font-size:13px;font-weight:600;
+  color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
+  padding:8px 13px}
+.draftlink:hover{background:#1e232a;color:var(--amber-l)}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
   .topbar nav{order:3;width:100%;margin:0;overflow-x:auto}

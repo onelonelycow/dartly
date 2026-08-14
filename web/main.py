@@ -322,6 +322,87 @@ def saved_page(request: Request):
     return resp
 
 
+@app.get("/draft/{gig_id}", response_class=HTMLResponse)
+def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
+               regen: int = Query(0), saved_ok: int = Query(0)):
+    """
+    A reply, drafted for one gig, generated ON REQUEST.
+
+    ONE CLICK, ONE DRAFT — this is why it is a page and not an expander on the
+    board. The Streamlit version only generates when someone opens the
+    expander; the equivalent mistake here would be drafting all 25 cards on
+    every page load, which for a Pro reader is 25 model calls to render a list.
+    A page also gives the draft a URL you can come back to.
+
+    Free gets pitch.draft_template: no model, no cost, instant. Pro gets
+    draft_pitch, which is already budget-gated and cached upstream — nothing
+    here needs to re-invent either.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    if not back.startswith("/") or back.startswith("//"):
+        back = "/gigs"                       # never redirect off-site
+    if not me:
+        return RedirectResponse("/signin", status_code=303)
+
+    conn = queries.connect(DB_PATH)
+    try:
+        rows = queries.by_ids([gig_id], conn=conn)
+    finally:
+        conn.close()
+    if not rows:
+        return RedirectResponse(back, status_code=303)
+    g = rows[0]
+
+    import drafts as drafts_mod
+    import pitch
+    import profile as profile_mod
+    prof = profile_mod.load() or {}
+    acc = webauth.account_for(request)
+    pro = bool(accounts.status(acc).get("pro"))
+
+    # An edited draft is the reader's, not ours — never overwrite it with a
+    # fresh generation unless they explicitly ask for one.
+    text = "" if regen else drafts_mod.load(gig_id)
+    if not text:
+        if pro and pitch.ai_available():
+            text = pitch.draft_pitch(g, prof, who=me)
+        else:
+            text = pitch.draft_template(g, prof)
+
+    mailto = ""
+    addr = (g.get("apply_email") or "").strip()
+    if addr:
+        subj = quote_plus(f"Re: {g.get('title') or 'your posting'}")
+        mailto = f"mailto:{addr}?subject={subj}&body={quote_plus(text)}"
+
+    resp = templates.TemplateResponse(request, "draft.html", {
+        "g": g, "draft": text, "pro": pro, "me": me, "back": back,
+        "mailto": mailto, "saved_ok": bool(saved_ok),
+        "upsell": "" if pro else pitch.free_draft_note(g),
+        "tab": "gigs", "css_v": CSS_V, "indexable": _INDEXABLE,
+        "app_url": APP_URL, "took_ms": (time.perf_counter() - t0) * 1000,
+    })
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
+@app.post("/draft/{gig_id}/save")
+def draft_save(request: Request, gig_id: int, text: str = Form(""),
+               back: str = Form("/gigs")):
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse("/signin", status_code=303)
+    import drafts as drafts_mod
+    drafts_mod.save(gig_id, text)
+    if not back.startswith("/") or back.startswith("//"):
+        back = "/gigs"
+    return RedirectResponse(
+        f"/draft/{gig_id}?saved_ok=1&back={quote_plus(back)}", status_code=303)
+
+
 @app.get("/health")
 def health():
     """
