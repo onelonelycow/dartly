@@ -201,6 +201,53 @@ def pull(cap: int = CAP) -> list[dict]:
         return []
 
 
+def iter_all(batch: int = 10000, demand_only: bool = False):
+    """
+    Every mirrored gig, in pages, newest first. Yields lists of dicts.
+
+    THE CAP IS A REAL LOSS, not a safety margin. pull() returns the newest CAP
+    rows and stops: measured 2026-08-13, the mirror held 50,185 live gigs
+    against a 40,000 cap, so 10,206 of them — a fifth of the board — did not
+    come back on any boot, silently. Worse, a gig past the cap stops blocking
+    re-ingest by its source_id, so it can reappear later as a brand new
+    posting. That is the same lossiness the cap was raised from 15,000 to fix,
+    just further out.
+
+    Paging also holds peak memory down, which matters more here than the
+    correctness fix: one 50,000-row list with every body attached is the same
+    "load it all to use a bit of it" shape that took the app down. The caller
+    writes each page and drops it.
+
+    demand_only skips archived gigs. The board never shows them, and archival
+    reaches a mirror-fed copy through pull_flags() instead, which carries three
+    columns rather than whole rows.
+    """
+    if not enabled():
+        return
+    where = " WHERE is_demand = 1" if demand_only else ""
+    offset = 0
+    while True:
+        try:
+            conn, _ = store._connect()
+            try:
+                _ensure(conn)
+                cur = conn.execute(
+                    f"SELECT {', '.join(_COLS)} FROM {_TABLE}{where} "
+                    f"ORDER BY COALESCE(posted_at, fetched_at) DESC "
+                    f"LIMIT {int(batch)} OFFSET {int(offset)}")
+                rows = [dict(zip(_COLS, r)) for r in cur.fetchall()]
+            finally:
+                conn.close()
+        except Exception:
+            return
+        if not rows:
+            return
+        yield rows
+        if len(rows) < batch:
+            return
+        offset += len(rows)
+
+
 def pull_since(since: str, cap: int = CAP) -> list[dict]:
     """
     Only the gigs mirrored since `since` (an ISO fetched_at watermark).
@@ -230,6 +277,40 @@ def pull_since(since: str, cap: int = CAP) -> list[dict]:
             conn.close()
     except Exception:
         return []
+
+
+def iter_flags(batch: int = 20000):
+    """
+    Every gig's (source, source_id, is_demand), in pages.
+
+    Paged for the same reason as iter_all: capped at CAP, reconciliation could
+    not see an archived gig that had fallen past the cap, so it would stay on
+    the board copy forever — which is exactly the bug reconciliation exists to
+    prevent. Three small columns, so the pages can be large.
+    """
+    if not enabled():
+        return
+    offset = 0
+    while True:
+        try:
+            conn, _ = store._connect()
+            try:
+                _ensure(conn)
+                cur = conn.execute(
+                    f"SELECT source, source_id, is_demand FROM {_TABLE} "
+                    f"ORDER BY COALESCE(posted_at, fetched_at) DESC "
+                    f"LIMIT {int(batch)} OFFSET {int(offset)}")
+                rows = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+            finally:
+                conn.close()
+        except Exception:
+            return
+        if not rows:
+            return
+        yield rows
+        if len(rows) < batch:
+            return
+        offset += len(rows)
 
 
 def pull_flags(cap: int = CAP) -> list[tuple]:

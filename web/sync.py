@@ -131,18 +131,30 @@ def _watermark(conn) -> str:
 
 
 def full_sync() -> int:
-    """Pull the whole board. Boot, or an empty local file."""
-    rows = board_store.pull()
-    if not rows:
-        return 0
+    """
+    Pull the whole board, in pages. Boot, or an empty local file.
+
+    PAGED, NOT CAPPED. board_store.pull() returns the newest CAP rows and
+    stops; measured 2026-08-13 that left 10,206 live gigs — a fifth of the
+    board — off every boot, with nothing reporting it. iter_all() walks the
+    lot, and writing each page as it arrives keeps peak memory flat instead of
+    holding 50,000 rows and their bodies at once.
+
+    demand_only: archived gigs are never rendered, and reconcile() learns about
+    archival from the far cheaper flags query.
+    """
+    n = 0
     conn = _connect_rw()
     try:
         _ensure_schema(conn)
-        n = _upsert(conn, rows)
+        for page in board_store.iter_all(demand_only=True):
+            n += _upsert(conn, page)
         _state["rows"] = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
         _state["watermark"] = _watermark(conn)
     finally:
         conn.close()
+    if not n:
+        return 0
     _migrate_mod.migrate(BOARD_DB, verbose=False)   # indexes + FTS
     _state["last_sync"] = time.time()
     return n
@@ -177,10 +189,12 @@ def reconcile() -> int:
     """
     Apply archival. See the module docstring for why this cannot be skipped.
     """
-    flags = board_store.pull_flags()
-    if not flags:
-        return 0
-    dead = [(s, sid) for s, sid, d in flags if not d]
+    # Paged: capped, this could not see an archived gig past the cap, so it
+    # would stay on the board copy forever — the exact bug this function is
+    # here to prevent.
+    dead = []
+    for page in board_store.iter_flags():
+        dead.extend((s, sid) for s, sid, d in page if not d)
     if not dead:
         _state["last_reconcile"] = time.time()
         return 0
