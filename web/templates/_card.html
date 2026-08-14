@@ -3,7 +3,7 @@
    with a pure-CSS "see more", then the posted line. #}
 {% macro card(g, me, saved_ids, here, ranked) -%}
 <div class="gr-cardwrap">
-  <a class="gr-title" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+  {% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
   {% if me %}
     {% set is_saved = g.id|string in saved_ids %}
     <form method="post" action="/save" class="inline gr-saveform">
@@ -18,7 +18,9 @@
   <div class="gr-pills">
     {% if ranked and g._score %}<span class="gr-pill match">{{ g._score }}% match</span>{% endif %}
     {% if g.job_type %}<span class="gr-pill">{{ g.job_type }}</span>{% endif %}
-    {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }}</span>{% endif %}
+    {# "Medium budget", not "Medium" — the app says what the number describes,
+       and a bare size word next to a job type reads as part of the role. #}
+    {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
     {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}
   </div>
 

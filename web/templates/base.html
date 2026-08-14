@@ -18,19 +18,26 @@
 html,body{margin:0;background:var(--bg);color:var(--ink);
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased}
-.wrap{max-width:1100px;margin:0 auto;padding:0 20px 72px}
+/* 880px, matching the app's content column. At 1100 the cards were visibly
+   wider than the real board and the whole page read as a different layout. */
+.wrap{max-width:880px;margin:0 auto;padding:0 20px 72px}
 .topbar{display:flex;align-items:center;gap:18px;padding:14px 20px;
   border-bottom:1px solid var(--line);background:var(--bg2);
   position:sticky;top:0;z-index:20}
 .topbar .brand{display:flex;align-items:center;gap:9px;text-decoration:none;
   font-size:20px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
-.topbar .brand .mk{width:26px;height:26px;border-radius:7px;background:var(--amber);
-  display:inline-flex;align-items:center;justify-content:center;color:#191106;
-  font-weight:800;font-size:15px}
-.topbar .brand .wm{white-space:nowrap}
-.topbar .brand .ly{color:var(--amber)}
+.topbar .gr-home{display:block;line-height:0;text-decoration:none}
+.topbar .gr-home img{width:118px;height:auto;display:block}
+.topbar .gr-home:hover{opacity:.85}
+.whoami{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.avatar{width:32px;height:32px;border-radius:50%;background:#22262e;
+  border:1px solid var(--line);display:inline-flex;align-items:center;
+  justify-content:center;color:#aeb4be;text-decoration:none;font-size:13px;
+  font-weight:600;flex:none}
+.avatar:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.avatar.on{background:rgba(232,147,58,.16);border-color:var(--amber-d);color:var(--amber)}
 .topbar nav{display:flex;gap:4px;margin:0 auto}
-.topbar nav a{font-size:15.5px;font-weight:500;color:#aeb4be;text-decoration:none;
+.topbar nav a{font-size:14px;font-weight:500;color:#aeb4be;text-decoration:none;
   padding:7px 13px;border-radius:9px}
 .topbar nav a:hover{background:rgba(232,147,58,.09);color:#eaa662}
 .topbar nav a.on{color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber);border-radius:9px 9px 0 0}
@@ -47,7 +54,7 @@ input:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:tra
 button.go{background:var(--amber);color:#1b1205;border:0;border-radius:12px;
   padding:0 26px;font-weight:650;font-size:15px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
-.searchrow{display:flex;gap:10px;max-width:880px;margin:0 auto 16px}
+.searchrow{display:flex;gap:10px;max-width:620px;margin:0 auto 16px}
 footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
   color:var(--faint);font-size:12px;display:flex;justify-content:space-between;
   gap:12px;flex-wrap:wrap}
@@ -62,9 +69,10 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
 <body>
 
 <header class="topbar">
-  {# The wordmark is ONE flex item. Split across text nodes, the container's
-     gap:9px applied between them and rendered as "Nabb ly". #}
-  <a class="brand" href="/"><span class="mk">✓</span><span class="wm">Nabb<span class="ly">ly</span></span></a>
+  {# The real wordmark, the same assets/logo.svg the app renders. A hand-built
+     lookalike is the thing most likely to read as "not quite Nabbly". #}
+  <a class="gr-home" href="/" title="Back to the dashboard">
+    <img src="/static/logo.svg?v={{ css_v }}" alt="Nabbly" width="132" height="40"></a>
   <nav>
     <a href="/" class="{% if tab == 'dashboard' %}on{% endif %}">Dashboard</a>
     <a href="/gigs" class="{% if tab == 'gigs' %}on{% endif %}">Gigs</a>
@@ -76,13 +84,20 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
     <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
   </nav>
   <span class="who">
+    {# The app puts an avatar here, not the word "Sign in" — signed out it is
+       the same circle with a generic glyph, so the bar does not change shape
+       when you sign in. #}
     {% if me %}
-      <span>{{ me }}</span>
+      <span class="whoami" title="{{ me }}">{{ me }}</span>
       <form method="post" action="/signout" class="inline">
         <button class="linkish" type="submit">Sign out</button>
       </form>
+      <span class="avatar on" title="{{ me }}">{{ me[0]|upper }}</span>
     {% else %}
-      <a class="linkish" href="/signin">Sign in</a>
+      <a class="avatar" href="/signin" title="Sign in" aria-label="Sign in">
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
+          <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.4 0-8 2.2-8 5v1h16v-1c0-2.8-3.6-5-8-5Z"/>
+        </svg></a>
     {% endif %}
   </span>
 </header>

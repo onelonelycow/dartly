@@ -72,7 +72,9 @@ a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
       <a class="gr-cat" href="/gigs?field={{ g.fields|join(',')|urlencode }}">{{ g.name }}</a>
     {% endfor %}
   </div>
-  <span class="quiet"><a href="/gigs?qf=urgent">Urgent only</a></span>
+  {# Both quick entries the app's dashboard offers, in its order. #}
+  <span class="quiet"><a href="/gigs?qf=recent">Posted today</a>
+    &nbsp;&nbsp;<a href="/gigs?qf=urgent">Urgent only</a></span>
   <hr class="rule">
 {% endif %}
 

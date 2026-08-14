@@ -22,6 +22,8 @@ import os
 import sys
 import time
 
+from datetime import datetime, timedelta, timezone
+
 from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Form, Query, Request
@@ -51,6 +53,9 @@ try:
 except OSError:
     CSS_V = "0"
 
+# How recent counts as "New" on a card.
+NEW_MINUTES = 90
+
 # Where the Streamlit app lives, for the handful of pages still served there.
 APP_URL = (os.environ.get("NABBLY_APP_URL")
            or "https://app.nabbly.co").rstrip("/")
@@ -65,7 +70,13 @@ def decorate(rows, ranked=False):
     phrases it. textfmt is shared with app.py precisely so these read the same
     on both.
     """
+    # "New" is a real column on the app's own table but the durable mirror does
+    # not carry it, so it cannot survive the trip to this service. Derived from
+    # recency instead, which is what the badge means to a reader anyway: this
+    # landed while you were away.
+    fresh_cut = (datetime.now(timezone.utc) - timedelta(minutes=NEW_MINUTES)).isoformat()
     for r in rows:
+        r["is_new"] = bool((r.get("sort_at") or "") >= fresh_cut)
         r["preview"] = textfmt.smart_trim(
             textfmt.display_body(r.get("body")), target=620, hard=1200)
         # Falls back to fetched_at exactly as the SQL sort does. Without it a
@@ -429,8 +440,16 @@ def board(request: Request,
     if landing:
         res["rows"] = res["rows"][:8]
     decorate(res["rows"], ranked)
-    groups = [{"name": g, "fields": subs}
-              for g, subs in config.CATEGORY_GROUPS.items()]
+    # Ordered by how many gigs sit behind each bucket, not by however the dict
+    # happens to be written — the app's dashboard leads with the biggest, and a
+    # different order is the kind of difference you feel without being able to
+    # name it.
+    counts = facets.get("job_type", {})
+    groups = sorted(
+        ({"name": g, "fields": subs,
+          "n": sum(counts.get(s, 0) for s in subs)}
+         for g, subs in config.CATEGORY_GROUPS.items()),
+        key=lambda x: -x["n"])
     carry = {k: v for k, v in
              {"field": field, "size": size, "source": source, "langs": langs,
               "where": where, "sort": sort, "qf": qf,

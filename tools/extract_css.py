@@ -110,5 +110,24 @@ def main():
         print(f"   {name:<12} {'present' if name in open(OUT).read() else 'MISSING'}")
 
 
+def copy_assets():
+    """
+    The logo and icon, alongside the stylesheet.
+
+    Copied rather than referenced across directories because the board service
+    serves one static root, and a page that renders without its wordmark is
+    the most obviously wrong thing a visitor can see.
+    """
+    import shutil
+    src = os.path.join(HERE, "assets")
+    dst = os.path.dirname(OUT)
+    for name in ("logo.svg", "icon.svg", "favicon.png"):
+        a = os.path.join(src, name)
+        if os.path.exists(a):
+            shutil.copy2(a, os.path.join(dst, name))
+            print(f"   copied {name}")
+
+
 if __name__ == "__main__":
     main()
+    copy_assets()
