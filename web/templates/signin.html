@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sign in · Nabbly</title>
+<style>
+:root{
+  --bg:#121418; --panel:#171a20; --line:#262a31; --ink:#F6F8FA;
+  --mute:#868D98; --faint:#7d8590;
+  --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     line-height:1.5;-webkit-font-smoothing:antialiased;
+     display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+a{color:var(--amber-l)}
+.card{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);
+  border-radius:14px;padding:28px}
+.mark{display:block;width:26px;height:3px;background:var(--amber);border-radius:2px;margin-bottom:16px}
+h1{font-size:21px;margin:0 0 6px;letter-spacing:-.3px}
+p.sub{margin:0 0 20px;color:var(--mute);font-size:14px}
+label{display:block;font-size:11.5px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px}
+input{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:11px 13px;font-size:15px;font-family:inherit;margin-bottom:14px}
+input:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:transparent}
+input.code{font-family:var(--mono);font-size:22px;letter-spacing:.34em;text-align:center}
+button{width:100%;background:var(--amber);color:#1b1205;border:0;border-radius:10px;
+  padding:12px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
+button:hover{background:var(--amber-l)}
+.err{background:rgba(255,120,90,.09);border:1px solid #5c2f24;color:#ffb4a2;
+  border-radius:9px;padding:10px 12px;font-size:13.5px;margin-bottom:16px}
+.foot{margin-top:18px;font-size:12.5px;color:var(--faint);text-align:center}
+.foot a{text-decoration:none}
+.foot a:hover{text-decoration:underline}
+.to{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<div class="card">
+  <span class="mark"></span>
+
+  {% if err %}<div class="err">{{ err }}</div>{% endif %}
+
+  {% if not mail_ok %}
+    <h1>Sign-in is unavailable</h1>
+    <p class="sub">We can't send sign-in codes right now. Try again shortly.</p>
+    <div class="foot"><a href="/">← Back to the board</a></div>
+
+  {% elif sent %}
+    <h1>Check your email</h1>
+    <p class="sub">We sent a six digit code to <span class="to">{{ sent }}</span>.</p>
+    <form method="post" action="/signin/verify">
+      <input type="hidden" name="email" value="{{ sent }}">
+      <label for="code">Code</label>
+      {# inputmode/autocomplete let phones show a number pad and offer the code
+         straight from the notification, which is most of the friction here. #}
+      <input class="code" id="code" name="code" maxlength="6" inputmode="numeric"
+             autocomplete="one-time-code" pattern="[0-9]*" placeholder="000000"
+             autofocus required>
+      <button type="submit">Sign in</button>
+    </form>
+    <div class="foot">
+      <form method="post" action="/signin" style="display:inline">
+        <input type="hidden" name="email" value="{{ sent }}">
+        <button type="submit" style="background:none;color:var(--faint);
+          width:auto;padding:0;font-weight:400;font-size:12.5px;text-decoration:underline">
+          Send a new code</button>
+      </form>
+    </div>
+
+  {% else %}
+    <h1>Sign in to Nabbly</h1>
+    <p class="sub">We'll email you a six digit code. No password to remember.</p>
+    <form method="post" action="/signin">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" placeholder="you@example.com"
+             autocomplete="email" autofocus required>
+      <button type="submit">Email me a code</button>
+    </form>
+    <div class="foot"><a href="/">← Back to the board</a></div>
+  {% endif %}
+
+</div>
+</body>
+</html>

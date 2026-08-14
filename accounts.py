@@ -389,6 +389,47 @@ def by_token(token: str) -> dict | None:
                 pass
 
 
+def by_email(email: str, touch: bool = False) -> dict | None:
+    """
+    The account for this address, or None. A READ, not a find-or-create.
+
+    sign_in() is the only other way to get an account by address, and it
+    creates one and writes last_seen on every call. That is right for a
+    sign-in and wrong for a page load: the board service resolves identity from
+    a session cookie on EVERY request, and using sign_in() there would turn
+    each page view into a write, and would silently recreate an account someone
+    had deleted.
+
+    touch=True opts into the last_seen/visits bump for the one call per session
+    that genuinely is a visit.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+    conn = None
+    try:
+        init()
+        conn = _connect()
+        row = conn.execute("SELECT * FROM accounts WHERE email=?",
+                           (email,)).fetchone()
+        if row and touch:
+            conn.execute(
+                "UPDATE accounts SET last_seen=?, visits=visits+1 WHERE email=?",
+                (_now(), email))
+            conn.commit()
+        return dict(row) if row else None
+    except sqlite3.Error as e:
+        # Same contract as by_token: "database unreadable" must never be
+        # mistaken for "no such account", or a blip signs everyone out.
+        raise StoreUnavailable(str(e)) from e
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+
+
 def _founding_rank(acc: dict) -> int | None:
     """
     This account's place in line among the first FOUNDING_LIMIT signups — #7,

@@ -24,18 +24,29 @@ import time
 
 from urllib.parse import quote_plus
 
-from fastapi import FastAPI, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.sessions import SessionMiddleware
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import queries  # noqa: E402
+import webauth  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 app = FastAPI(title="Nabbly board", docs_url=None, redoc_url=None)
+
+# same_site="lax" is the CSRF defence for the POST routes below: a form on
+# someone else's site cannot make the browser attach this cookie. https_only
+# is off in local dev because there is no TLS on localhost and the cookie
+# would simply never be set, making sign-in untestable.
+app.add_middleware(
+    SessionMiddleware, secret_key=webauth._SECRET,
+    session_cookie=webauth.SESSION_COOKIE, max_age=webauth.SESSION_MAX_AGE,
+    same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1")
 
 # NABBLY_DB points at an existing SQLite file (local dev, tests). With it
 # unset, the service maintains its own copy from the durable mirror — which is
@@ -131,6 +142,79 @@ def robots():
     return PlainTextResponse(body)
 
 
+@app.get("/signin", response_class=HTMLResponse)
+def signin_page(request: Request, sent: str = Query(""), err: str = Query("")):
+    webauth.scope_for_request(request)
+    if webauth.current_email(request):
+        return RedirectResponse("/", status_code=303)
+    return templates.TemplateResponse(request, "signin.html", {
+        "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
+    })
+
+
+@app.post("/signin")
+def signin_send(request: Request, email: str = Form("")):
+    webauth.scope_for_request(request)
+    if not webauth.rate_ok(request):
+        return _back("/signin", err="Too many codes requested. Wait a few minutes.")
+    ok, err = webauth.send_code(email)
+    if not ok:
+        return _back("/signin", err=err)
+    return _back("/signin", sent=email.strip().lower())
+
+
+@app.post("/signin/verify")
+def signin_verify(request: Request, email: str = Form(""), code: str = Form("")):
+    webauth.scope_for_request(request)
+    ok, err = webauth.verify(email, code)
+    if not ok:
+        return _back("/signin", sent=email.strip().lower(), err=err)
+    webauth.sign_in_session(request, email)
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/save")
+def save(request: Request, gig: str = Form(""), back: str = Form("/")):
+    """
+    Toggle a saved gig, then send the browser back where it came from.
+
+    `back` is taken from a form field rather than the Referer header, which is
+    absent often enough (privacy settings, some proxies) that half the saves
+    would dump people on page one of the board.
+    """
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse("/signin", status_code=303)
+    if gig:
+        try:
+            import saved as saved_mod
+            saved_mod.toggle(gig)
+        except Exception:
+            pass
+    # Never redirect to a caller-supplied absolute URL: that turns this into an
+    # open redirect anyone can point at a phishing page. Only same-site paths.
+    if not back.startswith("/") or back.startswith("//"):
+        back = "/"
+    return RedirectResponse(back, status_code=303)
+
+
+@app.post("/signout")
+def signout(request: Request):
+    webauth.sign_out_session(request)
+    return RedirectResponse("/", status_code=303)
+
+
+def _back(path: str, **params):
+    """
+    Redirect after POST, always — never render a page in response to one.
+
+    Without this a refresh re-submits the form, which here means mailing
+    another sign-in code or burning another verification attempt.
+    """
+    qs = "&".join(f"{k}={quote_plus(str(v))}" for k, v in params.items() if v)
+    return RedirectResponse(f"{path}?{qs}" if qs else path, status_code=303)
+
+
 @app.get("/health")
 def health():
     """
@@ -172,6 +256,9 @@ def board(request: Request,
           langs: str = Query(""),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
+    # MUST be first: sets the thread-local scope the per-user helpers read.
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
            "urgent_only": bool(urgent), "where_work": where}
@@ -181,6 +268,16 @@ def board(request: Request,
         facets, loc = _facets.get(conn, ctx)
     finally:
         conn.close()
+
+    # Which of the gigs ON THIS PAGE are saved — a set of at most 25 ids, not
+    # the whole saved list rendered into every card's state.
+    saved_ids = set()
+    if me:
+        try:
+            import saved as saved_mod
+            saved_ids = set(saved_mod.ids())
+        except Exception:
+            saved_ids = set()
 
     # robots.txt alone does not stop a page that gets linked to from being
     # indexed; the header does. Belt and braces while this is unfinished.
@@ -200,9 +297,17 @@ def board(request: Request,
         "sel_field": _csv(field), "sel_size": _csv(size),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
         "urgent": bool(urgent), "where": where, "link": link,
+        # Relative, not str(request.url): the absolute form would carry the
+        # host into a form field, and /save refuses anything but a same-site
+        # path, so a proxied host would silently bounce every save to page one.
+        "me": me, "saved_ids": saved_ids,
+        "here": request.url.path + (f"?{request.url.query}" if request.url.query else ""),
         "took_ms": (time.perf_counter() - t0) * 1000,
     })
-    resp.headers["Cache-Control"] = _CACHE
+    # A signed-in page is personal — it shows which gigs THIS person saved — so
+    # it must never be handed to the CDN for the next visitor. Only the
+    # anonymous board is cacheable, and that is the page the caching was for.
+    resp.headers["Cache-Control"] = "private, no-store" if me else _CACHE
     if not _INDEXABLE:
         resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp

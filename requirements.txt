@@ -32,3 +32,4 @@ stripe>=11.0,<16         # 15.x today — Pro checkout
 fastapi>=0.115,<1        # 0.141 today
 uvicorn>=0.30,<1         # ASGI server for the board service
 jinja2>=3.1,<4           # board templates (Streamlit already depends on it)
+itsdangerous>=2.0,<3     # signs the board service session cookie

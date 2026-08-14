@@ -19,7 +19,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
      line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:inherit}
 .wrap{max-width:900px;margin:0 auto;padding:28px 18px 64px}
-header{display:flex;align-items:baseline;gap:12px;margin-bottom:22px}
+header{display:flex;align-items:baseline;gap:12px;margin-bottom:22px;flex-wrap:wrap}
 h1{font-size:26px;margin:0;letter-spacing:-.3px}
 h1 .accent{color:var(--amber)}
 .count{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
@@ -73,6 +73,21 @@ details.narrow summary .n{color:var(--amber);font-size:11.5px}
 ul.gigs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 li.gig{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 li.gig:hover{border-color:#33393f}
+.gigtop{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
+.gigtop a.t{flex:1;margin-bottom:0}
+form.inline{display:inline;margin:0}
+button.save{background:none;border:1px solid var(--line);border-radius:8px;
+  color:var(--faint);font-size:15px;line-height:1;cursor:pointer;padding:5px 8px;
+  font-family:inherit;flex:none}
+button.save:hover{border-color:var(--amber-d);color:var(--amber-l)}
+button.save.on{color:var(--amber);border-color:var(--amber-d);
+  background:rgba(232,147,58,.1)}
+.who{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12.5px}
+.who .mine{color:var(--mute)}
+.linkish{background:none;border:0;padding:0;font-family:inherit;font-size:12.5px;
+  color:var(--faint);cursor:pointer;text-decoration:none}
+.linkish:hover{color:var(--amber-l);text-decoration:underline}
+
 .gig a.t{font-size:15.5px;font-weight:600;text-decoration:none;display:block;
   margin-bottom:7px;letter-spacing:-.15px}
 .gig a.t:hover{color:var(--amber-l);text-decoration:underline}
@@ -109,6 +124,16 @@ footer .took{font-family:var(--mono)}
   <header>
     <h1>The whole <span class="accent">board</span></h1>
     <span class="count">{{ "{:,}".format(res.total) }} {{ "gig" if res.total == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
+    <span class="who">
+      {% if me %}
+        <span class="mine">{{ me }}</span>
+        <form method="post" action="/signout" class="inline">
+          <button class="linkish" type="submit">Sign out</button>
+        </form>
+      {% else %}
+        <a class="linkish" href="/signin">Sign in</a>
+      {% endif %}
+    </span>
   </header>
 
   <form class="search" method="get" action="/">
@@ -182,7 +207,20 @@ footer .took{font-family:var(--mono)}
   <ul class="gigs">
     {% for g in res.rows %}
     <li class="gig">
-      <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+      <div class="gigtop">
+        <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+        {% if me %}
+          {% set is_saved = g.id|string in saved_ids %}
+          <form method="post" action="/save" class="inline">
+            <input type="hidden" name="gig" value="{{ g.id }}">
+            <input type="hidden" name="back" value="{{ here }}">
+            <button class="save {% if is_saved %}on{% endif %}" type="submit"
+                    title="{{ 'Remove from saved' if is_saved else 'Save this gig' }}"
+                    aria-label="{{ 'Remove from saved' if is_saved else 'Save this gig' }}"
+              >{{ "★" if is_saved else "☆" }}</button>
+          </form>
+        {% endif %}
+      </div>
       <div class="meta">
         {% if g.job_type %}<span class="tag">{{ g.job_type }}</span>{% endif %}
         {% if g.size_tier %}<span class="tag size">{{ g.size_tier }}</span>{% endif %}
