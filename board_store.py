@@ -340,6 +340,49 @@ def pull_flags(cap: int = CAP) -> list[tuple]:
         return []
 
 
+def push_sweep(rows) -> int:
+    """
+    Mirror what the background sweeps learned: apply_email, page_checked,
+    link_checked. `rows` is [(apply_email, page_checked, link_checked,
+    source, source_id)] — pass None for a field this sweep didn't touch.
+
+    THIS IS WHY THE APPLY ADDRESSES NEVER ACCUMULATED. The sweeps UPDATE the
+    local SQLite file and nothing else, and Render's disk does not survive a
+    deploy — so every deploy threw the addresses away and the sweep restarted
+    from zero at six pages a cycle, forever. Measured 2026-08-14: the local
+    database held 472 addresses and 23 page-checked rows; the mirror held
+    ZERO of each, across 52,623 rows.
+
+    Adding apply_email to _COLS fixed the schema half of this in August. It
+    was only half: a column the mirror has but is never written to is exactly
+    as empty as a column it does not have.
+
+    COALESCE, not assignment: a sweep that found nothing must not blank an
+    address an earlier one found.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET "
+                   f"apply_email  = COALESCE({ph}, apply_email), "
+                   f"page_checked = COALESCE({ph}, page_checked), "
+                   f"link_checked = COALESCE({ph}, link_checked) "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            with conn:
+                conn.cursor().executemany(sql, rows)
+            return len(rows)
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
 def count() -> int:
     """How many gigs are in the mirror (for the admin page). -1 if unreachable."""
     if not enabled():

@@ -335,7 +335,7 @@ def backfill_emails_from_pages(limit: int = PAGE_FETCH_PER_CYCLE) -> int:
     conn = connect()
     try:
         rows = conn.execute(
-            f"SELECT id, url, source FROM posts "
+            f"SELECT id, url, source, source_id FROM posts "
             f"WHERE (apply_email IS NULL OR apply_email = '') "
             f"  AND page_checked IS NULL "
             f"  AND source IN ({marks}) AND url LIKE 'http%' LIMIT ?",
@@ -345,7 +345,7 @@ def backfill_emails_from_pages(limit: int = PAGE_FETCH_PER_CYCLE) -> int:
     if not rows:
         return 0
 
-    found = []
+    found, keys = [], []
     for r in rows:
         addr = ""
         try:
@@ -358,6 +358,7 @@ def backfill_emails_from_pages(limit: int = PAGE_FETCH_PER_CYCLE) -> int:
         except Exception:
             pass          # a dead link is not worth a retry loop
         found.append((addr, r["id"]))
+        keys.append((addr or None, 1, None, r["source"], r["source_id"]))
 
     conn = connect()
     try:
@@ -370,6 +371,15 @@ def backfill_emails_from_pages(limit: int = PAGE_FETCH_PER_CYCLE) -> int:
         conn.commit()
     finally:
         conn.close()
+    # AND TELL THE MIRROR. Without this the work above lives only on Render's
+    # disk, which is wiped on every deploy — so the sweep re-fetched the same
+    # pages forever and the board never accumulated a single address. See
+    # board_store.push_sweep for the numbers.
+    try:
+        import board_store
+        board_store.push_sweep(keys)
+    except Exception:
+        pass          # mirroring must never break the sweep
     return sum(1 for a, _ in found if a)
 
 
