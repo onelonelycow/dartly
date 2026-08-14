@@ -62,7 +62,8 @@ def _fts_query(keyword: str) -> str:
 
 
 def board(keyword: str = "", job_types=None, sizes=None, sources=None,
-          urgent_only: bool = False, page: int = 0, page_size: int = PAGE_SIZE,
+          urgent_only: bool = False, where_work: str = "", languages=None,
+          page: int = 0, page_size: int = PAGE_SIZE,
           conn: sqlite3.Connection | None = None) -> dict:
     """
     One page of the board, plus the honest total.
@@ -86,6 +87,20 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
             params += ps
         if urgent_only:
             where += " AND p.urgency = 'Urgent'"
+
+        # Location. The signed-in board can also weigh a reader's region and
+        # city; an anonymous page knows neither, so this is the honest subset:
+        # is the work remote, or is it hands-on. Nothing here claims to know
+        # where the visitor is.
+        if where_work == "remote" and _has_col(conn, "is_remote"):
+            where += " AND p.is_remote = 1"
+        elif where_work == "onsite" and _has_col(conn, "is_onsite"):
+            where += " AND p.is_onsite = 1"
+
+        clause, ps = _in_clause("p.lang_code", languages
+                                if _has_col(conn, "lang_code") else None)
+        where += clause
+        params += ps
 
         kw = _fts_query(keyword)
         if kw and _has_fts(conn):
@@ -125,23 +140,111 @@ def _has_fts(conn) -> bool:
     return _fts_cache[key]
 
 
-def facets(conn: sqlite3.Connection | None = None) -> dict:
-    """
-    Counts per field and per source, for the filter chips.
+_col_cache: dict[tuple, bool] = {}
 
-    A GROUP BY over an indexed column, which is what the Streamlit app spends
-    a value_counts() over the whole in-memory board on.
+
+def _has_col(conn, col: str) -> bool:
+    """
+    Does this database carry a column the board service derives?
+
+    Guarded rather than assumed so the same queries run against the board
+    service's enriched copy AND a plain database (local dev pointed at the
+    Streamlit app's file, or a board.db from before the derived columns
+    existed). A filter over a missing column is skipped, not fatal.
+    """
+    key = (id(conn), col)
+    if key not in _col_cache:
+        _col_cache[key] = col in {r[1] for r in
+                                  conn.execute("PRAGMA table_info(posts)")}
+    return _col_cache[key]
+
+
+def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> dict:
+    """
+    Counts for the filter chips, WITHIN the filters already applied.
+
+    Each dimension is counted with every OTHER active filter applied but not
+    its own — standard faceted search, and the only version that tells the
+    truth. Counted globally, a chip reading "Development / tech 7,262" while
+    Remote is active promises 7,262 gigs and delivers 2,573, because the click
+    keeps Remote on. That is the same broken promise as the location chips on
+    the Streamlit board, one dimension over.
+
+    Excluding a dimension from its own count is what makes multi-select work:
+    with Design selected, the Development chip has to say how many you would
+    get by ALSO picking Development, not how many are left inside Design.
     """
     own = conn is None
     conn = conn or connect()
+    ctx = ctx or {}
     try:
-        def group(col):
+        def group(col, skip):
+            if not _has_col(conn, col):
+                return {}
+            where = "WHERE is_demand = 1"
+            params: list = []
+            for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
+                                ("sources", "source"), ("languages", "lang_code")):
+                if key == skip or not ctx.get(key) or not _has_col(conn, column):
+                    continue
+                vals = [v for v in ctx[key] if v]
+                if vals:
+                    where += f" AND {column} IN ({','.join('?' * len(vals))})"
+                    params += vals
+            if ctx.get("urgent_only"):
+                where += " AND urgency = 'Urgent'"
+            ww = ctx.get("where_work")
+            if ww == "remote" and _has_col(conn, "is_remote"):
+                where += " AND is_remote = 1"
+            elif ww == "onsite" and _has_col(conn, "is_onsite"):
+                where += " AND is_onsite = 1"
             return {r[0]: r[1] for r in conn.execute(
-                f"SELECT {col}, COUNT(*) FROM posts WHERE is_demand = 1 "
+                f"SELECT {col}, COUNT(*) FROM posts {where} "
                 f"AND {col} IS NOT NULL AND {col} != '' GROUP BY {col} "
-                f"ORDER BY COUNT(*) DESC")}
-        return {"job_type": group("job_type"), "source": group("source"),
-                "size_tier": group("size_tier")}
+                f"ORDER BY COUNT(*) DESC", params)}
+
+        return {"job_type": group("job_type", "job_types"),
+                "source": group("source", "sources"),
+                "size_tier": group("size_tier", "sizes"),
+                "lang_code": group("lang_code", "languages")}
+    finally:
+        if own:
+            conn.close()
+
+
+def location_counts(conn: sqlite3.Connection | None = None,
+                    ctx: dict | None = None) -> dict:
+    """
+    (everywhere, remote, onsite) for the location toggle.
+
+    Counted through the SAME predicates board() filters on, and within whatever
+    else is already selected. On the Streamlit board these were two separate
+    loops that disagreed, so a chip promised a number the tap didn't deliver.
+    A chip is a promise about what one tap gives you, so it has to count the
+    board the tap lands on — including the field or budget already chosen.
+    """
+    own = conn is None
+    conn = conn or connect()
+    ctx = ctx or {}
+    try:
+        where = "WHERE is_demand = 1"
+        params: list = []
+        for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
+                            ("sources", "source"), ("languages", "lang_code")):
+            vals = [v for v in (ctx.get(key) or []) if v]
+            if vals and _has_col(conn, column):
+                where += f" AND {column} IN ({','.join('?' * len(vals))})"
+                params += vals
+        if ctx.get("urgent_only"):
+            where += " AND urgency = 'Urgent'"
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM posts {where}", params).fetchone()[0]
+        if not _has_col(conn, "is_remote"):
+            return {"all": total, "remote": 0, "onsite": 0}
+        row = conn.execute(
+            f"SELECT COALESCE(SUM(is_remote), 0), COALESCE(SUM(is_onsite), 0) "
+            f"FROM posts {where}", params).fetchone()
+        return {"all": total, "remote": int(row[0]), "onsite": int(row[1])}
     finally:
         if own:
             conn.close()

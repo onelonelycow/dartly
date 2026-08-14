@@ -22,6 +22,8 @@ import os
 import sys
 import time
 
+from urllib.parse import quote_plus
+
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -60,29 +62,51 @@ _CACHE = "public, max-age=60, stale-while-revalidate=300"
 
 class _Facets:
     """
-    Filter-chip counts, cached.
+    Filter-chip counts, cached per filter combination.
 
-    Three GROUP BYs over the whole board, measured at ~43ms — by far the most
-    expensive thing on the page, and identical for every visitor. This is the
-    same mistake that cost the Streamlit app its memory twice (per-visitor work
-    that only depends on the board), so it gets computed once and shared. Keyed
-    on the board's row count, so it refreshes when gigs actually arrive rather
-    than on a timer.
+    Four GROUP BYs, measured at ~43ms unfiltered — the most expensive thing on
+    the page. They depend on which filters are active (see queries.facets for
+    why they must), so one cached value is not enough.
+
+    BOUNDED ON PURPOSE. Keying a cache on user-supplied filters means anyone
+    can mint new keys by sending combinations, and an unbounded dict of them is
+    a memory leak with a request interface attached. _MAX evicts oldest-first,
+    so the common combinations stay hot and the long tail simply recomputes.
+    The board version is part of every key, so entries retire when gigs arrive
+    rather than going stale.
     """
 
+    _MAX = 64
+
     def __init__(self):
-        self._val = None
-        self._key = None
+        self._c: dict = {}
+        self._ver = None
         self._at = 0.0
 
-    def get(self, conn):
-        key = queries.board_total(conn)
-        # The count is the cheap half of the check; the 120s floor keeps a busy
-        # board from rebuilding facets on every single ingest.
-        if self._val is None or (key != self._key and time.time() - self._at > 120):
-            self._val = queries.facets(conn)
-            self._key, self._at = key, time.time()
-        return self._val
+    @staticmethod
+    def _key(ctx):
+        return tuple(sorted(
+            (k, tuple(v) if isinstance(v, list) else v) for k, v in ctx.items()))
+
+    def get(self, conn, ctx):
+        ver = queries.board_total(conn)
+        # A 120s floor keeps a busy board from dumping the cache on every
+        # ingest; the version check is what keeps it honest.
+        if ver != self._ver and time.time() - self._at > 120:
+            self._c.clear()
+            self._ver, self._at = ver, time.time()
+        k = self._key(ctx)
+        if k not in self._c:
+            if len(self._c) >= self._MAX:
+                self._c.pop(next(iter(self._c)))
+            # The location toggle's counts are cached HERE rather than
+            # separately: same inputs, same lifetime, and left uncached it was
+            # the slowest thing left on the page — every request paying ~18ms
+            # to add up two flags, which at 100 concurrent is most of a second
+            # of queueing on its own.
+            self._c[k] = (queries.facets(conn, ctx),
+                          queries.location_counts(conn, ctx))
+        return self._c[k]
 
 
 _facets = _Facets()
@@ -123,6 +147,14 @@ def health():
                    archived=s["archived"], errors=s["errors"])
         if s["note"]:
             out["note"] = s["note"]
+        # An empty board is not healthy. This reported ok:true while serving
+        # zero gigs on the first Render deploy (DATABASE_URL was unset, so the
+        # mirror pull returned nothing) — a green health check on a site with
+        # no content, which is the exact failure the drift check below exists
+        # to prevent, missed one field over.
+        if not s["rows"]:
+            out["ok"] = False
+            out.setdefault("note", "board is empty — is DATABASE_URL set?")
         # Two missed refreshes is a real problem, not a blip.
         if s["drift_s"] is not None and s["drift_s"] > sync.REFRESH_S * 3:
             out["ok"] = False
@@ -136,26 +168,39 @@ def board(request: Request,
           size: str = Query(""),
           source: str = Query(""),
           urgent: int = Query(0),
+          where: str = Query("", pattern="^(remote|onsite|)$"),
+          langs: str = Query(""),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
+    ctx = {"job_types": _csv(field), "sizes": _csv(size),
+           "sources": _csv(source), "languages": _csv(langs),
+           "urgent_only": bool(urgent), "where_work": where}
     conn = queries.connect(DB_PATH)
     try:
-        res = queries.board(keyword=q, job_types=_csv(field), sizes=_csv(size),
-                            sources=_csv(source), urgent_only=bool(urgent),
-                            page=page, conn=conn)
-        facets = _facets.get(conn)
+        res = queries.board(keyword=q, page=page, conn=conn, **ctx)
+        facets, loc = _facets.get(conn, ctx)
     finally:
         conn.close()
 
     # robots.txt alone does not stop a page that gets linked to from being
     # indexed; the header does. Belt and braces while this is unfinished.
+    # One place that builds a link with a single filter changed and everything
+    # else preserved. Hand-assembling these in the template is how a filter
+    # quietly drops another one when both are set.
+    def link(**over):
+        cur = {"q": q, "field": field, "size": size, "source": source,
+               "urgent": urgent or "", "where": where, "langs": langs,
+               "page": ""}
+        cur.update(over)
+        parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
+        return "/?" + "&".join(parts) if parts else "/"
+
     resp = templates.TemplateResponse(request, "board.html", {
-        "res": res, "facets": facets, "q": q,
+        "res": res, "facets": facets, "q": q, "loc": loc,
         "sel_field": _csv(field), "sel_size": _csv(size),
-        "urgent": bool(urgent),
+        "sel_source": _csv(source), "sel_langs": _csv(langs),
+        "urgent": bool(urgent), "where": where, "link": link,
         "took_ms": (time.perf_counter() - t0) * 1000,
-        "qs": {"q": q, "field": field, "size": size,
-               "source": source, "urgent": urgent},
     })
     resp.headers["Cache-Control"] = _CACHE
     if not _INDEXABLE:

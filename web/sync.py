@@ -32,7 +32,30 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import board_store  # noqa: E402
+import lang as _lang  # noqa: E402
+import location as _location  # noqa: E402
 import migrate as _migrate_mod  # noqa: E402  (web/migrate.py)
+
+# Facts about a POST that the board filters on, derived from its own text and
+# stored here rather than computed per request.
+#
+# This is the same lesson as yesterday's outage, applied before it can happen
+# again: the Streamlit app called location.tag() per row, per render, for every
+# visitor — 53,000 title+body concatenations and a dozen regexes each, on every
+# board load. Derived once at sync and written to a column, filtering by
+# "remote" becomes an indexed WHERE instead of work.
+_DERIVED = ("is_remote", "is_onsite", "restrict_cc", "lang_code", "city_lock")
+
+
+def _derive(rec: dict) -> tuple:
+    title = (rec.get("title") or "")
+    body = (rec.get("body") or "")
+    t = _location.tag({"title": title, "body": body})
+    return (1 if t["remote"] else 0,
+            1 if t["onsite"] else 0,
+            t["restrict"] or "",
+            _lang.detect(title, body) or "en",
+            _location.city_lock({"title": title}) or "")
 
 BOARD_DB = os.environ.get("NABBLY_BOARD_DB") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "board.db")
@@ -66,7 +89,16 @@ def _ensure_schema(conn):
     conn.execute(f"""CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             {cols}, sort_at TEXT,
+            is_remote INTEGER, is_onsite INTEGER, restrict_cc TEXT,
+            lang_code TEXT, city_lock TEXT,
             UNIQUE (source, source_id))""")
+    # An older board.db predates the derived columns; add them rather than
+    # forcing a full re-pull.
+    have = {r[1] for r in conn.execute("PRAGMA table_info(posts)")}
+    for c in _DERIVED:
+        if c not in have:
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {c} "
+                         f"{'INTEGER' if c.startswith('is_') else 'TEXT'}")
     conn.commit()
 
 
@@ -74,7 +106,7 @@ def _upsert(conn, rows) -> int:
     """Insert or update mirrored rows, keeping sort_at in step."""
     if not rows:
         return 0
-    cols = list(_COLS) + ["sort_at"]
+    cols = list(_COLS) + ["sort_at"] + list(_DERIVED)
     marks = ", ".join("?" * len(cols))
     sets = ", ".join(f"{c}=excluded.{c}" for c in cols
                      if c not in ("source", "source_id"))
@@ -84,7 +116,9 @@ def _upsert(conn, rows) -> int:
     for r in rows:
         vals = [r.get(c) for c in _COLS]
         posted = (r.get("posted_at") or "").strip()
-        payload.append(tuple(vals) + ((posted or r.get("fetched_at") or ""),))
+        payload.append(tuple(vals)
+                       + ((posted or r.get("fetched_at") or ""),)
+                       + _derive(r))
     with conn:
         conn.executemany(sql, payload)
     return len(payload)

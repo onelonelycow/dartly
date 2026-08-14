@@ -34,6 +34,43 @@ _INDEXES = (
     ("ix_posts_sort", "posts(is_demand, sort_at DESC)"),
     ("ix_posts_jt", "posts(is_demand, job_type, sort_at DESC)"),
     ("ix_posts_src", "posts(is_demand, source, sort_at DESC)"),
+    # The board service derives these at sync time (web/sync.py) so location
+    # and language filtering is an indexed lookup rather than a regex pass over
+    # every title and body. Guarded below: the Streamlit app's own database has
+    # no such columns and must not be given these.
+    ("ix_posts_remote", "posts(is_demand, is_remote, sort_at DESC)"),
+    # On-site needs its OWN index, not just the remote one. It matches ~7% of
+    # the board, so without it SQLite walks the recency index past thousands of
+    # remote gigs to find 25 hands-on ones: measured 19.24ms against remote's
+    # 0.29ms. The rarer the filter, the more it needs the index.
+    ("ix_posts_onsite", "posts(is_demand, is_onsite, sort_at DESC)"),
+    ("ix_posts_lang", "posts(is_demand, lang_code, sort_at DESC)"),
+    ("ix_posts_size", "posts(is_demand, size_tier, sort_at DESC)"),
+)
+
+# Covering indexes for the FILTER-CHIP COUNTS, which are a different query
+# shape from the board itself: a GROUP BY over one column with the other
+# filters applied, no ORDER BY, no LIMIT.
+#
+# Without these the counts cost more than the page they sit on. Every chip is
+# counted within the active filters (queries.facets explains why it has to be),
+# and a GROUP BY job_type filtered on is_remote could not use the recency
+# indexes — it read all 40,000 rows, four times over, once per dimension.
+# Measured: 125ms for one set of chips, against 0.29ms for the board query
+# underneath them. With these it is 3.88ms, and SQLite reports COVERING INDEX,
+# meaning it answers from the index without touching the table at all.
+#
+# Location is the only filter paired here because it is the one people combine
+# with everything else. Rarer combinations fall back to a scan and are cached.
+_FACET_INDEXES = tuple(
+    (f"ix_f_{loc}_{dim[:4]}", f"posts(is_demand, {loc}, {dim})")
+    for loc in ("is_remote", "is_onsite")
+    for dim in ("job_type", "source", "size_tier", "lang_code")
+) + (
+    # The location toggle's own counts: SUM(is_remote), SUM(is_onsite) over the
+    # live board. Covering, so it answers from the index instead of reading
+    # every row to add up two flags.
+    ("ix_f_loc_flags", "posts(is_demand, is_remote, is_onsite)"),
 )
 
 
@@ -70,7 +107,17 @@ def migrate(db_path: str, verbose: bool = True) -> dict:
         # slower. If an earlier version created it, take it back out.
         conn.execute("DROP INDEX IF EXISTS ix_posts_board")
 
-        for name, decl in _INDEXES:
+        have_cols = _cols(conn)
+        for name, decl in _INDEXES + _FACET_INDEXES:
+            # Skip any index over a column this database doesn't have. The same
+            # migrate() runs against the board service's enriched copy AND can
+            # be pointed at the Streamlit app's database, which has no
+            # is_remote/lang_code — without this it would raise there.
+            needs = {c for c in ("is_remote", "is_onsite", "lang_code",
+                                 "source", "job_type", "size_tier")
+                     if c in decl}
+            if needs - have_cols:
+                continue
             before = conn.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?",
                 (name,)).fetchone()[0]

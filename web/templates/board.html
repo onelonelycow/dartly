@@ -33,7 +33,35 @@ button.go{background:var(--amber);color:#1b1205;border:0;border-radius:10px;
   padding:0 18px;font-weight:650;font-size:14px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
 
-.chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 20px}
+a.clear{display:flex;align-items:center;padding:0 14px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel);color:var(--mute);text-decoration:none;font-size:13.5px}
+a.clear:hover{border-color:var(--amber-d);color:var(--amber-l)}
+
+.seg{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.segbtn{display:inline-flex;align-items:center;gap:7px;background:var(--panel);
+  border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13.5px;
+  text-decoration:none;color:var(--ink)}
+.segbtn:hover{border-color:var(--amber-d)}
+.segbtn.on{background:rgba(232,147,58,.14);border-color:var(--amber-d);color:var(--amber-l)}
+.segbtn .n{color:var(--faint);font-variant-numeric:tabular-nums;font-size:12px}
+.segbtn.on .n{color:var(--amber)}
+
+details.narrow{margin:0 0 20px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden}
+details.narrow summary{cursor:pointer;padding:11px 15px;font-size:13.5px;
+  color:var(--mute);list-style:none;user-select:none}
+details.narrow summary::-webkit-details-marker{display:none}
+details.narrow summary:before{content:"▸ ";color:var(--faint)}
+details.narrow[open] summary:before{content:"▾ "}
+details.narrow summary:hover{color:var(--ink)}
+details.narrow summary .n{color:var(--amber);font-size:11.5px}
+.narrowbody{padding:2px 15px 15px;display:flex;flex-direction:column;gap:11px}
+.grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.grp .lbl{font-size:11.5px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.06em;min-width:74px}
+.chip.sm{padding:4px 9px;font-size:12px}
+
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
   border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;
   color:var(--ink);text-decoration:none;white-space:nowrap}
@@ -85,21 +113,70 @@ footer .took{font-family:var(--mono)}
 
   <form class="search" method="get" action="/">
     <input type="search" name="q" value="{{ q }}" placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
+    {# Carry the current filters through a search, or searching silently resets them. #}
     {% if sel_field %}<input type="hidden" name="field" value="{{ sel_field|join(',') }}">{% endif %}
+    {% if where %}<input type="hidden" name="where" value="{{ where }}">{% endif %}
+    {% if sel_size %}<input type="hidden" name="size" value="{{ sel_size|join(',') }}">{% endif %}
+    {% if sel_source %}<input type="hidden" name="source" value="{{ sel_source|join(',') }}">{% endif %}
+    {% if sel_langs %}<input type="hidden" name="langs" value="{{ sel_langs|join(',') }}">{% endif %}
+    {% if urgent %}<input type="hidden" name="urgent" value="1">{% endif %}
     <button class="go" type="submit">Search</button>
+    {% if q %}<a class="clear" href="{{ link(q='') }}">Clear</a>{% endif %}
   </form>
 
+  {# Where you can work. Counts come from the same predicates the tap filters
+     on, so the number on a chip is what the chip actually delivers. #}
+  <div class="seg" role="group" aria-label="Where you can work">
+    <a class="segbtn {% if not where %}on{% endif %}" href="{{ link(where='') }}">Everywhere <span class="n">{{ "{:,}".format(loc.all) }}</span></a>
+    <a class="segbtn {% if where == 'remote' %}on{% endif %}" href="{{ link(where='remote') }}">Remote <span class="n">{{ "{:,}".format(loc.remote) }}</span></a>
+    <a class="segbtn {% if where == 'onsite' %}on{% endif %}" href="{{ link(where='onsite') }}">On-site / local <span class="n">{{ "{:,}".format(loc.onsite) }}</span></a>
+  </div>
+
   <div class="chips">
-    <a class="chip {% if not sel_field %}on{% endif %}"
-       href="/?{% if q %}q={{ q|urlencode }}{% endif %}">All fields <span class="n">{{ "{:,}".format(res.total if not sel_field else 0) if not sel_field else "" }}</span></a>
+    <a class="chip {% if not sel_field %}on{% endif %}" href="{{ link(field='') }}">All fields</a>
     {% for name, n in facets.job_type.items() %}
       {% if n > 200 %}
       <a class="chip {% if name in sel_field %}on{% endif %}"
-         href="/?field={{ name|urlencode }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+         href="{{ link(field='' if name in sel_field else name) }}">
         {{ name }} <span class="n">{{ "{:,}".format(n) }}</span></a>
       {% endif %}
     {% endfor %}
   </div>
+
+  <details class="narrow" {% if sel_size or sel_source or sel_langs or urgent %}open{% endif %}>
+    <summary>Narrow it down{% if sel_size or sel_source or sel_langs or urgent %} <span class="n">active</span>{% endif %}</summary>
+    <div class="narrowbody">
+      <div class="grp">
+        <span class="lbl">Budget</span>
+        {% for s in ["Small", "Medium", "Large"] %}
+          <a class="chip sm {% if s in sel_size %}on{% endif %}"
+             href="{{ link(size='' if s in sel_size else s) }}">{{ s }}
+             <span class="n">{{ "{:,}".format(facets.size_tier.get(s, 0)) }}</span></a>
+        {% endfor %}
+        <a class="chip sm {% if urgent %}on{% endif %}" href="{{ link(urgent='' if urgent else 1) }}">Urgent only</a>
+      </div>
+
+      <div class="grp">
+        <span class="lbl">Language</span>
+        {% for code, n in facets.lang_code.items() %}
+          <a class="chip sm {% if code in sel_langs %}on{% endif %}"
+             href="{{ link(langs='' if code in sel_langs else code) }}">{{ code|upper }}
+             <span class="n">{{ "{:,}".format(n) }}</span></a>
+        {% endfor %}
+      </div>
+
+      <div class="grp">
+        <span class="lbl">Source</span>
+        {% for name, n in facets.source.items() %}
+          {% if loop.index <= 10 %}
+          <a class="chip sm {% if name in sel_source %}on{% endif %}"
+             href="{{ link(source='' if name in sel_source else name) }}">{{ name }}
+             <span class="n">{{ "{:,}".format(n) }}</span></a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </details>
 
   {% if res.rows %}
   <ul class="gigs">
@@ -116,14 +193,12 @@ footer .took{font-family:var(--mono)}
     {% endfor %}
   </ul>
 
+  {# Paging through link() so every active filter survives the click. Built by
+     hand this dropped whichever filter the author forgot to append. #}
   <nav class="pager">
-    {% if res.page > 0 %}
-      <a href="/?page={{ res.page - 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if sel_field %}&field={{ sel_field|join(',')|urlencode }}{% endif %}">← Newer</a>
-    {% endif %}
+    {% if res.page > 0 %}<a href="{{ link(page=res.page - 1) }}">← Newer</a>{% endif %}
     <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}</span>
-    {% if res.page + 1 < res.pages %}
-      <a href="/?page={{ res.page + 1 }}{% if q %}&q={{ q|urlencode }}{% endif %}{% if sel_field %}&field={{ sel_field|join(',')|urlencode }}{% endif %}">Older →</a>
-    {% endif %}
+    {% if res.page + 1 < res.pages %}<a href="{{ link(page=res.page + 1) }}">Older →</a>{% endif %}
   </nav>
   {% else %}
   <div class="empty">
