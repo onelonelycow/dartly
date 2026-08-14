@@ -55,9 +55,6 @@ button.go{background:var(--amber);color:#1b1205;border:0;border-radius:12px;
   padding:0 26px;font-weight:650;font-size:15px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
 .searchrow{display:flex;gap:10px;max-width:620px;margin:0 auto 16px}
-footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
-  color:var(--faint);font-size:12px;display:flex;justify-content:space-between;
-  gap:12px;flex-wrap:wrap}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
   .topbar nav{order:3;width:100%;margin:0;overflow-x:auto}
@@ -105,10 +102,21 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
 <div class="wrap">
 {% block body %}{% endblock %}
 
-  <footer>
-    <span>Nabbly · Every gig. The moment it drops.</span>
-    <span style="font-family:ui-monospace,Menlo,monospace">{{ "%.0f"|format(took_ms) }} ms</span>
-  </footer>
+  {# The app's footer, class for class. About/FAQ/Privacy/Terms point at the
+     static site, which already serves real pages for all four; Pricing only
+     exists inside the app, so it goes there. #}
+  <div class="gr-footer">
+    <span class="brand">Nabbly</span>
+    <span class="tag">Every gig. The moment it drops.</span>
+    <div class="foot-links">
+      <a class="foot-link" href="https://nabbly.co/about.html">About</a>
+      <a class="foot-link" href="{{ app_url }}/?nav=pricing">Pricing</a>
+      <a class="foot-link" href="https://nabbly.co/faq.html">FAQ</a>
+      <a class="foot-link" href="https://nabbly.co/privacy.html">Privacy</a>
+      <a class="foot-link" href="https://nabbly.co/terms.html">Terms</a>
+    </div>
+    <span class="meta">OneLonelyCow · © 2026</span>
+  </div>
 </div>
 
 </body>

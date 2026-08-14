@@ -203,6 +203,8 @@ def signin_page(request: Request, sent: str = Query(""), err: str = Query("")):
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(request, "signin.html", {
         "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
+        "me": "", "tab": "", "css_v": CSS_V, "indexable": _INDEXABLE,
+        "app_url": APP_URL, "took_ms": 0.0,
     })
 
 
