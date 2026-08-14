@@ -258,6 +258,43 @@ def _back(path: str, **params):
     return RedirectResponse(f"{path}?{qs}" if qs else path, status_code=303)
 
 
+@app.get("/saved", response_class=HTMLResponse)
+def saved_page(request: Request):
+    """
+    Gigs this person kept. Signed-out gets the pitch, not a redirect — being
+    bounced to a sign-in form explains nothing about why you would want one.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)   # MUST be first; see webauth's threading note
+    me = webauth.current_email(request)
+    rows, ids = [], []
+    if me:
+        try:
+            import saved as saved_mod
+            ids = saved_mod.ids()
+        except Exception:
+            ids = []
+        if ids:
+            conn = queries.connect(DB_PATH)
+            try:
+                rows = decorate(queries.by_ids(ids, conn=conn))
+            finally:
+                conn.close()
+
+    resp = templates.TemplateResponse(request, "saved.html", {
+        "rows": rows, "me": me, "saved_ids": set(ids),
+        "missing": max(0, len(ids) - len(rows)),
+        "here": "/saved", "tab": "saved",
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "took_ms": (time.perf_counter() - t0) * 1000,
+    })
+    # Personal by definition — never hand this to the CDN.
+    resp.headers["Cache-Control"] = "private, no-store"
+    if not _INDEXABLE:
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
 @app.get("/health")
 def health():
     """

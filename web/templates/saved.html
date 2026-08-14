@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+
+{% block title %}Saved · Nabbly{% endblock %}
+
+{% block extra_css %}
+.sec-h{font-size:27px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
+.sec-h .accent{color:var(--amber)}
+.count{font-size:14px;color:var(--mute);font-variant-numeric:tabular-nums;
+  display:block;margin-bottom:16px}
+.cards{display:flex;flex-direction:column;gap:14px}
+.gr-cardwrap{border:1px solid var(--line);border-radius:14px;background:#14171b;
+  padding:15px 18px 13px;position:relative;
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.gr-cardwrap:hover{border-color:#3a414d;transform:translateY(-1px);
+  box-shadow:0 10px 26px -18px rgba(0,0,0,.95)}
+@media (prefers-reduced-motion:reduce){
+  .gr-cardwrap,.gr-cardwrap:hover{transition:none;transform:none}
+}
+.gr-saveform{position:absolute;top:13px;right:14px}
+.gr-save{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
+  color:#6b7280;font-family:inherit;padding:2px 4px}
+.gr-save:hover{color:var(--amber-l)}
+.gr-save.on{color:var(--amber)}
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:34px 28px;text-align:center;color:var(--mute);line-height:1.7}
+.empty b{color:var(--ink)}
+.empty a{color:var(--amber-l)}
+.gone{font-size:12.5px;color:var(--faint);margin:14px 0 0;text-align:center}
+{% endblock %}
+
+{% block body %}
+
+<h2 class="sec-h">Gigs you <span class="accent">saved</span></h2>
+
+{% if not me %}
+  <div class="empty">
+    <b>Sign in to keep gigs.</b><br>
+    The board moves fast — a gig worth a proper reply at 11pm is buried under
+    four hundred newer ones by morning. Saving pins it.<br><br>
+    <a href="/signin">Sign in</a>
+  </div>
+
+{% elif rows %}
+  <span class="count">{{ "{:,}".format(rows|length) }} saved</span>
+  <div class="cards">
+    {% for g in rows %}{{ card(g, me, saved_ids, here, false) }}{% endfor %}
+  </div>
+  {% if missing %}
+    {# Say it rather than quietly showing a shorter list. A saved gig that has
+       vanished from the board is information, not an error to hide. #}
+    <p class="gone">{{ missing }} saved {{ "gig is" if missing == 1 else "gigs are" }}
+      no longer on the board and can't be shown.</p>
+  {% endif %}
+
+{% else %}
+  <div class="empty">
+    <b>Nothing saved yet.</b><br>
+    Tap the ☆ on any gig and it turns up here.<br><br>
+    <a href="/gigs">Browse the board →</a>
+  </div>
+{% endif %}
+
+{% endblock %}

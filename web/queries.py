@@ -424,6 +424,39 @@ def location_counts(conn: sqlite3.Connection | None = None,
             conn.close()
 
 
+def by_ids(ids, conn: sqlite3.Connection | None = None) -> list[dict]:
+    """
+    Specific gigs, in the order asked for. For the Saved page.
+
+    Deliberately NOT filtered by is_demand or is_primary. A gig you saved is
+    yours: if it has since aged off the board or lost a duplicate coin-toss to
+    an identical title from another feed, it should still be in your list.
+    Silently dropping saved items would look exactly like losing them.
+
+    Chunked because SQLite caps parameters per statement (999 by default), and
+    somebody with a long list would otherwise get an error instead of a page.
+    """
+    ids = [str(i) for i in (ids or []) if str(i).strip()]
+    if not ids:
+        return []
+    own = conn is None
+    conn = conn or connect()
+    try:
+        cols = ", ".join(CARD_COLS)
+        found: dict[str, dict] = {}
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            for r in conn.execute(
+                    f"SELECT {cols} FROM posts "
+                    f"WHERE id IN ({','.join('?' * len(chunk))})", chunk):
+                d = dict(r)
+                found[str(d["id"])] = d
+        return [found[i] for i in ids if i in found]
+    finally:
+        if own:
+            conn.close()
+
+
 def board_total(conn: sqlite3.Connection | None = None) -> int:
     own = conn is None
     conn = conn or connect()
