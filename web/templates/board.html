@@ -1,296 +1,135 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% if q %}{{ q }} — {% endif %}The whole board · Nabbly</title>
-<meta name="description" content="Freelance projects and remote roles from job boards and hiring communities, in one place, minutes after they post.">
-<style>
-:root{
-  --bg:#121418; --panel:#171a20; --line:#262a31; --ink:#F6F8FA;
-  --mute:#868D98; --faint:#7d8590;
-  --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
-  --green:#3ddc84;
-  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+{% extends "base.html" %}
+{% from "_card.html" import card %}
+
+{% block title %}{% if q %}{{ q }} — {% endif %}Nabbly{% endblock %}
+
+{% block extra_css %}
+/* The section heading and the "Fresh off the boards" rule, which app.py draws
+   with Streamlit primitives rather than a .gr- class. */
+.sec-h{font-size:27px;font-weight:700;letter-spacing:-.6px;margin:26px 0 14px}
+.sec-h .accent{color:var(--amber)}
+.rule{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
+.cards{display:flex;flex-direction:column;gap:14px}
+.gr-cardwrap{border:1px solid var(--line);border-radius:14px;background:#14171b;
+  padding:15px 18px 13px;position:relative;
+  transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.gr-cardwrap:hover{border-color:#3a414d;transform:translateY(-1px);
+  box-shadow:0 10px 26px -18px rgba(0,0,0,.95)}
+@media (prefers-reduced-motion:reduce){
+  .gr-cardwrap,.gr-cardwrap:hover{transition:none;transform:none}
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
-     line-height:1.5;-webkit-font-smoothing:antialiased}
-a{color:inherit}
-.wrap{max-width:900px;margin:0 auto;padding:28px 18px 64px}
-header{display:flex;align-items:baseline;gap:12px;margin-bottom:22px;flex-wrap:wrap}
-h1{font-size:26px;margin:0;letter-spacing:-.3px}
-h1 .accent{color:var(--amber)}
-.count{color:var(--mute);font-size:13px;font-variant-numeric:tabular-nums}
-
-form.search{display:flex;gap:8px;margin:0 0 14px}
-input[type=search]{flex:1;background:var(--panel);border:1px solid var(--line);
-  color:var(--ink);border-radius:10px;padding:11px 13px;font-size:15px;font-family:inherit}
-input[type=search]::placeholder{color:var(--faint)}
-input[type=search]:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:transparent}
-button.go{background:var(--amber);color:#1b1205;border:0;border-radius:10px;
-  padding:0 18px;font-weight:650;font-size:14px;cursor:pointer;font-family:inherit}
-button.go:hover{background:var(--amber-l)}
-
-a.clear{display:flex;align-items:center;padding:0 14px;border:1px solid var(--line);
-  border-radius:10px;background:var(--panel);color:var(--mute);text-decoration:none;font-size:13.5px}
-a.clear:hover{border-color:var(--amber-d);color:var(--amber-l)}
-
-.seg{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
-.segbtn{display:inline-flex;align-items:center;gap:7px;background:var(--panel);
-  border:1px solid var(--line);border-radius:10px;padding:8px 14px;font-size:13.5px;
-  text-decoration:none;color:var(--ink)}
-.segbtn:hover{border-color:var(--amber-d)}
-.segbtn.on{background:rgba(232,147,58,.14);border-color:var(--amber-d);color:var(--amber-l)}
-.segbtn .n{color:var(--faint);font-variant-numeric:tabular-nums;font-size:12px}
-.segbtn.on .n{color:var(--amber)}
-
-details.narrow{margin:0 0 20px;background:var(--panel);border:1px solid var(--line);
-  border-radius:12px;overflow:hidden}
-details.narrow summary{cursor:pointer;padding:11px 15px;font-size:13.5px;
-  color:var(--mute);list-style:none;user-select:none}
-details.narrow summary::-webkit-details-marker{display:none}
-details.narrow summary:before{content:"▸ ";color:var(--faint)}
-details.narrow[open] summary:before{content:"▾ "}
-details.narrow summary:hover{color:var(--ink)}
-details.narrow summary .n{color:var(--amber);font-size:11.5px}
-.narrowbody{padding:2px 15px 15px;display:flex;flex-direction:column;gap:11px}
-.grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.grp .lbl{font-size:11.5px;color:var(--faint);text-transform:uppercase;
-  letter-spacing:.06em;min-width:74px}
-.chip.sm{padding:4px 9px;font-size:12px}
-
-.chips{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 16px}
-.chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);
-  border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12.5px;
-  color:var(--ink);text-decoration:none;white-space:nowrap}
-.chip:hover{border-color:var(--amber-d)}
-.chip.on{background:rgba(232,147,58,.14);border-color:var(--amber-d);color:var(--amber-l)}
-.chip .n{color:var(--faint);font-variant-numeric:tabular-nums;font-size:11.5px}
-.chip.on .n{color:var(--amber)}
-
-ul.gigs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
-li.gig{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-li.gig:hover{border-color:#33393f}
-.gigtop{display:flex;align-items:flex-start;gap:10px;margin-bottom:7px}
-.gigtop a.t{flex:1;margin-bottom:0}
-form.inline{display:inline;margin:0}
-button.save{background:none;border:1px solid var(--line);border-radius:8px;
-  color:var(--faint);font-size:15px;line-height:1;cursor:pointer;padding:5px 8px;
-  font-family:inherit;flex:none}
-button.save:hover{border-color:var(--amber-d);color:var(--amber-l)}
-button.save.on{color:var(--amber);border-color:var(--amber-d);
-  background:rgba(232,147,58,.1)}
-.who{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12.5px}
-.who .mine{color:var(--mute)}
-.linkish{background:none;border:0;padding:0;font-family:inherit;font-size:12.5px;
-  color:var(--faint);cursor:pointer;text-decoration:none}
-.linkish:hover{color:var(--amber-l);text-decoration:underline}
-
-.gig a.t{font-size:15.5px;font-weight:600;text-decoration:none;display:block;
-  margin-bottom:7px;letter-spacing:-.15px}
-.gig a.t:hover{color:var(--amber-l);text-decoration:underline}
-.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.tag{font-size:11.5px;padding:2.5px 8px;border-radius:999px;border:1px solid var(--line);
-  color:var(--mute);background:rgba(255,255,255,.02)}
-.tag.urgent{color:#ffb4a2;border-color:#5c2f24;background:rgba(255,120,90,.09)}
-.tag.size{color:var(--amber-l);border-color:var(--amber-d);background:rgba(232,147,58,.09)}
-.tag.fit{color:#8fe3b0;border-color:#2c5c40;background:rgba(61,220,132,.09);
+.gr-saveform{position:absolute;top:13px;right:14px}
+.gr-save{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
+  color:#6b7280;font-family:inherit;padding:2px 4px}
+.gr-save:hover{color:var(--amber-l)}
+.gr-save.on{color:var(--amber)}
+.grouprow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0 4px}
+.quiet{display:block;text-align:center;font-size:13px;color:var(--faint);margin:10px 0 0}
+.quiet a{color:var(--faint);text-decoration:none}
+.quiet a:hover{color:var(--amber-l);text-decoration:underline}
+.quiet a.on{color:var(--amber)}
+/* An ACTIVE category pill. app.py has no equivalent because Streamlit drew
+   these as widgets rather than links, so there was no selected-link state to
+   inherit — this follows the amber treatment .gr-nav a.on already uses, so it
+   reads as the same system rather than a new one. */
+a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
+  color:#eaa662!important}
+a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
+.count{font-size:14px;color:var(--mute);font-variant-numeric:tabular-nums}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
+.pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:26px}
+.pager a,.pager span{padding:8px 14px;border-radius:9px;border:1px solid var(--line);
+  font-size:13.5px;text-decoration:none;background:var(--panel);color:var(--ink)}
+.pager span.at{color:var(--mute);border-color:transparent;background:none;
   font-variant-numeric:tabular-nums}
-.qf{display:flex;align-items:center;gap:10px;margin:0 0 14px;
-  background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
-  border-radius:10px;padding:8px 13px}
-.qf .qfl{color:var(--amber-l);font-size:13px}
-.note{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-  padding:10px 13px;margin:0 0 14px;color:var(--mute);font-size:13px}
-.sortseg{margin-bottom:16px;align-items:center}
-.segnote{font-size:11.5px;color:var(--faint)}
-.tag.when{font-family:var(--mono);font-size:11px}
+.pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:28px;text-align:center;color:var(--mute)}
+{% endblock %}
 
-.empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;
-  padding:26px;text-align:center;color:var(--mute)}
-.empty b{color:var(--ink)}
+{% block body %}
 
-nav.pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:26px}
-nav.pager a,nav.pager span{padding:8px 14px;border-radius:9px;border:1px solid var(--line);
-  font-size:13.5px;text-decoration:none;background:var(--panel)}
-nav.pager span.at{color:var(--mute);border-color:transparent;background:none;
-  font-variant-numeric:tabular-nums}
-nav.pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
-
-footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);
-  color:var(--faint);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
-footer .took{font-family:var(--mono)}
-@media (max-width:560px){
-  .wrap{padding:20px 13px 48px} h1{font-size:22px}
-  header{flex-direction:column;gap:3px;align-items:flex-start}
-}
-</style>
-</head>
-<body>
-<div class="wrap">
-
-  <header>
-    <h1>The whole <span class="accent">board</span></h1>
-    {# In ranked mode res.total is how many were SCORED; res.matched is how
-       many exist. Showing the former as "gigs" would under-report the board
-       by thousands whenever the filters match more than the ranking window. #}
-    {% set shown = res.matched if ranked else res.total %}
-    <span class="count">{{ "{:,}".format(shown) }} {{ "gig" if shown == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
-    <span class="who">
-      {% if me %}
-        <span class="mine">{{ me }}</span>
-        <form method="post" action="/signout" class="inline">
-          <button class="linkish" type="submit">Sign out</button>
-        </form>
-      {% else %}
-        <a class="linkish" href="/signin">Sign in</a>
-      {% endif %}
-    </span>
-  </header>
-
-  <form class="search" method="get" action="/">
-    <input type="search" name="q" value="{{ q }}" placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
-    {# Carry the current filters through a search, or searching silently resets them. #}
-    {% if sel_field %}<input type="hidden" name="field" value="{{ sel_field|join(',') }}">{% endif %}
-    {% if where %}<input type="hidden" name="where" value="{{ where }}">{% endif %}
-    {% if sel_size %}<input type="hidden" name="size" value="{{ sel_size|join(',') }}">{% endif %}
-    {% if sel_source %}<input type="hidden" name="source" value="{{ sel_source|join(',') }}">{% endif %}
-    {% if sel_langs %}<input type="hidden" name="langs" value="{{ sel_langs|join(',') }}">{% endif %}
-    {% if urgent %}<input type="hidden" name="urgent" value="1">{% endif %}
-    <button class="go" type="submit">Search</button>
-    {% if q %}<a class="clear" href="{{ link(q='') }}">Clear</a>{% endif %}
-  </form>
-
-  {# Where you can work. Counts come from the same predicates the tap filters
-     on, so the number on a chip is what the chip actually delivers. #}
-  <div class="seg" role="group" aria-label="Where you can work">
-    <a class="segbtn {% if not where %}on{% endif %}" href="{{ link(where='') }}">Everywhere <span class="n">{{ "{:,}".format(loc.all) }}</span></a>
-    <a class="segbtn {% if where == 'remote' %}on{% endif %}" href="{{ link(where='remote') }}">Remote <span class="n">{{ "{:,}".format(loc.remote) }}</span></a>
-    <a class="segbtn {% if where == 'onsite' %}on{% endif %}" href="{{ link(where='onsite') }}">On-site / local <span class="n">{{ "{:,}".format(loc.onsite) }}</span></a>
+{% if landing %}
+  <div class="gr-hero">
+    <div class="gr-h1">Every gig, the moment it drops.<br>
+      You just <span class="accent">reply first.</span></div>
   </div>
+{% endif %}
 
-  {% if qf_note %}<div class="note">{{ qf_note }}</div>{% endif %}
-  {% if qf %}
-    <div class="qf">
-      <span class="qfl">▸ {{ qf_label }}</span>
-      <a class="linkish" href="{{ link(qf='') }}">Clear</a>
-    </div>
-  {% endif %}
+<form class="searchrow" method="get" action="{{ '/' if landing else '/gigs' }}">
+  <input type="search" name="q" value="{{ q }}"
+         placeholder="Search gigs — figma, shopify, copywriting…" aria-label="Search gigs">
+  {# Carry the current filters through a search, or searching silently resets them. #}
+  {% for k, v in carry.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <button class="go" type="submit">Search</button>
+</form>
 
+{% if landing %}
+  {# The five broad buckets from config.CATEGORY_GROUPS — the same grouping the
+     app's dashboard offers, so the entry points match. #}
+  <div class="grouprow">
+    {% for g in groups %}
+      <a class="gr-cat" href="/gigs?field={{ g.fields|join(',')|urlencode }}">{{ g.name }}</a>
+    {% endfor %}
+  </div>
+  <span class="quiet"><a href="/gigs?qf=urgent">Urgent only</a></span>
+  <hr class="rule">
+{% endif %}
+
+{% if qf_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ qf_note }}</div>{% endif %}
+
+<h2 class="sec-h">{% if landing %}Fresh off the <span class="accent">boards</span>
+  {%- else %}The whole <span class="accent">board</span>{% endif %}</h2>
+
+{% if not landing %}
+<div class="toolbar">
+  {# NOT .gr-count — that is the app's animated counter reel, which is
+     height:1em with overflow:hidden and clips the descenders off plain text. #}
+  <span class="count">{{ "{:,}".format(res.matched if ranked else res.total) }}
+    {{ "gig" if (res.matched if ranked else res.total) == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
+  {% if qf %}<a class="gr-cat" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
   {% if can_rank %}
-  <div class="seg sortseg" role="group" aria-label="Sort">
-    <a class="segbtn {% if not ranked %}on{% endif %}" href="{{ link(sort='') }}">Newest first</a>
-    <a class="segbtn {% if ranked %}on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
-    {% if ranked %}
-      {# Say what was ranked. Scoring is bounded to a recent window, and a
-         board that silently ranked "some of it" would be lying by omission.
-         Only worth saying when the filters actually match more than fit. #}
-      {% if res.matched > res.total %}
-        <span class="segnote">scored the newest {{ "{:,}".format(res.total) }} of {{ "{:,}".format(res.matched) }}</span>
-      {% else %}
-        <span class="segnote">scored all {{ "{:,}".format(res.total) }}</span>
-      {% endif %}
-    {% endif %}
-  </div>
+    <a class="gr-cat{% if not ranked %} on{% endif %}" href="{{ link(sort='') }}">Newest</a>
+    <a class="gr-cat{% if ranked %} on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
   {% endif %}
-
-  <div class="chips">
-    <a class="chip {% if not sel_field %}on{% endif %}" href="{{ link(field='') }}">All fields</a>
-    {% for name, n in facets.job_type.items() %}
-      {% if n > 200 %}
-      <a class="chip {% if name in sel_field %}on{% endif %}"
-         href="{{ link(field='' if name in sel_field else name) }}">
-        {{ name }} <span class="n">{{ "{:,}".format(n) }}</span></a>
-      {% endif %}
-    {% endfor %}
-  </div>
-
-  <details class="narrow" {% if sel_size or sel_source or sel_langs or urgent %}open{% endif %}>
-    <summary>Narrow it down{% if sel_size or sel_source or sel_langs or urgent %} <span class="n">active</span>{% endif %}</summary>
-    <div class="narrowbody">
-      <div class="grp">
-        <span class="lbl">Budget</span>
-        {% for s in ["Small", "Medium", "Large"] %}
-          <a class="chip sm {% if s in sel_size %}on{% endif %}"
-             href="{{ link(size='' if s in sel_size else s) }}">{{ s }}
-             <span class="n">{{ "{:,}".format(facets.size_tier.get(s, 0)) }}</span></a>
-        {% endfor %}
-        <a class="chip sm {% if urgent %}on{% endif %}" href="{{ link(urgent='' if urgent else 1) }}">Urgent only</a>
-      </div>
-
-      <div class="grp">
-        <span class="lbl">Language</span>
-        {% for code, n in facets.lang_code.items() %}
-          <a class="chip sm {% if code in sel_langs %}on{% endif %}"
-             href="{{ link(langs='' if code in sel_langs else code) }}">{{ code|upper }}
-             <span class="n">{{ "{:,}".format(n) }}</span></a>
-        {% endfor %}
-      </div>
-
-      <div class="grp">
-        <span class="lbl">Source</span>
-        {% for name, n in facets.source.items() %}
-          {% if loop.index <= 10 %}
-          <a class="chip sm {% if name in sel_source %}on{% endif %}"
-             href="{{ link(source='' if name in sel_source else name) }}">{{ name }}
-             <span class="n">{{ "{:,}".format(n) }}</span></a>
-          {% endif %}
-        {% endfor %}
-      </div>
-    </div>
-  </details>
-
-  {% if res.rows %}
-  <ul class="gigs">
-    {% for g in res.rows %}
-    <li class="gig">
-      <div class="gigtop">
-        <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
-        {% if me %}
-          {% set is_saved = g.id|string in saved_ids %}
-          <form method="post" action="/save" class="inline">
-            <input type="hidden" name="gig" value="{{ g.id }}">
-            <input type="hidden" name="back" value="{{ here }}">
-            <button class="save {% if is_saved %}on{% endif %}" type="submit"
-                    title="{{ 'Remove from saved' if is_saved else 'Save this gig' }}"
-                    aria-label="{{ 'Remove from saved' if is_saved else 'Save this gig' }}"
-              >{{ "★" if is_saved else "☆" }}</button>
-          </form>
-        {% endif %}
-      </div>
-      <div class="meta">
-        {% if g._score is defined and g._score %}
-          <span class="tag fit">{{ g._score }}% match</span>
-        {% endif %}
-        {% if g.job_type %}<span class="tag">{{ g.job_type }}</span>{% endif %}
-        {% if g.size_tier %}<span class="tag size">{{ g.size_tier }}</span>{% endif %}
-        {% if g.urgency == 'Urgent' %}<span class="tag urgent">Urgent</span>{% endif %}
-        {% if g.sort_at %}<span class="tag when">{{ g.sort_at[:10] }}</span>{% endif %}
-      </div>
-    </li>
-    {% endfor %}
-  </ul>
-
-  {# Paging through link() so every active filter survives the click. Built by
-     hand this dropped whichever filter the author forgot to append. #}
-  <nav class="pager">
-    {% if res.page > 0 %}<a href="{{ link(page=res.page - 1) }}">← Newer</a>{% endif %}
-    <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}</span>
-    {% if res.page + 1 < res.pages %}<a href="{{ link(page=res.page + 1) }}">Older →</a>{% endif %}
-  </nav>
-  {% else %}
-  <div class="empty">
-    Nothing matches <b>{{ q }}</b> right now. Try a broader word, or browse a field above.
-  </div>
-  {% endif %}
-
-  <footer>
-    <span>Nabbly · Every gig. The moment it drops.</span>
-    <span class="took">rendered in {{ "%.1f"|format(took_ms) }} ms</span>
-  </footer>
-
 </div>
-</body>
-</html>
+
+<div class="grouprow" style="justify-content:flex-start">
+  <a class="gr-cat{% if not where %} on{% endif %}" href="{{ link(where='') }}">Everywhere <span class="n">{{ "{:,}".format(loc.all) }}</span></a>
+  <a class="gr-cat{% if where == 'remote' %} on{% endif %}" href="{{ link(where='remote') }}">Remote <span class="n">{{ "{:,}".format(loc.remote) }}</span></a>
+  <a class="gr-cat{% if where == 'onsite' %} on{% endif %}" href="{{ link(where='onsite') }}">On-site <span class="n">{{ "{:,}".format(loc.onsite) }}</span></a>
+</div>
+
+<div class="gr-cats">
+  <a class="gr-cat{% if not sel_field %} on{% endif %}" href="{{ link(field='') }}">All fields</a>
+  {% for name, n in facets.job_type.items() %}
+    {% if n > 200 %}
+      <a class="gr-cat{% if name in sel_field %} on{% endif %}"
+         href="{{ link(field='' if name in sel_field else name) }}">{{ name }}
+         <span class="n">{{ "{:,}".format(n) }}</span></a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if res.rows %}
+  <div class="cards">
+    {% for g in res.rows %}{{ card(g, me, saved_ids, here, ranked) }}{% endfor %}
+  </div>
+
+  {% if landing %}
+    <div class="gr-dash-end">Showing the newest {{ res.rows|length }}.
+      <a href="/gigs">See the whole board →</a></div>
+  {% else %}
+    <nav class="pager">
+      {% if res.page > 0 %}<a href="{{ link(page=res.page - 1) }}">← Newer</a>{% endif %}
+      <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}</span>
+      {% if res.page + 1 < res.pages %}<a href="{{ link(page=res.page + 1) }}">Older →</a>{% endif %}
+    </nav>
+  {% endif %}
+{% else %}
+  <div class="empty">Nothing matches <b>{{ q }}</b> right now. Try a broader word,
+    or pick a field above.</div>
+{% endif %}
+
+{% endblock %}

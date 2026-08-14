@@ -27,6 +27,7 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
 .topbar .brand .mk{width:26px;height:26px;border-radius:7px;background:var(--amber);
   display:inline-flex;align-items:center;justify-content:center;color:#191106;
   font-weight:800;font-size:15px}
+.topbar .brand .wm{white-space:nowrap}
 .topbar .brand .ly{color:var(--amber)}
 .topbar nav{display:flex;gap:4px;margin:0 auto}
 .topbar nav a{font-size:15.5px;font-weight:500;color:#aeb4be;text-decoration:none;
@@ -61,10 +62,17 @@ footer{margin-top:44px;padding-top:20px;border-top:1px solid var(--line);
 <body>
 
 <header class="topbar">
-  <a class="brand" href="/"><span class="mk">✓</span>Nabb<span class="ly">ly</span></a>
+  {# The wordmark is ONE flex item. Split across text nodes, the container's
+     gap:9px applied between them and rendered as "Nabb ly". #}
+  <a class="brand" href="/"><span class="mk">✓</span><span class="wm">Nabb<span class="ly">ly</span></span></a>
   <nav>
     <a href="/" class="{% if tab == 'dashboard' %}on{% endif %}">Dashboard</a>
     <a href="/gigs" class="{% if tab == 'gigs' %}on{% endif %}">Gigs</a>
+    {# Market is Pro analytics and still lives on the Streamlit app. It is a
+       low-traffic page behind a sign-in, which is exactly the kind that was
+       never the concurrency problem — but the link leaves the fast service, so
+       it opens in its own tab rather than replacing this one. #}
+    <a href="{{ app_url }}/?nav=market" target="_blank" rel="noopener">Market</a>
     <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
   </nav>
   <span class="who">

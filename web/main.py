@@ -27,18 +27,60 @@ from urllib.parse import quote_plus
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
+import config  # noqa: E402
 import queries  # noqa: E402
+import textfmt  # noqa: E402
 import webauth  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+STATIC = os.path.join(HERE, "static")
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
+
+# Cache-buster for the shared stylesheet. Its mtime changes when
+# tools/extract_css.py regenerates it, so a deploy busts the cache without
+# anyone having to remember a version number.
+try:
+    CSS_V = str(int(os.path.getmtime(os.path.join(STATIC, "nabbly.css"))))
+except OSError:
+    CSS_V = "0"
+
+# Where the Streamlit app lives, for the handful of pages still served there.
+APP_URL = (os.environ.get("NABBLY_APP_URL")
+           or "https://app.nabbly.co").rstrip("/")
+
+
+def decorate(rows, ranked=False):
+    """
+    Add the two display strings a card needs, using the app's own formatters.
+
+    Done here rather than in the template because both are real logic — a body
+    preview that respects word boundaries, and a date phrased the way the app
+    phrases it. textfmt is shared with app.py precisely so these read the same
+    on both.
+    """
+    for r in rows:
+        r["preview"] = textfmt.smart_trim(
+            textfmt.display_body(r.get("body")), target=620, hard=1200)
+        # Falls back to fetched_at exactly as the SQL sort does. Without it a
+        # gig with no posted_at reads "Posted recently", which sounds like
+        # minutes ago and actually means we could not read a date.
+        r["posted_line"] = (
+            f"Posted {textfmt.human_time(r.get('posted_at') or r.get('sort_at'))}"
+            f" · via {config.source_label(r.get('source') or '')}")
+        r.pop("body", None)      # not rendered raw; drop it before the template
+    return rows
+
+
 app = FastAPI(title="Nabbly board", docs_url=None, redoc_url=None)
+
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 # same_site="lax" is the CSRF defence for the POST routes below: a form on
 # someone else's site cannot make the browser attach this cookie. https_only
@@ -247,6 +289,7 @@ def health():
 
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/gigs", response_class=HTMLResponse)
 def board(request: Request,
           q: str = Query("", max_length=120),
           field: str = Query(""),
@@ -341,7 +384,25 @@ def board(request: Request,
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
         return "/?" + "&".join(parts) if parts else "/"
 
+    # The landing view is the app's Dashboard shape: hero, category groups, a
+    # short "Fresh off the boards" list. /gigs is the full board with filters
+    # and paging. One handler because they are the same query with a different
+    # frame — two would drift the moment either changed.
+    landing = request.url.path == "/"
+    if landing:
+        res["rows"] = res["rows"][:8]
+    decorate(res["rows"], ranked)
+    groups = [{"name": g, "fields": subs}
+              for g, subs in config.CATEGORY_GROUPS.items()]
+    carry = {k: v for k, v in
+             {"field": field, "size": size, "source": source, "langs": langs,
+              "where": where, "sort": sort, "qf": qf,
+              "urgent": urgent or ""}.items() if v}
+
     resp = templates.TemplateResponse(request, "board.html", {
+        "landing": landing, "groups": groups, "carry": carry,
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "tab": "dashboard" if landing else "gigs",
         "res": res, "facets": facets, "q": q, "loc": loc,
         "sel_field": _csv(field), "sel_size": _csv(size),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
