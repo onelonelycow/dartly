@@ -33,11 +33,24 @@ def _db_path() -> str:
     return _db.DB_PATH
 
 
+class _Conn(sqlite3.Connection):
+    """
+    A connection that can carry which file it opened.
+
+    sqlite3.Connection is a C type with no __dict__, so setting an attribute on
+    a plain one raises AttributeError. Subclassing gives it one. The path is
+    what the schema caches key on — see _has_fts.
+    """
+    nabbly_path = ""
+
+
 def connect(path: str | None = None) -> sqlite3.Connection:
     """A read-only connection. Read-only so a bug here can never write."""
     p = path or _db_path()
-    conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True, check_same_thread=False)
+    conn = sqlite3.connect(f"file:{p}?mode=ro", uri=True,
+                           check_same_thread=False, factory=_Conn)
     conn.row_factory = sqlite3.Row
+    conn.nabbly_path = p
     return conn
 
 
@@ -145,19 +158,42 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
             conn.close()
 
 
-_fts_cache: dict[int, bool] = {}
+# Schema facts, cached per DATABASE FILE.
+#
+# THESE WERE KEYED ON id(conn) AND THAT WAS A BUG. Connections are per-request
+# and short-lived, and CPython reuses the id of a freed object — verified: a
+# new connection gets the id its predecessor just released, and would then read
+# the previous connection's cached answer. It looked harmless because every
+# connection opens the same file, and the dicts stayed small for the same
+# reason, which is what made it invisible.
+#
+# The way it bites: on boot the board file exists before migrate() builds
+# posts_fts. A request in that window caches "no FTS" against some id, that id
+# is reused minutes later, and search silently falls back to the LIKE path —
+# hundreds of times slower, with nothing reporting it. Schema is a property of
+# the FILE, so that is what it is keyed on, and sync clears it after rebuilding.
+_schema_cache: dict[tuple, bool] = {}
+
+
+def _key(conn, what: str) -> tuple:
+    # getattr with a default, not conn.nabbly_path: callers may hand in a
+    # plain sqlite3.Connection they opened themselves (tests, scripts), and a
+    # schema lookup must not raise because of where the connection came from.
+    return (getattr(conn, "nabbly_path", "?"), what)
+
+
+def clear_schema_cache():
+    """Called after the board file's schema changes — see web/sync.py."""
+    _schema_cache.clear()
 
 
 def _has_fts(conn) -> bool:
-    key = id(conn)
-    if key not in _fts_cache:
-        _fts_cache[key] = bool(conn.execute(
+    k = _key(conn, "@fts")
+    if k not in _schema_cache:
+        _schema_cache[k] = bool(conn.execute(
             "SELECT COUNT(*) FROM sqlite_master WHERE name='posts_fts'"
         ).fetchone()[0])
-    return _fts_cache[key]
-
-
-_col_cache: dict[tuple, bool] = {}
+    return _schema_cache[k]
 
 
 def _has_col(conn, col: str) -> bool:
@@ -169,11 +205,11 @@ def _has_col(conn, col: str) -> bool:
     Streamlit app's file, or a board.db from before the derived columns
     existed). A filter over a missing column is skipped, not fatal.
     """
-    key = (id(conn), col)
-    if key not in _col_cache:
-        _col_cache[key] = col in {r[1] for r in
-                                  conn.execute("PRAGMA table_info(posts)")}
-    return _col_cache[key]
+    k = _key(conn, col)
+    if k not in _schema_cache:
+        _schema_cache[k] = col in {r[1] for r in
+                                   conn.execute("PRAGMA table_info(posts)")}
+    return _schema_cache[k]
 
 
 # How many recent gigs get scored when someone sorts by fit.

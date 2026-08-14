@@ -124,6 +124,23 @@ def _upsert(conn, rows) -> int:
     return len(payload)
 
 
+def _invalidate_schema():
+    """
+    Tell the query layer the board file's schema just changed.
+
+    migrate() can ADD posts_fts and the derived columns, and queries caches
+    "does this file have FTS / this column" per file. Without this, a process
+    that answered a request before the first migrate would keep serving the
+    pre-migrate answer — search silently on the slow LIKE path, location
+    filters silently skipped.
+    """
+    try:
+        import queries
+        queries.clear_schema_cache()
+    except Exception:
+        pass
+
+
 def _watermark(conn) -> str:
     row = conn.execute(
         "SELECT COALESCE(MAX(fetched_at), '') FROM posts").fetchone()
@@ -156,6 +173,7 @@ def full_sync() -> int:
     if not n:
         return 0
     _migrate_mod.migrate(BOARD_DB, verbose=False)   # indexes + FTS
+    _invalidate_schema()
     _state["last_sync"] = time.time()
     return n
 
@@ -181,6 +199,7 @@ def incremental() -> int:
         # New rows need to reach the search index or they are invisible to
         # search while visible on the board, which reads as broken.
         _migrate_mod.migrate(BOARD_DB, verbose=False)
+        _invalidate_schema()
     _state["last_sync"] = time.time()
     return n
 
