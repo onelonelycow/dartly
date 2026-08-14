@@ -17,6 +17,7 @@ both of the app's memory incidents.
 import os
 import re
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
 # Columns a card actually renders. body is DELIBERATELY ABSENT: it is the
 # heaviest column on the table and nothing on the list view shows it. Fetching
@@ -75,7 +76,7 @@ def _fts_query(keyword: str) -> str:
 
 
 def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
-             where_work, languages):
+             where_work, languages, since_hours=0):
     """
     The WHERE clause, its parameters, and the FROM, for every board query.
 
@@ -104,6 +105,15 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
         params += ps
     if urgent_only:
         where += " AND p.urgency = 'Urgent'"
+
+    # "Posted in the last N hours" — the Dashboard's freshness quick-filter.
+    # Compared against sort_at, which is the column the board is ordered by,
+    # so the filter and the ordering agree about what "recent" means.
+    if since_hours:
+        cut = (datetime.now(timezone.utc)
+               - timedelta(hours=int(since_hours))).isoformat()
+        where += " AND p.sort_at >= ?"
+        params.append(cut)
 
     # Location. The signed-in board can also weigh a reader's region and city;
     # an anonymous page knows neither, so this is the honest subset: is the
@@ -137,7 +147,7 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
 
 def board(keyword: str = "", job_types=None, sizes=None, sources=None,
           urgent_only: bool = False, where_work: str = "", languages=None,
-          page: int = 0, page_size: int = PAGE_SIZE,
+          since_hours: int = 0, page: int = 0, page_size: int = PAGE_SIZE,
           conn: sqlite3.Connection | None = None) -> dict:
     """
     One page of the board, plus the honest total.
@@ -152,7 +162,8 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
         page_size = max(1, min(int(page_size or PAGE_SIZE), MAX_LIMIT))
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
-                                      urgent_only, where_work, languages)
+                                      urgent_only, where_work, languages,
+                                      since_hours)
         total = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         cols = ", ".join(f"p.{c}" for c in CARD_COLS)
         rows = conn.execute(
@@ -236,7 +247,8 @@ FIT_WINDOW = 500
 
 def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
                sources=None, urgent_only: bool = False, where_work: str = "",
-               languages=None, page: int = 0, page_size: int = PAGE_SIZE,
+               languages=None, since_hours: int = 0,
+               page: int = 0, page_size: int = PAGE_SIZE,
                resume_text: str = "",
                conn: sqlite3.Connection | None = None) -> dict:
     """
@@ -254,7 +266,8 @@ def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
         page_size = max(1, min(int(page_size or PAGE_SIZE), MAX_LIMIT))
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
-                                      urgent_only, where_work, languages)
+                                      urgent_only, where_work, languages,
+                                      since_hours)
         # The TRUE number matching the filters, not the size of the window we
         # ranked. Reporting the window here would put "500 gigs" in the header
         # of a board with twelve thousand matches — the same kind of number
@@ -345,6 +358,7 @@ def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> d
                     params += vals
             if ctx.get("urgent_only"):
                 where += " AND urgency = 'Urgent'"
+            # since_hours is deliberately NOT applied here — see the caller.
             ww = ctx.get("where_work")
             if ww == "remote" and _has_col(conn, "is_remote"):
                 where += " AND is_remote = 1"

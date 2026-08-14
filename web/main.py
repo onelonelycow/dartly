@@ -256,6 +256,7 @@ def board(request: Request,
           where: str = Query("", pattern="^(remote|onsite|)$"),
           langs: str = Query(""),
           sort: str = Query("", pattern="^(fit|new|)$"),
+          qf: str = Query("", pattern="^(recent|mine|urgent|)$"),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
     # MUST be first: sets the thread-local scope the per-user helpers read.
@@ -263,7 +264,7 @@ def board(request: Request,
     me = webauth.current_email(request)
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
-           "urgent_only": bool(urgent), "where_work": where}
+           "urgent_only": bool(urgent), "where_work": where, "since_hours": 0}
     # Fit ranking is a Pro feature AND needs a profile with something in it.
     # score.fit_score gives every gig a flat +30 when there are no skills, so
     # an empty profile would produce the same number on every card and present
@@ -280,13 +281,40 @@ def board(request: Request,
             prof, can_rank = {}, False
     ranked = sort == "fit" and can_rank
 
+    # Quick-filters, the same three the Dashboard's stat clicks send:
+    # "posted in the last 24h", "in your skills", "urgent only".
+    #
+    # `mine` with an empty skills list is REFUSED rather than silently ignored.
+    # On the Streamlit board that combination showed the whole board under a
+    # pill claiming it was narrowed to your skills — a filter that says it ran
+    # and didn't. Here it turns into a message that says what happened.
+    qf_note = ""
+    if qf == "urgent":
+        ctx["urgent_only"] = True
+    elif qf == "recent":
+        ctx["since_hours"] = 24
+    elif qf == "mine":
+        mine = [s for s in (prof.get("skills") or []) if s]
+        if mine:
+            ctx["job_types"] = sorted(set(ctx["job_types"]) & set(mine)) or mine
+        else:
+            qf = ""
+            qf_note = ("Add your skills on Profile and this becomes your "
+                       "shortlist. Right now it's the whole board.")
+    QF_LABEL = {"recent": "posted in the last 24h", "mine": "in your skills",
+                "urgent": "urgent only"}
+
     conn = queries.connect(DB_PATH)
     try:
         if ranked:
             res = queries.fit_ranked(prof, keyword=q, page=page, conn=conn, **ctx)
         else:
             res = queries.board(keyword=q, page=page, conn=conn, **ctx)
-        facets, loc = _facets.get(conn, ctx)
+        # The chip counts take the same filters MINUS the quick-filter, so a
+        # chip still says how many it would give you, not how many survive a
+        # temporary narrowing you are about to replace.
+        facets, loc = _facets.get(conn, {k: v for k, v in ctx.items()
+                                         if k != "since_hours"})
     finally:
         conn.close()
 
@@ -308,7 +336,7 @@ def board(request: Request,
     def link(**over):
         cur = {"q": q, "field": field, "size": size, "source": source,
                "urgent": urgent or "", "where": where, "langs": langs,
-               "sort": sort, "page": ""}
+               "sort": sort, "qf": qf, "page": ""}
         cur.update(over)
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
         return "/?" + "&".join(parts) if parts else "/"
@@ -319,6 +347,7 @@ def board(request: Request,
         "sel_source": _csv(source), "sel_langs": _csv(langs),
         "urgent": bool(urgent), "where": where, "link": link,
         "sort": sort, "ranked": ranked, "can_rank": can_rank,
+        "qf": qf, "qf_label": QF_LABEL.get(qf, ""), "qf_note": qf_note,
         # Relative, not str(request.url): the absolute form would carry the
         # host into a form field, and /save refuses anything but a same-site
         # path, so a proxied host would silently bounce every save to page one.
