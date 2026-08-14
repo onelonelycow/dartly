@@ -312,14 +312,31 @@ def build(by=None):
     written = []
     for field, s, noun, rows in fields:
         terms = [t for t in config.JOB_TYPES.get(field, []) if len(t) > 2][:22]
-        titles, seen = [], set()
+        # PREFER TITLES THAT SAY WHAT THE FIELD SAYS. The sample used to take
+        # the newest N that passed a length check, so the writing page led with
+        # "Boost Google Reviews", "Transcribe Notes Into PDF" and "Draft
+        # Dishwasher Damage Complaint" — a third of it not recognisably writing
+        # work. That section is the page's own evidence, and it is exactly what
+        # an editor skims when deciding whether the page is worth linking to;
+        # classification noise there costs more than any paragraph of copy can
+        # recover.
+        #
+        # The terms come from config.JOB_TYPES and are printed on the page
+        # right above this list, so a sample drawn from them reads as
+        # consistent rather than curated. Anything left over is filled from the
+        # rest, in recency order, so a thin field still gets a full sample.
+        low_terms = [t.lower() for t in terms]
+        onpoint, spare, seen = [], [], set()
         for r in rows:
             t = clean(r["title"])
             k = t.lower()
-            if 12 < len(t) < 78 and k not in seen:
-                seen.add(k); titles.append(t)
-            if len(titles) >= SAMPLE:
+            if not (12 < len(t) < 78) or k in seen:
+                continue
+            seen.add(k)
+            (onpoint if any(w in k for w in low_terms) else spare).append(t)
+            if len(onpoint) >= SAMPLE:
                 break
+        titles = (onpoint + spare)[:SAMPLE]
         if len(titles) < 4 or len(terms) < 3:
             continue                      # too thin to be worth indexing
 
