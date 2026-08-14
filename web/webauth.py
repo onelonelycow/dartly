@@ -25,6 +25,23 @@ silently serve one person another's saved gigs. scope_for_request() is called
 at the top of EVERY request, signed in or not, so a stale scope can never be
 read. This also means route handlers must stay sync `def` — an `async def`
 handler runs many requests on one thread and would break that guarantee.
+
+TESTING SIGN-IN WITHOUT WRITING TO PRODUCTION — READ THIS BEFORE YOU DO IT.
+accounts.sign_in() is find-or-create AND mirrors to Supabase, so exercising
+this flow against the real DATABASE_URL creates real accounts. It happened:
+three test addresses were created in the live account store on 2026-08-13,
+each consuming one of the fifty founding slots, because the board service needs
+DATABASE_URL to pull the board and the auth path quietly writes as well as
+reads. Deleted afterwards, but the fix is not to be careful — it is to run
+tests where the write cannot reach:
+
+    DATABASE_URL unset  +  NABBLY_DB=web/board.db
+
+With DATABASE_URL unset, store.enabled() is False, so accounts stay in the
+local SQLite file and nothing mirrors. NABBLY_DB points the board at an
+already-synced copy, so it still has 50,000 gigs to serve and sync.start() is
+skipped. Add MAIL_OUTBOX so codes land in a file, and NABBLY_LOCAL=1 so the
+session cookie is not Secure-only over plain http.
 """
 import os
 import secrets

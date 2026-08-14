@@ -96,6 +96,10 @@ button.save.on{color:var(--amber);border-color:var(--amber-d);
   color:var(--mute);background:rgba(255,255,255,.02)}
 .tag.urgent{color:#ffb4a2;border-color:#5c2f24;background:rgba(255,120,90,.09)}
 .tag.size{color:var(--amber-l);border-color:var(--amber-d);background:rgba(232,147,58,.09)}
+.tag.fit{color:#8fe3b0;border-color:#2c5c40;background:rgba(61,220,132,.09);
+  font-variant-numeric:tabular-nums}
+.sortseg{margin-bottom:16px;align-items:center}
+.segnote{font-size:11.5px;color:var(--faint)}
 .tag.when{font-family:var(--mono);font-size:11px}
 
 .empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;
@@ -123,7 +127,11 @@ footer .took{font-family:var(--mono)}
 
   <header>
     <h1>The whole <span class="accent">board</span></h1>
-    <span class="count">{{ "{:,}".format(res.total) }} {{ "gig" if res.total == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
+    {# In ranked mode res.total is how many were SCORED; res.matched is how
+       many exist. Showing the former as "gigs" would under-report the board
+       by thousands whenever the filters match more than the ranking window. #}
+    {% set shown = res.matched if ranked else res.total %}
+    <span class="count">{{ "{:,}".format(shown) }} {{ "gig" if shown == 1 else "gigs" }}{% if q %} for “{{ q }}”{% endif %}</span>
     <span class="who">
       {% if me %}
         <span class="mine">{{ me }}</span>
@@ -156,6 +164,23 @@ footer .took{font-family:var(--mono)}
     <a class="segbtn {% if where == 'remote' %}on{% endif %}" href="{{ link(where='remote') }}">Remote <span class="n">{{ "{:,}".format(loc.remote) }}</span></a>
     <a class="segbtn {% if where == 'onsite' %}on{% endif %}" href="{{ link(where='onsite') }}">On-site / local <span class="n">{{ "{:,}".format(loc.onsite) }}</span></a>
   </div>
+
+  {% if can_rank %}
+  <div class="seg sortseg" role="group" aria-label="Sort">
+    <a class="segbtn {% if not ranked %}on{% endif %}" href="{{ link(sort='') }}">Newest first</a>
+    <a class="segbtn {% if ranked %}on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
+    {% if ranked %}
+      {# Say what was ranked. Scoring is bounded to a recent window, and a
+         board that silently ranked "some of it" would be lying by omission.
+         Only worth saying when the filters actually match more than fit. #}
+      {% if res.matched > res.total %}
+        <span class="segnote">scored the newest {{ "{:,}".format(res.total) }} of {{ "{:,}".format(res.matched) }}</span>
+      {% else %}
+        <span class="segnote">scored all {{ "{:,}".format(res.total) }}</span>
+      {% endif %}
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="chips">
     <a class="chip {% if not sel_field %}on{% endif %}" href="{{ link(field='') }}">All fields</a>
@@ -222,6 +247,9 @@ footer .took{font-family:var(--mono)}
         {% endif %}
       </div>
       <div class="meta">
+        {% if g._score is defined and g._score %}
+          <span class="tag fit">{{ g._score }}% match</span>
+        {% endif %}
         {% if g.job_type %}<span class="tag">{{ g.job_type }}</span>{% endif %}
         {% if g.size_tier %}<span class="tag size">{{ g.size_tier }}</span>{% endif %}
         {% if g.urgency == 'Urgent' %}<span class="tag urgent">Urgent</span>{% endif %}

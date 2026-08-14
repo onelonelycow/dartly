@@ -32,6 +32,7 @@ from starlette.middleware.sessions import SessionMiddleware
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import accounts  # noqa: E402
 import queries  # noqa: E402
 import webauth  # noqa: E402
 
@@ -254,6 +255,7 @@ def board(request: Request,
           urgent: int = Query(0),
           where: str = Query("", pattern="^(remote|onsite|)$"),
           langs: str = Query(""),
+          sort: str = Query("", pattern="^(fit|new|)$"),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
     # MUST be first: sets the thread-local scope the per-user helpers read.
@@ -262,9 +264,28 @@ def board(request: Request,
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
            "urgent_only": bool(urgent), "where_work": where}
+    # Fit ranking is a Pro feature AND needs a profile with something in it.
+    # score.fit_score gives every gig a flat +30 when there are no skills, so
+    # an empty profile would produce the same number on every card and present
+    # it as personalisation — the same reason the Streamlit board refuses to
+    # score in that case.
+    prof, can_rank = {}, False
+    if me:
+        try:
+            import profile as profile_mod
+            prof = profile_mod.load() or {}
+            acc = webauth.account_for(request)
+            can_rank = bool(accounts.status(acc).get("pro")) and bool(prof.get("skills"))
+        except Exception:
+            prof, can_rank = {}, False
+    ranked = sort == "fit" and can_rank
+
     conn = queries.connect(DB_PATH)
     try:
-        res = queries.board(keyword=q, page=page, conn=conn, **ctx)
+        if ranked:
+            res = queries.fit_ranked(prof, keyword=q, page=page, conn=conn, **ctx)
+        else:
+            res = queries.board(keyword=q, page=page, conn=conn, **ctx)
         facets, loc = _facets.get(conn, ctx)
     finally:
         conn.close()
@@ -287,7 +308,7 @@ def board(request: Request,
     def link(**over):
         cur = {"q": q, "field": field, "size": size, "source": source,
                "urgent": urgent or "", "where": where, "langs": langs,
-               "page": ""}
+               "sort": sort, "page": ""}
         cur.update(over)
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
         return "/?" + "&".join(parts) if parts else "/"
@@ -297,6 +318,7 @@ def board(request: Request,
         "sel_field": _csv(field), "sel_size": _csv(size),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
         "urgent": bool(urgent), "where": where, "link": link,
+        "sort": sort, "ranked": ranked, "can_rank": can_rank,
         # Relative, not str(request.url): the absolute form would carry the
         # host into a form field, and /save refuses anything but a same-site
         # path, so a proxied host would silently bounce every save to page one.

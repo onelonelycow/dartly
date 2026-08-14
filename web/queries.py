@@ -61,6 +61,60 @@ def _fts_query(keyword: str) -> str:
     return " AND ".join(f'"{t}"' for t in terms)
 
 
+def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
+             where_work, languages):
+    """
+    The WHERE clause, its parameters, and the FROM, for every board query.
+
+    ONE PLACE, deliberately. board() and fit_ranked() have to agree exactly: if
+    the ranked view filtered even slightly differently, turning on "best match"
+    would silently change WHICH gigs you are looking at as well as their order,
+    and nothing about the page would say so. The chip counts read from the same
+    predicates for the same reason.
+
+    Every value is bound as a parameter — nothing from the request is ever
+    formatted into SQL. Only the column names, which come from this module.
+    """
+    where = "WHERE p.is_demand = 1"
+    params: list = []
+    for col, vals in (("p.job_type", job_types), ("p.size_tier", sizes),
+                      ("p.source", sources)):
+        clause, ps = _in_clause(col, vals)
+        where += clause
+        params += ps
+    if urgent_only:
+        where += " AND p.urgency = 'Urgent'"
+
+    # Location. The signed-in board can also weigh a reader's region and city;
+    # an anonymous page knows neither, so this is the honest subset: is the
+    # work remote, or is it hands-on. Nothing here claims to know where the
+    # visitor is.
+    if where_work == "remote" and _has_col(conn, "is_remote"):
+        where += " AND p.is_remote = 1"
+    elif where_work == "onsite" and _has_col(conn, "is_onsite"):
+        where += " AND p.is_onsite = 1"
+
+    clause, ps = _in_clause("p.lang_code",
+                            languages if _has_col(conn, "lang_code") else None)
+    where += clause
+    params += ps
+
+    kw = _fts_query(keyword)
+    if kw and _has_fts(conn):
+        frm = ("FROM posts p JOIN posts_fts f ON f.rowid = p.id "
+               "AND posts_fts MATCH ?")
+        params = [kw] + params
+    elif kw:
+        # No FTS5 in this SQLite: every word must appear somewhere.
+        frm = "FROM posts p"
+        for term in (keyword or "").lower().split():
+            where += " AND (lower(p.title) LIKE ? OR lower(p.body) LIKE ?)"
+            params += [f"%{term}%", f"%{term}%"]
+    else:
+        frm = "FROM posts p"
+    return where, params, frm
+
+
 def board(keyword: str = "", job_types=None, sizes=None, sources=None,
           urgent_only: bool = False, where_work: str = "", languages=None,
           page: int = 0, page_size: int = PAGE_SIZE,
@@ -77,45 +131,8 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
     try:
         page_size = max(1, min(int(page_size or PAGE_SIZE), MAX_LIMIT))
         page = max(0, int(page or 0))
-
-        where = "WHERE p.is_demand = 1"
-        params: list = []
-        for col, vals in (("p.job_type", job_types), ("p.size_tier", sizes),
-                          ("p.source", sources)):
-            clause, ps = _in_clause(col, vals)
-            where += clause
-            params += ps
-        if urgent_only:
-            where += " AND p.urgency = 'Urgent'"
-
-        # Location. The signed-in board can also weigh a reader's region and
-        # city; an anonymous page knows neither, so this is the honest subset:
-        # is the work remote, or is it hands-on. Nothing here claims to know
-        # where the visitor is.
-        if where_work == "remote" and _has_col(conn, "is_remote"):
-            where += " AND p.is_remote = 1"
-        elif where_work == "onsite" and _has_col(conn, "is_onsite"):
-            where += " AND p.is_onsite = 1"
-
-        clause, ps = _in_clause("p.lang_code", languages
-                                if _has_col(conn, "lang_code") else None)
-        where += clause
-        params += ps
-
-        kw = _fts_query(keyword)
-        if kw and _has_fts(conn):
-            frm = ("FROM posts p JOIN posts_fts f ON f.rowid = p.id "
-                   "AND posts_fts MATCH ?")
-            params = [kw] + params
-        elif kw:
-            # No FTS5 in this SQLite: every word must appear somewhere.
-            frm = "FROM posts p"
-            for term in (keyword or "").lower().split():
-                where += " AND (lower(p.title) LIKE ? OR lower(p.body) LIKE ?)"
-                params += [f"%{term}%", f"%{term}%"]
-        else:
-            frm = "FROM posts p"
-
+        where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
+                                      urgent_only, where_work, languages)
         total = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         cols = ", ".join(f"p.{c}" for c in CARD_COLS)
         rows = conn.execute(
@@ -157,6 +174,96 @@ def _has_col(conn, col: str) -> bool:
         _col_cache[key] = col in {r[1] for r in
                                   conn.execute("PRAGMA table_info(posts)")}
     return _col_cache[key]
+
+
+# How many recent gigs get scored when someone sorts by fit.
+#
+# BOUNDED ON PURPOSE, and this is the whole design. Ranking the full matched
+# set is what the Streamlit board does: it loads every gig, scores all of them,
+# and shows 25 — ~1s of Python and ~190MB per visitor, which is what put a 2GB
+# instance on the floor at five concurrent readers. Scoring a recent window is
+# a few milliseconds and a few hundred kilobytes.
+#
+# The honest cost is that fit ranking reaches back FIT_WINDOW gigs, not
+# forever. That matches what the feature is for — the board's promise is gigs
+# the moment they drop, and a three-week-old posting ranked first because it
+# matches well is not the product. The UI says which window it ranked.
+FIT_WINDOW = 500
+
+
+def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
+               sources=None, urgent_only: bool = False, where_work: str = "",
+               languages=None, page: int = 0, page_size: int = PAGE_SIZE,
+               resume_text: str = "",
+               conn: sqlite3.Connection | None = None) -> dict:
+    """
+    The same board, ordered by how well each gig fits this person.
+
+    Two queries rather than one: the recent window's ids and scoring fields
+    (which needs `body`, the heaviest column on the table), then the card
+    columns for the 25 that survive the sort. Fetching bodies for 500 rows and
+    card data for 25 keeps this off the path that made the old board expensive.
+    """
+    import score as _score
+    own = conn is None
+    conn = conn or connect()
+    try:
+        page_size = max(1, min(int(page_size or PAGE_SIZE), MAX_LIMIT))
+        page = max(0, int(page or 0))
+        where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
+                                      urgent_only, where_work, languages)
+        # The TRUE number matching the filters, not the size of the window we
+        # ranked. Reporting the window here would put "500 gigs" in the header
+        # of a board with twelve thousand matches — the same kind of number
+        # that promises one thing and delivers another as the chip counts did.
+        matched = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
+        fit_cols = ", ".join(f"p.{c}" for c in _score.FIT_FIELDS)
+        rows = conn.execute(
+            f"SELECT p.id, {fit_cols} {frm} {where} "
+            f"ORDER BY p.sort_at DESC LIMIT {int(FIT_WINDOW)}", params).fetchall()
+        if not rows:
+            return {"rows": [], "total": 0, "page": 0, "pages": 1,
+                    "window": FIT_WINDOW, "ranked": True, "matched": 0}
+
+        scored = []
+        for r in rows:
+            gig = {c: r[c] for c in _score.FIT_FIELDS}
+            s, why = _score.fit_score(gig, profile, resume_text=resume_text)
+            scored.append((s, why, r["id"]))
+        # Stable within a score so equal fits keep the recency order the SQL
+        # already put them in, rather than an arbitrary one that reshuffles
+        # every load and makes the board look like it is churning.
+        scored.sort(key=lambda x: -x[0])
+
+        # `total` is how many were RANKED (what the pager walks); `matched` is
+        # how many exist. They differ whenever the filters match more than the
+        # window, and the page says so rather than quietly showing the smaller
+        # number as if it were the board.
+        total = len(scored)
+        window = scored[page * page_size:(page + 1) * page_size]
+        if not window:
+            return {"rows": [], "total": total, "page": page,
+                    "pages": max(1, -(-total // page_size)),
+                    "window": FIT_WINDOW, "ranked": True, "matched": matched}
+
+        ids = [w[2] for w in window]
+        cols = ", ".join(CARD_COLS)
+        got = {r["id"]: dict(r) for r in conn.execute(
+            f"SELECT {cols} FROM posts WHERE id IN ({','.join('?' * len(ids))})",
+            ids)}
+        out = []
+        for s, why, gid in window:
+            row = got.get(gid)
+            if not row:
+                continue
+            row["_score"], row["_why"] = s, why
+            out.append(row)
+        return {"rows": out, "total": total, "page": page,
+                "pages": max(1, -(-total // page_size)),
+                "window": FIT_WINDOW, "ranked": True, "matched": matched}
+    finally:
+        if own:
+            conn.close()
 
 
 def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> dict:
