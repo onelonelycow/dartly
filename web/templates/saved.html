@@ -4,7 +4,7 @@
 {% block title %}Saved · Nabbly{% endblock %}
 
 {% block extra_css %}
-.sec-h{font-size:27px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
+.sec-h{font-size:31px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
 .sec-h .accent{color:var(--amber)}
 .count{font-size:14px;color:var(--mute);font-variant-numeric:tabular-nums;
   display:block;margin-bottom:16px}
@@ -22,6 +22,10 @@
   color:#6b7280;font-family:inherit;padding:2px 4px}
 .gr-save:hover{color:var(--amber-l)}
 .gr-save.on{color:var(--amber)}
+.notice{background:rgba(232,147,58,.07);border:1px solid #3a2b17;border-radius:12px;
+  padding:15px 18px;color:#c8ced6;font-size:14px;line-height:1.65}
+.notice a{color:var(--amber-l);text-decoration:none;white-space:nowrap}
+.notice a:hover{text-decoration:underline}
 .empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:34px 28px;text-align:center;color:var(--mute);line-height:1.7}
 .empty b{color:var(--ink)}
@@ -34,12 +38,12 @@
 <h2 class="sec-h">Gigs you <span class="accent">saved</span></h2>
 
 {% if not me %}
-  <div class="empty">
-    <b>Sign in to keep gigs.</b><br>
-    The board moves fast — a gig worth a proper reply at 11pm is buried under
-    four hundred newer ones by morning. Saving pins it.<br><br>
-    <a href="/signin">Sign in</a>
-  </div>
+  {# The app's own words, verbatim. Its version sits in a Streamlit st.info
+     box, which is stock blue and the one piece of that page that is Streamlit
+     rather than Nabbly — so the copy is matched and the styling is house. #}
+  <div class="notice">Sign in and you can save gigs here to come back to. The
+    board moves fast — saving pins one so it's still findable tomorrow.
+    <a href="/signin">Sign in →</a></div>
 
 {% elif rows %}
   <span class="count">{{ "{:,}".format(rows|length) }} saved</span>

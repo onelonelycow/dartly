@@ -85,6 +85,20 @@ def decorate(rows, ranked=False):
         r["posted_line"] = (
             f"Posted {textfmt.human_time(r.get('posted_at') or r.get('sort_at'))}"
             f" · via {config.source_label(r.get('source') or '')}")
+        # What applying actually involves, said BEFORE the click rather than
+        # discovered after it. The source name already says which board; this
+        # says whether you need an account there. A free signup and a paywall
+        # are deliberately two different pills — they are not the same ask.
+        src = (r.get("source") or "").lower()
+        if (r.get("apply_email") or "").strip():
+            r["apply_note"], r["apply_cls"] = "Apply by email", "match"
+        elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
+            r["apply_note"], r["apply_cls"] = "Paid subscription to apply", "urgent"
+        elif src in getattr(config, "ACCOUNT_REQUIRED_SOURCES", ()):
+            r["apply_note"], r["apply_cls"] = "Free account needed to apply", "locoff"
+        else:
+            r["apply_note"] = ""
+        r.pop("apply_email", None)   # a real address; never reaches the page
         r.pop("body", None)      # not rendered raw; drop it before the template
     return rows
 

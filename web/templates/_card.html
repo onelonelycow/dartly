@@ -22,6 +22,10 @@
        and a bare size word next to a job type reads as part of the role. #}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
     {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}
+    {# Apply-method last on purpose: it is the one pill carrying no signal
+       colour, so it reads as a trailing note rather than competing with
+       match/budget/urgent for first-glance attention. #}
+    {% if g.apply_note %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
   </div>
 
   {% if g.preview %}
