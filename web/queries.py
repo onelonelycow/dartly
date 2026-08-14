@@ -90,6 +90,13 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     """
     where = "WHERE p.is_demand = 1"
     params: list = []
+    # One row per repeated title. The same role really is syndicated across
+    # several feeds — "Sales Development Representative" appeared 42 times,
+    # 12.5% of the board was duplicates — and the Streamlit board has always
+    # dropped them before rendering. Guarded so a database without the column
+    # still works, just without the dedupe.
+    if _has_col(conn, "is_primary"):
+        where += " AND p.is_primary = 1"
     for col, vals in (("p.job_type", job_types), ("p.size_tier", sizes),
                       ("p.source", sources)):
         clause, ps = _in_clause(col, vals)
@@ -325,6 +332,8 @@ def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> d
             if not _has_col(conn, col):
                 return {}
             where = "WHERE is_demand = 1"
+            if _has_col(conn, "is_primary"):
+                where += " AND is_primary = 1"
             params: list = []
             for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
                                 ("sources", "source"), ("languages", "lang_code")):
@@ -371,6 +380,8 @@ def location_counts(conn: sqlite3.Connection | None = None,
     ctx = ctx or {}
     try:
         where = "WHERE is_demand = 1"
+        if _has_col(conn, "is_primary"):
+            where += " AND is_primary = 1"
         params: list = []
         for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
                             ("sources", "source"), ("languages", "lang_code")):

@@ -30,22 +30,33 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Indexes end in sort_at DESC on purpose — see the note above.
+# EVERY board index carries (is_demand, is_primary) as its prefix, because
+# every board query filters both. Adding is_primary without putting it in the
+# indexes took the remote view from 0.29ms to 15.97ms: SQLite could still seek
+# on is_remote, then had to check is_primary on each row it found.
+#
+# The plain (is_demand, is_remote, ...) forms are deliberately NOT kept
+# alongside these. A redundant index SQLite happens to prefer but cannot fully
+# use is exactly the 280x regression documented above.
+_PRIM = "is_demand, is_primary"
 _INDEXES = (
-    ("ix_posts_sort", "posts(is_demand, sort_at DESC)"),
-    ("ix_posts_jt", "posts(is_demand, job_type, sort_at DESC)"),
-    ("ix_posts_src", "posts(is_demand, source, sort_at DESC)"),
+    ("ix_posts_sort", f"posts({_PRIM}, sort_at DESC)"),
+    ("ix_posts_jt", f"posts({_PRIM}, job_type, sort_at DESC)"),
+    ("ix_posts_src", f"posts({_PRIM}, source, sort_at DESC)"),
     # The board service derives these at sync time (web/sync.py) so location
     # and language filtering is an indexed lookup rather than a regex pass over
     # every title and body. Guarded below: the Streamlit app's own database has
     # no such columns and must not be given these.
-    ("ix_posts_remote", "posts(is_demand, is_remote, sort_at DESC)"),
+    ("ix_posts_remote", f"posts({_PRIM}, is_remote, sort_at DESC)"),
     # On-site needs its OWN index, not just the remote one. It matches ~7% of
     # the board, so without it SQLite walks the recency index past thousands of
     # remote gigs to find 25 hands-on ones: measured 19.24ms against remote's
     # 0.29ms. The rarer the filter, the more it needs the index.
-    ("ix_posts_onsite", "posts(is_demand, is_onsite, sort_at DESC)"),
-    ("ix_posts_lang", "posts(is_demand, lang_code, sort_at DESC)"),
-    ("ix_posts_size", "posts(is_demand, size_tier, sort_at DESC)"),
+    ("ix_posts_onsite", f"posts({_PRIM}, is_onsite, sort_at DESC)"),
+    ("ix_posts_lang", f"posts({_PRIM}, lang_code, sort_at DESC)"),
+    ("ix_posts_size", f"posts({_PRIM}, size_tier, sort_at DESC)"),
+    # mark_primaries partitions by this on every sync.
+    ("ix_posts_dup", "posts(dup_key, sort_at DESC)"),
 )
 
 # Covering indexes for the FILTER-CHIP COUNTS, which are a different query
@@ -63,14 +74,14 @@ _INDEXES = (
 # Location is the only filter paired here because it is the one people combine
 # with everything else. Rarer combinations fall back to a scan and are cached.
 _FACET_INDEXES = tuple(
-    (f"ix_f_{loc}_{dim[:4]}", f"posts(is_demand, {loc}, {dim})")
+    (f"ix_f_{loc}_{dim[:4]}", f"posts({_PRIM}, {loc}, {dim})")
     for loc in ("is_remote", "is_onsite")
     for dim in ("job_type", "source", "size_tier", "lang_code")
 ) + (
     # The location toggle's own counts: SUM(is_remote), SUM(is_onsite) over the
     # live board. Covering, so it answers from the index instead of reading
     # every row to add up two flags.
-    ("ix_f_loc_flags", "posts(is_demand, is_remote, is_onsite)"),
+    ("ix_f_loc_flags", f"posts({_PRIM}, is_remote, is_onsite)"),
 )
 
 
@@ -106,6 +117,10 @@ def migrate(db_path: str, verbose: bool = True) -> dict:
         # An index SQLite prefers but cannot sort with makes the board 280x
         # slower. If an earlier version created it, take it back out.
         conn.execute("DROP INDEX IF EXISTS ix_posts_board")
+        # Superseded by the is_primary-prefixed forms above. Left in place they
+        # are exactly the trap ix_posts_board was: an index SQLite may prefer
+        # and cannot fully use.
+        conn.execute("DROP INDEX IF EXISTS ix_posts_prim")
 
         have_cols = _cols(conn)
         for name, decl in _INDEXES + _FACET_INDEXES:
@@ -114,8 +129,8 @@ def migrate(db_path: str, verbose: bool = True) -> dict:
             # be pointed at the Streamlit app's database, which has no
             # is_remote/lang_code — without this it would raise there.
             needs = {c for c in ("is_remote", "is_onsite", "lang_code",
-                                 "source", "job_type", "size_tier")
-                     if c in decl}
+                                 "source", "job_type", "size_tier",
+                                 "is_primary", "dup_key") if c in decl}
             if needs - have_cols:
                 continue
             before = conn.execute(

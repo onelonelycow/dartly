@@ -24,6 +24,7 @@ which is precisely the bug the durable mirror was built to kill.
 Read-only with respect to the mirror. Nothing here ever writes to Supabase.
 """
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -44,7 +45,18 @@ import migrate as _migrate_mod  # noqa: E402  (web/migrate.py)
 # visitor — 53,000 title+body concatenations and a dozen regexes each, on every
 # board load. Derived once at sync and written to a column, filtering by
 # "remote" becomes an indexed WHERE instead of work.
-_DERIVED = ("is_remote", "is_onsite", "restrict_cc", "lang_code", "city_lock")
+_DERIVED = ("is_remote", "is_onsite", "restrict_cc", "lang_code", "city_lock",
+            "dup_key")
+
+# The same key app.py's _build_feed dedupes on: the title's distinct words of
+# more than two letters, sorted. Sorted so word order doesn't matter, so
+# "Senior Frontend Engineer" and "Frontend Engineer, Senior" collapse.
+_WORDS = re.compile(r"[a-z0-9]+")
+
+
+def _dup_key(title: str) -> str:
+    return " ".join(sorted({w for w in _WORDS.findall(str(title).lower())
+                            if len(w) > 2}))
 
 
 def _derive(rec: dict) -> tuple:
@@ -55,7 +67,8 @@ def _derive(rec: dict) -> tuple:
             1 if t["onsite"] else 0,
             t["restrict"] or "",
             _lang.detect(title, body) or "en",
-            _location.city_lock({"title": title}) or "")
+            _location.city_lock({"title": title}) or "",
+            _dup_key(title))
 
 BOARD_DB = os.environ.get("NABBLY_BOARD_DB") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "board.db")
@@ -64,7 +77,8 @@ RECONCILE_S = int(os.environ.get("NABBLY_RECONCILE_S") or 900)
 
 _COLS = board_store.COLS
 _state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0,
-          "watermark": "", "adds": 0, "archived": 0, "errors": 0, "note": ""}
+          "watermark": "", "adds": 0, "archived": 0, "errors": 0,
+          "hidden_dupes": 0, "note": ""}
 _lock = threading.Lock()
 _started = False
 
@@ -90,12 +104,12 @@ def _ensure_schema(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             {cols}, sort_at TEXT,
             is_remote INTEGER, is_onsite INTEGER, restrict_cc TEXT,
-            lang_code TEXT, city_lock TEXT,
+            lang_code TEXT, city_lock TEXT, dup_key TEXT, is_primary INTEGER,
             UNIQUE (source, source_id))""")
     # An older board.db predates the derived columns; add them rather than
     # forcing a full re-pull.
     have = {r[1] for r in conn.execute("PRAGMA table_info(posts)")}
-    for c in _DERIVED:
+    for c in _DERIVED + ("is_primary",):
         if c not in have:
             conn.execute(f"ALTER TABLE posts ADD COLUMN {c} "
                          f"{'INTEGER' if c.startswith('is_') else 'TEXT'}")
@@ -122,6 +136,39 @@ def _upsert(conn, rows) -> int:
     with conn:
         conn.executemany(sql, payload)
     return len(payload)
+
+
+def mark_primaries(conn) -> int:
+    """
+    One row per duplicate title stays visible; the rest are hidden.
+
+    THIS IS PARITY WITH THE STREAMLIT BOARD, not a new idea. app.py's
+    _build_feed drops duplicates on exactly this key before rendering, so the
+    old board never showed the same posting twice. The SQL board had no
+    equivalent and showed all of them: measured 6,274 duplicate rows, 12.5% of
+    the board, with "Sales Development Representative" appearing 42 times. The
+    same role really is syndicated across several feeds, so this is dedupe, not
+    data loss — the row is still there, still blocking re-ingest by its own
+    source_id.
+
+    Newest wins, matching drop_duplicates(keep="first") on a newest-first
+    frame. Rows with no usable title words keep is_primary = 1 rather than
+    collapsing into one giant "" group.
+    """
+    with conn:
+        conn.execute("UPDATE posts SET is_primary = 1 "
+                     "WHERE COALESCE(dup_key, '') = ''")
+        conn.execute("""UPDATE posts SET is_primary = 0
+                        WHERE COALESCE(dup_key, '') != ''""")
+        conn.execute("""UPDATE posts SET is_primary = 1 WHERE id IN (
+                            SELECT id FROM (
+                                SELECT id, ROW_NUMBER() OVER (
+                                    PARTITION BY dup_key
+                                    ORDER BY sort_at DESC, id DESC) rn
+                                FROM posts WHERE COALESCE(dup_key,'') != ''
+                            ) WHERE rn = 1)""")
+    return conn.execute(
+        "SELECT COUNT(*) FROM posts WHERE is_demand=1 AND is_primary=0").fetchone()[0]
 
 
 def _invalidate_schema():
@@ -168,6 +215,7 @@ def full_sync() -> int:
             n += _upsert(conn, page)
         _state["rows"] = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
         _state["watermark"] = _watermark(conn)
+        _state["hidden_dupes"] = mark_primaries(conn)
     finally:
         conn.close()
     if not n:
@@ -193,6 +241,7 @@ def incremental() -> int:
                 "SELECT COUNT(*) FROM posts").fetchone()[0]
             _state["watermark"] = _watermark(conn)
             _state["adds"] += n
+            _state["hidden_dupes"] = mark_primaries(conn)
     finally:
         conn.close()
     if n:
