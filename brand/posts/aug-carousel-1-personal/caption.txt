@@ -1,0 +1,13 @@
+Rate one gig and the board shifts.
+
+Two changes went into how gigs get ranked. Marking a gig a good match or a
+bad one now counts toward what you see next, and you can do it from any page
+rather than only the dashboard. You can also drop in your resume, and gigs
+get scored on real overlap with the work you actually do.
+
+Your resume is never stored. It only affects the session you are in, so
+closing the tab throws it away.
+
+Free to join at nabbly.co
+
+#freelancelife #freelancetips #freelancedesigner #freelancewriter #findfreelancework #creativecareers

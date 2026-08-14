@@ -1,5 +1,14 @@
 """
-watchdog.py — tells the owner when Nabbly quietly stops working.
+ops_watch.py — tells the owner when Nabbly quietly stops working.
+
+NAMED ops_watch, NOT watchdog, AND IT MATTERS. This file was called
+watchdog.py for one deploy and took the live app down: Streamlit's file
+watcher does `from watchdog.observers import Observer`, a module in the app
+directory shadows the installed package, and Streamlit died before running
+app.py. Every visitor got a skeleton loader and a tab titled "Streamlit"
+while /_stcore/health kept answering 200, because that endpoint never touches
+the script. Do not rename this back, and think twice before adding any
+top-level module that shares a name with a dependency.
 
 THE GAP THIS CLOSES. Every failure mode below is currently silent. Ingest can
 stop, the biggest source can die, the durable mirror can become unreachable,

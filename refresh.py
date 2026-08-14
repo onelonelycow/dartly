@@ -299,8 +299,8 @@ def _loop(on_update=None):
             # Rate-limits itself, mails at most once per incident, and returns
             # 0 rather than raising if anything about it is unhappy.
             try:
-                import watchdog
-                watchdog.run()
+                import ops_watch
+                ops_watch.run()
             except Exception:
                 pass
         except Exception as e:
