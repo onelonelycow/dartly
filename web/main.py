@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
 import config  # noqa: E402
+import paths  # noqa: E402
 import queries  # noqa: E402
 import textfmt  # noqa: E402
 import webauth  # noqa: E402
@@ -55,6 +56,9 @@ except OSError:
 
 # How recent counts as "New" on a card.
 NEW_MINUTES = 90
+
+# The fields someone can say they work in — same list the app offers.
+ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 
 # Where the Streamlit app lives, for the handful of pages still served there.
 APP_URL = (os.environ.get("NABBLY_APP_URL")
@@ -401,6 +405,121 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
         back = "/gigs"
     return RedirectResponse(
         f"/draft/{gig_id}?saved_ok=1&back={quote_plus(back)}", status_code=303)
+
+
+@app.get("/profile", response_class=HTMLResponse)
+def profile_page(request: Request, saved_ok: int = Query(0)):
+    """
+    What ranks the board and what drafts are written from.
+
+    Without this page a signed-in reader on the board cannot set skills, and
+    "Best match" is gated on having them — so the feature that makes the board
+    theirs would be switchable only over on the Streamlit app.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse("/signin", status_code=303)
+    import alerts as alerts_mod
+    import profile as profile_mod
+    resp = templates.TemplateResponse(request, "profile.html", {
+        "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
+        "all_skills": ALL_SKILLS, "me": me,
+        "saved_ok": bool(saved_ok), "tab": "profile",
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "took_ms": (time.perf_counter() - t0) * 1000,
+    })
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
+@app.post("/profile")
+async def profile_save(request: Request):
+    """
+    Saved field by field onto the EXISTING profile, never as a wholesale
+    replacement: profile.py's DEFAULT carries keys this form does not show, and
+    writing the form's dict straight over the top would silently wipe them.
+    """
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse("/signin", status_code=303)
+    import profile as profile_mod
+    form = await request.form()
+    prof = profile_mod.load()
+
+    prof["skills"] = [s for s in form.getlist("skills") if s in ALL_SKILLS]
+    for field in ("keywords", "mute", "city", "country", "name", "headline",
+                  "portfolio", "bio", "rate_unit"):
+        prof[field] = (form.get(field) or "").strip()[:400]
+    try:
+        prof["rate_floor"] = max(0, int(float(form.get("rate_floor") or 0)))
+    except (TypeError, ValueError):
+        prof["rate_floor"] = 0
+    # An unchecked checkbox sends nothing at all, so presence IS the value.
+    prof["open_to_relocate"] = bool(form.get("open_to_relocate"))
+    prof["show_all_languages"] = bool(form.get("show_all_languages"))
+    profile_mod.save(prof)
+
+    # Alert channels live in their own store (alert_prefs.json) but are edited
+    # on this one form, because that is where the app puts them.
+    import alerts as alerts_mod
+    prefs = alerts_mod.load_prefs()
+    for field in ("sms_to", "ntfy_topic", "discord_webhook",
+                  "telegram_token", "telegram_chat"):
+        prefs[field] = (form.get(field) or "").strip()[:300]
+    # A malformed number silently never delivers, so refuse it rather than
+    # storing something that looks saved and does nothing.
+    if prefs["sms_to"] and not alerts_mod.valid_phone(prefs["sms_to"]):
+        prefs["sms_to"] = ""
+    for field, allowed in (("every_min", (5, 15, 30, 60, 180)),
+                           ("max_per_alert", (3, 5, 10, 20))):
+        try:
+            v = int(form.get(field) or 0)
+        except (TypeError, ValueError):
+            v = 0
+        if v in allowed:
+            prefs[field] = v
+    prefs["urgent_only"] = bool(form.get("urgent_only"))
+    alerts_mod.save_prefs(prefs)
+    return RedirectResponse("/profile?saved_ok=1#alerts", status_code=303)
+
+
+@app.get("/out/{gig_id}")
+def out(request: Request, gig_id: int):
+    """
+    Log an apply click, then send the browser to the posting.
+
+    The board used to link straight at the gig's URL, which is faster and
+    perfectly honest as a link — and meant applies were never counted. That
+    number feeds the weekly digest and is the one signal that says the board
+    actually worked for someone, so it cannot be the thing we drop for a few
+    milliseconds.
+
+    A real 302, not the app's meta-refresh: the browser follows it before
+    painting anything, so there is no blank flash, and a bot that ignores
+    redirects does not get counted as a human applying.
+
+    Only counted for someone signed in. An anonymous click has nobody to
+    attribute it to, and inventing an attribution would corrupt the only
+    outcome metric Nabbly has.
+    """
+    webauth.scope_for_request(request)
+    conn = queries.connect(DB_PATH)
+    try:
+        rows = queries.by_ids([gig_id], conn=conn)
+    finally:
+        conn.close()
+    if not rows or not (rows[0].get("url") or "").startswith(("http://", "https://")):
+        return RedirectResponse("/gigs", status_code=303)
+    if webauth.current_email(request):
+        try:
+            import activity
+            activity.log_apply(paths.get_scope(), gig_id)
+        except Exception:
+            pass          # a counter must never stand between someone and a gig
+    return RedirectResponse(rows[0]["url"], status_code=302)
 
 
 @app.get("/health")

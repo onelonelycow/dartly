@@ -3,7 +3,7 @@
    with a pure-CSS "see more", then the posted line. #}
 {% macro card(g, me, saved_ids, here, ranked) -%}
 <div class="gr-cardwrap">
-  {% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+  {% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
   {% if me %}
     {% set is_saved = g.id|string in saved_ids %}
     <form method="post" action="/save" class="inline gr-saveform">

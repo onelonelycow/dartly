@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Your profile · Nabbly{% endblock %}
+
+{% block extra_css %}
+.sec-h{font-size:31px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
+.sec-h .accent{color:var(--amber)}
+.lede{color:var(--mute);font-size:14px;margin:0 0 22px;line-height:1.6}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:20px 22px;margin:0 0 14px}
+.card .ttl{font-size:15px;font-weight:650;margin:0 0 3px}
+.card .sub{display:block;color:var(--faint);font-size:12.5px;margin:0 0 14px;
+  line-height:1.6}
+label.f{display:block;font-size:11.5px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.06em;margin:0 0 6px}
+.two{display:flex;gap:12px;flex-wrap:wrap}
+.two > div{flex:1;min-width:190px}
+input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);
+  color:var(--ink);border-radius:11px;padding:11px 13px;font-size:14.5px;
+  font-family:inherit;margin-bottom:14px}
+textarea{min-height:70px;resize:vertical;line-height:1.6}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
+  outline-offset:1px;border-color:transparent}
+.skills{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 6px}
+.skills label{display:inline-flex;align-items:center;gap:7px;background:var(--bg);
+  border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;
+  cursor:pointer;user-select:none}
+.skills label:hover{border-color:var(--amber-d)}
+.skills input{width:auto;margin:0;accent-color:var(--amber)}
+.skills input:checked + span{color:var(--amber-l)}
+.check{display:flex;align-items:flex-start;gap:9px;margin:0 0 12px;font-size:13.5px;
+  color:#c8ced6;line-height:1.55}
+.check input{width:auto;margin:2px 0 0;accent-color:var(--amber)}
+.bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 32%);
+  padding:16px 0 6px;display:flex;gap:10px;align-items:center}
+button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+  padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
+button.go:hover{background:var(--amber-l)}
+.said{font-size:13px;color:#8fe3b0}
+.hint{font-size:12.5px;color:var(--faint);margin:-8px 0 14px;line-height:1.55}
+{% endblock %}
+
+{% block body %}
+
+<h2 class="sec-h">Your <span class="accent">profile</span></h2>
+<p class="lede">This is what ranks the board for you and what your drafted
+  replies are written from. Nothing here is public.</p>
+
+<form method="post" action="/profile">
+  <div class="card">
+    <div class="ttl">What you do</div>
+    <span class="sub">Pick the fields you work in. This is what "Best match"
+      sorts by — without at least one, the board stays newest-first.</span>
+    <div class="skills">
+      {% for s in all_skills %}
+        <label><input type="checkbox" name="skills" value="{{ s }}"
+          {% if s in prof.skills %}checked{% endif %}><span>{{ s }}</span></label>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ttl">Words that matter</div>
+    <span class="sub">Comma separated. Keywords lift a gig up the board; muted
+      words hide it entirely.</span>
+    <label class="f" for="keywords">Boost</label>
+    <input id="keywords" name="keywords" value="{{ prof.keywords }}"
+           placeholder="figma, shopify, brand identity">
+    <label class="f" for="mute">Hide</label>
+    <input id="mute" name="mute" value="{{ prof.mute }}"
+           placeholder="crypto, unpaid, commission only">
+  </div>
+
+  <div class="card">
+    <div class="ttl">Money</div>
+    <span class="sub">Used to flag gigs paying well below what you'll take.</span>
+    <div class="two">
+      <div>
+        <label class="f" for="rate_floor">Minimum budget</label>
+        <input id="rate_floor" name="rate_floor" type="number" min="0" step="10"
+               value="{{ prof.rate_floor or '' }}" placeholder="0">
+      </div>
+      <div>
+        <label class="f" for="rate_unit">Per</label>
+        <select id="rate_unit" name="rate_unit">
+          <option value="hr" {% if prof.rate_unit == 'hr' %}selected{% endif %}>Hour</option>
+          <option value="project" {% if prof.rate_unit == 'project' %}selected{% endif %}>Project</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ttl">Where you are</div>
+    <span class="sub">Only used to decide which on-site and region-locked gigs
+      are worth showing you.</span>
+    <div class="two">
+      <div>
+        <label class="f" for="city">City</label>
+        <input id="city" name="city" value="{{ prof.city }}" placeholder="Seattle">
+      </div>
+      <div>
+        <label class="f" for="country">Country</label>
+        <input id="country" name="country" value="{{ prof.country }}" placeholder="United States">
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" name="open_to_relocate" value="1"
+      {% if prof.open_to_relocate %}checked{% endif %}>
+      <span>I'd travel or relocate. Shows gigs pinned to other metros, which are
+        hidden by default.</span></label>
+    <label class="check"><input type="checkbox" name="show_all_languages" value="1"
+      {% if prof.show_all_languages %}checked{% endif %}>
+      <span>Show gigs in every language. About 9% of the board isn't English.</span></label>
+  </div>
+
+  <div class="card">
+    <div class="ttl">For your drafted replies</div>
+    <span class="sub">These go into the reply Nabbly writes for you, so the more
+      real they are the less it sounds like a template.</span>
+    <div class="two">
+      <div>
+        <label class="f" for="name">Name</label>
+        <input id="name" name="name" value="{{ prof.name }}" placeholder="Alex Rivera">
+      </div>
+      <div>
+        <label class="f" for="headline">Headline</label>
+        <input id="headline" name="headline" value="{{ prof.headline }}"
+               placeholder="Brand &amp; logo designer">
+      </div>
+    </div>
+    <label class="f" for="portfolio">Portfolio link</label>
+    <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}"
+           placeholder="https://…">
+    <label class="f" for="bio">One line about you</label>
+    <textarea id="bio" name="bio"
+      placeholder="Ten years designing identities for small food brands.">{{ prof.bio }}</textarea>
+  </div>
+
+  {# Alerts is a SECTION of Profile, not a page. The app moved it here
+     deliberately — every tab in its nav shows gigs, and a settings screen in
+     that row was the odd one out. #}
+  <div class="card" id="alerts">
+    <div class="ttl">Alerts</div>
+    <span class="sub">The faster you hear, the more you win. Switch on as many
+      as you like — each one gets the same gigs, so pick whatever you actually
+      check. Leave a field blank to turn that channel off.</span>
+
+    <div class="two">
+      <div>
+        <label class="f" for="sms_to">Text message</label>
+        <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
+               placeholder="+15551234567">
+        <p class="hint">Use the +15551234567 format.</p>
+      </div>
+      <div>
+        <label class="f" for="ntfy_topic">Phone push (ntfy topic)</label>
+        <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
+               placeholder="my-nabbly-alerts">
+        <p class="hint">Free and instant, and it fires with the site closed.</p>
+      </div>
+    </div>
+
+    <label class="f" for="discord_webhook">Discord or Slack webhook</label>
+    <input id="discord_webhook" name="discord_webhook"
+           value="{{ prefs.discord_webhook }}" placeholder="https://…">
+
+    <div class="two">
+      <div>
+        <label class="f" for="telegram_token">Telegram bot token</label>
+        <input id="telegram_token" name="telegram_token" value="{{ prefs.telegram_token }}">
+      </div>
+      <div>
+        <label class="f" for="telegram_chat">Telegram chat id</label>
+        <input id="telegram_chat" name="telegram_chat" value="{{ prefs.telegram_chat }}">
+      </div>
+    </div>
+
+    <div class="two">
+      <div>
+        <label class="f" for="every_min">At most one ping every</label>
+        <select id="every_min" name="every_min">
+          {% for m in [5, 15, 30, 60, 180] %}
+            <option value="{{ m }}" {% if prefs.every_min == m %}selected{% endif %}>
+              {{ m }} minutes</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="f" for="max_per_alert">Gigs per message</label>
+        <select id="max_per_alert" name="max_per_alert">
+          {% for n in [3, 5, 10, 20] %}
+            <option value="{{ n }}" {% if prefs.max_per_alert == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <p class="hint">A quarter-hour digest of five gigs beats a buzz every two
+      minutes. Alerts use the skills and words above.</p>
+
+    <label class="check"><input type="checkbox" name="urgent_only" value="1"
+      {% if prefs.urgent_only %}checked{% endif %}>
+      <span>Only ping me for gigs marked urgent.</span></label>
+  </div>
+
+  <div class="bar">
+    <button class="go" type="submit">Save profile</button>
+    {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
+  </div>
+</form>
+
+{% endblock %}

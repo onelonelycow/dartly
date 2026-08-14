@@ -91,7 +91,7 @@ button.go:hover{background:var(--amber-l)}
        the same circle with a generic glyph, so the bar does not change shape
        when you sign in. #}
     {% if me %}
-      <span class="whoami" title="{{ me }}">{{ me }}</span>
+      <a class="linkish" href="/profile">Profile</a>
       <form method="post" action="/signout" class="inline">
         <button class="linkish" type="submit">Sign out</button>
       </form>

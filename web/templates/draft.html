@@ -40,7 +40,7 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
 <a class="back" href="{{ back }}">← Back to the board</a>
 
 <div class="gig">
-  <a class="t" href="{{ g.url }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+  <a class="t" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
   <div class="gr-pills">
     {% if g.job_type %}<span class="gr-pill">{{ g.job_type }}</span>{% endif %}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
