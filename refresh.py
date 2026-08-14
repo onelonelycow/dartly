@@ -294,6 +294,15 @@ def _loop(on_update=None):
                     pass
                 last_archive_check = time.time()
             _state["fails"] = 0          # a clean cycle clears the streak
+            # Everything above prints to a log nobody reads. This is the part
+            # that reaches a person when the board quietly stops being live.
+            # Rate-limits itself, mails at most once per incident, and returns
+            # 0 rather than raising if anything about it is unhappy.
+            try:
+                import watchdog
+                watchdog.run()
+            except Exception:
+                pass
         except Exception as e:
             # A bad fetch or a dead webhook still shouldn't kill the loop — but
             # it must not be silent either. This handler wraps the WHOLE cycle,
