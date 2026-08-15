@@ -308,13 +308,27 @@ def _loop():
         time.sleep(REFRESH_S)
 
 
-def start(block_on_boot: bool = True):
+def start(block_on_boot: bool = False):
     """
     Idempotent. Boots the local copy, then keeps it current in the background.
 
-    The boot pull is synchronous on purpose: serving an empty board while the
-    first pull runs would show visitors a broken page, and the pull takes
-    seconds, not minutes.
+    DEFAULTS TO NOT BLOCKING, AND THAT CHANGED FOR A REASON. The boot pull used
+    to be synchronous, on the argument that serving an empty board while it ran
+    would show visitors a broken page — true, and correct while the pull took
+    eleven seconds against a capped 40,000 rows. Paging the whole board took it
+    to ~50 seconds, and I did not revisit the decision that depended on the
+    cost. Render scans for an open port after starting the process, found none
+    because uvicorn had not bound yet, and failed the deploy:
+
+        Started server process
+        Waiting for application startup.
+        ==> No open ports detected, continuing to scan...
+
+    Binding first and syncing behind it is also the RIGHT shape, not just the
+    one that deploys. /health already reports unhealthy on an empty board, so
+    Render keeps routing to the old instance until this one has data — the
+    health check does the waiting instead of the startup hook, which is what a
+    health check is for.
     """
     global _started
     with _lock:
@@ -335,6 +349,42 @@ def start(block_on_boot: bool = True):
             full_sync()
         reconcile()
     threading.Thread(target=_loop, daemon=True, name="board-sync").start()
+
+
+def start_background():
+    """
+    Bind the port now, fill the board behind it.
+
+    The first thing the loop does is rehydrate, so the only difference from the
+    old blocking path is WHEN the process starts answering — immediately,
+    unhealthy, instead of in a minute, healthy.
+    """
+    global _started
+    with _lock:
+        if _started:
+            return
+        _started = True
+    threading.Thread(target=_boot_then_loop, daemon=True, name="board-sync").start()
+
+
+def _boot_then_loop():
+    try:
+        conn = _connect_rw()
+        try:
+            _ensure_schema(conn)
+            have = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
+        finally:
+            conn.close()
+        if have:
+            _state["rows"] = have
+            incremental()
+        else:
+            full_sync()
+        reconcile()
+    except Exception as e:
+        _state["errors"] += 1
+        _state["note"] = f"boot sync failed: {type(e).__name__}: {e}"[:200]
+    _loop()
 
 
 if __name__ == "__main__":

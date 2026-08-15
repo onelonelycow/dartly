@@ -158,7 +158,11 @@ def _boot():
     if not _SYNC:
         return
     import sync
-    sync.start()                       # blocks on the first pull, then threads
+    # NON-BLOCKING. uvicorn must bind the port before Render's port scan gives
+    # up — a ~50s boot pull inside the startup hook failed the deploy with
+    # "No open ports detected". /health reports unhealthy until rows land, so
+    # Render holds traffic on the old instance meanwhile.
+    sync.start_background()
     global DB_PATH
     DB_PATH = sync.BOARD_DB
 
@@ -570,7 +574,17 @@ def health():
         # to prevent, missed one field over.
         if not s["rows"]:
             out["ok"] = False
-            out.setdefault("note", "board is empty — is DATABASE_URL set?")
+            # An empty board during the first minute is a service still filling
+            # itself, not a misconfigured one. Saying "is DATABASE_URL set?"
+            # while it boots normally sends someone chasing a problem that does
+            # not exist — and the first pull now takes ~50s, so that window is
+            # every single deploy.
+            out["status"] = "starting"
+            out.setdefault(
+                "note",
+                "still loading the board from the mirror"
+                if s.get("errors", 0) == 0 and not s.get("note")
+                else "board is empty — is DATABASE_URL set?")
         # Two missed refreshes is a real problem, not a blip.
         if s["drift_s"] is not None and s["drift_s"] > sync.REFRESH_S * 3:
             out["ok"] = False
