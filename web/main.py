@@ -133,10 +133,17 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 # someone else's site cannot make the browser attach this cookie. https_only
 # is off in local dev because there is no TLS on localhost and the cookie
 # would simply never be set, making sign-in untestable.
+_session_kw = {}
+if webauth.SESSION_DOMAIN:
+    # Only passed when actually set — Starlette treats domain=None and an
+    # absent key differently in older versions, and a cookie scoped to a domain
+    # the response did not come from is dropped silently by the browser.
+    _session_kw["domain"] = webauth.SESSION_DOMAIN
 app.add_middleware(
     SessionMiddleware, secret_key=webauth._SECRET,
     session_cookie=webauth.SESSION_COOKIE, max_age=webauth.SESSION_MAX_AGE,
-    same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1")
+    same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1",
+    **_session_kw)
 
 # NABBLY_DB points at an existing SQLite file (local dev, tests). With it
 # unset, the service maintains its own copy from the durable mirror — which is

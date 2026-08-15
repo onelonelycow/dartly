@@ -62,6 +62,20 @@ import people  # noqa: E402
 _SECRET = (os.environ.get("AUTH_COOKIE_SECRET", "").strip()
            or secrets.token_urlsafe(32))
 SESSION_COOKIE = "nb_session"
+
+# Which host(s) the session cookie covers.
+#
+# UNSET IS CORRECT UNTIL board.nabbly.co EXISTS. With no domain, the cookie is
+# scoped to whatever host served it, which is right for a service answering on
+# nabbly-board.onrender.com — a cookie scoped to ".nabbly.co" from an
+# onrender.com response is simply rejected by the browser, and sign-in would
+# fail with no visible reason.
+#
+# Set it to ".nabbly.co" once the board answers on board.nabbly.co, and signing
+# in on either host covers both. Without that, a visitor moving between
+# app.nabbly.co and the board appears signed out on arrival, because browsers
+# do not share cookies across domains.
+SESSION_DOMAIN = os.environ.get("NABBLY_COOKIE_DOMAIN", "").strip()
 SESSION_MAX_AGE = 60 * 60 * 24 * 30      # 30 days
 
 # Mailing a code is an unauthenticated action that sends mail to an address the
