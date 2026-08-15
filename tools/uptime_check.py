@@ -42,6 +42,8 @@ SITE = "https://nabbly.co"
 RENDER_TIMEOUT_S = 90      # a cold Render instance can take a while to wake
 MAX_DRIFT_S = 600          # the board syncs every 60s; 10 minutes is broken
 ATTEMPTS = 3               # one blip is not an outage
+BOOT_WAIT_S = 45           # a normal boot sync is ~50s; wait it out before
+                           # calling a deploy an outage
 
 
 def _ssl_ctx():
@@ -116,14 +118,42 @@ def check_app() -> list[str]:
 
 
 def check_board() -> list[str]:
-    try:
-        status, body = _get(f"{BOARD}/health")
-        data = json.loads(body)
-    except Exception as e:
-        return [f"board service unreachable: {type(e).__name__}: {e}"]
+    """
+    A DEPLOY IS NOT AN OUTAGE, and this is where that distinction lives.
+
+    The board binds its port immediately and fills itself from the mirror
+    behind that, which takes ~50s and is reported honestly as
+    status="starting". The first version of this check saw ok=false and paged
+    — on a completely normal deploy. A monitor that fires every time you ship
+    is one you learn to ignore, and then it is worth nothing on the day it
+    matters.
+
+    So "starting" is retried rather than reported. A boot that is STILL going
+    after every attempt is a real problem — that is a service stuck, not a
+    service starting — and it does get reported.
+    """
+    data, last_err = None, ""
+    for i in range(ATTEMPTS):
+        try:
+            _, body = _get(f"{BOARD}/health")
+            data = json.loads(body)
+        except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
+            data = None
+        if data is not None and data.get("status") != "starting":
+            break
+        if i < ATTEMPTS - 1:
+            time.sleep(BOOT_WAIT_S)
+    if data is None:
+        return [f"board service unreachable: {last_err}"]
+
     problems = []
     rows = int(data.get("rows") or 0)
     drift = data.get("drift_s")
+    if data.get("status") == "starting":
+        return [f"board has been starting for over "
+                f"{BOOT_WAIT_S * (ATTEMPTS - 1)}s — the boot sync is stuck, "
+                f"not slow: {json.dumps(data)}"]
     if not data.get("ok"):
         problems.append(f"board reports unhealthy: {json.dumps(data)}")
     if rows <= 0:
