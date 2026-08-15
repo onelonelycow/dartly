@@ -46,7 +46,7 @@ import migrate as _migrate_mod  # noqa: E402  (web/migrate.py)
 # board load. Derived once at sync and written to a column, filtering by
 # "remote" becomes an indexed WHERE instead of work.
 _DERIVED = ("is_remote", "is_onsite", "restrict_cc", "lang_code", "city_lock",
-            "dup_key")
+            "dup_key", "is_worldwide")
 
 # The same key app.py's _build_feed dedupes on: the title's distinct words of
 # more than two letters, sorted. Sorted so word order doesn't matter, so
@@ -68,7 +68,12 @@ def _derive(rec: dict) -> tuple:
             t["restrict"] or "",
             _lang.detect(title, body) or "en",
             _location.city_lock({"title": title}) or "",
-            _dup_key(title))
+            _dup_key(title),
+            # Stored separately from is_remote even though is_remote already
+            # covers it: location.label() distinguishes "Worldwide" from
+            # "Remote", and collapsing them would downgrade the pill on every
+            # explicitly-worldwide posting.
+            1 if t["worldwide"] else 0)
 
 BOARD_DB = os.environ.get("NABBLY_BOARD_DB") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "board.db")
@@ -105,6 +110,7 @@ def _ensure_schema(conn):
             {cols}, sort_at TEXT,
             is_remote INTEGER, is_onsite INTEGER, restrict_cc TEXT,
             lang_code TEXT, city_lock TEXT, dup_key TEXT, is_primary INTEGER,
+            is_worldwide INTEGER,
             UNIQUE (source, source_id))""")
     # An older board.db predates the derived columns; add them rather than
     # forcing a full re-pull.

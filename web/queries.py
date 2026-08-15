@@ -29,7 +29,8 @@ from datetime import datetime, timedelta, timezone
 # run over the narrow columns and never touch it. Twenty-five bodies is about
 # 40KB; the whole column is 40MB.
 CARD_COLS = ("id", "title", "url", "source", "sort_at", "posted_at",
-             "job_type", "size_tier", "urgency", "body", "apply_email")
+             "job_type", "size_tier", "urgency", "body", "apply_email",
+             "is_remote", "is_onsite", "restrict_cc", "is_worldwide")
 
 PAGE_SIZE = 25
 MAX_LIMIT = 100          # a caller cannot ask for the whole board

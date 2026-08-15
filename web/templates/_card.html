@@ -21,6 +21,7 @@
     {# "Medium budget", not "Medium" — the app says what the number describes,
        and a bare size word next to a job type reads as part of the role. #}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
+    {% if g.loc_note %}<span class="gr-pill {{ g.loc_cls }}">{{ g.loc_note }}</span>{% endif %}
     {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}
     {# Apply-method last on purpose: it is the one pill carrying no signal
        colour, so it reads as a trailing note rather than competing with
@@ -36,20 +37,20 @@
     <div class="gr-body">{{ g.preview }}</div>
     <label class="gr-more-lbl" for="gm{{ g.id }}"></label>
     <div class="gr-posted">{{ g.posted_line }}</div>
-  {% if me %}
-    {# A link, not an inline generator. Drafting happens when someone asks for
-       it — 25 cards must never mean 25 model calls to render a page. #}
-    <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
-  {% endif %}
+  {# Shown signed OUT as well, like the app. It is the clearest thing on the
+     card about what Nabbly does beyond listing gigs, and hiding it from the
+     people who have not signed up yet hides it from exactly the audience it
+     would convince. The route sends them to sign-in. #}
+  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% else %}
   <div class="gr-bodywrap gr-nobody">
     <div class="gr-posted">{{ g.posted_line }}</div>
-  {% if me %}
-    {# A link, not an inline generator. Drafting happens when someone asks for
-       it — 25 cards must never mean 25 model calls to render a page. #}
-    <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
-  {% endif %}
+  {# Shown signed OUT as well, like the app. It is the clearest thing on the
+     card about what Nabbly does beyond listing gigs, and hiding it from the
+     people who have not signed up yet hides it from exactly the audience it
+     would convince. The route sends them to sign-in. #}
+  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% endif %}
 </div>

@@ -37,6 +37,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
 import config  # noqa: E402
+import location  # noqa: E402
 import paths  # noqa: E402
 import queries  # noqa: E402
 import textfmt  # noqa: E402
@@ -94,6 +95,23 @@ def decorate(rows, ranked=False):
         # says whether you need an account there. A free signup and a paywall
         # are deliberately two different pills — they are not the same ask.
         src = (r.get("source") or "").lower()
+        # Where the work can be done, using the app's own wording via
+        # location.label(). Skipped when it would only repeat the source name —
+        # a "Remote" pill on a gig from We Work Remotely says nothing the row
+        # does not already say, which is the rule app.py follows.
+        tag = {"onsite": bool(r.get("is_onsite")),
+               "restrict": (r.get("restrict_cc") or "") or None,
+               "worldwide": bool(r.get("is_worldwide")),
+               "remote": bool(r.get("is_remote"))}
+        lbl = location.label(tag)
+        if lbl and not (src in getattr(config, "REMOTE_ONLY_SOURCES", ())
+                        and lbl.strip().lower().endswith("remote")):
+            r["loc_note"] = lbl
+            r["loc_cls"] = "locoff" if tag["restrict"] else "loc"
+        else:
+            r["loc_note"] = ""
+        for k in ("is_remote", "is_onsite", "restrict_cc", "is_worldwide"):
+            r.pop(k, None)
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
