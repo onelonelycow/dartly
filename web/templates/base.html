@@ -57,6 +57,15 @@ button.go:hover{background:var(--amber-l)}
 .searchrow{display:flex;gap:10px;max-width:620px;margin:0 auto 16px}
 /* Cards appear on both the board and Saved, so the draft link lives here
    rather than being defined twice and drifting. */
+/* Gig text comes from other people's postings and will contain things no
+   layout anticipates. One live example: a source published
+   "(RAF)seeksafull-timeovernightneuroradiologisttostaff" — 52 characters with
+   the spaces stripped out — which on a 390px phone pushes the whole page
+   sideways. `anywhere` only breaks a word that would otherwise overflow, so
+   ordinary text wraps exactly as before.
+   Deliberately NOT in the generated stylesheet: that file is app.py's and gets
+   overwritten. */
+.gr-body,a.gr-title,.gig .t,.gr-posted{overflow-wrap:anywhere}
 .draftlink{display:inline-block;margin-top:10px;font-size:13px;font-weight:600;
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
