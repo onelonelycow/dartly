@@ -31,6 +31,37 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.0"
+      # DECLARED, NOT DEFINED. `sync: false` tells Render this service owns the
+      # value in the dashboard and the blueprint must not touch it. Listing
+      # them costs nothing and buys two things: a blueprint sync can never
+      # decide an undeclared variable is surplus, and anyone reading this file
+      # can see what the app actually needs to run instead of discovering it
+      # from a stack trace.
+      #
+      # The app reads ~35 environment variables and this file used to name
+      # ONE. These are the ones without which something visibly breaks.
+      - key: DATABASE_URL          # the durable mirror; without it the board
+        sync: false                # resets to the bundled seed on every deploy
+      - key: RESEND_API_KEY        # all outbound mail, including sign-in codes
+        sync: false
+      - key: AUTH_COOKIE_SECRET    # sign-in survives a restart
+        sync: false
+      - key: ANTHROPIC_API_KEY     # Pro drafts fall back to the template
+        sync: false
+      - key: GOOGLE_CLIENT_ID      # sign in with Google
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: STRIPE_SECRET_KEY     # Pro checkout
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_PRO_PRICE_ID
+        sync: false
+      - key: OWNER_EMAIL           # where ops_watch sends outage alerts
+        sync: false
+      - key: NABBLY_BOARD_URL      # set to https://board.nabbly.co to move the
+        sync: false                # Gigs tab to the fast board; clear to undo
       # Optional: keep data + profile across redeploys (needs the disk below).
       # - key: DATA_DIR
       #   value: /var/data
