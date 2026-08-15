@@ -1,0 +1,46 @@
+# Is Nabbly actually working? Asked from GitHub, every 15 minutes.
+#
+# RUNS OUTSIDE NABBLY ON PURPOSE. ops_watch.py lives inside the app process and
+# watches the data; it cannot report that the app is dead, because if the app
+# is dead so is it. On 2026-08-14 a module name collision stopped Streamlit
+# executing app.py at all — every visitor got a grey skeleton loader, and
+# /_stcore/health answered 200 the whole time because that endpoint is served
+# by tornado and never touches the script. Nothing in the system could have
+# noticed. This can.
+#
+# No alerting to build: a failing scheduled workflow emails whoever owns the
+# repo. That is the entire notification design, and it cannot be taken down by
+# the outage it is reporting.
+name: uptime
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# A queued run behind a stuck one tells you nothing new, and GitHub will happily
+# pile them up.
+concurrency:
+  group: uptime
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Only what the check itself needs. Installing requirements.txt would
+      # pull pandas, altair and the rest to make one websocket connection, and
+      # a monitor that takes three minutes to install is a monitor that times
+      # out on the day it matters.
+      - name: Install
+        run: pip install --quiet "streamlit>=1.59,<2" websockets certifi
+
+      - name: Check
+        run: python tools/uptime_check.py
