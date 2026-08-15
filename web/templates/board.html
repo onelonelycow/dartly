@@ -168,7 +168,9 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 <div class="toolbar">
   <span class="count">{{ "{:,}".format(res.matched if ranked else res.total) }}
     {{ "gig" if (res.matched if ranked else res.total) == 1 else "gigs" }}
-    {%- if q %} for “{{ q }}”{% else %} for you{% endif %}</span>
+    {#- "for you" is what the app says on a full board; it reads oddly on
+        zero results, where the honest phrasing is just the count. -#}
+    {%- if q %} for “{{ q }}”{% elif res.total %} for you{% endif %}</span>
   {% if qf %}<a class="gr-cat sm" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
   {% if can_rank %}
     <a class="gr-cat sm{% if not ranked %} on{% endif %}" href="{{ link(sort='') }}">Newest</a>
@@ -194,8 +196,26 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
     {{ pager(res, link) }}
   {% endif %}
 {% else %}
-  <div class="empty">Nothing matches <b>{{ q }}</b> right now. Try a broader word,
-    or pick a field above.</div>
+  {# Three different situations, three different sentences. One template that
+     said "Nothing matches <b>{{ q }}</b>" rendered as "Nothing matches right
+     now" whenever the board was filtered rather than searched — a sentence
+     with a hole in it, which reads like a bug even when nothing is wrong. #}
+  {% set filtered = sel_field or sel_size or sel_source or sel_langs or urgent or where %}
+  <div class="empty">
+    {% if q and filtered %}
+      <b>Nothing matches “{{ q }}” inside these filters.</b><br>
+      Try a broader word, or <a href="{{ link(q=q, field='', size='', source='', langs='', urgent='', where='') }}">search the whole board</a>.
+    {% elif q %}
+      <b>Nothing matches “{{ q }}” right now.</b><br>
+      Try a broader word — the board changes through the day.
+    {% elif filtered %}
+      <b>No gigs match those filters right now.</b><br>
+      Loosen one, or <a href="{{ link(field='', size='', source='', langs='', urgent='', where='') }}">clear them all</a>.
+    {% else %}
+      <b>The board is empty right now.</b><br>
+      That is unusual — it should refill within a few minutes.
+    {% endif %}
+  </div>
 {% endif %}
 
 {% endblock %}

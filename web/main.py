@@ -691,6 +691,15 @@ def board(request: Request,
     # short "Fresh off the boards" list. /gigs is the full board with filters
     # and paging. One handler because they are the same query with a different
     # frame — two would drift the moment either changed.
+    # A page past the end is a wrong URL, not an empty board. Left alone it
+    # rendered "0 gigs for you", "Page 2,000 of 1" and "Nothing matches" all at
+    # once — three untrue things on one screen. Send them to the last real page
+    # instead, which is what someone hand-editing a page number meant anyway.
+    if page > 0 and not res["rows"] and res.get("total"):
+        last = max(0, res["pages"] - 1)
+        if page != last:
+            return RedirectResponse(link(page=last), status_code=303)
+
     landing = request.url.path == "/"
     if landing:
         res["rows"] = res["rows"][:8]
