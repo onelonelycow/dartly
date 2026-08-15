@@ -54,10 +54,10 @@ services:
   # memory; this one never does, which is the entire point. Do not "match" the
   # app's plan — that is paying Standard prices for 123MB of usage.
   #
-  # NOT WIRED TO ANYTHING YET. No custom domain, so it answers on its
-  # onrender.com URL only and nothing links to it. Adding board.nabbly.co is a
-  # CNAME at Namecheap plus a domain entry here, deliberately deferred until
-  # the board has been reviewed against the live one.
+  # Answers on board.nabbly.co since 2026-08-14. Still blocked from search by
+  # robots.txt and an X-Robots-Tag header until NABBLY_INDEXABLE=1, and the
+  # app links to it only when NABBLY_BOARD_URL is set on the dartly service —
+  # so the switch is a dashboard toggle, and so is the way back.
   - type: web
     name: nabbly-board
     runtime: python
@@ -76,6 +76,15 @@ services:
       # Same value as the app's; set it in the dashboard, not here.
       - key: DATABASE_URL
         sync: false
+      # One sign-in covers app.nabbly.co and board.nabbly.co. Only correct
+      # because the board now answers on a nabbly.co subdomain — a cookie
+      # scoped to a domain the response did not come from is rejected outright
+      # by the browser, so this must never be set while the service is only on
+      # onrender.com.
+      - key: NABBLY_COOKIE_DOMAIN
+        value: ".nabbly.co"
+    domains:
+      - board.nabbly.co
 
   # The marketing front door: a plain static site served at nabbly.co.
   # Streamlit renders everything in JavaScript, so search engines and link

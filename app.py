@@ -1678,6 +1678,11 @@ def ilink(href: str) -> str:
 
 prof = profile_mod.load()
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
+
+# Where the Gigs tab points. Empty = this app's own board page, which is what
+# runs today. Set to https://board.nabbly.co on the dartly service to send
+# Gigs to the fast board; clear it to come straight back.
+BOARD_URL = os.environ.get("NABBLY_BOARD_URL", "").strip().rstrip("/")
 FEED_CAP = 60
 PAGE_SIZE = 25   # a couple of screens of scroll, not sixty cards in one column
 # The dashboard showed five gigs and then stopped, which made a board of
@@ -5418,8 +5423,19 @@ with _ncol:
     for t in _TABS:
         _badge = (f'<span class="gr-tabn">{_saved_n}</span>'
                   if t == "Saved" and _saved_n else "")
+        # Gigs can point at the fast board instead of this app's own page.
+        # OFF unless NABBLY_BOARD_URL is set, so shipping this changes nothing
+        # and the switch — and the way back — is one dashboard variable.
+        #
+        # Same tab, not a new one: it is the same product on a sibling
+        # subdomain, and the session cookie is scoped to .nabbly.co so the
+        # visitor stays signed in across it. Opening it in a new tab would
+        # make an internal navigation look like leaving the site.
+        _href = ilink(f"?nav={t.lower()}")
+        if t == "Gigs" and BOARD_URL:
+            _href = f"{BOARD_URL}/gigs"
         _links += (f'<a class="{"on" if t == selected and not _side else ""}" '
-                   f'href="{ilink(f"?nav={t.lower()}")}" target="_self">'
+                   f'href="{_href}" target="_self">'
                    f'{t}{_badge}</a>')
     st.markdown(f'<div class="gr-nav">{_links}</div>', unsafe_allow_html=True)
 
