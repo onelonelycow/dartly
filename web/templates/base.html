@@ -36,6 +36,11 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
   font-weight:600;flex:none}
 .avatar:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .avatar.on{background:rgba(232,147,58,.16);border-color:var(--amber-d);color:var(--amber)}
+/* .avatar:hover and .avatar.on have identical specificity and .on is declared
+   second, so the signed-in circle had NO hover state at all — invisible as a
+   link right when it became the only way to the profile. */
+.avatar.on:hover{background:rgba(232,147,58,.28);border-color:var(--amber);
+  color:var(--amber-l)}
 .topbar nav{display:flex;gap:4px;margin:0 auto}
 .topbar nav a{font-size:14px;font-weight:500;color:#aeb4be;text-decoration:none;
   padding:7px 13px;border-radius:9px}
@@ -46,7 +51,13 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
   color:var(--faint);cursor:pointer;text-decoration:none}
 .linkish:hover{color:var(--amber-l);text-decoration:underline}
 form.inline{display:inline;margin:0}
-input[type=search],input[type=email],input[type=text]{
+/* Selecting on the type ATTRIBUTE misses an input that never declares one —
+   `type` defaults to "text" as a property, but input[type=text] does not match
+   an element with no type attribute. The sign-in code field had none, so it
+   inherited nothing and rendered as a white browser default in the middle of a
+   dark panel. Matching by what it is NOT is robust to that. */
+input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=file]),
+textarea{
   background:var(--panel);border:1px solid var(--line);color:var(--ink);
   border-radius:12px;padding:13px 16px;font-size:15.5px;font-family:inherit;width:100%}
 input::placeholder{color:var(--faint)}
@@ -100,11 +111,13 @@ button.go:hover{background:var(--amber-l)}
        the same circle with a generic glyph, so the bar does not change shape
        when you sign in. #}
     {% if me %}
-      <a class="linkish" href="/profile">Profile</a>
+      {# The circle IS the profile link. A "Profile" word next to an avatar that
+         went to the same place was two controls for one destination. #}
       <form method="post" action="/signout" class="inline">
         <button class="linkish" type="submit">Sign out</button>
       </form>
-      <span class="avatar on" title="{{ me }}">{{ me[0]|upper }}</span>
+      <a class="avatar on" href="/profile" title="Your profile — {{ me }}"
+         aria-label="Your profile">{{ me[0]|upper }}</a>
     {% else %}
       <a class="avatar" href="/signin" title="Sign in" aria-label="Sign in">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">

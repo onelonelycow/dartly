@@ -19,7 +19,25 @@
   text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
 .panel input{margin-bottom:14px}
 .panel input.code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:22px;letter-spacing:.34em;text-align:center}
+  font-size:22px;letter-spacing:.34em;text-align:center;
+  /* letter-spacing adds its gap AFTER the last character too, so centred text
+     sits half a gap left of true centre. Pushing the text right by one gap
+     puts it back. */
+  text-indent:.34em}
+/* Chrome fills one-time-code fields itself and repaints them white with dark
+   text — on a dark panel that reads as a broken control rather than a helpful
+   one. There is no property that overrides the autofill background directly;
+   an inset shadow the size of the field is the way to cover it, and
+   text-fill-color is what actually sets autofilled text colour. */
+.panel input.code:-webkit-autofill,
+.panel input.code:-webkit-autofill:hover,
+.panel input.code:-webkit-autofill:focus,
+.panel input:-webkit-autofill{
+  -webkit-box-shadow:0 0 0 1000px var(--bg) inset!important;
+  box-shadow:0 0 0 1000px var(--bg) inset!important;
+  -webkit-text-fill-color:var(--ink)!important;
+  caret-color:var(--ink);
+  transition:background-color 9999s ease-in-out 0s}
 .panel button.go{width:100%;padding:12px}
 .err{background:rgba(233,98,80,.12);border:1px solid #5c2f24;color:#e8907e;
   border-radius:9px;padding:10px 12px;font-size:13.5px;margin-bottom:16px}
@@ -54,7 +72,7 @@
       <label for="code">Code</label>
       {# inputmode/autocomplete let phones show a number pad and offer the code
          straight from the notification, which is most of the friction here. #}
-      <input class="code" id="code" name="code" maxlength="6" inputmode="numeric"
+      <input type="text" class="code" id="code" name="code" maxlength="6" inputmode="numeric"
              autocomplete="one-time-code" pattern="[0-9]*" placeholder="000000"
              autofocus required>
       <button class="go" type="submit">Sign in</button>

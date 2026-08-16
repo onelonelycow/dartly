@@ -21,16 +21,37 @@ input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--lin
 textarea{min-height:70px;resize:vertical;line-height:1.6}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
   outline-offset:1px;border-color:transparent}
-.skills{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 6px}
-.skills label{display:inline-flex;align-items:center;gap:7px;background:var(--bg);
-  border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;
-  cursor:pointer;user-select:none}
-.skills label:hover{border-color:var(--amber-d)}
-.skills input{width:auto;margin:0;accent-color:var(--amber)}
-.skills input:checked + span{color:var(--amber-l)}
-.check{display:flex;align-items:flex-start;gap:9px;margin:0 0 12px;font-size:13.5px;
+/* THE PILL IS THE CONTROL. Every one of these carried a native checkbox
+   alongside its label — a white square macOS draws its own way, 24 of them on
+   a dark panel, reading as clutter rather than as a set of choices. The board
+   already toggles its category chips by filling them amber; this is that same
+   gesture. The input is hidden off-screen rather than display:none so it stays
+   in the tab order and screen readers still announce it. */
+.skills{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 4px}
+.skills label{display:inline-flex;margin:0;cursor:pointer}
+.skills input{position:absolute;opacity:0;width:1px;height:1px;margin:0;
+  pointer-events:none}
+.skills span{display:inline-block;background:var(--bg);border:1px solid var(--line);
+  border-radius:999px;padding:7px 14px;font-size:13px;color:#c8ced6;
+  user-select:none;transition:background .12s,border-color .12s,color .12s}
+.skills label:hover span{border-color:var(--amber-d);color:var(--ink)}
+.skills input:checked + span{background:rgba(232,147,58,.16);
+  border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
+/* Hidden input means hidden focus ring, so the pill has to show it instead —
+   otherwise keyboard users lose their place entirely. */
+.skills input:focus-visible + span{outline:2px solid var(--amber-d);outline-offset:2px}
+.check{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;font-size:13.5px;
   color:#c8ced6;line-height:1.55}
-.check input{width:auto;margin:2px 0 0;accent-color:var(--amber)}
+/* Same white-square problem, three at a time instead of 24. accent-color only
+   paints the CHECKED state; unchecked stays the browser's own light square. */
+.check input{appearance:none;-webkit-appearance:none;width:17px;height:17px;
+  flex:none;margin:1px 0 0;border:1px solid var(--line);border-radius:5px;
+  background:var(--bg);cursor:pointer;position:relative}
+.check input:hover{border-color:var(--amber-d)}
+.check input:checked{background:var(--amber);border-color:var(--amber)}
+.check input:checked::after{content:"";position:absolute;left:5px;top:1px;
+  width:4px;height:9px;border:solid #1b1205;border-width:0 2px 2px 0;
+  transform:rotate(45deg)}
 .bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 32%);
   padding:16px 0 6px;display:flex;gap:10px;align-items:center}
 button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
