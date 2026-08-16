@@ -18,9 +18,18 @@
 html,body{margin:0;background:var(--bg);color:var(--ink);
   font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased}
-/* 880px, matching the app's content column. At 1100 the cards were visibly
-   wider than the real board and the whole page read as a different layout. */
-.wrap{max-width:880px;margin:0 auto;padding:0 20px 72px}
+/* Measured against the app at 1280x800, which is the only way either of these
+   showed up.
+   WIDTH: the app's content column is 880px wide INSIDE its padding. Setting
+   max-width:880 here did not reproduce that, because box-sizing is border-box
+   globally, so 40px of the 880 went to this element's own side padding and the
+   cards came out 840 wide, starting 20px right of where the app puts them.
+   920 makes the inner column 880 exactly, and as a bonus the hero can finally
+   reach its own 860px cap the way it does on the app.
+   HEAD ROOM: the app leaves 39px between the nav row and the first element;
+   this left 2px, which is what made the board read as cramped up top next to
+   the real thing. 37px here plus the hero's own 2px margin lands on 39. */
+.wrap{max-width:920px;margin:0 auto;padding:37px 20px 72px}
 .topbar{display:flex;align-items:center;gap:18px;padding:14px 20px;
   border-bottom:1px solid var(--line);background:var(--bg2);
   position:sticky;top:0;z-index:20}
@@ -84,7 +93,9 @@ button.go:hover{background:var(--amber-l)}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
   .topbar nav{order:3;width:100%;margin:0;overflow-x:auto}
-  .wrap{padding:0 13px 56px}
+  /* The app collapses its own hero spacing on small screens, so the desktop
+     head room would be dead space on a phone. */
+  .wrap{padding:14px 13px 56px}
 }
 {% block extra_css %}{% endblock %}
 </style>
