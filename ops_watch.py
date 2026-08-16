@@ -191,10 +191,15 @@ def check() -> list[dict]:
             and (not expected or s in expected)]
     for src, tot in sorted(dark, key=lambda x: -x[1]):
         share = (tot / live * 100) if live else 0
+        # "0% of the board" for a source holding 293 gigs reads as a rounding
+        # bug and makes the whole alert easier to dismiss. Small shares get a
+        # decimal; genuinely tiny ones say so in words.
+        share_txt = (f"{share:.0f}%" if share >= 10 else
+                     f"{share:.1f}%" if share >= 0.1 else "under 0.1%")
         out.append({
             "key": f"source-dark:{src}",
             "title": f"{src} has delivered nothing in {DARK_HOURS} hours",
-            "detail": f"{src} holds {tot:,} gigs ({share:.0f}% of the board) and "
+            "detail": f"{src} holds {tot:,} gigs ({share_txt} of the board) and "
                       f"has added none since yesterday. The cycle count will "
                       f"still look healthy because the other sources are "
                       f"working."})

@@ -598,6 +598,23 @@ def fetch_all() -> list[dict]:
     if names:
         _rotate %= len(names)
         names = names[_rotate:] + names[:_rotate]
+        # STALEST FIRST, and this fixes a real starvation. The rotate index
+        # alone is fair only if every source is eligible every cycle. A source
+        # marked `slow` is eligible on 1 cycle in 15, so it gets ~2 chances an
+        # hour — and if the 90s budget runs out before reaching it on those
+        # cycles, it waits another 30 minutes and tries again from the same
+        # unlucky position.
+        #
+        # entcareers sat at position 37 of 39 and went 28 HOURS without a
+        # single row while its feed was serving 20 healthy entries the whole
+        # time. Nothing reported it; the cycle count looked fine because the
+        # other sources were working. The ops watchdog caught it, which is
+        # exactly what it was built for.
+        #
+        # Sorting by "longest since we last got anything" puts a starved source
+        # at the front of the next cycle it is eligible for, so the budget cut
+        # can never fall on the same source twice running.
+        names.sort(key=lambda n: _HEALTH.get(n, {}).get("last_ok", 0.0))
 
     skipped = 0
     considered = 0
