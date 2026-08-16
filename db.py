@@ -184,19 +184,46 @@ def rehydrate_board() -> bool:
         if not board_store.enabled():
             _board_rehydrated = True      # nothing to wait for; this is terminal
             return True
-        rows = board_store.pull()
-        if not rows:
+        # PAGED, NOT CAPPED — the same fix the board service already got, which
+        # never reached this path. board_store.pull() returns the newest CAP
+        # (40,000) rows and stops, so every boot silently rebuilt the app's
+        # board from a truncated copy of the mirror. Measured 2026-08-16: the
+        # app showed 30,670 gigs where the board service showed 50,295, from
+        # the same mirror, at the same moment. Roughly 20,000 gigs the app had
+        # ingested were simply not there.
+        #
+        # It is worse than a display gap. An archived row exists to block its
+        # own source_id from being re-ingested, so a gig dropped past the cap
+        # can come back later as a brand new posting.
+        #
+        # Deliberately NOT demand_only: archived rows are exactly the ones
+        # doing that blocking, and they carry no body, so they are cheap.
+        # Each page is written and dropped, which also keeps peak memory flat
+        # instead of holding one 60,000-row list with every body attached.
+        init_db()
+        want = board_store.count()
+        added = pulled = 0
+        for page in board_store.iter_all():
+            pulled += len(page)
+            added += upsert_many(page)
+        if not pulled:
             # Reachable but empty is not success. Either the mirror is genuinely
             # bare (a brand new deployment) or the read failed quietly, and
             # retrying is right in both cases.
             print("  ! board rehydrate: mirror returned no rows, will retry",
                   flush=True)
             return False
-        init_db()
-        added = upsert_many(rows)
+        # iter_all() swallows a mid-page failure and just stops, which arrives
+        # here looking identical to a clean finish. Without this check a
+        # half-restored board would be marked done and never retried — the
+        # truncation bug above, reintroduced by the fix for it.
+        if want > 0 and pulled < want:
+            print(f"  ! board rehydrate: mirror holds {want:,} rows but only "
+                  f"{pulled:,} came back, will retry", flush=True)
+            return False
         _board_rehydrated = True
         print(f"  board: rehydrated {added:,} gigs from the durable mirror "
-              f"({len(rows):,} pulled)", flush=True)
+              f"({pulled:,} pulled)", flush=True)
         return True
     except Exception as e:
         print(f"  ! board rehydrate failed, will retry: "

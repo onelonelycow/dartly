@@ -98,6 +98,17 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     """
     where = "WHERE p.is_demand = 1"
     params: list = []
+    # PUBLIC ROWS ONLY. Anything forwarded in by email belongs to the person
+    # who forwarded it — those newsletters are often paid subscriptions, and
+    # db.py's _owner_clause() has always kept them on that one person's board.
+    # This service mirrors the owner column and had no equivalent test, so a
+    # privately forwarded gig would have been served to every visitor.
+    # Nothing has leaked: the mirror holds no owned rows today, checked
+    # 2026-08-16. That is timing, not a safeguard — the first person to forward
+    # a newsletter in would have published it. Guarded on the column so an
+    # older board.db predating the mirror's owner column still answers.
+    if _has_col(conn, "owner"):
+        where += " AND COALESCE(p.owner, '') = ''"
     # One row per repeated title. The same role really is syndicated across
     # several feeds — "Sales Development Representative" appeared 42 times,
     # 12.5% of the board was duplicates — and the Streamlit board has always
