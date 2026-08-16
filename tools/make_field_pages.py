@@ -63,6 +63,12 @@ DB = ROOT / "demand-radar.db" if (ROOT / "demand-radar.db").exists() \
     else ROOT / "demand_radar.db"
 OUT = ROOT / "site"
 BASE = "https://nabbly.co"
+# WHERE THE CTAs SEND PEOPLE. This is the board that has to survive whatever
+# outreach brings: measured at 100 concurrent in 0.15s, against the Streamlit
+# app's 10.7s at 25 and outright failure at 50. Every field page funnels here,
+# so pointing it at the app was pointing a firehose at the thing that cannot
+# take one.
+BOARD = "https://board.nabbly.co"
 
 # A field needs enough behind it to be worth a page of its own. Below this a
 # visitor lands on something nearly empty, which is exactly the thin-content
@@ -239,7 +245,7 @@ PAGE = """<!doctype html>
   <p>Real {noun} postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
   <ul class="gigs">{gigs}</ul>
-  <a class="btn" href="https://app.nabbly.co/?nav=gigs&amp;cat={cat}">See live {noun} work &rarr;</a>
+  <a class="btn" href="{BOARD}/gigs?field={cat}">See live {noun} work &rarr;</a>
 
   <h2>Why speed matters here</h2>
   <p>{speed}</p>
@@ -349,6 +355,7 @@ def build(by=None):
                 f"they post.")
         page = PAGE.format(
             title=html.escape(title), desc=html.escape(desc), url=url, base=BASE,
+            BOARD=BOARD,
             css=CSS, # quote(), not a naive space swap: every job_type here contains a slash
             # ("Design / creative"), and an unescaped one in a query value is at
             # best ambiguous and at worst truncates the filter.
@@ -466,7 +473,7 @@ dd{{margin:10px 0 0;color:var(--ink2)}}
   <h1>{h1}</h1>
   <p class="lead">{lead}</p>
   {body}
-  <a class="btn" href="https://app.nabbly.co/">Open the board &rarr;</a>
+  <a class="btn" href="{BOARD}/gigs">Open the board &rarr;</a>
   <h2>Browse by field</h2>
   <ul class="more">{siblings}</ul>
 </main>
@@ -499,6 +506,7 @@ def write_prose_pages(written):
         f"<dt>{html.escape(q)}</dt><dd>{html.escape(a)}</dd>"
         for q, a in content.FAQ) + "</dl>"
     (OUT / "faq.html").write_text(PROSE.format(
+        BOARD=BOARD,
         title="Frequently asked questions &middot; Nabbly",
         desc=("Where the gigs come from, how fresh they are, what is free and "
               "what Pro adds, and what Nabbly does with your data."),
@@ -513,6 +521,7 @@ def write_prose_pages(written):
         f"<h2>{html.escape(h)}</h2><p>{html.escape(p)}</p>"
         for h, p in content.ABOUT)
     (OUT / "about.html").write_text(PROSE.format(
+        BOARD=BOARD,
         title="About Nabbly &middot; freelance and remote work in one place",
         desc=("Nabbly gathers freelance projects and remote roles from every "
               "job board and hiring community into a single board, minutes "
@@ -538,6 +547,7 @@ def write_prose_pages(written):
     d = OUT / "guides" / "how-to-reply-to-a-freelance-job-post"
     d.mkdir(parents=True, exist_ok=True)
     (d / "index.html").write_text(PROSE.format(
+        BOARD=BOARD,
         title=html.escape(content.GUIDE_APPLY_TITLE) + " &middot; Nabbly",
         desc=("What to put in the first two lines, how many questions to ask, "
               "how long to make it, and the tells that make a reply look "
