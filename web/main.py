@@ -829,6 +829,11 @@ def board(request: Request,
     # Anonymous visitors get English, which is what the app gives them.
     if not ctx["languages"]:
         ctx["languages"] = _reading_languages(prof)
+    # Metro-pinned gigs, on app.py's rule (apply_city_lock). Anonymous readers
+    # have no city, so pinned gigs are hidden from them — which is exactly what
+    # the app does, and was the last 190 gigs of the app/board gap.
+    ctx["city"] = (prof.get("city") or "").strip()
+    ctx["relocate"] = bool(prof.get("open_to_relocate"))
     ranked = sort == "fit" and can_rank
 
     # Quick-filters, the same three the Dashboard's stat clicks send:

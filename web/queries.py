@@ -93,8 +93,41 @@ def _fts_query(keyword: str) -> str:
     return " AND ".join(f'"{t}"' for t in terms)
 
 
+def _city_clause(conn, city: str, relocate: bool) -> tuple[str, list]:
+    """
+    Hide gigs pinned to a metro that isn't the reader's — app.py's rule.
+
+    A title like "Senior Product Designer in New York City, NY" is work for
+    people in that metro, and showing it to everyone fills the board with jobs
+    most readers cannot take. app.py's apply_city_lock() has always dropped
+    them; this service had no equivalent, which was the last of the app/board
+    gap: measured 2026-08-17 with both sampled together, the app served 42,616
+    and this service 42,806, and there were exactly 190 live English gigs
+    carrying a city_lock. Not approximately 190. The same number.
+
+    Three cases, matching the app exactly:
+      * said they would relocate  -> no filter at all
+      * gave no city              -> every pinned gig is hidden
+      * gave a city               -> pinned gigs are hidden UNLESS the post
+                                     names their city, so "New York" still
+                                     matches "New York City"
+    """
+    if relocate or not _has_col(conn, "city_lock"):
+        return "", []
+    city = (city or "").strip().lower()
+    if not city:
+        return " AND COALESCE(p.city_lock, '') = ''", []
+    # LIKE on title only. The app tests title and body, but body is the column
+    # this service never reads on a filter path — that is the whole reason a
+    # board page costs 0.01ms here and ~1s there — and city_lock is itself
+    # derived from the title, so a metro named only in the body was never
+    # what pinned the gig.
+    return (" AND (COALESCE(p.city_lock, '') = '' OR LOWER(p.title) LIKE ?)",
+            [f"%{city}%"])
+
+
 def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
-             where_work, languages, since_hours=0):
+             where_work, languages, since_hours=0, city="", relocate=False):
     """
     The WHERE clause, its parameters, and the FROM, for every board query.
 
@@ -130,6 +163,10 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     # indexes cannot serve. Measured before and after — see the commit.
     where += " AND p.sort_at >= ?"
     params.append(_stale_cutoff())
+    # Metro-pinned gigs, on the same rule the app uses. See _city_clause.
+    _c, _p = _city_clause(conn, city, relocate)
+    where += _c
+    params += _p
     # PUBLIC ROWS ONLY. Anything forwarded in by email belongs to the person
     # who forwarded it — those newsletters are often paid subscriptions, and
     # db.py's _owner_clause() has always kept them on that one person's board.
@@ -197,7 +234,8 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
 
 def board(keyword: str = "", job_types=None, sizes=None, sources=None,
           urgent_only: bool = False, where_work: str = "", languages=None,
-          since_hours: int = 0, page: int = 0, page_size: int = PAGE_SIZE,
+          since_hours: int = 0, city: str = "", relocate: bool = False,
+          page: int = 0, page_size: int = PAGE_SIZE,
           conn: sqlite3.Connection | None = None) -> dict:
     """
     One page of the board, plus the honest total.
@@ -213,7 +251,7 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
                                       urgent_only, where_work, languages,
-                                      since_hours)
+                                      since_hours, city, relocate)
         total = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         cols = ", ".join(f"p.{c}" for c in CARD_COLS)
         rows = conn.execute(
@@ -298,6 +336,7 @@ FIT_WINDOW = 500
 def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
                sources=None, urgent_only: bool = False, where_work: str = "",
                languages=None, since_hours: int = 0,
+               city: str = "", relocate: bool = False,
                page: int = 0, page_size: int = PAGE_SIZE,
                resume_text: str = "",
                conn: sqlite3.Connection | None = None) -> dict:
@@ -317,7 +356,7 @@ def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
                                       urgent_only, where_work, languages,
-                                      since_hours)
+                                      since_hours, city, relocate)
         # The TRUE number matching the filters, not the size of the window we
         # ranked. Reporting the window here would put "500 gigs" in the header
         # of a board with twelve thousand matches — the same kind of number
@@ -407,7 +446,8 @@ def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> d
             where, params, frm = _filters(
                 conn, "", sel["job_types"], sel["sizes"], sel["sources"],
                 ctx.get("urgent_only"), ctx.get("where_work") or "",
-                sel["languages"])
+                sel["languages"], 0,
+                ctx.get("city") or "", bool(ctx.get("relocate")))
             return {r[0]: r[1] for r in conn.execute(
                 f"SELECT p.{col}, COUNT(*) {frm} {where} "
                 f"AND p.{col} IS NOT NULL AND p.{col} != '' GROUP BY p.{col} "
@@ -446,7 +486,8 @@ def location_counts(conn: sqlite3.Connection | None = None,
         where, params, frm = _filters(
             conn, "", ctx.get("job_types"), ctx.get("sizes"),
             ctx.get("sources"), ctx.get("urgent_only"), "",
-            ctx.get("languages"))
+            ctx.get("languages"), 0,
+            ctx.get("city") or "", bool(ctx.get("relocate")))
         total = conn.execute(
             f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         if not _has_col(conn, "is_remote"):
