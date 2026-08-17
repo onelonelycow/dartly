@@ -187,6 +187,63 @@ app.add_middleware(
     same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1",
     **_session_kw)
 
+def _safe_next(v: str) -> str:
+    """
+    A same-site path, or nothing.
+
+    This value decides where a browser goes immediately after authenticating,
+    which is exactly the value an attacker wants control of: an absolute URL
+    here turns sign-in into an open redirect onto a page that can imitate this
+    one and ask for something. Only a plain absolute path is allowed, and
+    "//evil.example" is rejected too — the browser reads that as a host, not a
+    path, which is the classic way past a naive startswith("/") check.
+    """
+    v = (v or "").strip()
+    if not v.startswith("/") or v.startswith("//") or v.startswith("/\\"):
+        return ""
+    return v[:300]
+
+
+def _signin_to(path: str) -> str:
+    """Bounce to sign-in, remembering where they were trying to get to."""
+    nxt = _safe_next(path)
+    return f"/signin?next={quote_plus(nxt)}" if nxt else "/signin"
+
+
+def _landing(request, nxt: str) -> str:
+    """
+    Where someone lands the moment they finish signing in.
+
+    Three different people arrive here and they do not want the same page.
+
+    Someone who was MID-ACTION — they clicked save on a gig, or a draft — is
+    returned to where they were. They already said what they wanted; sending
+    them to a dashboard makes them find that gig a second time.
+
+    Someone with NO FIELDS SET goes to their profile. "Best match" is gated on
+    having at least one, so their board is still plain newest-first: dropping
+    them on the dashboard shows them the identical page they saw signed out,
+    and the act of signing in appears to have done nothing at all.
+
+    Everyone else goes to the board, because that is what they came back for
+    and it is now sorted for them.
+    """
+    if nxt:
+        return nxt
+    # The scope was resolved at the top of this request, when this person was
+    # still anonymous. Re-resolve it or profile.load() reads the guest scope
+    # and every returning member looks like they have no fields.
+    webauth.scope_for_request(request)
+    try:
+        import profile as profile_mod
+        if not ((profile_mod.load() or {}).get("skills") or []):
+            return "/profile?welcome=1"
+    except Exception:
+        # Never let a profile read decide whether sign-in succeeds.
+        pass
+    return "/"
+
+
 def _campaign(request) -> str:
     try:
         return (request.session.get("_camp") or "").strip()
@@ -292,10 +349,18 @@ def robots():
 
 
 @app.get("/signin", response_class=HTMLResponse)
-def signin_page(request: Request, sent: str = Query(""), err: str = Query("")):
+def signin_page(request: Request, sent: str = Query(""), err: str = Query(""),
+                next: str = Query("")):
     webauth.scope_for_request(request)
     if webauth.current_email(request):
         return RedirectResponse("/", status_code=303)
+    # Held in the session, not in the form: it has to survive the round trip to
+    # Google and back, and that return leg carries only Google's own query
+    # string. Re-validated on the way out too — a session is a cookie, and a
+    # cookie is not a thing to trust blindly on a redirect.
+    nxt = _safe_next(next)
+    if nxt:
+        request.session["_next"] = nxt
     return templates.TemplateResponse(request, "signin.html", {
         "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
         "google_ok": googleauth.enabled(),
@@ -340,11 +405,12 @@ def google_callback(request: Request, code: str = Query(""),
     email, err = googleauth.email_for_code(code, request)
     if err:
         return _back("/signin", err=err)
+    nxt = _safe_next(request.session.get("_next", ""))
     ok, err = webauth.sign_in_google(email, campaign=_campaign(request))
     if not ok:
         return _back("/signin", err=err)
     webauth.sign_in_session(request, email)
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
 @app.post("/signin")
@@ -364,11 +430,12 @@ def signin_verify(request: Request, email: str = Form(""), code: str = Form(""))
     # Read BEFORE sign_in_session, which clears the session and would take the
     # partner tag with it.
     camp = _campaign(request)
+    nxt = _safe_next(request.session.get("_next", ""))
     ok, err = webauth.verify(email, code, campaign=camp)
     if not ok:
         return _back("/signin", sent=email.strip().lower(), err=err)
     webauth.sign_in_session(request, email)
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
 @app.post("/save")
@@ -382,7 +449,7 @@ def save(request: Request, gig: str = Form(""), back: str = Form("/")):
     """
     webauth.scope_for_request(request)
     if not webauth.current_email(request):
-        return RedirectResponse("/signin", status_code=303)
+        return RedirectResponse(_signin_to(back), status_code=303)
     if gig:
         try:
             import saved as saved_mod
@@ -472,7 +539,7 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     if not back.startswith("/") or back.startswith("//"):
         back = "/gigs"                       # never redirect off-site
     if not me:
-        return RedirectResponse("/signin", status_code=303)
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
 
     conn = queries.connect(DB_PATH)
     try:
@@ -522,7 +589,7 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
                back: str = Form("/gigs")):
     webauth.scope_for_request(request)
     if not webauth.current_email(request):
-        return RedirectResponse("/signin", status_code=303)
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
     import drafts as drafts_mod
     drafts_mod.save(gig_id, text)
     if not back.startswith("/") or back.startswith("//"):
@@ -532,7 +599,8 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
 
 
 @app.get("/profile", response_class=HTMLResponse)
-def profile_page(request: Request, saved_ok: int = Query(0)):
+def profile_page(request: Request, saved_ok: int = Query(0),
+                 welcome: int = Query(0)):
     """
     What ranks the board and what drafts are written from.
 
@@ -544,13 +612,13 @@ def profile_page(request: Request, saved_ok: int = Query(0)):
     webauth.scope_for_request(request)      # MUST be first
     me = webauth.current_email(request)
     if not me:
-        return RedirectResponse("/signin", status_code=303)
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
     import alerts as alerts_mod
     import profile as profile_mod
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
         "all_skills": ALL_SKILLS, "me": me,
-        "saved_ok": bool(saved_ok), "tab": "profile",
+        "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
     })
@@ -568,7 +636,7 @@ async def profile_save(request: Request):
     """
     webauth.scope_for_request(request)
     if not webauth.current_email(request):
-        return RedirectResponse("/signin", status_code=303)
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
     import profile as profile_mod
     form = await request.form()
     prof = profile_mod.load()

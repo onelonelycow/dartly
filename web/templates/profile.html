@@ -58,6 +58,9 @@ button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
 .said{font-size:13px;color:#8fe3b0}
+.welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
+  color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
+  line-height:1.55;margin:0 0 18px}
 .hint{font-size:12.5px;color:var(--faint);margin:-8px 0 14px;line-height:1.55}
 {% endblock %}
 
@@ -66,6 +69,13 @@ button.go:hover{background:var(--amber-l)}
 <h2 class="sec-h">Your <span class="accent">profile</span></h2>
 <p class="lede">This is what ranks the board for you and what your drafted
   replies are written from. Nothing here is public.</p>
+{% if welcome %}
+  {# Shown only to an account with no fields set, which is who gets sent
+     straight here after signing in. Without a line saying why, landing on a
+     settings page instead of the board reads as the app losing your place. #}
+  <div class="welcome">You're in. Pick the fields you work in below and the
+    board sorts itself around them — that's the part signing in buys you.</div>
+{% endif %}
 
 <form method="post" action="/profile">
   <div class="card">
