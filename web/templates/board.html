@@ -40,8 +40,15 @@ a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
   background:var(--panel);color:var(--ink);font-size:14px;text-decoration:none}
 .refresh:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .findrow{display:flex;gap:10px;margin:0 0 12px}
-.findrow input[type=search]{flex:1.6}
-.findrow select{flex:1;background:var(--panel);border:1px solid var(--line);
+/* min-width:0 on BOTH, or the select refuses to shrink. A flex item defaults
+   to min-width:auto, which for a <select> means the width of its longest
+   option — "Development / tech · 7,998" — so it took the row and crushed the
+   search box to about 110px on a 375px phone, showing "Searcl". flex:1.6 on
+   the input made no difference because min-content beats flex-basis. The
+   search box is the main control on this page; it cannot be the thing that
+   loses. */
+.findrow input[type=search]{flex:1.6;min-width:0}
+.findrow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
   color:var(--ink);border-radius:12px;padding:13px 14px;font-size:14.5px;
   font-family:inherit;appearance:none;cursor:pointer;
   background-image:linear-gradient(45deg,transparent 50%,#868D98 50%),
@@ -82,6 +89,17 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:28px;text-align:center;color:var(--mute)}
+/* On a phone the two never fit side by side legibly, so they stack — search
+   first, because that is what people came to do. Matches the wrap the shared
+   sheet already applies to the nav and the cards at this width. */
+@media (max-width:640px){
+  .findrow{flex-direction:column}
+  .findrow input[type=search],.findrow select{width:100%}
+  .pagehead{gap:8px}
+  .refresh{padding:8px 16px;font-size:13.5px}
+  .pager a,.pager span.off{padding:10px 12px;font-size:13.5px}
+  .pager span.at{font-size:12.5px}
+}
 {% endblock %}
 
 {% macro pager(res, link) -%}

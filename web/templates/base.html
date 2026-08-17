@@ -96,6 +96,18 @@ button.go:hover{background:var(--amber-l)}
   /* The app collapses its own hero spacing on small screens, so the desktop
      head room would be dead space on a phone. */
   .wrap{padding:14px 13px 56px}
+  /* THE APP'S MOBILE TYPE RAMP, COPIED HERE BECAUSE THE EXTRACTOR CANNOT TAKE
+     IT. app.py keeps these inside a media block that also contains Streamlit's
+     own data-testid selectors, and tools/extract_css.py only lifts .gr-* rules,
+     so the whole block is skipped and the board kept its DESKTOP type on
+     phones. Measured at 375px: the hero rendered at 46px against the app's
+     26px, a 244px-tall headline before a single gig. Values are app.py's, not
+     invented — keep them in step if that ramp changes. */
+  .gr-h1{font-size:26px;letter-spacing:-.6px;line-height:1.16;margin-bottom:11px}
+  .gr-sub{font-size:14.5px;line-height:1.55}
+  .gr-hero{padding:4px 2px 2px;margin-top:0}
+  a.gr-title,.gig .t{font-size:16.5px;line-height:1.35}
+  .sec-h{font-size:24px;letter-spacing:-.4px}
 }
 {% block extra_css %}{% endblock %}
 </style>
