@@ -36,6 +36,9 @@ a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
   color:#eaa662!important}
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.refresh{flex:none;padding:9px 22px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);font-size:14px;text-decoration:none}
+.refresh:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .findrow{display:flex;gap:10px;margin:0 0 12px}
 .findrow input[type=search]{flex:1.6}
 .findrow select{flex:1;background:var(--panel);border:1px solid var(--line);
@@ -63,11 +66,19 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .pager span.off{color:#4d545e;border-color:transparent;background:none}
 .count{font-size:14px;color:var(--mute);font-variant-numeric:tabular-nums}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
-.pager{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:26px}
-.pager a,.pager span{padding:8px 14px;border-radius:9px;border:1px solid var(--line);
-  font-size:13.5px;text-decoration:none;background:var(--panel);color:var(--ink)}
-.pager span.at{color:var(--mute);border-color:transparent;background:none;
-  font-variant-numeric:tabular-nums}
+/* Matched to the app, where Prev and Next are wide substantial buttons with
+   the page indicator centred between them. These were small links that read as
+   an afterthought beside the same control on the other surface. The PAGING
+   ITSELF is unchanged and deliberately so: 25 rows a page is what lets this
+   service answer in milliseconds, and the app's three enormous pages are the
+   thing being replaced, not copied. */
+.pager{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  margin-top:26px}
+.pager a,.pager span.off{flex:1;max-width:250px;text-align:center;
+  padding:11px 18px;border-radius:10px;border:1px solid var(--line);
+  font-size:14px;text-decoration:none;background:var(--panel);color:var(--ink)}
+.pager span.at{color:var(--mute);border:0;background:none;padding:0;
+  font-size:13.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .empty{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:28px;text-align:center;color:var(--mute)}
@@ -120,7 +131,14 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 {# The app's Gigs page: heading, search + field select on one row, the location
    segmented control, then everything else folded into "Narrow it down" so the
    page does not open with a wall of twenty pills. #}
-<div class="pagehead"><h2 class="sec-h">The whole <span class="accent">board</span></h2></div>
+<div class="pagehead"><h2 class="sec-h">The whole <span class="accent">board</span></h2>
+  {# The app has this button and this page did not, which is the kind of small
+     absence that makes a familiar page feel subtly wrong. It is honest here:
+     this service refreshes its copy from the mirror every 60 seconds, so
+     reloading really does return gigs that were not on the page before. It
+     deliberately does NOT claim to fetch anything — nothing a visitor clicks
+     should imply work the server is not doing. #}
+  <a class="refresh" href="{{ link() }}" title="Reload for gigs added since this page loaded">Refresh</a></div>
 
 <form class="findrow" method="get" action="/gigs">
   <input type="search" name="q" value="{{ q }}"

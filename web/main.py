@@ -888,13 +888,25 @@ def board(request: Request,
     # One place that builds a link with a single filter changed and everything
     # else preserved. Hand-assembling these in the template is how a filter
     # quietly drops another one when both are set.
+    # STAYS ON THE PAGE YOU ARE ON. This hardcoded "/", so every filter chip
+    # and both pagination buttons on /gigs sent the visitor to the DASHBOARD
+    # instead. Verified on the live board 2026-08-17 from path /gigs: "Next ›"
+    # pointed at /?page=1, "Remote I can take" at /?where=remote, "Everywhere"
+    # at /. Clicking any filter, or simply turning the page, silently dropped
+    # you out of the board and onto the landing view — on the page the
+    # marketing site now sends everyone to.
+    #
+    # It went unnoticed because every test, mine included, requested
+    # /gigs?field=... directly rather than following a link the page drew.
+    base = "/" if request.url.path == "/" else "/gigs"
+
     def link(**over):
         cur = {"q": q, "field": field, "size": size, "source": source,
                "urgent": urgent or "", "where": where, "langs": langs,
                "sort": sort, "qf": qf, "page": ""}
         cur.update(over)
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
-        return "/?" + "&".join(parts) if parts else "/"
+        return f"{base}?" + "&".join(parts) if parts else base
 
     # The landing view is the app's Dashboard shape: hero, category groups, a
     # short "Fresh off the boards" list. /gigs is the full board with filters
