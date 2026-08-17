@@ -244,6 +244,42 @@ def _landing(request, nxt: str) -> str:
     return "/"
 
 
+def _reading_languages(prof) -> list[str]:
+    """
+    Which languages this reader's board should include — the app's rule.
+
+    THE DEFAULT IS NOT "EVERYTHING", AND THIS SERVICE USED TO THINK IT WAS.
+    app.py's reading_languages() gives everyone English plus whatever their
+    country implies, so somebody in Germany keeps their German gigs without
+    hunting for a setting, and everybody else is not shown listings they
+    cannot read. This service only ever looked at the ?langs= URL parameter,
+    so with none supplied it filtered nothing.
+
+    That single difference was the whole app/board gap. Measured 2026-08-16,
+    sampled together: the app served 43,278 and this service 46,825, and the
+    3,547 difference was spread proportionally across all 25 fields — no
+    missing source, no bad field, just 3,209 German listings and a few hundred
+    others that the app hides and this did not. Once the front door moved
+    here, that was the first thing a visitor saw.
+
+    An explicit ?langs= still wins: this only supplies the default.
+    """
+    prof = prof or {}
+    if prof.get("show_all_languages"):
+        return []                      # they asked for everything
+    codes = {"en"}
+    try:
+        import lang as _lang
+        implied = _lang.COUNTRY_LANG.get((prof.get("country") or "").strip())
+        if implied:
+            codes.add(implied)
+    except Exception:
+        # A missing table must not silently widen the board back out to every
+        # language; English alone is the safe answer.
+        pass
+    return sorted(codes)
+
+
 def _campaign(request) -> str:
     try:
         return (request.session.get("_camp") or "").strip()
@@ -788,6 +824,11 @@ def board(request: Request,
             can_rank = bool(accounts.status(acc).get("pro")) and bool(prof.get("skills"))
         except Exception:
             prof, can_rank = {}, False
+    # Applied AFTER the profile loads, because the answer depends on it, and
+    # only when the reader has not chosen languages explicitly in the URL.
+    # Anonymous visitors get English, which is what the app gives them.
+    if not ctx["languages"]:
+        ctx["languages"] = _reading_languages(prof)
     ranked = sort == "fit" and can_rank
 
     # Quick-filters, the same three the Dashboard's stat clicks send:
