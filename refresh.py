@@ -79,35 +79,54 @@ def _loop(on_update=None):
     # Re-tag the existing board once, so a classifier change reaches gigs that
     # are already stored (new ingests are classified correctly on the way in).
     # Cheap and idempotent: a second pass finds nothing to change.
-    try:
-        # Dates BEFORE anything else reads the board: posted_at arrived from
-        # feeds in RFC 2822 and the sort is a text sort, so until these are one
-        # format "newest first" is really "weekday name, Z to A".
-        _state["dates_fixed"] = db.normalize_dates()
-        # First pass happens here, at boot, so a gig that's already 45+ days
-        # old is off the board before the first visitor loads it. The RECURRING
-        # pass is further down in the main loop (_ARCHIVE_CHECK_S) — this one
-        # alone used to be the only call, which quietly worked on the free tier
-        # because idle sleep and the OOM crashes restarted the process often
-        # enough to keep re-triggering it. An always-on paid instance can run
-        # for weeks without a restart, and without the loop call a gig that
-        # crosses the cutoff mid-run would simply never age out.
-        _state["archived"] = db.archive_stale()
-        # Reclaims the text of gigs retired before archiving started dropping
-        # it. Real work once, then reports 0 for the life of the deployment.
-        _state["compacted"] = db.compact_archived()
-        # Nodesk turned out to be a paid subscription, not a job board — pulled
-        # from ENABLE_SOURCES already; this clears the ~43 rows it had already
-        # placed on the board so they don't linger under a source we no longer
-        # trust. One-off and idempotent: finds nothing to do once they're gone.
-        _state["nodesk_removed"] = db.archive_source("nodesk")
-        # fetch_freelancer() used to store Freelancer's own truncated preview
-        # instead of the real description; this backfills the rows already on
-        # the board with the full text now that the fetcher reads it.
-        _state["freelancer_backfilled"] = db.backfill_freelancer_descriptions()
-        _state["reclassified"] = db.reclassify_all()
-    except Exception:
-        pass
+    # EACH PASS STANDS ALONE. All seven of these used to share one try/except
+    # that swallowed everything, so a failure in the FIRST one silently skipped
+    # the six after it — on every boot, forever, with nothing logged. That is
+    # the shape of a freshness sweep that quietly stops running: measured
+    # 2026-08-17, the app was serving We Work Remotely postings from Mar 18 and
+    # May 12 on page one of a newest-first board, months past its own 21-day
+    # cutoff, while the board service (which enforces the rule from its own
+    # data) correctly showed nothing older than Jul 27.
+    #
+    # Whether that was the cause here is not yet proven. What is certain is
+    # that this shape cannot report which step failed, so the next boot will.
+    def _step(name, fn):
+        try:
+            return fn()
+        except Exception as e:
+            print(f"  ! boot maintenance step {name} FAILED, the board may be "
+                  f"stale or misclassified: {type(e).__name__}: {e}", flush=True)
+            return None
+
+    # Dates BEFORE anything else reads the board: posted_at arrived from
+    # feeds in RFC 2822 and the sort is a text sort, so until these are one
+    # format "newest first" is really "weekday name, Z to A".
+    _state["dates_fixed"] = _step("normalize_dates", db.normalize_dates)
+    # First pass happens here, at boot, so a gig that's already 45+ days
+    # old is off the board before the first visitor loads it. The RECURRING
+    # pass is further down in the main loop (_ARCHIVE_CHECK_S) — this one
+    # alone used to be the only call, which quietly worked on the free tier
+    # because idle sleep and the OOM crashes restarted the process often
+    # enough to keep re-triggering it. An always-on paid instance can run
+    # for weeks without a restart, and without the loop call a gig that
+    # crosses the cutoff mid-run would simply never age out.
+    _state["archived"] = _step("archive_stale", db.archive_stale)
+    # Reclaims the text of gigs retired before archiving started dropping
+    # it. Real work once, then reports 0 for the life of the deployment.
+    _state["compacted"] = _step("compact_archived", db.compact_archived)
+    # Nodesk turned out to be a paid subscription, not a job board — pulled
+    # from ENABLE_SOURCES already; this clears the ~43 rows it had already
+    # placed on the board so they don't linger under a source we no longer
+    # trust. One-off and idempotent: finds nothing to do once they're gone.
+    _state["nodesk_removed"] = _step(
+        "archive_source(nodesk)", lambda: db.archive_source("nodesk"))
+    # fetch_freelancer() used to store Freelancer's own truncated preview
+    # instead of the real description; this backfills the rows already on
+    # the board with the full text now that the fetcher reads it.
+    _state["freelancer_backfilled"] = _step(
+        "backfill_freelancer_descriptions",
+        db.backfill_freelancer_descriptions)
+    _state["reclassified"] = _step("reclassify_all", db.reclassify_all)
     # Everyone who signed up before the weekly digest existed has an empty
     # last_digest, which reads as "never sent" and would make the whole user
     # base due at once on the first pass. Start their clock now instead, so
@@ -287,11 +306,22 @@ def _loop(on_update=None):
             # and this is a full-table scan (see archive_stale) so it shouldn't
             # run any more often than the thing it's protecting against.
             if time.time() - last_archive_check >= _ARCHIVE_CHECK_S:
+                # Same reasoning as the boot block: separately, and loudly.
+                # Sharing one except meant a throw in archive_stale also
+                # skipped compact_archived, and said nothing either way — for
+                # a pass that only runs once a day, that is a whole day of
+                # stale listings nobody could have known about.
                 try:
                     _state["archived"] = db.archive_stale()
+                except Exception as e:
+                    print(f"  ! daily archive_stale FAILED, gigs past the "
+                          f"cutoff stay on the board: "
+                          f"{type(e).__name__}: {e}", flush=True)
+                try:
                     _state["compacted"] = db.compact_archived()
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"  ! daily compact_archived failed: "
+                          f"{type(e).__name__}: {e}", flush=True)
                 last_archive_check = time.time()
             _state["fails"] = 0          # a clean cycle clears the streak
             # Everything above prints to a log nobody reads. This is the part
