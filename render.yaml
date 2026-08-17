@@ -114,6 +114,27 @@ services:
       # onrender.com.
       - key: NABBLY_COOKIE_DOMAIN
         value: ".nabbly.co"
+      # "Continue with Google". Same credential as the app — set both in the
+      # dashboard, identical values to dartly's.
+      #
+      # THE REDIRECT URI MUST BE REGISTERED BY HAND. Google refuses any
+      # redirect_uri not listed on the credential, character for character, so
+      # https://board.nabbly.co/auth/google/callback has to be added in the
+      # Google Cloud console next to the app's existing /oauth2callback. No
+      # code or config in this repo can do that step.
+      #
+      # Absent these, googleauth.enabled() is False and the sign-in page shows
+      # the email form alone — no broken button.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # What the redirect_uri is built from. Fixed rather than derived from the
+      # request, because behind Render's proxy the request's own scheme and
+      # host are not reliably the public ones, and a redirect_uri differing by
+      # so much as "http" fails the handshake.
+      - key: NABBLY_PUBLIC_URL
+        value: "https://board.nabbly.co"
     domains:
       - board.nabbly.co
 

@@ -47,8 +47,8 @@
      resolve DNS + TLS up front, then fire one throwaway request that starts
      the wake. By the time they click, it's usually already up.
      no-cors because we don't need the response, only the side effect. -->
-<link rel="preconnect" href="https://app.nabbly.co" crossorigin>
-<link rel="dns-prefetch" href="https://app.nabbly.co">
+<link rel="preconnect" href="https://board.nabbly.co" crossorigin>
+<link rel="dns-prefetch" href="https://board.nabbly.co">
 
 <!-- ── Structured data: the site name, a sitelinks search box, and the
      app card.
@@ -72,7 +72,7 @@
       "description": "Real-time freelance and remote work demand from every board and community, in one place.",
       "potentialAction": {
         "@type": "SearchAction",
-        "target": { "@type": "EntryPoint", "urlTemplate": "https://app.nabbly.co/?q={search_term_string}" },
+        "target": { "@type": "EntryPoint", "urlTemplate": "https://board.nabbly.co/gigs?q={search_term_string}" },
         "query-input": "required name=search_term_string"
       }
     },
@@ -321,7 +321,7 @@
            live on this page is gone (it restated the same answers, and one of
            them named every source we read — see the removal note below). -->
       <a href="/faq.html">FAQ</a>
-      <a class="btn btn-ghost" href="https://app.nabbly.co/">Open the board</a>
+      <a class="btn btn-ghost" href="https://board.nabbly.co/">Open the board</a>
     </nav>
   </div>
 </header>
@@ -346,7 +346,7 @@
          been outbid by someone slower. -->
     <p class="lead">Freelance projects and full-time remote work are scattered across a dozen boards, and the replies that land early are the ones that get read. Nabbly watches all of them and puts every new one in a single place, minutes after it posts.</p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="https://app.nabbly.co/">Open the board, it's free →</a>
+      <a class="btn btn-primary" href="https://board.nabbly.co/">Open the board, it's free →</a>
       <a class="btn btn-ghost" href="#how">See how it works</a>
     </div>
 
@@ -397,7 +397,7 @@
          the strongest thing it can say: there are tens of thousands more. It
          also avoids repeating "Open the board", which the hero and the nav
          already say twice between them. -->
-    <p class="board-foot"><a href="https://app.nabbly.co/">See the rest of the board →</a></p>
+    <p class="board-foot"><a href="https://board.nabbly.co/">See the rest of the board →</a></p>
   </div>
 </section>
 
@@ -499,7 +499,7 @@
          all already say. Cut it; the ask moved up here so the page still ends
          on something to click instead of on a price list. -->
     <div class="cta-row" style="justify-content:center;margin-top:34px">
-      <a class="btn btn-primary" href="https://app.nabbly.co/"
+      <a class="btn btn-primary" href="https://board.nabbly.co/"
          style="padding:15px 30px;font-size:17px">Open the board →</a>
     </div>
   </div>
@@ -556,30 +556,41 @@
   // Start waking the app the moment this page loads, and again if they linger.
   // One call is usually enough; the retry covers a visitor who reads for a
   // while and would otherwise let it drift back to sleep before clicking.
+  // Every link out of this page into the product, on either subdomain.
+  // Defined once: the two places below used to carry their own copy of this
+  // selector, which is exactly how one gets updated and the other does not.
+  var _NABBLY_LINKS =
+    'a[href^="https://board.nabbly.co"], a[href^="https://app.nabbly.co"]';
+
   (function () {
-    var URL_ = 'https://app.nabbly.co/';
+    var URL_ = 'https://board.nabbly.co/';
     var warm = function () {
       try { fetch(URL_, { mode: 'no-cors', cache: 'no-store' }); } catch (e) {}
     };
     warm();
     setTimeout(warm, 45000);
     // Hovering or tapping the CTA is the strongest signal they're about to go.
-    document.querySelectorAll('a[href^="https://app.nabbly.co"]').forEach(function (a) {
+    document.querySelectorAll(_NABBLY_LINKS).forEach(function (a) {
       a.addEventListener('pointerenter', warm, { once: true });
       a.addEventListener('touchstart', warm, { once: true, passive: true });
     });
 
-    // Carry a partner's tag across to the app.
+    // Carry a partner's tag across to the product.
     // A partner links to nabbly.co/?ref=theirname, but every button here points
-    // at app.nabbly.co — a different host, so the tag would be dropped at the
-    // door and their traffic would land as anonymous "Direct". This copies
-    // ?ref (or utm_source, which most newsletter tools emit) onto every app
-    // link, which is the whole reason the attribution works end to end.
+    // at another host, so the tag would be dropped at the door and their
+    // traffic would land as anonymous "Direct". This copies ?ref (or
+    // utm_source, which most newsletter tools emit) onto every outbound link,
+    // which is the whole reason the attribution works end to end.
+    //
+    // THE SELECTOR MUST COVER BOTH SUBDOMAINS. It matched app.nabbly.co alone,
+    // so the day the buttons moved to board.nabbly.co it would have gone on
+    // matching nothing, silently: every partner signup would have been created
+    // on Free instead of their grant, with no error anywhere to notice.
     try {
       var q = new URLSearchParams(location.search);
       var tag = q.get('ref') || q.get('utm_source') || '';
       if (tag) {
-        document.querySelectorAll('a[href^="https://app.nabbly.co"]').forEach(function (a) {
+        document.querySelectorAll(_NABBLY_LINKS).forEach(function (a) {
           var u = new URL(a.href);
           if (!u.searchParams.has('ref')) u.searchParams.set('ref', tag);
           a.href = u.toString();

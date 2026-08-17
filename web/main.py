@@ -36,7 +36,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
+import analytics  # noqa: E402
 import config  # noqa: E402
+import googleauth  # noqa: E402
 import location  # noqa: E402
 import paths  # noqa: E402
 import queries  # noqa: E402
@@ -139,11 +141,57 @@ if webauth.SESSION_DOMAIN:
     # absent key differently in older versions, and a cookie scoped to a domain
     # the response did not come from is dropped silently by the browser.
     _session_kw["domain"] = webauth.SESSION_DOMAIN
+# The partner tag, remembered from whichever page it arrived on.
+#
+# WHY THIS IS MIDDLEWARE AND NOT A QUERY PARAMETER READ AT SIGN-IN. A partner
+# links to ?ref=nextnw, but nobody signs in on the page they land on: they read
+# the board, click a gig, come back, and only then sign in — and by that point
+# the tag is several navigations gone. accounts.sign_in() applies
+# PARTNER_GRANTS from it, so losing it means a Next Northwest member is created
+# on Free instead of their 90-day grant. That exact failure has already
+# happened once on the app's Google path.
+#
+# REGISTERED BEFORE SessionMiddleware, WHICH MAKES IT RUN AFTER IT.
+# Starlette's add_middleware does user_middleware.insert(0, ...), so the LAST
+# one registered ends up outermost and runs FIRST. Registering this after
+# SessionMiddleware — the intuitive reading — put it outside the session, where
+# request.session raises "SessionMiddleware must be installed", and the except
+# below quietly ate the error: every partner tag was dropped and the page
+# rendered perfectly. Caught only because the end-to-end test checked the grant
+# a test account actually received rather than that the request returned 200.
+# First tag wins — someone who arrives through a partner and later wanders back
+# in from a search result should still be credited to the partner.
+@app.middleware("http")
+async def _remember_campaign(request: Request, call_next):
+    try:
+        if not request.session.get("_camp"):
+            tag = analytics.campaign_label(
+                request.query_params.get("ref", "")
+                or request.query_params.get("utm_source", ""))
+            if tag:
+                request.session["_camp"] = tag
+    except AssertionError:
+        # Only reachable if the ordering above is broken again. Attribution is
+        # not worth failing a render for, but it IS worth saying out loud,
+        # because silence is what made this cost an afternoon.
+        print("  ! campaign middleware ran outside the session — check the "
+              "middleware registration order in web/main.py", flush=True)
+    except Exception:
+        pass
+    return await call_next(request)
+
+
 app.add_middleware(
     SessionMiddleware, secret_key=webauth._SECRET,
     session_cookie=webauth.SESSION_COOKIE, max_age=webauth.SESSION_MAX_AGE,
     same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1",
     **_session_kw)
+
+def _campaign(request) -> str:
+    try:
+        return (request.session.get("_camp") or "").strip()
+    except Exception:
+        return ""
 
 # NABBLY_DB points at an existing SQLite file (local dev, tests). With it
 # unset, the service maintains its own copy from the durable mirror — which is
@@ -250,9 +298,53 @@ def signin_page(request: Request, sent: str = Query(""), err: str = Query("")):
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(request, "signin.html", {
         "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
+        "google_ok": googleauth.enabled(),
         "me": "", "tab": "", "css_v": CSS_V, "indexable": _INDEXABLE,
         "app_url": APP_URL, "took_ms": 0.0,
     })
+
+
+@app.get("/auth/google")
+def google_start(request: Request):
+    """Begin the handshake. The state is the CSRF guard, minted per attempt."""
+    webauth.scope_for_request(request)
+    if not googleauth.enabled():
+        return _back("/signin", err="Google sign-in isn't available right now.")
+    state = googleauth.new_state()
+    request.session[googleauth.STATE_KEY] = state
+    return RedirectResponse(googleauth.authorize_url(state, request),
+                            status_code=303)
+
+
+@app.get("/auth/google/callback")
+def google_callback(request: Request, code: str = Query(""),
+                    state: str = Query(""), error: str = Query("")):
+    """
+    Where Google sends the browser back.
+
+    The state is compared against the one minted at /auth/google and then
+    DROPPED whatever the outcome, so a code can never be replayed against a
+    still-valid state. Without that check this endpoint would accept a code
+    from anywhere, which is the login-CSRF that lets an attacker land a visitor
+    in the attacker's own account.
+    """
+    webauth.scope_for_request(request)
+    want = request.session.pop(googleauth.STATE_KEY, "")
+    if error:
+        # The ordinary case here is someone pressing "cancel" on Google's own
+        # screen, which is not an error worth shouting about.
+        return _back("/signin", err="" if error == "access_denied"
+                     else "Google couldn't complete that sign-in.")
+    if not code or not state or not want or state != want:
+        return _back("/signin", err="That sign-in link expired. Try again.")
+    email, err = googleauth.email_for_code(code, request)
+    if err:
+        return _back("/signin", err=err)
+    ok, err = webauth.sign_in_google(email, campaign=_campaign(request))
+    if not ok:
+        return _back("/signin", err=err)
+    webauth.sign_in_session(request, email)
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/signin")
@@ -269,7 +361,10 @@ def signin_send(request: Request, email: str = Form("")):
 @app.post("/signin/verify")
 def signin_verify(request: Request, email: str = Form(""), code: str = Form("")):
     webauth.scope_for_request(request)
-    ok, err = webauth.verify(email, code)
+    # Read BEFORE sign_in_session, which clears the session and would take the
+    # partner tag with it.
+    camp = _campaign(request)
+    ok, err = webauth.verify(email, code, campaign=camp)
     if not ok:
         return _back("/signin", sent=email.strip().lower(), err=err)
     webauth.sign_in_session(request, email)

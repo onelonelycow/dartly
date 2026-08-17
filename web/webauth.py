@@ -138,18 +138,44 @@ def send_code(email: str) -> tuple[bool, str]:
     return True, ""
 
 
-def verify(email: str, code: str) -> tuple[bool, str]:
+def verify(email: str, code: str, campaign: str = "") -> tuple[bool, str]:
     """
     Check a code and, only if it is right, resolve the account.
 
     Deliberately nothing is created before the code is proven — same rule the
     app follows. An unverified address must not be able to mint an account.
+
+    CAMPAIGN MUST BE PASSED THROUGH. accounts.sign_in() reads it to apply
+    PARTNER_GRANTS, and it defaulted to "" here, so a Next Northwest member who
+    arrived on ?ref=nextnw and signed in on the board was created on FREE with
+    no 90-day grant — silently contradicting the offer the landing page made
+    them. The app hit this exact bug on its own Google path; this is the same
+    bug on this service, and it becomes reachable the moment the marketing site
+    points anyone here.
     """
     email = (email or "").strip().lower()
     ok, err = accounts.check_code(email, code)
     if not ok:
         return False, err or "That code didn't work."
-    acc, _is_new = accounts.sign_in(email, source="board")
+    acc, _is_new = accounts.sign_in(email, source="board", campaign=campaign)
+    if not acc:
+        return False, "We couldn't sign you in. Try again."
+    return True, ""
+
+
+def sign_in_google(email: str, campaign: str = "") -> tuple[bool, str]:
+    """
+    Resolve the account for an address Google has already verified.
+
+    No code to check: googleauth only returns an address Google reports as
+    verified, which is a stronger proof than a code we mailed. `source` matches
+    what the Streamlit app records for the same act, so the two surfaces do not
+    split one member's history across two labels.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False, "Google didn't share an email address."
+    acc, _is_new = accounts.sign_in(email, source="google", campaign=campaign)
     if not acc:
         return False, "We couldn't sign you in. Try again."
     return True, ""
