@@ -31,6 +31,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from fastapi.exception_handlers import http_exception_handler
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -374,6 +376,46 @@ def _csv(v: str | None) -> list[str]:
 # with the 23 static field pages for the same queries. Flip NABBLY_INDEXABLE=1
 # only once it is the real board and something links to it.
 _INDEXABLE = os.environ.get("NABBLY_INDEXABLE") == "1"
+
+
+# A DEAD END SHOULD STILL LOOK LIKE NABBLY. FastAPI's default is a bare JSON
+# body — {"detail":"Not Found"} — with no branding and no way back, and this
+# service is now indexable, so a crawler following a stale link lands on raw
+# API output. Same for the 405 a GET on /signout or /save produces, which a
+# link prefetcher will hit on its own.
+#
+# The STATUS CODE IS UNCHANGED. A 404 must stay a 404 or search engines will
+# happily index every dead URL as a real page.
+#
+# Falls back to the default response if anything here raises: an error page
+# that can itself error is worse than the bare JSON it replaces.
+@app.exception_handler(StarletteHTTPException)
+async def _pretty_error(request: Request, exc: StarletteHTTPException):
+    if exc.status_code not in (404, 405):
+        return await http_exception_handler(request, exc)
+    try:
+        webauth.scope_for_request(request)
+        me = webauth.current_email(request)
+    except Exception:
+        me = ""
+    text = {
+        404: ("Not found",
+              "That page doesn't exist, or the gig behind it has come off the "
+              "board. The board itself is still here."),
+        405: ("That link needs a button",
+              "This address only answers to a form on the site, not a direct "
+              "visit. Nothing is broken."),
+    }[exc.status_code]
+    try:
+        return templates.TemplateResponse(
+            request, "oops.html",
+            {"status": exc.status_code, "heading": text[0], "message": text[1],
+             "me": me, "tab": "", "css_v": CSS_V, "indexable": False,
+             "app_url": APP_URL, "took_ms": 0.0},
+            status_code=exc.status_code,
+            headers={"X-Robots-Tag": "noindex, nofollow"})
+    except Exception:
+        return await http_exception_handler(request, exc)
 
 
 @app.get("/robots.txt")
