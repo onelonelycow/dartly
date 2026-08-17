@@ -26,7 +26,20 @@ services:
     # MUST MATCH THE DASHBOARD or a future Blueprint sync silently drops the
     # live service back to free and reintroduces the exact crash this fixed.
     plan: standard
-    buildCommand: "pip install --no-cache-dir -r requirements.txt"
+    # THREE ATTEMPTS, BECAUSE PYPI IS NOT A DEPENDENCY YOU CONTROL.
+    # 2026-08-17 15:05:26 — this build lived 0.8 seconds:
+    #   ERROR: HTTP error 502 while getting .../streamlit-1.61.1-...whl.metadata
+    #   ERROR: 502 Server Error: Gateway Error
+    # One file, one bad gateway from PyPI's CDN, no retry, build dead. It cost
+    # three failed deploys and most of a day of chasing causes that were never
+    # in this repo — the commits blamed by the failure emails had touched only
+    # Jinja templates in web/, which a pip install never reads.
+    #
+    # `exit 0` on success and `exit 1` after the third attempt, deliberately:
+    # a loop that ends on `sleep` would report a GREEN build with no
+    # dependencies installed, which is far worse than the failure it replaces.
+    # Both outcomes tested before shipping.
+    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
       - key: PYTHON_VERSION
@@ -93,7 +106,7 @@ services:
     name: nabbly-board
     runtime: python
     plan: starter
-    buildCommand: "pip install --no-cache-dir -r requirements.txt"
+    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     # One worker. Requests are ~1ms of Python over an indexed SQLite read, so
     # concurrency is bounded by I/O rather than CPU, and a second worker would
     # mean a second copy of the board file and a second sync loop pulling the
