@@ -427,12 +427,47 @@ def mark_archived(pairs) -> int:
             # the network. The row still blocks re-ingest without it.
             sql = (f"UPDATE {_TABLE} SET is_demand = 0, body = '' "
                    f"WHERE source = {ph} AND source_id = {ph}")
-            with conn:
-                conn.cursor().executemany(sql, pairs)
-            return len(pairs)
-        except Exception:
+            # CHUNKED, AND LOUD ON FAILURE. Both matter, and the old version
+            # did neither.
+            #
+            # One executemany carried the whole set: a boot that aged out
+            # thousands of gigs at once sent thousands of round trips inside a
+            # single transaction, and if any part of it failed the entire
+            # archival was lost — not deferred, lost, because the local UPDATE
+            # had already committed. Chunking means a failure costs one batch
+            # instead of all of them, and the count returned is what actually
+            # landed rather than what was attempted.
+            #
+            # The silence was the worse half. This returned 0 on any exception
+            # and the caller ignored the return value, so the local database
+            # said "archived" while the mirror still said "live", the board
+            # service went on serving month-old listings, and no log line
+            # anywhere said so. Measured 2026-08-16: 3,849 gigs the app had
+            # retired were still being served, and this is the write that was
+            # supposed to prevent that.
+            done = 0
+            for i in range(0, len(pairs), 500):
+                batch = pairs[i:i + 500]
+                try:
+                    with conn:
+                        conn.cursor().executemany(sql, batch)
+                    done += len(batch)
+                except Exception as e:
+                    print(f"  ! mirror archival FAILED for {len(batch)} gigs "
+                          f"({i}..{i + len(batch)} of {len(pairs)}): "
+                          f"{type(e).__name__}: {e}", flush=True)
+            if done < len(pairs):
+                print(f"  ! mirror archival incomplete: {done:,}/{len(pairs):,} "
+                      f"landed. The board service will keep serving the rest "
+                      f"as live until this succeeds.", flush=True)
+            return done
+        except Exception as e:
+            print(f"  ! mirror archival could not start: "
+                  f"{type(e).__name__}: {e}", flush=True)
             return 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        print(f"  ! mirror archival could not connect: "
+              f"{type(e).__name__}: {e}", flush=True)
         return 0

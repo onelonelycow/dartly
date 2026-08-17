@@ -19,6 +19,17 @@ import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
+# MUST MATCH db.STALE_DAYS. Deliberately not imported from there: db.py pulls
+# in pandas and the whole app's dependency tree, and this service exists
+# precisely because it does not do that. Duplicated with a name and a note
+# rather than silently diverging.
+STALE_DAYS = int(os.environ.get("NABBLY_STALE_DAYS") or 21)
+
+
+def _stale_cutoff() -> str:
+    """The oldest sort_at this service will serve, as an ISO string."""
+    return (datetime.now(timezone.utc) - timedelta(days=STALE_DAYS)).isoformat()
+
 # Columns a card renders, body included — the app's cards show a clamped
 # preview, so the board has to have it.
 #
@@ -98,6 +109,27 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     """
     where = "WHERE p.is_demand = 1"
     params: list = []
+    # FRESHNESS IS ENFORCED HERE, NOT ONLY INHERITED.
+    #
+    # The app ages a gig off the board after STALE_DAYS on the grounds that a
+    # dead listing is worse than no listing, and this service was relying
+    # entirely on hearing about that through the mirror. It did not hear about
+    # it: measured 2026-08-16, the app was serving 43,411 gigs and this service
+    # 47,706, and 3,849 of the difference were postings past the cutoff that
+    # the app had already retired. The handshake that carries archival to the
+    # mirror fails silently (see db.archive_stale), so this service went on
+    # serving month-old listings with nothing anywhere reporting a problem —
+    # and by then the marketing site pointed its front door here.
+    #
+    # A second surface enforcing the same rule from its own data is the point.
+    # Anything that depends on a network handshake completing is a rule that is
+    # only usually applied.
+    #
+    # Cheap: every index ends in sort_at DESC, so this is a bounded range scan
+    # on the column already being ordered by, not an extra predicate the
+    # indexes cannot serve. Measured before and after — see the commit.
+    where += " AND p.sort_at >= ?"
+    params.append(_stale_cutoff())
     # PUBLIC ROWS ONLY. Anything forwarded in by email belongs to the person
     # who forwarded it — those newsletters are often paid subscriptions, and
     # db.py's _owner_clause() has always kept them on that one person's board.
@@ -360,31 +392,25 @@ def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> d
     ctx = ctx or {}
     try:
         def group(col, skip):
+            # THROUGH _filters(), NOT A SECOND COPY OF IT. This function used
+            # to rebuild the predicates by hand, and the copy drifted exactly
+            # as you would expect: it never learned about the owner filter that
+            # keeps privately forwarded gigs off public pages, nor the
+            # freshness floor, so a chip counted gigs the board would not show.
+            # A chip is a promise about what one tap gives you; it can only
+            # keep that promise by counting through the same code the tap runs.
             if not _has_col(conn, col):
                 return {}
-            where = "WHERE is_demand = 1"
-            if _has_col(conn, "is_primary"):
-                where += " AND is_primary = 1"
-            params: list = []
-            for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
-                                ("sources", "source"), ("languages", "lang_code")):
-                if key == skip or not ctx.get(key) or not _has_col(conn, column):
-                    continue
-                vals = [v for v in ctx[key] if v]
-                if vals:
-                    where += f" AND {column} IN ({','.join('?' * len(vals))})"
-                    params += vals
-            if ctx.get("urgent_only"):
-                where += " AND urgency = 'Urgent'"
+            sel = {k: (None if k == skip else ctx.get(k))
+                   for k in ("job_types", "sizes", "sources", "languages")}
             # since_hours is deliberately NOT applied here — see the caller.
-            ww = ctx.get("where_work")
-            if ww == "remote" and _has_col(conn, "is_remote"):
-                where += " AND is_remote = 1"
-            elif ww == "onsite" and _has_col(conn, "is_onsite"):
-                where += " AND is_onsite = 1"
+            where, params, frm = _filters(
+                conn, "", sel["job_types"], sel["sizes"], sel["sources"],
+                ctx.get("urgent_only"), ctx.get("where_work") or "",
+                sel["languages"])
             return {r[0]: r[1] for r in conn.execute(
-                f"SELECT {col}, COUNT(*) FROM posts {where} "
-                f"AND {col} IS NOT NULL AND {col} != '' GROUP BY {col} "
+                f"SELECT p.{col}, COUNT(*) {frm} {where} "
+                f"AND p.{col} IS NOT NULL AND p.{col} != '' GROUP BY p.{col} "
                 f"ORDER BY COUNT(*) DESC", params)}
 
         return {"job_type": group("job_type", "job_types"),
@@ -411,25 +437,23 @@ def location_counts(conn: sqlite3.Connection | None = None,
     conn = conn or connect()
     ctx = ctx or {}
     try:
-        where = "WHERE is_demand = 1"
-        if _has_col(conn, "is_primary"):
-            where += " AND is_primary = 1"
-        params: list = []
-        for key, column in (("job_types", "job_type"), ("sizes", "size_tier"),
-                            ("sources", "source"), ("languages", "lang_code")):
-            vals = [v for v in (ctx.get(key) or []) if v]
-            if vals and _has_col(conn, column):
-                where += f" AND {column} IN ({','.join('?' * len(vals))})"
-                params += vals
-        if ctx.get("urgent_only"):
-            where += " AND urgency = 'Urgent'"
+        # Same rule as facets(): counted through _filters(), never through a
+        # second hand-rolled copy of it. The copy that used to live here said
+        # "Everywhere · 47,858" while the board behind the tap held 44,001,
+        # because it had never been taught the freshness floor or the owner
+        # filter. where_work is deliberately empty — these chips ARE the
+        # location choice, so each must count as if you had not made one yet.
+        where, params, frm = _filters(
+            conn, "", ctx.get("job_types"), ctx.get("sizes"),
+            ctx.get("sources"), ctx.get("urgent_only"), "",
+            ctx.get("languages"))
         total = conn.execute(
-            f"SELECT COUNT(*) FROM posts {where}", params).fetchone()[0]
+            f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         if not _has_col(conn, "is_remote"):
             return {"all": total, "remote": 0, "onsite": 0}
         row = conn.execute(
-            f"SELECT COALESCE(SUM(is_remote), 0), COALESCE(SUM(is_onsite), 0) "
-            f"FROM posts {where}", params).fetchone()
+            f"SELECT COALESCE(SUM(p.is_remote), 0), COALESCE(SUM(p.is_onsite), 0) "
+            f"{frm} {where}", params).fetchone()
         return {"all": total, "remote": int(row[0]), "onsite": int(row[1])}
     finally:
         if own:

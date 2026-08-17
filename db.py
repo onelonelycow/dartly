@@ -558,12 +558,27 @@ def archive_stale(days: int = STALE_DAYS) -> int:
 
     # Same reason as sweep_dead_links: without this the next restart pulls
     # every one of these back onto the board as live.
+    #
+    # THE RETURN VALUE IS CHECKED NOW. It was discarded inside a bare `except
+    # Exception: pass`, so a mirror write that never happened looked exactly
+    # like one that did. The local rows were already committed as archived, so
+    # nothing would ever retry them, and the board service — reading archival
+    # from the mirror — kept serving gigs this function had retired. Measured
+    # 2026-08-16: 3,849 of them, while the marketing site pointed its front
+    # door at that service.
     if aged:
         try:
             import board_store
-            board_store.mark_archived(aged)
-        except Exception:
-            pass
+            pushed = board_store.mark_archived(aged)
+            if pushed < len(aged):
+                print(f"  ! archive_stale: retired {len(aged):,} gigs locally "
+                      f"but only {pushed:,} reached the mirror. The board "
+                      f"service will keep showing the difference until a later "
+                      f"pass succeeds.", flush=True)
+        except Exception as e:
+            print(f"  ! archive_stale: mirror archival raised, {len(aged):,} "
+                  f"gigs are retired locally only: "
+                  f"{type(e).__name__}: {e}", flush=True)
     return n
 
 
