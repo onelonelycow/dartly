@@ -175,3 +175,100 @@ through to signup, which it did not until 2026-08-17.
 **Roundup outreach** is the highest-leverage SEO work available and none of it
 is code. Nine live targets, the email template, and the rules are in
 [brand/OUTREACH.md](brand/OUTREACH.md). Not started.
+
+---
+
+# Scoped work
+
+## The public rate page
+
+**Decided:** publish it free rather than sell it. Every comparable
+([Jobbers](https://www.jobbers.io/), [Harvest](https://www.getharvest.com/calculators/average-freelance-rates-by-industry),
+SoloHourly, FreelanceDesk, Abillio) gives this data away as SEO bait, and only
+Wethos charges anything. Putting a paywall on it would place Nabbly behind five
+free competitors. As free content it is the only idea on this list that markets
+itself: a rate page is something people link to, and links are the thing
+`brand/OUTREACH.md` identifies as the single highest-leverage work available.
+
+### The data problem that has to be fixed first
+
+**Do not publish the numbers the code currently produces.** Measured
+2026-08-17: 13,168 of 47,858 live gigs carry a parseable amount, and the median
+came out as **exactly $140 for fourteen unrelated fields** — design,
+development, video, sales, marketing, writing, legal, engineering and more.
+
+That is not a market rate. `score.gig_amount()` takes the midpoint of a stated
+range, and Freelancer.com posts a standard budget band of **$30 – $250**, whose
+midpoint is 140. It appears on 2,200 gigs, 2,178 of them from freelancer.com.
+Publishing "designers earn $140" would be publishing one marketplace's default
+dropdown, and it is exactly the sort of error the roundup editors being pitched
+would spot.
+
+**Excluding freelancer.com fixes it and still leaves enough:** 3,868 priced
+gigs, 21 fields with a sample of 30 or more, and only two fields sharing a
+median instead of thirteen. The spread becomes plausible — healthcare 550, data
+313, customer support 248, sales 200, development 180, design 150, admin 60.
+
+### What to build
+
+- Exclude marketplace bracket midpoints, starting with freelancer.com, and
+  **say so on the page**. "Excludes marketplaces that post fixed budget bands"
+  is a credibility line, not a caveat to hide.
+- Show the **sample size next to every number**. A median over 41 gigs and one
+  over 692 are not the same claim, and showing it is what separates this from
+  the free guides that show a number and no working.
+- Median plus a range, never a single figure.
+- Serve it from the board service. It is one aggregate query over a column that
+  is already indexed, and that service renders in ~0.1s.
+- Suppress any field under 30 samples rather than printing a thin number.
+
+### Why it earns links
+
+The free guides listed above are compiled from surveys and other people's
+marketplace reports. This would be computed from live postings across 40
+sources, updated continuously, with sample sizes shown. That is a different and
+more defensible claim than any of them make, and it gives the outreach email a
+reason to exist beyond "please add us".
+
+---
+
+## Validating team accounts before building
+
+The architecture is readier than expected — per-user storage runs through one
+chokepoint, `paths.user_file(name, scope)`, which already takes a scope, and
+only ~10 places check `pro` across both services. A shared team board is
+several accounts resolving to a shared scope, not a storage rewrite.
+
+The risk is not technical. It is that there are **zero agency customers today**,
+and the buyer is assumed rather than known.
+
+**What the market says the buyer is worth:** agencies routinely spend
+$50–$10,000/month on finding work, with tools in the $50–$200 band unremarkable.
+Against that, $12 is noise. That is the argument for the idea; it is not
+evidence anyone wants this specific thing.
+
+### Ask before building
+
+NextNW is the natural first conversation. Ask these without describing the
+feature first — a described feature gets a polite yes.
+
+1. When a project comes in that isn't your own specialism, how do you find out
+   about it today?
+2. Who on your team is looking for incoming work, and how many of them?
+3. What are you already paying for to find work? What does it cost?
+4. When something good comes in, how does it get to the right person?
+5. Last time you missed something you'd have wanted — what happened?
+
+Only then describe one shared board across everyone's skills, with the owner
+seeing everything, and ask what it would have to do to be worth paying for.
+
+### What would kill it
+
+If the answer to (3) is "nothing", the budget is theoretical. If (4) is "we
+just forward it in Slack", the routing half has no value and this collapses
+back into several individual accounts, which they can already buy.
+
+### Blocked on a copy change either way
+
+The Pricing page says **"No seats, no contracts."** That has to change in the
+same release, or the pricing page argues against the product being sold.
