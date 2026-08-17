@@ -1991,7 +1991,26 @@ def _build_feed(posts):
 
     df["_key"] = df["title"].map(_key)
     before = len(df)
-    df = df[df["_key"] != ""].drop_duplicates(subset="_key", keep="first")
+    # A TITLE THAT ISN'T LATIN HAS NO KEY, AND HAVING NO KEY IS NOT A REASON
+    # TO BE THROWN OFF THE BOARD. _key() collects [a-z0-9] runs, so a posting
+    # written in Arabic, Hindi, Chinese, Ukrainian, Japanese or Russian yields
+    # nothing at all and lands on "". Dropping empty keys therefore deleted
+    # those gigs outright rather than de-duplicating them — measured
+    # 2026-08-16, 79 live postings, mostly Freelancer and Himalayas.
+    #
+    # They each get a unique key instead: kept, and unable to collapse into one
+    # giant "" group where 78 of them would lose a coin toss to the 79th. The
+    # board service has always done it this way (see sync.mark_primaries),
+    # which is part of why the two surfaces disagreed.
+    #
+    # Whether a given reader SEES them is apply_language's decision, which is
+    # the layer that actually knows what they read. Someone who set their
+    # country to Ukraine should get the Ukrainian listings; nobody should have
+    # them silently deleted upstream of that choice.
+    blank = df["_key"] == ""
+    if blank.any():
+        df.loc[blank, "_key"] = [f"\x00{i}" for i in range(int(blank.sum()))]
+    df = df.drop_duplicates(subset="_key", keep="first")
     # Lowercased text, computed once here rather than on every keystroke in
     # apply_filters, which used to re-lower ~9,000 titles and bodies per
     # character typed.
