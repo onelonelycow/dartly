@@ -180,7 +180,58 @@ is code. Nine live targets, the email template, and the rules are in
 
 # Scoped work
 
-## The public rate page
+## The public data page — NOT a rate page
+
+**The kind of data changed after measuring it.** The original scope said
+"publish rates". The data cannot support that, and the reason is not
+Freelancer's budget bands — those were already handled, because
+`market.skill_stats()` gives each source one vote rather than one per gig.
+
+**The real blocker: 86% of postings state an amount with no period at all.**
+An unmarked "$140" might be an hourly rate, a project total, or a week of
+travel nursing. Publishing only rates whose period is actually stated leaves:
+
+| period stated | gigs | fields with a 30+ sample |
+|---|---|---|
+| hourly | 664 | **6** of 25 |
+| yearly | 713 | **8** of 25 |
+| monthly | 314 | 2 |
+| weekly | 99 | 1 |
+| **per project** | **12** | **0** |
+
+Per-project is the number freelancers most want and there are twelve of them on
+the whole board. A rate page is not honestly buildable from this.
+
+### What IS true, and nobody else has it
+
+Everything counted directly rather than parsed out of prose. Measured
+2026-08-17 across 47,858 live gigs from 21 sources:
+
+- **1,852 gigs arriving per day.**
+- **Only 27% of postings say what they pay at all** — and it swings from **55%
+  in video** and **51% in design** down to **17% in finance** and **9% in
+  general**. That is a genuinely novel, quotable finding, and it is an
+  advocacy angle rather than another rate table: which fields actually tell
+  you the money up front.
+- **Remote share by field**, which is nothing like uniform — data 42% and sales
+  41% against video 7% and design 16%.
+- **Urgency share**, roughly 8-9% in most fields.
+- **Volume and velocity by field.**
+
+None of it needs a unit, none of it can be wrong, and no competitor publishes
+it because no competitor aggregates 40 sources continuously. It also happens to
+be what the product is actually called: a demand radar.
+
+### The prerequisite, now done
+
+`gig_amount()` treated every dollar figure as pay — 7.2% of them were ARR,
+valuations, market sizes and 401k matches. Fixed 2026-08-17 (`gig_pay()`),
+which moved healthcare's published typical from $109 to $500 and improved
+fit scoring, lowball detection and the recorded value of won gigs at the same
+time. Any budget figure shown publicly must come from the new parser AND carry
+its sample size.
+
+## The old rate-page scope, superseded
 
 **Decided:** publish it free rather than sell it. Every comparable
 ([Jobbers](https://www.jobbers.io/), [Harvest](https://www.getharvest.com/calculators/average-freelance-rates-by-industry),
