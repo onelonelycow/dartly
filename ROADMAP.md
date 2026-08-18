@@ -222,6 +222,55 @@ None of it needs a unit, none of it can be wrong, and no competitor publishes
 it because no competitor aggregates 40 sources continuously. It also happens to
 be what the product is actually called: a demand radar.
 
+### The number moves, and the movement is the story
+
+**Budget disclosure is falling, not holding.** Measured by week on the live
+board:
+
+| week | gigs | says pay | rate | biggest source that week |
+|---|---|---|---|---|
+| 2026-W30 | 3,029 | 1,100 | **36%** | freelancer (33%) |
+| 2026-W31 | 10,973 | 3,868 | **35%** | freelancer (45%) |
+| 2026-W32 | 17,747 | 4,338 | **24%** | himalayas (42%) |
+| 2026-W33 | 15,437 | 3,542 | **23%** | himalayas (52%) |
+
+The board grew five-fold across those four weeks and the rate nearly halved.
+**More gigs do not raise it. Source mix sets it, and volume has nothing to do
+with it.**
+
+Disclosure by source, which is the whole explanation:
+
+| source | share of board | states pay |
+|---|---|---|
+| reddit | small | **71%** |
+| freelancer | 30% | **64%** |
+| nurserecruiter | small | 46% |
+| weworkremotely | small | 36% |
+| jobicy | 4% | 27% |
+| arbeitnow | 20% | 16% |
+| remoteok | 2% | 12% |
+| **himalayas** | **39%** | **4%** |
+| entcareers / soundlister / dribbble | small | **0%** |
+
+Freelancer's form demands a budget, so every listing has one. Himalayas is a
+remote job board where salary is optional and usually left out. When himalayas
+overtook freelancer as the dominant source, the rate followed it down.
+
+**Two consequences for the page.**
+
+Any figure published needs a date attached, because it is drifting.
+
+And the drift is the better story. "27% of postings say what they pay" is a
+static number a reader cannot check. *"Budget transparency fell from 36% to 23%
+in a month as remote job boards displaced freelance marketplaces"* is a trend
+with a named cause, measured across 21 sources — which is a thing to link to,
+and nobody else is positioned to report it because nobody else watches all of
+them at once.
+
+**It is also a lever, not just a metric.** If the disclosure rate matters to
+the pitch, the way to raise it is adding marketplace-style sources that require
+a budget field, not adding more gigs.
+
 ### The prerequisite, now done
 
 `gig_amount()` treated every dollar figure as pay — 7.2% of them were ARR,
