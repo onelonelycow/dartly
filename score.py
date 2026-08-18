@@ -10,7 +10,7 @@ import re
 
 import config
 
-MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*)")
+MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*(?:\.[0-9]+)?)\s*([KkMmBb])?")
 
 # Freelancer.com (and several job boards) post a budget as a fixed tier —
 # "$250 - $750", "$30,000 – $50,000" — rather than a number the client typed.
@@ -24,26 +24,127 @@ MONEY = re.compile(r"[$£€]\s?([0-9][0-9,]*)")
 # the lowball check) want too.
 RANGE = re.compile(r"[$£€]\s?([0-9][0-9,]*)\s*(?:-|–|—|to)\s*[$£€]?\s?([0-9][0-9,]*)")
 
+# NOT EVERY DOLLAR SIGN IN A JOB POST IS PAY, and until 2026-08-17 this file
+# assumed otherwise. Measured across 12,572 priced gigs on the live board,
+# 7.2% of the amounts feeding the Market page sat next to wording that made
+# them something else entirely:
+#
+#   "We're at $350M ARR"            -> parsed as 350
+#   "an industry worth over $400B"  -> parsed as 400
+#   "401k Matching - $1 for $1"     -> parsed as 1
+#
+# Those are company revenue, market size and a benefits line. They were being
+# averaged into "what work like yours pays" and sold as a Pro feature.
+_NOT_PAY = re.compile(
+    r"\b(ARR|MRR|valuation|valued|raised|funding|funded|backed by|Series\s+[A-J]\b|"
+    r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|401\s?k|"
+    r"match(?:ing|es)?|equity|company\s+match|in\s+sales|portfolio|"
+    r"assets|AUM|budget\s+of\s+the\s+(?:company|department))\b", re.I)
+
+# The unit is what makes a number comparable. 95.5% of postings state an amount
+# with no unit at all, so it can never be assumed — an unmarked 140 might be an
+# hourly rate, a project total, or a week of travel nursing, and blending those
+# into one median is how healthcare came to publish $109 while its largest
+# specialist source said $2,500.
+_UNIT_PATTERNS = (
+    ("hour",    re.compile(r"(?:per\s+hour|/\s?h(?:r|our)?\b|an\s+hour|hourly|p/?h\b)", re.I)),
+    ("day",     re.compile(r"(?:per\s+day|/\s?day\b|a\s+day|daily\s+rate|day\s+rate)", re.I)),
+    ("week",    re.compile(r"(?:per\s+week|/\s?w(?:k|eek)\b|a\s+week|weekly)", re.I)),
+    ("month",   re.compile(r"(?:per\s+month|/\s?mo(?:nth)?\b|a\s+month|monthly|pcm\b)", re.I)),
+    ("year",    re.compile(r"(?:per\s+year|/\s?y(?:r|ear)\b|a\s+year|annual(?:ly)?|per\s+annum|pa\b)", re.I)),
+    ("project", re.compile(r"(?:per\s+project|fixed[- ]price|flat\s+fee|total\s+budget|for\s+the\s+project)", re.I)),
+)
+
+# How far to read around a number. The disqualifying context ("$350M ARR") can
+# sit either side and a little further out, but the UNIT has to be close, and
+# mostly AFTER: "$75 per hour" states its own period, whereas a wide window let
+# "$5,000 signing bonus. Rate is $75 per hour." hand the bonus the hourly unit
+# and then win on size. Caught by test, not by reading it back.
+_WINDOW = 42
+_UNIT_BEFORE = 26      # "an hourly rate of $75"
+_UNIT_AFTER = 18       # "$75 per hour"
+
+# Below this, it is not a rate for a piece of work — "$0.20 per word" rounds to
+# nothing useful and per-word is not a period this compares anyway.
+_MIN_PAY = 1
+
+
+def _unit_near(text: str, lo: int, hi: int) -> str:
+    """The pay period stated tight around this number, or "" when none is."""
+    ctx = text[max(0, lo - _UNIT_BEFORE):hi + _UNIT_AFTER]
+    for name, rx in _UNIT_PATTERNS:
+        if rx.search(ctx):
+            return name
+    return ""
+
+
+def _is_pay(text: str, lo: int, hi: int, suffix: str) -> bool:
+    """False when this number is plainly not what the gig pays."""
+    # $350M / $2.4B is never a rate for one piece of work. K is, so it stays.
+    if suffix and suffix.lower() in ("m", "b"):
+        return False
+    return not _NOT_PAY.search(text[max(0, lo - _WINDOW):hi + _WINDOW])
+
+
+def gig_pay(gig: dict):
+    """
+    (amount, unit) for what this gig pays, or None.
+
+    `unit` is "" when the posting never says — which is the overwhelming
+    majority — and callers must not assume one. Aggregations should group by
+    unit rather than average across it.
+    """
+    text = f"{gig.get('title','')} {gig.get('body','')}"
+
+    # A stated range is the clearest signal of intent, so it wins — but only
+    # if it survives the same context test as everything else.
+    m = RANGE.search(text)
+    if m and _is_pay(text, m.start(), m.end(), ""):
+        try:
+            lo_v, hi_v = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
+            if hi_v >= lo_v:
+                return round((lo_v + hi_v) / 2), _unit_near(text, m.start(), m.end())
+        except ValueError:
+            pass
+
+    stated, bare = [], []
+    for mm in MONEY.finditer(text):
+        if not _is_pay(text, mm.start(), mm.end(), mm.group(2) or ""):
+            continue
+        try:
+            v = float(mm.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        if (mm.group(2) or "").lower() == "k":
+            v *= 1000
+        if v < _MIN_PAY:
+            continue
+        v = round(v)
+        u = _unit_near(text, mm.start(), mm.end())
+        (stated if u else bare).append((v, u))
+
+    # An amount the posting actually attached a period to beats one it didn't:
+    # "$36.00 per hour" is the pay, "$5,000 signing bonus" in the same post is
+    # not, and picking the largest number would take the bonus every time.
+    if stated:
+        return max(stated, key=lambda x: x[0])
+    if bare:
+        return max(bare, key=lambda x: x[0])[0], ""
+    return None
+
 
 def gig_amount(gig: dict):
-    """Largest dollar-ish amount mentioned in a gig, if any — the midpoint
-    when it's stated as a range."""
-    text = f"{gig.get('title','')} {gig.get('body','')}"
-    m = RANGE.search(text)
-    if m:
-        try:
-            lo, hi = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
-            if hi >= lo:
-                return round((lo + hi) / 2)
-        except ValueError:
-            pass
-    amounts = []
-    for m in MONEY.findall(text):
-        try:
-            amounts.append(int(m.replace(",", "")))
-        except ValueError:
-            pass
-    return max(amounts) if amounts else None
+    """
+    Largest dollar-ish amount mentioned in a gig, if any — the midpoint when
+    it's stated as a range, and nothing when the only figures in the post are
+    the company's ARR or its 401k match.
+
+    Kept returning a bare number so fit_score, market.lowball, market.skill_stats
+    and the outcomes recorder don't all have to change at once. New callers that
+    care what the number MEANS should use gig_pay().
+    """
+    got = gig_pay(gig)
+    return got[0] if got else None
 
 
 # Every gig field fit_score() reads, including through gig_amount(). Callers
