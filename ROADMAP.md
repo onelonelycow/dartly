@@ -282,55 +282,77 @@ its sample size.
 
 ## The old rate-page scope, superseded
 
-**Decided:** publish it free rather than sell it. Every comparable
-([Jobbers](https://www.jobbers.io/), [Harvest](https://www.getharvest.com/calculators/average-freelance-rates-by-industry),
-SoloHourly, FreelanceDesk, Abillio) gives this data away as SEO bait, and only
-Wethos charges anything. Putting a paywall on it would place Nabbly behind five
-free competitors. As free content it is the only idea on this list that markets
-itself: a rate page is something people link to, and links are the thing
-`brand/OUTREACH.md` identifies as the single highest-leverage work available.
+Replaced by the section above. It said "publish rates", which the data cannot
+support: 86% of postings state an amount with no period, and per-project — the
+number freelancers most want — has twelve examples on the whole board. The
+detail is in the commit history if anyone needs it.
 
-### The data problem that has to be fixed first
+## Which sources earn their place
 
-**Do not publish the numbers the code currently produces.** Measured
-2026-08-17: 13,168 of 47,858 live gigs carry a parseable amount, and the median
-came out as **exactly $140 for fourteen unrelated fields** — design,
-development, video, sales, marketing, writing, legal, engineering and more.
+Volume and quality moved in opposite directions as the board scaled. Between
+W30 and W33 it grew five-fold, and over the same period budget disclosure
+nearly halved and the median listing got shorter. Both were caused by the same
+thing: one source becoming dominant.
 
-That is not a market rate. `score.gig_amount()` takes the midpoint of a stated
-range, and Freelancer.com posts a standard budget band of **$30 – $250**, whose
-midpoint is 140. It appears on 2,200 gigs, 2,178 of them from freelancer.com.
-Publishing "designers earn $140" would be publishing one marketplace's default
-dropdown, and it is exactly the sort of error the roundup editors being pitched
-would spot.
+Audited 2026-08-17 across 47,858 live gigs.
 
-**Excluding freelancer.com fixes it and still leaves enough:** 3,868 priced
-gigs, 21 fields with a sample of 30 or more, and only two fields sharing a
-median instead of thirteen. The spread becomes plausible — healthcare 550, data
-313, customer support 248, sales 200, development 180, design 150, admin 60.
+| source | share | thin bodies | states pay | dead links (sampled) |
+|---|---|---|---|---|
+| himalayas | **39%** | **72%** | **4%** | 0 of 15 |
+| freelancer | 30% | 5% | 64% | **5 of 60 (8%)** |
+| arbeitnow | 20% | 1% | 16% | 0 of 15 |
+| jobicy | 4% | 13% | 27% | 1 of 60 (2%) |
+| weworkremotely | 1% | — | 36% | blocks bots, unmeasurable |
+| entcareers | 0.5% | **100%** | **0%** | 0 of 15 |
+| soundlister | 0.4% | **100%** | **0%** | 0 of 15 |
+| dribbble | 0.1% | **100%** | **0%** | **10 of 60 (17%)** |
 
-### What to build
+"Thin" is a body under 200 characters. 32% of the whole board is thin.
 
-- Exclude marketplace bracket midpoints, starting with freelancer.com, and
-  **say so on the page**. "Excludes marketplaces that post fixed budget bands"
-  is a credibility line, not a caveat to hide.
-- Show the **sample size next to every number**. A median over 41 gigs and one
-  over 692 are not the same claim, and showing it is what separates this from
-  the free guides that show a number and no working.
-- Median plus a range, never a single figure.
-- Serve it from the board service. It is one aggregate query over a column that
-  is already indexed, and that service renders in ~0.1s.
-- Suppress any field under 30 samples rather than printing a thin number.
+**Dribbble is the clear cut.** 62 gigs, median body length of **zero
+characters**, 17% of its links already dead, no pay information. It contributes
+count and nothing else.
 
-### Why it earns links
+**Soundlister and entcareers next.** 100% thin, 0% disclosure, median bodies of
+19 and 139 characters. Entcareers was also dark for three days in August.
 
-The free guides listed above are compiled from surveys and other people's
-marketplace reports. This would be computed from live postings across 40
-sources, updated continuously, with sample sizes shown. That is a different and
-more defensible claim than any of them make, and it gives the outreach email a
-reason to exist beyond "please add us".
+**Freelancer stays, and gets swept.** 8% dead is the worst of the big three,
+but it is the best source on the board for substance (1,039-char median body)
+and by far the best for pay disclosure (64%).
 
----
+**Himalayas is a decision, not a defect.** Its links are fine. It is a remote
+job board with terse listings, and at 39% of the board its 150-character median
+and 4% disclosure set the tone for the whole product. The answer is not removal;
+it is labelling thin listings so people can skip them, and not letting one
+source dominate the default view unannounced.
+
+### The link sweep cannot keep up, and that is the bigger problem
+
+`link_checked` is set on **42 of 47,858 gigs — 0.1%**. `sweep_dead_links()`
+checks 6 links per 2-minute cycle, which is 4,320 a day against a board taking
+in ~1,852 new gigs a day and holding 47,858. It needs 11 days for one pass and
+never gets a clean one. In practice, when someone clicks a gig, nobody has ever
+verified that link is alive.
+
+Prioritising gigs about to be *shown* would beat sweeping uniformly.
+
+### A method warning, because it nearly cost a good source
+
+The first pass sampled 15 links per source and reported jobicy at **27% dead**.
+It was not dead. It was returning `429 Too Many Requests` because the sample
+itself was hammering it, and the checker counted that as a failure. At 60 links
+with backoff it is **2%**.
+
+Sample small, conclude big, cut a healthy source. Any future source cull needs
+a sample that distinguishes "gone" from "throttled", and weworkremotely cannot
+be measured this way at all — it returns 403 to every automated request.
+
+### What would settle this properly
+
+Apply-clicks per gig, by source. That turns "quality" from a judgement into a
+number: a source whose gigs nobody clicks is not earning its place regardless
+of how its bodies read. The counter exists (`activity.log_apply`) but has only
+test traffic so far. Revisit once real apply volume accumulates.
 
 ## Validating team accounts before building
 
