@@ -57,6 +57,7 @@ DARK_HOURS = 24        # a normally-productive source delivering nothing
 DARK_MIN_PER_DAY = 20  # only watch sources big enough for silence to mean something
 RECHECK_S = 1800       # how often check() is worth running
 COOLDOWN_H = 12        # never re-send the same open incident inside this
+COOLDOWN_MAX_H = 168   # ...and back off to at most weekly while it stays open
 
 _SCOPE = "_ops"
 _KEY = "watchdog"
@@ -227,11 +228,26 @@ def run(force: bool = False) -> int:
         sent = 0
 
         for issue in issues:
-            last = float(state.get(issue["key"], 0) or 0)
-            if now - last < COOLDOWN_H * 3600:
+            # BACKS OFF INSTEAD OF NAGGING. A flat 12-hour cooldown meant an
+            # incident that stays true keeps arriving twice a day forever:
+            # entcareers went dark for three days and that is six identical
+            # emails about one thing nobody can fix twice. The first one is the
+            # useful one; the tenth teaches you to filter the sender, which is
+            # how a monitor stops working without anybody switching it off.
+            #
+            # So the gap doubles each time: 12h, 24h, 48h, 96h, then capped at
+            # a week. Still audible if it drags on, no longer shouting. The
+            # count resets when the incident clears, because a recurrence is
+            # news again.
+            prev = state.get(issue["key"]) or {}
+            if not isinstance(prev, dict):        # pre-2026-08-18 state: a bare timestamp
+                prev = {"at": float(prev or 0), "n": 1}
+            wait = min(COOLDOWN_H * (2 ** max(0, prev.get("n", 1) - 1)),
+                       COOLDOWN_MAX_H) * 3600
+            if now - float(prev.get("at", 0)) < wait:
                 continue          # already told them, and it is still true
             if _send(issue):
-                state[issue["key"]] = now
+                state[issue["key"]] = {"at": now, "n": prev.get("n", 0) + 1}
                 sent += 1
 
         # Forget anything that has cleared, so its next occurrence is a NEW
