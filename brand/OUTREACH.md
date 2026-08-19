@@ -229,6 +229,29 @@ these are the most independently run.
 |---|---|---|
 | lettuce.co | "Where to Find Work: 50+ Resources for Freelancers & Independent Pros" — a tax and accounting company for solopreneurs, so not a competitor. Guest-curated by Samantha Anderl of Harlow; pitch Lettuce, not her. | nabbly.co |
 
+> **CHECKED 2026-08-18, AND SIX OF THE NINE ARE GONE.** Every target above was
+> opened. Six run the very thing they would be adding Nabbly to, which the
+> "Deliberately NOT on the list" rule below already forbids — the list was built
+> from search results and never tested against it.
+>
+> | Cut | Why |
+> |---|---|
+> | peakfreelance.com | runs jobs.peakfreelance.com, lists it #1 in its own article; article last updated Nov 2022 |
+> | amysuto.com | co-created CozyJobs — a board with daily inbox matches, $25/mo |
+> | bestwriting.com | runs Content Writing Jobs, a paid gig Substack |
+> | sidehustles.com | lists itself at #1 on its own list |
+> | roamjobs.com | runs The Tuesday Shortlist newsletter plus a /jobs section |
+> | uxcel.com | runs its own UI/UX job board, listed in the same article |
+>
+> **Still good: elnacain.com, magier.com, lettuce.co.** All three verified to run
+> no board and no gig newsletter, with Nabbly not yet listed. Drafts for those
+> three are in `outreach/DRAFTS.md`.
+>
+> The pattern worth remembering: sites that rank for "best job boards" usually
+> rank *because* they run one. Look instead at agencies publishing career
+> content, and at business-of-freelancing sites — tax, invoicing, contracts —
+> which serve freelancers without competing for their attention.
+
 **OPEN EACH ARTICLE BEFORE YOU WRITE.** These came from search results, not
 from reading every page. The first line of the email names the actual piece,
 and that line is doing all the work — an article that has been retitled or
