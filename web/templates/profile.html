@@ -185,23 +185,22 @@ button.go:hover{background:var(--amber-l)}
         {% endfor %}
       </div>
 
-      <label class="f" for="draft_always">Always work in</label>
+      <label class="f" for="draft_always">Always mention</label>
       <input id="draft_always" name="draft_always" maxlength="200"
              value="{{ prof.draft_always }}" {% if not is_pro %}disabled{% endif %}
              placeholder="I work EU hours and can start in September">
-      <p class="hint">Dropped in where it fits. If it doesn't fit a particular
-        post, it's left out rather than forced.</p>
+      <p class="hint">Worked in where it fits, left out where it doesn't.</p>
 
       <label class="f" for="draft_never">Never mention</label>
       <input id="draft_never" name="draft_never" maxlength="200"
              value="{{ prof.draft_never }}" {% if not is_pro %}disabled{% endif %}
-             placeholder="my rate; that I'm just starting out">
+             placeholder="My rate, or that I'm new to this">
 
-      <label class="f" for="draft_signoff">Sign-off</label>
+      <label class="f" for="draft_signoff">Signature</label>
       <input id="draft_signoff" name="draft_signoff" maxlength="80"
              value="{{ prof.draft_signoff }}" {% if not is_pro %}disabled{% endif %}
              placeholder="Cheers, Alex">
-      <p class="hint">Left blank, the draft picks its own.</p>
+      <p class="hint">Leave blank and the draft picks one.</p>
     </div>
 
     <div class="card">
