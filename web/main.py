@@ -32,7 +32,9 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.exception_handlers import http_exception_handler
+from fastapi.exception_handlers import (http_exception_handler,
+                                        request_validation_exception_handler)
+from fastapi.exceptions import RequestValidationError
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -427,15 +429,47 @@ async def _pretty_error(request: Request, exc: StarletteHTTPException):
               "visit. Nothing is broken."),
     }[exc.status_code]
     try:
-        return templates.TemplateResponse(
-            request, "oops.html",
-            {"status": exc.status_code, "heading": text[0], "message": text[1],
-             "me": me, "tab": "", "css_v": CSS_V, "indexable": False,
-             "app_url": APP_URL, "took_ms": 0.0},
-            status_code=exc.status_code,
-            headers={"X-Robots-Tag": "noindex, nofollow"})
+        return _oops_page(request, exc.status_code, text[0], text[1], me)
     except Exception:
         return await http_exception_handler(request, exc)
+
+
+# A BAD QUERY STRING IS THE THIRD WAY TO GET RAW JSON, and it was still open
+# after 404 and 405 were closed. FastAPI raises RequestValidationError, which
+# is not an HTTPException, so the handler above never saw it: /gigs?sort=newest
+# answered with a pydantic error dump naming the internal pattern. Anyone with
+# an old bookmark or a mistyped link got that.
+#
+# 422 is kept. The request really was malformed, and softening it to a 200
+# would teach crawlers that every wrong URL is a real page.
+@app.exception_handler(RequestValidationError)
+async def _pretty_validation_error(request: Request,
+                                   exc: RequestValidationError):
+    try:
+        webauth.scope_for_request(request)
+        me = webauth.current_email(request)
+    except Exception:
+        me = ""
+    try:
+        return _oops_page(
+            request, 422, "That address has a setting the board doesn't use",
+            "Something in the link asks the board to sort or filter in a way "
+            "it doesn't recognise. The board itself is fine, and browsing from "
+            "here works normally.", me)
+    except Exception:
+        return await request_validation_exception_handler(request, exc)
+
+
+def _oops_page(request: Request, status: int, heading: str, message: str,
+               me: str):
+    """The one branded dead end, shared by every handler that needs it."""
+    return templates.TemplateResponse(
+        request, "oops.html",
+        {"status": status, "heading": heading, "message": message,
+         "me": me, "tab": "", "css_v": CSS_V, "indexable": False,
+         "app_url": APP_URL, "took_ms": 0.0},
+        status_code=status,
+        headers={"X-Robots-Tag": "noindex, nofollow"})
 
 
 @app.get("/robots.txt")
