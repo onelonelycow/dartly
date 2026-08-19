@@ -716,7 +716,7 @@ def profile_page(request: Request, saved_ok: int = Query(0),
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
-        "tab_open": "feed" if tab == "feed" else "you",
+        "tab_open": "board" if tab == "board" else "you",
         "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
@@ -774,9 +774,15 @@ async def profile_save(request: Request):
             prefs[field] = v
     prefs["urgent_only"] = bool(form.get("urgent_only"))
     alerts_mod.save_prefs(prefs)
-    # Back to the tab they were on. Saving from "Your feed" and landing on
-    # "You" reads as the page having thrown the edit away.
-    _tab = "feed" if (form.get("ptab") or "") == "feed" else "you"
+    # Back to the tab they were on. Saving from "Your board" and landing on
+    # "About you" reads as the page having thrown the edit away.
+    #
+    # "board", not "feed": every use of the word "feed" in this product's
+    # user-facing copy came from the tabs added on 2026-08-18. Everywhere else,
+    # 35 times over, Nabbly calls it the board — so a tab named "Your feed" was
+    # importing a word from somewhere else, which is exactly the drift FEEL.md
+    # exists to catch.
+    _tab = "board" if (form.get("ptab") or "") == "board" else "you"
     return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
 
 

@@ -21,14 +21,14 @@
   margin-bottom:-1px;border-bottom:2px solid transparent}
 .tabs label:hover{color:var(--ink)}
 #pt-you:checked ~ .tabs label[for=pt-you],
-#pt-feed:checked ~ .tabs label[for=pt-feed]{color:var(--amber);
+#pt-board:checked ~ .tabs label[for=pt-board]{color:var(--amber);
   border-bottom-color:var(--amber)}
 .tabin:focus-visible ~ .tabs label[for=pt-you],
-#pt-feed.tabin:focus-visible ~ .tabs label[for=pt-feed]{outline:2px solid var(--amber-d);
+#pt-board.tabin:focus-visible ~ .tabs label[for=pt-board]{outline:2px solid var(--amber-d);
   outline-offset:-2px}
 .pane{display:none}
 #pt-you:checked ~ .pane-you{display:block}
-#pt-feed:checked ~ .pane-feed{display:block}
+#pt-board:checked ~ .pane-board{display:block}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:20px 22px;margin:0 0 14px}
@@ -110,13 +110,13 @@ button.go:hover{background:var(--amber-l)}
   {# Checked state decides which pane shows. After saving we come back to the
      tab you were on rather than snapping to the first one. #}
   <input class="tabin" type="radio" name="ptab" id="pt-you" value="you"
-    {% if tab_open != 'feed' %}checked{% endif %}>
-  <input class="tabin" type="radio" name="ptab" id="pt-feed" value="feed"
-    {% if tab_open == 'feed' %}checked{% endif %}>
+    {% if tab_open != 'board' %}checked{% endif %}>
+  <input class="tabin" type="radio" name="ptab" id="pt-board" value="board"
+    {% if tab_open == 'board' %}checked{% endif %}>
 
   <div class="tabs">
-    <label for="pt-you">You</label>
-    <label for="pt-feed">Your feed</label>
+    <label for="pt-you">About you</label>
+    <label for="pt-board">Your board</label>
   </div>
 
   <!-- ── TAB: You ───────────────────────────────────────────────────── -->
@@ -147,7 +147,7 @@ button.go:hover{background:var(--amber-l)}
     <div class="card">
       <div class="ttl">Where you are</div>
       <span class="sub">Used to work out which on-site and region-locked gigs are
-        worth showing you. The rules for that live under Your feed.</span>
+        worth showing you. The rules for that live under Your board.</span>
       <div class="two">
         <div>
           <label class="f" for="city">City</label>
@@ -161,8 +161,8 @@ button.go:hover{background:var(--amber-l)}
     </div>
   </div>
 
-  <!-- ── TAB: Your feed ─────────────────────────────────────────────── -->
-  <div class="pane pane-feed">
+  <!-- ── TAB: Your board ─────────────────────────────────────────────── -->
+  <div class="pane pane-board">
     <div class="card">
       <div class="ttl">What you do</div>
       <span class="sub">This is what "Best match" sorts by — without at least one,
