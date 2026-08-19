@@ -713,8 +713,13 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import alerts as alerts_mod
     import profile as profile_mod
+    try:
+        is_pro = bool(accounts.status(webauth.account_for(request)).get("pro"))
+    except Exception:
+        is_pro = False
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
+        "is_pro": is_pro,
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
         "tab_open": "board" if tab == "board" else "you",
         "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
@@ -751,6 +756,25 @@ async def profile_save(request: Request):
     # An unchecked checkbox sends nothing at all, so presence IS the value.
     prof["open_to_relocate"] = bool(form.get("open_to_relocate"))
     prof["show_all_languages"] = bool(form.get("show_all_languages"))
+
+    # How drafted replies read — Pro only.
+    #
+    # ONLY WRITTEN WHEN THEY ARE PRO, and deliberately not zeroed otherwise.
+    # The inputs render disabled for a free account, and a disabled input
+    # submits nothing, so a blanket write here would silently erase what a
+    # lapsed subscriber had configured the moment they saved anything else on
+    # this page. Their settings sit dormant instead and come back with them.
+    try:
+        _pro = bool(accounts.status(webauth.account_for(request)).get("pro"))
+    except Exception:
+        _pro = False
+    if _pro:
+        _len = (form.get("draft_length") or "standard").strip().lower()
+        prof["draft_length"] = _len if _len in ("brief", "standard", "detailed") \
+            else "standard"
+        prof["draft_signoff"] = (form.get("draft_signoff") or "").strip()[:80]
+        prof["draft_always"] = (form.get("draft_always") or "").strip()[:200]
+        prof["draft_never"] = (form.get("draft_never") or "").strip()[:200]
     profile_mod.save(prof)
 
     # Alert channels live in their own store (alert_prefs.json) but are edited

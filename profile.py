@@ -6,6 +6,7 @@ Stores who you are and what you want, in profile.json:
   - rate_floor: your minimum acceptable budget (used for fit + lowball flags)
   - keywords:   comma-separated words you care about (used for fit scores)
   - name, portfolio: used to personalize drafted pitches
+  - draft_*:    how those pitches read — length, sign-off, standing lines (Pro)
 """
 from paths import read_user_json, write_user_json
 
@@ -27,6 +28,20 @@ DEFAULT = {
     # Gigs written in a language you don't read are hidden by default. English
     # plus whatever your country implies always show; this opens it to all.
     "show_all_languages": False,
+
+    # ── How drafted replies read (Pro) ────────────────────────────────────
+    # The fields above give the draft its CONTENT. These give it a voice.
+    #
+    # Deliberately four narrow controls rather than an editable prompt.
+    # pitch.SYSTEM is tuned line by line — use contractions, vary sentence
+    # length, no lists of three, do not lecture the client about their own
+    # trade — and handing someone a text box means they overwrite that, get
+    # worse replies, and reasonably blame Nabbly. These append to the prompt;
+    # they can never replace it.
+    "draft_length": "standard",   # "brief" | "standard" | "detailed"
+    "draft_signoff": "",          # e.g. "Cheers, Alex" — otherwise the model picks
+    "draft_always": "",           # one line to work in where it fits
+    "draft_never": "",            # what to keep out of every reply
 }
 
 # Fields that count toward "profile completeness".

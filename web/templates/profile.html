@@ -68,6 +68,24 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
   border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
 .skills input:focus-visible + span{outline:2px solid var(--amber-d);outline-offset:2px}
 .picked{font-size:12.5px;color:var(--faint);margin:14px 0 0}
+/* ── how replies read ─────────────────────────────────────────────────── */
+.seg{display:flex;gap:6px;margin:0 0 14px}
+.seg input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.seg label{flex:1;text-align:center;padding:9px 10px;border-radius:10px;
+  border:1px solid var(--line);background:var(--bg);color:#c8ced6;
+  font-size:13px;cursor:pointer;user-select:none}
+.seg label small{display:block;font-size:11px;color:var(--faint);margin-top:2px}
+.seg input:checked + label{background:rgba(232,147,58,.16);
+  border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
+.seg input:checked + label small{color:var(--amber)}
+.seg input:disabled + label{opacity:.5;cursor:not-allowed}
+.seg label:hover{border-color:var(--amber-d)}
+.seg input:disabled + label:hover{border-color:var(--line)}
+.locked input,.locked textarea{opacity:.5}
+.pro-note{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
+  color:#eaa662;border-radius:11px;padding:11px 14px;font-size:13px;
+  line-height:1.55;margin:0 0 15px}
+.pro-note a{color:var(--amber-l)}
 .picked b{color:var(--amber-l);font-weight:600}
 
 .check{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;font-size:13.5px;
@@ -142,6 +160,48 @@ button.go:hover{background:var(--amber-l)}
       <label class="f" for="bio">One line about you</label>
       <textarea id="bio" name="bio"
         placeholder="Ten years on brand identity, mostly for SaaS and healthcare.">{{ prof.bio }}</textarea>
+    </div>
+
+    <div class="card{% if not is_pro %} locked{% endif %}">
+      <div class="ttl">How your replies read</div>
+      <span class="sub">The card above gives a draft its facts. This gives it a
+        voice.</span>
+      {% if not is_pro %}
+        <div class="pro-note">This one's a Pro perk. Drafts still get written
+          for you on Free — this decides how they sound.
+          <a href="{{ app_url }}/?nav=pricing" target="_blank" rel="noopener">See Pro</a></div>
+      {% endif %}
+
+      <label class="f">Length</label>
+      <div class="seg">
+        {% for val, name, hint in [
+             ('brief', 'Brief', '50-80 words'),
+             ('standard', 'Standard', '90-150 words'),
+             ('detailed', 'Detailed', '160-220 words')] %}
+          <input type="radio" name="draft_length" id="dl-{{ val }}" value="{{ val }}"
+            {% if (prof.draft_length or 'standard') == val %}checked{% endif %}
+            {% if not is_pro %}disabled{% endif %}>
+          <label for="dl-{{ val }}">{{ name }}<small>{{ hint }}</small></label>
+        {% endfor %}
+      </div>
+
+      <label class="f" for="draft_always">Always work in</label>
+      <input id="draft_always" name="draft_always" maxlength="200"
+             value="{{ prof.draft_always }}" {% if not is_pro %}disabled{% endif %}
+             placeholder="I work EU hours and can start in September">
+      <p class="hint">Dropped in where it fits. If it doesn't fit a particular
+        post, it's left out rather than forced.</p>
+
+      <label class="f" for="draft_never">Never mention</label>
+      <input id="draft_never" name="draft_never" maxlength="200"
+             value="{{ prof.draft_never }}" {% if not is_pro %}disabled{% endif %}
+             placeholder="my rate; that I'm just starting out">
+
+      <label class="f" for="draft_signoff">Sign-off</label>
+      <input id="draft_signoff" name="draft_signoff" maxlength="80"
+             value="{{ prof.draft_signoff }}" {% if not is_pro %}disabled{% endif %}
+             placeholder="Cheers, Alex">
+      <p class="hint">Left blank, the draft picks its own.</p>
     </div>
 
     <div class="card">
