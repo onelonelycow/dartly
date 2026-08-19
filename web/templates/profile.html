@@ -185,13 +185,13 @@ button.go:hover{background:var(--amber-l)}
         {% endfor %}
       </div>
 
-      <label class="f" for="draft_always">Always mention</label>
+      <label class="f" for="draft_always">Include</label>
       <input id="draft_always" name="draft_always" maxlength="200"
              value="{{ prof.draft_always }}" {% if not is_pro %}disabled{% endif %}
              placeholder="I work EU hours and can start in September">
       <p class="hint">Worked in where it fits, left out where it doesn't.</p>
 
-      <label class="f" for="draft_never">Never mention</label>
+      <label class="f" for="draft_never">Avoid</label>
       <input id="draft_never" name="draft_never" maxlength="200"
              value="{{ prof.draft_never }}" {% if not is_pro %}disabled{% endif %}
              placeholder="My rate, or that I'm new to this">
