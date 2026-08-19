@@ -5,11 +5,35 @@
 {% block extra_css %}
 .sec-h{font-size:31px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
 .sec-h .accent{color:var(--amber)}
-.lede{color:var(--mute);font-size:14px;margin:0 0 22px;line-height:1.6}
+.lede{color:var(--mute);font-size:14px;margin:0 0 20px;line-height:1.6}
+
+/* ── two tabs, no JavaScript ───────────────────────────────────────────
+   The radios sit in the form and carry a name the handler ignores, which is
+   what lets one Save button write BOTH tabs at once. Splitting this into two
+   forms would mean two saves and a way to lose half your edits by switching
+   tab, which is exactly the kind of quiet data loss a settings page must not
+   have. The active tab reads like the top nav's — amber label, inset rule —
+   because that is the language this product already uses for "you are here". */
+.tabin{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 20px}
+.tabs label{padding:9px 15px;font-size:14px;font-weight:600;color:var(--mute);
+  cursor:pointer;border-radius:9px 9px 0 0;user-select:none;
+  margin-bottom:-1px;border-bottom:2px solid transparent}
+.tabs label:hover{color:var(--ink)}
+#pt-you:checked ~ .tabs label[for=pt-you],
+#pt-feed:checked ~ .tabs label[for=pt-feed]{color:var(--amber);
+  border-bottom-color:var(--amber)}
+.tabin:focus-visible ~ .tabs label[for=pt-you],
+#pt-feed.tabin:focus-visible ~ .tabs label[for=pt-feed]{outline:2px solid var(--amber-d);
+  outline-offset:-2px}
+.pane{display:none}
+#pt-you:checked ~ .pane-you{display:block}
+#pt-feed:checked ~ .pane-feed{display:block}
+
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:20px 22px;margin:0 0 14px}
 .card .ttl{font-size:15px;font-weight:650;margin:0 0 3px}
-.card .sub{display:block;color:var(--faint);font-size:12.5px;margin:0 0 14px;
+.card .sub{display:block;color:var(--faint);font-size:12.5px;margin:0 0 15px;
   line-height:1.6}
 label.f{display:block;font-size:11.5px;color:var(--faint);text-transform:uppercase;
   letter-spacing:.06em;margin:0 0 6px}
@@ -21,29 +45,33 @@ input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--lin
 textarea{min-height:70px;resize:vertical;line-height:1.6}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
   outline-offset:1px;border-color:transparent}
-/* THE PILL IS THE CONTROL. Every one of these carried a native checkbox
-   alongside its label — a white square macOS draws its own way, 24 of them on
-   a dark panel, reading as clutter rather than as a set of choices. The board
-   already toggles its category chips by filling them amber; this is that same
-   gesture. The input is hidden off-screen rather than display:none so it stays
-   in the tab order and screen readers still announce it. */
-.skills{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 4px}
+
+/* ── fields, grouped ───────────────────────────────────────────────────
+   Twenty-five pills in five ragged rows is a wall, and every one of them
+   looked equally important. These are the same five families the Dashboard
+   already sorts work into, so the grouping is one the reader has met before
+   rather than a new idea invented for this page. */
+.grp{display:grid;grid-template-columns:112px 1fr;gap:10px 14px;
+  align-items:start;padding:11px 0;border-top:1px solid var(--line)}
+.grp:first-of-type{border-top:0;padding-top:2px}
+.grp-name{font-size:11.5px;color:var(--faint);text-transform:uppercase;
+  letter-spacing:.06em;padding-top:7px;line-height:1.4}
+.skills{display:flex;flex-wrap:wrap;gap:7px}
 .skills label{display:inline-flex;margin:0;cursor:pointer}
 .skills input{position:absolute;opacity:0;width:1px;height:1px;margin:0;
   pointer-events:none}
 .skills span{display:inline-block;background:var(--bg);border:1px solid var(--line);
-  border-radius:999px;padding:7px 14px;font-size:13px;color:#c8ced6;
+  border-radius:999px;padding:6px 13px;font-size:12.5px;color:#c8ced6;
   user-select:none;transition:background .12s,border-color .12s,color .12s}
 .skills label:hover span{border-color:var(--amber-d);color:var(--ink)}
 .skills input:checked + span{background:rgba(232,147,58,.16);
   border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
-/* Hidden input means hidden focus ring, so the pill has to show it instead —
-   otherwise keyboard users lose their place entirely. */
 .skills input:focus-visible + span{outline:2px solid var(--amber-d);outline-offset:2px}
+.picked{font-size:12.5px;color:var(--faint);margin:14px 0 0}
+.picked b{color:var(--amber-l);font-weight:600}
+
 .check{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;font-size:13.5px;
   color:#c8ced6;line-height:1.55}
-/* Same white-square problem, three at a time instead of 24. accent-color only
-   paints the CHECKED state; unchecked stays the browser's own light square. */
 .check input{appearance:none;-webkit-appearance:none;width:17px;height:17px;
   flex:none;margin:1px 0 0;border:1px solid var(--line);border-radius:5px;
   background:var(--bg);cursor:pointer;position:relative}
@@ -62,175 +90,195 @@ button.go:hover{background:var(--amber-l)}
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
 .hint{font-size:12.5px;color:var(--faint);margin:-8px 0 14px;line-height:1.55}
+@media (max-width:640px){
+  .grp{grid-template-columns:1fr;gap:7px;padding:13px 0}
+  .grp-name{padding-top:0}
+  .tabs label{flex:1;text-align:center;padding:9px 8px}
+}
 {% endblock %}
 
 {% block body %}
 
 <h2 class="sec-h">Your <span class="accent">profile</span></h2>
-<p class="lede">This is what ranks the board for you and what your drafted
-  replies are written from. Nothing here is public.</p>
+<p class="lede">Nothing here is public.</p>
 {% if welcome %}
-  {# Shown only to an account with no fields set, which is who gets sent
-     straight here after signing in. Without a line saying why, landing on a
-     settings page instead of the board reads as the app losing your place. #}
-  <div class="welcome">You're in. Pick the fields you work in below and the
-    board sorts itself around them — that's the part signing in buys you.</div>
+  <div class="welcome">You're in. Pick the fields you work in and the board sorts
+    itself around them — that's the part signing in buys you.</div>
 {% endif %}
 
 <form method="post" action="/profile">
-  <div class="card">
-    <div class="ttl">What you do</div>
-    <span class="sub">Pick the fields you work in. This is what "Best match"
-      sorts by — without at least one, the board stays newest-first.</span>
-    <div class="skills">
-      {% for s in all_skills %}
-        <label><input type="checkbox" name="skills" value="{{ s }}"
-          {% if s in prof.skills %}checked{% endif %}><span>{{ s }}</span></label>
+  {# Checked state decides which pane shows. After saving we come back to the
+     tab you were on rather than snapping to the first one. #}
+  <input class="tabin" type="radio" name="ptab" id="pt-you" value="you"
+    {% if tab_open != 'feed' %}checked{% endif %}>
+  <input class="tabin" type="radio" name="ptab" id="pt-feed" value="feed"
+    {% if tab_open == 'feed' %}checked{% endif %}>
+
+  <div class="tabs">
+    <label for="pt-you">You</label>
+    <label for="pt-feed">Your feed</label>
+  </div>
+
+  <!-- ── TAB: You ───────────────────────────────────────────────────── -->
+  <div class="pane pane-you">
+    <div class="card">
+      <div class="ttl">For your drafted replies</div>
+      <span class="sub">These go into the reply Nabbly writes for you, so the more
+        real they are the less it sounds like a template.</span>
+      <div class="two">
+        <div>
+          <label class="f" for="name">Name</label>
+          <input id="name" name="name" value="{{ prof.name }}" placeholder="Alex Rivera">
+        </div>
+        <div>
+          <label class="f" for="headline">Headline</label>
+          <input id="headline" name="headline" value="{{ prof.headline }}"
+                 placeholder="Brand designer for early-stage teams">
+        </div>
+      </div>
+      <label class="f" for="portfolio">Portfolio link</label>
+      <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}"
+             placeholder="alexrivera.com">
+      <label class="f" for="bio">One line about you</label>
+      <textarea id="bio" name="bio"
+        placeholder="Ten years on brand identity, mostly for SaaS and healthcare.">{{ prof.bio }}</textarea>
+    </div>
+
+    <div class="card">
+      <div class="ttl">Where you are</div>
+      <span class="sub">Used to work out which on-site and region-locked gigs are
+        worth showing you. The rules for that live under Your feed.</span>
+      <div class="two">
+        <div>
+          <label class="f" for="city">City</label>
+          <input id="city" name="city" value="{{ prof.city }}" placeholder="Seattle">
+        </div>
+        <div>
+          <label class="f" for="country">Country</label>
+          <input id="country" name="country" value="{{ prof.country }}" placeholder="United States">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TAB: Your feed ─────────────────────────────────────────────── -->
+  <div class="pane pane-feed">
+    <div class="card">
+      <div class="ttl">What you do</div>
+      <span class="sub">This is what "Best match" sorts by — without at least one,
+        the board stays newest-first.</span>
+      {% for group, fields in skill_groups %}
+        <div class="grp">
+          <div class="grp-name">{{ group }}</div>
+          <div class="skills">
+            {% for s in fields %}
+              <label><input type="checkbox" name="skills" value="{{ s }}"
+                {% if s in prof.skills %}checked{% endif %}><span>{{ s }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
       {% endfor %}
+      <p class="picked">{% if prof.skills %}<b>{{ prof.skills|length }}</b>
+        selected{% else %}Nothing picked yet — the board stays newest-first{% endif %}</p>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="ttl">Words that matter</div>
-    <span class="sub">Comma separated. Keywords lift a gig up the board; muted
-      words hide it entirely.</span>
-    <label class="f" for="keywords">Boost</label>
-    <input id="keywords" name="keywords" value="{{ prof.keywords }}"
-           placeholder="figma, shopify, brand identity">
-    <label class="f" for="mute">Hide</label>
-    <input id="mute" name="mute" value="{{ prof.mute }}"
-           placeholder="crypto, unpaid, commission only">
-  </div>
-
-  <div class="card">
-    <div class="ttl">Money</div>
-    <span class="sub">Used to flag gigs paying well below what you'll take.</span>
-    <div class="two">
-      <div>
-        <label class="f" for="rate_floor">Minimum budget</label>
-        <input id="rate_floor" name="rate_floor" type="number" min="0" step="10"
-               value="{{ prof.rate_floor or '' }}" placeholder="0">
-      </div>
-      <div>
-        <label class="f" for="rate_unit">Per</label>
-        <select id="rate_unit" name="rate_unit">
-          <option value="hr" {% if prof.rate_unit == 'hr' %}selected{% endif %}>Hour</option>
-          <option value="project" {% if prof.rate_unit == 'project' %}selected{% endif %}>Project</option>
-        </select>
-      </div>
+    <div class="card">
+      <div class="ttl">Words that matter</div>
+      <span class="sub">Comma separated. Keywords lift a gig up the board; muted
+        words hide it entirely.</span>
+      <label class="f" for="keywords">Boost</label>
+      <input id="keywords" name="keywords" value="{{ prof.keywords }}"
+             placeholder="figma, shopify, brand identity">
+      <label class="f" for="mute">Hide</label>
+      <input id="mute" name="mute" value="{{ prof.mute }}"
+             placeholder="crypto, unpaid, commission only">
     </div>
-  </div>
 
-  <div class="card">
-    <div class="ttl">Where you are</div>
-    <span class="sub">Only used to decide which on-site and region-locked gigs
-      are worth showing you.</span>
-    <div class="two">
-      <div>
-        <label class="f" for="city">City</label>
-        <input id="city" name="city" value="{{ prof.city }}" placeholder="Seattle">
-      </div>
-      <div>
-        <label class="f" for="country">Country</label>
-        <input id="country" name="country" value="{{ prof.country }}" placeholder="United States">
-      </div>
-    </div>
-    <label class="check"><input type="checkbox" name="open_to_relocate" value="1"
-      {% if prof.open_to_relocate %}checked{% endif %}>
-      <span>I'd travel or relocate. Shows gigs pinned to other metros, which are
-        hidden by default.</span></label>
-    <label class="check"><input type="checkbox" name="show_all_languages" value="1"
-      {% if prof.show_all_languages %}checked{% endif %}>
-      <span>Show gigs in every language. About 9% of the board isn't English.</span></label>
-  </div>
-
-  <div class="card">
-    <div class="ttl">For your drafted replies</div>
-    <span class="sub">These go into the reply Nabbly writes for you, so the more
-      real they are the less it sounds like a template.</span>
-    <div class="two">
-      <div>
-        <label class="f" for="name">Name</label>
-        <input id="name" name="name" value="{{ prof.name }}" placeholder="Alex Rivera">
-      </div>
-      <div>
-        <label class="f" for="headline">Headline</label>
-        <input id="headline" name="headline" value="{{ prof.headline }}"
-               placeholder="Brand &amp; logo designer">
-      </div>
-    </div>
-    <label class="f" for="portfolio">Portfolio link</label>
-    <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}"
-           placeholder="https://…">
-    <label class="f" for="bio">One line about you</label>
-    <textarea id="bio" name="bio"
-      placeholder="Ten years designing identities for small food brands.">{{ prof.bio }}</textarea>
-  </div>
-
-  {# Alerts is a SECTION of Profile, not a page. The app moved it here
-     deliberately — every tab in its nav shows gigs, and a settings screen in
-     that row was the odd one out. #}
-  <div class="card" id="alerts">
-    <div class="ttl">Alerts</div>
-    <span class="sub">The faster you hear, the more you win. Switch on as many
-      as you like — each one gets the same gigs, so pick whatever you actually
-      check. Leave a field blank to turn that channel off.</span>
-
-    <div class="two">
-      <div>
-        <label class="f" for="sms_to">Text message</label>
-        <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
-               placeholder="+15551234567">
-        <p class="hint">Use the +15551234567 format.</p>
-      </div>
-      <div>
-        <label class="f" for="ntfy_topic">Phone push (ntfy topic)</label>
-        <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
-               placeholder="my-nabbly-alerts">
-        <p class="hint">Free and instant, and it fires with the site closed.</p>
+    <div class="card">
+      <div class="ttl">Money</div>
+      <span class="sub">Used to flag gigs paying well below what you'll take.</span>
+      <div class="two">
+        <div>
+          <label class="f" for="rate_floor">Minimum budget</label>
+          <input id="rate_floor" name="rate_floor" type="number" min="0" step="10"
+                 value="{{ prof.rate_floor or '' }}" placeholder="0">
+        </div>
+        <div>
+          <label class="f" for="rate_unit">Per</label>
+          <select id="rate_unit" name="rate_unit">
+            <option value="hr" {% if prof.rate_unit == 'hr' %}selected{% endif %}>Hour</option>
+            <option value="project" {% if prof.rate_unit == 'project' %}selected{% endif %}>Project</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <label class="f" for="discord_webhook">Discord or Slack webhook</label>
-    <input id="discord_webhook" name="discord_webhook"
-           value="{{ prefs.discord_webhook }}" placeholder="https://…">
-
-    <div class="two">
-      <div>
-        <label class="f" for="telegram_token">Telegram bot token</label>
-        <input id="telegram_token" name="telegram_token" value="{{ prefs.telegram_token }}">
-      </div>
-      <div>
-        <label class="f" for="telegram_chat">Telegram chat id</label>
-        <input id="telegram_chat" name="telegram_chat" value="{{ prefs.telegram_chat }}">
-      </div>
+    <div class="card">
+      <div class="ttl">What reaches you</div>
+      <span class="sub">Two rules about which gigs are allowed onto your board at all.</span>
+      <label class="check"><input type="checkbox" name="open_to_relocate" value="1"
+        {% if prof.open_to_relocate %}checked{% endif %}>
+        <span>I'd travel or relocate. Shows gigs pinned to other metros, which are
+          hidden by default.</span></label>
+      <label class="check"><input type="checkbox" name="show_all_languages" value="1"
+        {% if prof.show_all_languages %}checked{% endif %}>
+        <span>Show gigs in every language. About 9% of the board isn't English.</span></label>
     </div>
 
-    <div class="two">
-      <div>
-        <label class="f" for="every_min">At most one ping every</label>
-        <select id="every_min" name="every_min">
-          {% for m in [5, 15, 30, 60, 180] %}
-            <option value="{{ m }}" {% if prefs.every_min == m %}selected{% endif %}>
-              {{ m }} minutes</option>
-          {% endfor %}
-        </select>
+    <div class="card" id="alerts">
+      <div class="ttl">Alerts</div>
+      <span class="sub">Fill in a channel to turn alerts on. Leave a field blank to
+        turn that channel off.</span>
+      <div class="two">
+        <div>
+          <label class="f" for="sms_to">Text message</label>
+          <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
+                 placeholder="+15551234567">
+        </div>
+        <div>
+          <label class="f" for="ntfy_topic">Phone push (ntfy topic)</label>
+          <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
+                 placeholder="my-nabbly-alerts">
+        </div>
       </div>
-      <div>
-        <label class="f" for="max_per_alert">Gigs per message</label>
-        <select id="max_per_alert" name="max_per_alert">
-          {% for n in [3, 5, 10, 20] %}
-            <option value="{{ n }}" {% if prefs.max_per_alert == n %}selected{% endif %}>{{ n }}</option>
-          {% endfor %}
-        </select>
+      <label class="f" for="discord_webhook">Discord or Slack webhook</label>
+      <input id="discord_webhook" name="discord_webhook"
+             value="{{ prefs.discord_webhook }}" placeholder="https://discord.com/api/webhooks/…">
+      <div class="two">
+        <div>
+          <label class="f" for="telegram_token">Telegram bot token</label>
+          <input id="telegram_token" name="telegram_token" value="{{ prefs.telegram_token }}">
+        </div>
+        <div>
+          <label class="f" for="telegram_chat">Telegram chat id</label>
+          <input id="telegram_chat" name="telegram_chat" value="{{ prefs.telegram_chat }}">
+        </div>
       </div>
+      <div class="two">
+        <div>
+          <label class="f" for="every_min">At most one ping every</label>
+          <select id="every_min" name="every_min">
+            {% for m in [5, 15, 30, 60, 180] %}
+              <option value="{{ m }}" {% if prefs.every_min == m %}selected{% endif %}>
+                {{ m }} minutes</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="f" for="max_per_alert">Gigs per message</label>
+          <select id="max_per_alert" name="max_per_alert">
+            {% for n in [3, 5, 10, 20] %}
+              <option value="{{ n }}" {% if prefs.max_per_alert == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="hint">A quarter-hour digest of five gigs beats a buzz every two
+        minutes. Alerts use the fields and words above.</p>
+      <label class="check"><input type="checkbox" name="urgent_only" value="1"
+        {% if prefs.urgent_only %}checked{% endif %}>
+        <span>Only ping me for gigs marked urgent.</span></label>
     </div>
-    <p class="hint">A quarter-hour digest of five gigs beats a buzz every two
-      minutes. Alerts use the skills and words above.</p>
-
-    <label class="check"><input type="checkbox" name="urgent_only" value="1"
-      {% if prefs.urgent_only %}checked{% endif %}>
-      <span>Only ping me for gigs marked urgent.</span></label>
   </div>
 
   <div class="bar">

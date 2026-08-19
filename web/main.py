@@ -65,6 +65,26 @@ NEW_MINUTES = 90
 # The fields someone can say they work in — same list the app offers.
 ALL_SKILLS = list(config.JOB_TYPES.keys()) + ["Other / general"]
 
+# The five families the Dashboard already sorts work into, reused so the
+# profile groups fields the way the reader has already seen them rather than
+# inventing a second taxonomy. Anything the table misses lands in "Everything
+# else" instead of vanishing — today that is only "Other / general", but a new
+# job type added to config would otherwise silently stop being selectable.
+def _skill_groups():
+    grouped, seen = [], set()
+    for name, fields in getattr(config, "CATEGORY_GROUPS", {}).items():
+        keep = [f for f in fields if f in ALL_SKILLS]
+        if keep:
+            grouped.append((name, keep))
+            seen.update(keep)
+    rest = [s for s in ALL_SKILLS if s not in seen]
+    if rest:
+        grouped.append(("Everything else", rest))
+    return grouped
+
+
+SKILL_GROUPS = _skill_groups()
+
 # Where the Streamlit app lives, for the handful of pages still served there.
 APP_URL = (os.environ.get("NABBLY_APP_URL")
            or "https://app.nabbly.co").rstrip("/")
@@ -678,7 +698,7 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
 
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request, saved_ok: int = Query(0),
-                 welcome: int = Query(0)):
+                 welcome: int = Query(0), tab: str = Query("")):
     """
     What ranks the board and what drafts are written from.
 
@@ -695,7 +715,8 @@ def profile_page(request: Request, saved_ok: int = Query(0),
     import profile as profile_mod
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
-        "all_skills": ALL_SKILLS, "me": me,
+        "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
+        "tab_open": "feed" if tab == "feed" else "you",
         "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
@@ -753,7 +774,10 @@ async def profile_save(request: Request):
             prefs[field] = v
     prefs["urgent_only"] = bool(form.get("urgent_only"))
     alerts_mod.save_prefs(prefs)
-    return RedirectResponse("/profile?saved_ok=1#alerts", status_code=303)
+    # Back to the tab they were on. Saving from "Your feed" and landing on
+    # "You" reads as the page having thrown the edit away.
+    _tab = "feed" if (form.get("ptab") or "") == "feed" else "you"
+    return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
 
 
 @app.get("/out/{gig_id}")

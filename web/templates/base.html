@@ -55,7 +55,34 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
   padding:7px 13px;border-radius:9px}
 .topbar nav a:hover{background:rgba(232,147,58,.09);color:#eaa662}
 .topbar nav a.on{color:var(--amber);box-shadow:inset 0 -2px 0 var(--amber);border-radius:9px 9px 0 0}
-.topbar .who{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--mute)}
+.topbar .who{display:flex;align-items:center;gap:10px;font-size:12.5px;
+  color:var(--mute);position:relative}
+/* ── the account menu ──────────────────────────────────────────────────
+   No script anywhere in this service, so the open state is a checkbox. The
+   scrim is a second label for the same checkbox: clicking anywhere outside
+   closes it, which is what people expect from a menu and what a bare
+   :focus-within version gets wrong on touch. */
+.acct-t{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.acct-scrim{display:none;position:fixed;inset:0;z-index:30;cursor:default}
+.acct-t:checked ~ .acct-scrim{display:block}
+.acct-menu{display:none;position:absolute;top:44px;right:0;z-index:31;
+  min-width:212px;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:12px;padding:6px;
+  box-shadow:0 12px 34px rgba(0,0,0,.5)}
+.acct-t:checked ~ .acct-menu{display:block}
+.acct-hd{padding:8px 11px 9px;font-size:12.5px;color:var(--faint);
+  border-bottom:1px solid var(--line);margin-bottom:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu a,.acct-menu button{display:block;width:100%;text-align:left;
+  padding:9px 11px;border-radius:8px;font-size:13.5px;font-weight:500;
+  color:var(--ink2);text-decoration:none;background:none;border:0;
+  font-family:inherit;cursor:pointer}
+.acct-menu a:hover,.acct-menu button:hover{background:rgba(232,147,58,.1);
+  color:var(--amber-l)}
+.acct-menu form{margin:0}
+.acct-sep{height:1px;background:var(--line);margin:5px 0}
+.acct-t:focus-visible ~ .avatar.on{outline:2px solid var(--amber-d);outline-offset:2px}
+label.avatar{cursor:pointer}
 .linkish{background:none;border:0;padding:0;font:inherit;font-size:12.5px;
   color:var(--faint);cursor:pointer;text-decoration:none}
 .linkish:hover{color:var(--amber-l);text-decoration:underline}
@@ -134,13 +161,25 @@ button.go:hover{background:var(--amber-l)}
        the same circle with a generic glyph, so the bar does not change shape
        when you sign in. #}
     {% if me %}
-      {# The circle IS the profile link. A "Profile" word next to an avatar that
-         went to the same place was two controls for one destination. #}
-      <form method="post" action="/signout" class="inline">
-        <button class="linkish" type="submit">Sign out</button>
-      </form>
-      <a class="avatar on" href="/profile" title="Your profile — {{ me }}"
-         aria-label="Your profile">{{ me[0]|upper }}</a>
+      {# A MENU, NOT A LINK. The circle used to go straight to /profile, which
+         meant "Sign out" had to sit beside it as loose text and there was
+         nowhere to put anything else. The app opens a menu here; this now
+         matches it. Opened by a checkbox rather than script, because this
+         service renders plain HTML and holds no JavaScript at all. #}
+      <input type="checkbox" id="acctmenu" class="acct-t">
+      <label class="avatar on" for="acctmenu" title="{{ me }}"
+             role="button" tabindex="0" aria-label="Account menu">{{ me[0]|upper }}</label>
+      <label class="acct-scrim" for="acctmenu" aria-hidden="true"></label>
+      <div class="acct-menu">
+        <div class="acct-hd">{{ me }}</div>
+        <a href="/profile">Profile &amp; settings</a>
+        <a href="/saved">Saved gigs</a>
+        <a href="{{ app_url }}/?nav=pricing" target="_blank" rel="noopener">Upgrade to Pro</a>
+        <div class="acct-sep"></div>
+        <form method="post" action="/signout">
+          <button type="submit">Sign out</button>
+        </form>
+      </div>
     {% else %}
       <a class="avatar" href="/signin" title="Sign in" aria-label="Sign in">
         <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true">
