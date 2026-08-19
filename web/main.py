@@ -774,15 +774,15 @@ async def profile_save(request: Request):
             prefs[field] = v
     prefs["urgent_only"] = bool(form.get("urgent_only"))
     alerts_mod.save_prefs(prefs)
-    # Back to the tab they were on. Saving from "What you see" and landing on
+    # Back to the tab they were on. Saving from "Preferences" and landing on
     # "About you" reads as the page having thrown the edit away.
     #
     # The VALUE stays "board" — that is the object being configured, and it is
-    # this product's own noun (35 uses; "feed" was imported from elsewhere and
-    # only ever appeared in these tabs). The LABEL is "What you see", because a
-    # tab name should say what you are about to edit rather than name the thing
-    # it produces. It also matches the voice already inside that tab: "What you
-    # do", "What reaches you", "Where you are".
+    # this product's own noun ("feed" was imported from elsewhere and only ever
+    # appeared in these tabs). The LABEL is "Preferences", which is the
+    # convention for exactly this content: LinkedIn ships "Feed preferences",
+    # X ships "Content preferences", and "Preferences" specifically implies
+    # personalization where "Settings" is the generic catch-all.
     _tab = "board" if (form.get("ptab") or "") == "board" else "you"
     return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
 
