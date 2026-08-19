@@ -102,6 +102,18 @@ board member would too.
 **What exists:** the private forwarding itself works and is owner-scoped. No
 public count.
 
+### 5. Outcomes stats
+
+`outcomes.site_stats()` is built and returns gigs landed and dollars landed. It
+is shown on an admin view only, **deliberately** — the code carries a comment
+saying "3 gigs landed" reads as a scoreboard nobody is using and would undercut
+trust rather than build it.
+
+**The gate here is the number, not the work.** When it is a real number it
+belongs on the front page far more than a gig count does.
+
+---
+
 ### 6. Learning from what people configure
 
 **Founder's idea, 2026-08-19.** The Pro draft controls (Include / Avoid /
@@ -139,18 +151,6 @@ Nothing aggregates them. No counts, no clustering, no reporting.
 never sees the field LABELS. It receives the assembled instruction text (see
 pitch._style_rules). Renaming a label changes nothing about what can be
 learned; only aggregating the VALUES does.
-
-### 5. Outcomes stats
-
-`outcomes.site_stats()` is built and returns gigs landed and dollars landed. It
-is shown on an admin view only, **deliberately** — the code carries a comment
-saying "3 gigs landed" reads as a scoreboard nobody is using and would undercut
-trust rather than build it.
-
-**The gate here is the number, not the work.** When it is a real number it
-belongs on the front page far more than a gig count does.
-
----
 
 ## Parked
 
