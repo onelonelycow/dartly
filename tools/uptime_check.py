@@ -225,7 +225,10 @@ def check_board() -> list[str]:
             print(f"  board    NOTE {detail} — worth raising the budget soon")
 
     if not problems:
-        print(f"  board    OK   {rows:,} gigs, {drift}s behind the mirror")
+        # drift is null immediately after a boot, before the first sync lands,
+        # and "Nones behind the mirror" is what that printed.
+        behind = "not synced yet" if drift is None else f"{drift}s behind the mirror"
+        print(f"  board    OK   {rows:,} gigs, {behind}")
     return problems
 
 
