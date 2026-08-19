@@ -103,7 +103,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
-.said{font-size:13px;color:#8fe3b0}
+.said{font-size:13px;color:var(--amber)}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -141,8 +141,7 @@ button.go:hover{background:var(--amber-l)}
   <div class="pane pane-you">
     <div class="card">
       <div class="ttl">For your drafted replies</div>
-      <span class="sub">These go into the reply Nabbly writes for you, so the more
-        real they are the less it sounds like a template.</span>
+      <span class="sub">These go into the reply Nabbly writes for you, so the more real they are, the less it sounds like a template.</span>
       <div class="two">
         <div>
           <label class="f" for="name">Name</label>
@@ -164,7 +163,7 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card{% if not is_pro %} locked{% endif %}">
       <div class="ttl">How your replies read</div>
-      <span class="sub">Applies to every draft Nabbly writes for you: its length,
+      <span class="sub">These apply to every draft Nabbly writes for you: its length,
         what it always mentions, what it never mentions, and how it signs off.
         Leave anything blank and the draft decides.</span>
       {% if not is_pro %}
@@ -201,8 +200,7 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card">
       <div class="ttl">Where you are</div>
-      <span class="sub">Used to work out which on-site and region-locked gigs are
-        worth showing you. The rules for that live under Preferences.</span>
+      <span class="sub">Your location decides which on-site and region-locked gigs are worth showing you. The rules that use it live under Preferences.</span>
       <div class="two">
         <div>
           <label class="f" for="city">City</label>
@@ -220,8 +218,7 @@ button.go:hover{background:var(--amber-l)}
   <div class="pane pane-board">
     <div class="card">
       <div class="ttl">What you do</div>
-      <span class="sub">This is what "Best match" sorts by — without at least one,
-        the board stays newest-first.</span>
+      <span class="sub">This is what Best match sorts by. Pick nothing and the board stays newest-first.</span>
       {% for group, fields in skill_groups %}
         <div class="grp">
           <div class="grp-name">{{ group }}</div>
@@ -239,8 +236,7 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card">
       <div class="ttl">Words that matter</div>
-      <span class="sub">Comma separated. Keywords lift a gig up the board; muted
-        words hide it entirely.</span>
+      <span class="sub">Separate them with commas. Boost words lift a gig up the board, and hide words remove it entirely.</span>
       <label class="f" for="keywords">Boost</label>
       <input id="keywords" name="keywords" value="{{ prof.keywords }}"
              placeholder="figma, shopify, brand identity">
@@ -251,7 +247,7 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card">
       <div class="ttl">Money</div>
-      <span class="sub">Used to flag gigs paying well below what you'll take.</span>
+      <span class="sub">This flags gigs paying well below what you'll take.</span>
       <div class="two">
         <div>
           <label class="f" for="rate_floor">Minimum budget</label>
@@ -270,7 +266,7 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card">
       <div class="ttl">What reaches you</div>
-      <span class="sub">Two rules about which gigs are allowed onto your board at all.</span>
+      <span class="sub">These two rules decide which gigs are allowed onto your board at all.</span>
       <label class="check"><input type="checkbox" name="open_to_relocate" value="1"
         {% if prof.open_to_relocate %}checked{% endif %}>
         <span>I'd travel or relocate. Shows gigs pinned to other metros, which are
