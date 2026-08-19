@@ -163,8 +163,9 @@ button.go:hover{background:var(--amber-l)}
     <div class="card{% if not is_pro %} locked{% endif %}">
       <div class="ttl">How your replies read</div>
       <span class="sub">The card above gives a draft its facts. This one gives it a
-        voice: how long it runs, what it always works in, and what it leaves
-        out.</span>
+        voice: how long it runs, what it always works in, what it leaves out,
+        and how it signs off. Leave anything blank and the draft decides for
+        itself.</span>
       {% if not is_pro %}
         <div class="pro-note">This one's a Pro perk. Drafts still get written
           for you on Free — this decides how they sound.
@@ -187,19 +188,14 @@ button.go:hover{background:var(--amber-l)}
       <label class="f" for="draft_always">Include</label>
       <input id="draft_always" name="draft_always" maxlength="200"
              value="{{ prof.draft_always }}" {% if not is_pro %}disabled{% endif %}>
-      <p class="hint">Worked in where it fits, left out where it doesn't. Your
-        hours, say, or when you are free to start.</p>
 
       <label class="f" for="draft_never">Avoid</label>
       <input id="draft_never" name="draft_never" maxlength="200"
              value="{{ prof.draft_never }}" {% if not is_pro %}disabled{% endif %}>
-      <p class="hint">Kept out however the posting is worded. Your rate, say, or
-        that you are new to this.</p>
 
       <label class="f" for="draft_signoff">Signature</label>
       <input id="draft_signoff" name="draft_signoff" maxlength="80"
              value="{{ prof.draft_signoff }}" {% if not is_pro %}disabled{% endif %}>
-      <p class="hint">How you sign off. Leave it blank and the draft picks one.</p>
     </div>
 
     <div class="card">
