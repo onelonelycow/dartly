@@ -71,11 +71,13 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 /* ── how replies read ─────────────────────────────────────────────────── */
 .seg{display:flex;gap:6px;margin:0 0 14px}
 .seg input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.seg label{flex:1;text-align:center;padding:11px 10px;border-radius:10px;
+.seg label{flex:1;text-align:center;padding:9px 10px;border-radius:10px;
   border:1px solid var(--line);background:var(--bg);color:#c8ced6;
   font-size:13px;cursor:pointer;user-select:none}
+.seg label small{display:block;font-size:11px;color:var(--faint);margin-top:2px}
 .seg input:checked + label{background:rgba(232,147,58,.16);
   border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
+.seg input:checked + label small{color:var(--amber)}
 .seg input:disabled + label{opacity:.5;cursor:not-allowed}
 .seg label:hover{border-color:var(--amber-d)}
 .seg input:disabled + label:hover{border-color:var(--line)}
@@ -173,14 +175,14 @@ button.go:hover{background:var(--amber-l)}
 
       <label class="f">Length</label>
       <div class="seg">
-        {% for val, name in [
-             ('brief', 'Brief'),
-             ('standard', 'Standard'),
-             ('detailed', 'Detailed')] %}
+        {% for val, name, words in [
+             ('brief', 'Brief', '50-80 words'),
+             ('standard', 'Standard', '90-150 words'),
+             ('detailed', 'Detailed', '160-220 words')] %}
           <input type="radio" name="draft_length" id="dl-{{ val }}" value="{{ val }}"
             {% if (prof.draft_length or 'standard') == val %}checked{% endif %}
             {% if not is_pro %}disabled{% endif %}>
-          <label for="dl-{{ val }}">{{ name }}</label>
+          <label for="dl-{{ val }}">{{ name }}<small>{{ words }}</small></label>
         {% endfor %}
       </div>
 
