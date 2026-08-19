@@ -102,6 +102,44 @@ board member would too.
 **What exists:** the private forwarding itself works and is owner-scoped. No
 public count.
 
+### 6. Learning from what people configure
+
+**Founder's idea, 2026-08-19.** The Pro draft controls (Include / Avoid /
+Signature / Length) are the first place members tell Nabbly, in their own
+words, what a good reply looks like. Right now each answer only affects that
+one person. In aggregate it is a product signal nobody else has.
+
+**Why it is worth having.** If a few hundred people fill in **Avoid** and most
+write some version of "my rate", that does not mean add a filter — it means
+*the default draft raises rates too often*, which is a defect in the drafting
+prompt that would otherwise never surface. Same in the other direction: if
+half of **Include** is availability, that is a field that should exist on its
+own rather than being typed into a free-text box every time.
+
+It is the same shape as two things already shipped — the thumbs-up/down bias
+and the willingness-to-pay question — where a small deliberate input compounds
+into something a scraper-based competitor cannot copy, because they have no
+members to ask.
+
+**What exists:** the four fields ship as of 2026-08-19 and are stored per user.
+Nothing aggregates them. No counts, no clustering, no reporting.
+
+**Two conditions before this is built, both real:**
+
+1. **It can only ever be pattern-level and anonymised.** These fields will
+   contain rates, "I'm new to this", availability, sometimes client names.
+   Reading them as raw text across accounts is not something to do to people
+   who wrote them believing they were private, and the FAQ's promise —
+   "Nothing is sold, and nothing is shared" — has to keep being true.
+2. **It needs enough users to mean anything.** With today's numbers the output
+   would be noise dressed as insight. Same gate as the outcomes stats above:
+   the blocker is the sample, not the work.
+
+**A caveat on the framing, because it is easy to assume otherwise:** the model
+never sees the field LABELS. It receives the assembled instruction text (see
+pitch._style_rules). Renaming a label changes nothing about what can be
+learned; only aggregating the VALUES does.
+
 ### 5. Outcomes stats
 
 `outcomes.site_stats()` is built and returns gigs landed and dollars landed. It
