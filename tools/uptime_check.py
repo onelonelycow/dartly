@@ -59,6 +59,32 @@ ATTEMPTS = 3               # one blip is not an outage
 BOOT_ATTEMPTS = 7
 BOOT_WAIT_S = 45
 
+# WATCHING THE GAP, SO THE BUDGET ABOVE CANNOT QUIETLY DRIFT UNDER A BOOT AGAIN.
+#
+# The budget has been wrong once already, and HOW it went wrong is the part
+# worth fixing: it was correct when written, the board grew, and nothing was
+# comparing the two. ROADMAP.md records the same shape of failure against the
+# scaling ceiling. Raising the number fixes today and rebuilds the same trap.
+#
+# So the check now reports how much of its own budget a real boot used. This
+# costs nothing to measure: the retry loop below is ALREADY waiting out boots
+# and already knows how many rounds it waited, and that number was simply being
+# discarded. Nothing extra is fetched, no rows are pulled from the mirror, and
+# the board is never restarted to take a reading. The only boots measured are
+# ones that were going to happen anyway, on a deploy.
+#
+# Two thresholds, because "getting close" and "about to break" deserve
+# different answers:
+#   NOTE — printed, run still passes. Early visibility, no inbox noise.
+#   WARN — reported as a problem, so the job fails and mails. This is NOT an
+#          outage and the message says so. It means the budget has nearly
+#          fallen under a real boot and is about to start crying wolf on every
+#          deploy, which is worth an email precisely BECAUSE it arrives before
+#          the false alarms do.
+BOOT_BUDGET_S = BOOT_WAIT_S * (BOOT_ATTEMPTS - 1)
+BOOT_NOTE_FRACTION = 0.50
+BOOT_WARN_FRACTION = 0.80
+
 
 def _ssl_ctx():
     """
@@ -147,6 +173,12 @@ def check_board() -> list[str]:
     service starting — and it does get reported.
     """
     data, last_err = None, ""
+    # Wall clock, not attempts x BOOT_WAIT_S: the /health request itself takes
+    # real time, and on a cold Render instance the first one can take most of a
+    # minute. Counting sleeps alone would undercount a boot and report a
+    # comfortable margin that is not there.
+    started_at = time.monotonic()
+    saw_boot = False
     for i in range(BOOT_ATTEMPTS):
         try:
             _, body = _get(f"{BOARD}/health")
@@ -154,10 +186,13 @@ def check_board() -> list[str]:
         except Exception as e:
             last_err = f"{type(e).__name__}: {e}"
             data = None
+        if data is not None and data.get("status") == "starting":
+            saw_boot = True
         if data is not None and data.get("status") != "starting":
             break
         if i < BOOT_ATTEMPTS - 1:
             time.sleep(BOOT_WAIT_S)
+    boot_took_s = time.monotonic() - started_at
     if data is None:
         return [f"board service unreachable: {last_err}"]
 
@@ -174,8 +209,26 @@ def check_board() -> list[str]:
         problems.append("board is serving ZERO gigs — is DATABASE_URL set?")
     if drift is not None and drift > MAX_DRIFT_S:
         problems.append(f"board has not synced in {drift}s — its copy is going stale")
+    # Only meaningful when a boot was actually caught in progress. On the runs
+    # where the board was already up (most of them) there is nothing to measure
+    # and nothing is said, which is what keeps this quiet.
+    if saw_boot:
+        used = boot_took_s / BOOT_BUDGET_S
+        detail = (f"boot took {boot_took_s:.0f}s of a {BOOT_BUDGET_S}s budget "
+                  f"({used:.0%}), with {rows:,} gigs to load")
+        if used >= BOOT_WARN_FRACTION:
+            problems.append(
+                f"BUDGET, NOT AN OUTAGE: {detail}. The board is fine. Raise "
+                f"BOOT_ATTEMPTS in tools/uptime_check.py before this drops "
+                f"under a real boot and starts failing on every deploy.")
+        elif used >= BOOT_NOTE_FRACTION:
+            print(f"  board    NOTE {detail} — worth raising the budget soon")
+
     if not problems:
-        print(f"  board    OK   {rows:,} gigs, {drift}s behind the mirror")
+        # drift is null immediately after a boot, before the first sync lands,
+        # and "Nones behind the mirror" is what that printed.
+        behind = "not synced yet" if drift is None else f"{drift}s behind the mirror"
+        print(f"  board    OK   {rows:,} gigs, {behind}")
     return problems
 
 
