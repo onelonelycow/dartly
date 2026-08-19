@@ -42,8 +42,22 @@ SITE = "https://nabbly.co"
 RENDER_TIMEOUT_S = 90      # a cold Render instance can take a while to wake
 MAX_DRIFT_S = 600          # the board syncs every 60s; 10 minutes is broken
 ATTEMPTS = 3               # one blip is not an outage
-BOOT_WAIT_S = 45           # a normal boot sync is ~50s; wait it out before
-                           # calling a deploy an outage
+
+# HOW LONG A DEPLOY IS ALLOWED TO TAKE BEFORE IT COUNTS AS A STUCK SERVICE.
+#
+# This was 45s x 3 attempts = 90s, written when a boot pull took ~50s. The
+# board has grown since; full_sync() was measured at 73s for 65,348 rows on a
+# laptop with a fast connection on 2026-08-19, and Render is slower than that.
+# So the budget had quietly fallen below a normal boot, and every deploy that
+# overlapped a scheduled run reported an outage that was not happening — twice
+# in half an hour that day, both of them 90 seconds after a push.
+#
+# 6 x 45s = 270s. That is roughly three times a measured boot, which leaves
+# room for the board to keep growing before this needs looking at again. A
+# board that is genuinely stuck stays stuck, so the only thing a longer budget
+# costs is finding out about it one cycle later.
+BOOT_ATTEMPTS = 7
+BOOT_WAIT_S = 45
 
 
 def _ssl_ctx():
@@ -122,7 +136,7 @@ def check_board() -> list[str]:
     A DEPLOY IS NOT AN OUTAGE, and this is where that distinction lives.
 
     The board binds its port immediately and fills itself from the mirror
-    behind that, which takes ~50s and is reported honestly as
+    behind that, which takes over a minute and is reported honestly as
     status="starting". The first version of this check saw ok=false and paged
     — on a completely normal deploy. A monitor that fires every time you ship
     is one you learn to ignore, and then it is worth nothing on the day it
@@ -133,7 +147,7 @@ def check_board() -> list[str]:
     service starting — and it does get reported.
     """
     data, last_err = None, ""
-    for i in range(ATTEMPTS):
+    for i in range(BOOT_ATTEMPTS):
         try:
             _, body = _get(f"{BOARD}/health")
             data = json.loads(body)
@@ -142,7 +156,7 @@ def check_board() -> list[str]:
             data = None
         if data is not None and data.get("status") != "starting":
             break
-        if i < ATTEMPTS - 1:
+        if i < BOOT_ATTEMPTS - 1:
             time.sleep(BOOT_WAIT_S)
     if data is None:
         return [f"board service unreachable: {last_err}"]
@@ -152,7 +166,7 @@ def check_board() -> list[str]:
     drift = data.get("drift_s")
     if data.get("status") == "starting":
         return [f"board has been starting for over "
-                f"{BOOT_WAIT_S * (ATTEMPTS - 1)}s — the boot sync is stuck, "
+                f"{BOOT_WAIT_S * (BOOT_ATTEMPTS - 1)}s — the boot sync is stuck, "
                 f"not slow: {json.dumps(data)}"]
     if not data.get("ok"):
         problems.append(f"board reports unhealthy: {json.dumps(data)}")

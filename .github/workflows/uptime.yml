@@ -27,7 +27,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # The board boot budget alone is 270s (see tools/uptime_check.py), and the
+    # app check can spend a minute waking a cold instance ahead of it.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
