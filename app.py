@@ -4143,6 +4143,14 @@ def view_profile(pro):
     else:
         _essentials_form()
 
+    # EVERYTHING BELOW IS ON THE BOARD NOW. Resume, forwarding, plan, the
+    # sign-in link and feedback all moved there when settings became one page,
+    # so for a signed-in member this page would otherwise be a second copy of
+    # all of it — the exact split this was meant to close. Guests still get the
+    # lot, because the board's /profile answers 303 without an account.
+    if ACCESS["signed_in"] and BOARD_URL:
+        return
+
     if pro:
         st.divider()
         st.markdown('<span id="resume" class="gr-jump-target"></span>', unsafe_allow_html=True)
