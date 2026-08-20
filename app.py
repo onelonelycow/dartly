@@ -3968,39 +3968,21 @@ def inbox_card():
                    "Whatever arrives stays private to you.")
 
 
-def view_profile(pro):
-    st.markdown('### Tell us about <span class="gr-accent">you</span>',
-                unsafe_allow_html=True)
-    st.caption("The more we know, the better the gigs we surface for you.")
+def _essentials_form():
+    """
+    The full profile form, kept for people WITHOUT an account.
 
-    _jumps = [("#alerts", "Alerts"), ("#forwarding", "Forwarding"),
-              ("#plan", "Plan"), ("#feedback", "Feedback")]
-    if pro:
-        _jumps.insert(1, ("#resume", "Resume"))
-    st.markdown(
-        '<div class="gr-jump-row">' +
-        "".join(f'<a class="gr-jump" href="{h}">{t}</a>' for h, t in _jumps) +
-        "</div>", unsafe_allow_html=True)
-    # A flash flag, not a toast shown right before the rerun below that follows
-    # a save: st.success() immediately followed by st.rerun() throws away its
-    # own message before a human ever sees it — the rerun aborts THIS script
-    # run and starts a fresh one where that success() line never executes
-    # again. Same pattern the draft-reply "Saved" caption already uses
-    # correctly (see _saved_{gid} above): set a flag, rerun, then read and
-    # clear the flag on the run that actually renders.
-    if st.session_state.pop("_profile_saved", False):
-        st.success("Got it — we've tuned things to you.")
+    Everything on it — name, headline, skills, rate floor, keywords, location,
+    portfolio, bio — is also on the board's own profile page, written to the
+    same store through the same profile module. For a signed-in member that
+    made two pages editing one set of settings, and only one of them was
+    maintained. The board's page is now the single one.
 
-    # No "Signed in as …" line and no Sign out button up here: the account menu
-    # in the top bar already shows both, and repeating them at the top of the
-    # page pushed the actual form down for no new information. Sign out now
-    # sits at the very bottom, where a destructive action belongs. The setup
-    # progress bar went with them — a percentage on an optional form reads as
-    # homework, and every field on it is already optional by design.
-    if not ACCESS["signed_in"]:
-        st.caption("We'll use this right away. Sign in from the **Dashboard** to "
-                   "keep it for next time.")
-
+    It survives here for guests only, and for a specific reason: the board's
+    /profile answers 303 to anyone without an account, so deleting this
+    outright would take away the try-before-you-sign-up path this form was
+    deliberately built to be.
+    """
     # Location pre-fill: detect once, the form below uses it as the default.
     geo = st.session_state.get("_geo", {})
     dcol, mcol = st.columns([1, 3], vertical_alignment="center")
@@ -4098,14 +4080,73 @@ def view_profile(pro):
             st.session_state["_profile_saved"] = True
             st.rerun()
 
+
+def view_profile(pro):
+    st.markdown('### Tell us about <span class="gr-accent">you</span>',
+                unsafe_allow_html=True)
+    st.caption("The more we know, the better the gigs we surface for you.")
+
+    # The jump chips were a symptom: five anchors because the page was too long
+    # to scroll. A member's page is now four short cards, so there is nothing to
+    # jump past. Guests still see the long form, so they still get the chips.
+    if not (ACCESS["signed_in"] and BOARD_URL):
+        _jumps = [("#alerts", "Alerts"), ("#forwarding", "Forwarding"),
+                  ("#plan", "Plan"), ("#feedback", "Feedback")]
+        st.markdown(
+            '<div class="gr-jump-row">' +
+            "".join(f'<a class="gr-jump" href="{h}">{t}</a>' for h, t in _jumps) +
+            "</div>", unsafe_allow_html=True)
+    # A flash flag, not a toast shown right before the rerun below that follows
+    # a save: st.success() immediately followed by st.rerun() throws away its
+    # own message before a human ever sees it — the rerun aborts THIS script
+    # run and starts a fresh one where that success() line never executes
+    # again. Same pattern the draft-reply "Saved" caption already uses
+    # correctly (see _saved_{gid} above): set a flag, rerun, then read and
+    # clear the flag on the run that actually renders.
+    if st.session_state.pop("_profile_saved", False):
+        st.success("Got it — we've tuned things to you.")
+
+    # No "Signed in as …" line and no Sign out button up here: the account menu
+    # in the top bar already shows both, and repeating them at the top of the
+    # page pushed the actual form down for no new information. Sign out now
+    # sits at the very bottom, where a destructive action belongs. The setup
+    # progress bar went with them — a percentage on an optional form reads as
+    # homework, and every field on it is already optional by design.
+    if not ACCESS["signed_in"]:
+        st.caption("We'll use this right away. Sign in from the **Dashboard** to "
+                   "keep it for next time.")
+
+    # ONE PLACE TO EDIT ONE SET OF SETTINGS. This page used to carry the whole
+    # profile form and a 148-line alerts section, both writing the same stored
+    # profile the board writes — not a similar one: the same module, the same
+    # keys, checked field by field. The board's page is the better of the two,
+    # so this points at it rather than competing with it.
+    #
+    # Falls back to the form if NABBLY_BOARD_URL is unset, the same way the
+    # Gigs tab does. Without that guard, clearing one dashboard variable would
+    # leave a member with no way to edit their profile at all.
+    if ACCESS["signed_in"] and BOARD_URL:
+        st.markdown("**Your feed settings live on the board**")
+        st.caption("What you do, the words that lift or bury a gig, where you "
+                   "are, how your replies read, and where alerts go. All on "
+                   "one page there.")
+        _o, _ = st.columns([1, 2])
+        with _o:
+            st.link_button("Open feed settings", f"{BOARD_URL}/profile",
+                           width="stretch")
+    else:
+        _essentials_form()
+
     if pro:
         st.divider()
         st.markdown('<span id="resume" class="gr-jump-target"></span>', unsafe_allow_html=True)
         resume_card()
 
-    st.divider()
-    st.markdown('<span id="alerts" class="gr-jump-target"></span>', unsafe_allow_html=True)
-    alerts_section(pro)
+    if not (ACCESS["signed_in"] and BOARD_URL):
+        st.divider()
+        st.markdown('<span id="alerts" class="gr-jump-target"></span>',
+                    unsafe_allow_html=True)
+        alerts_section(pro)
 
     st.divider()
     st.markdown('<span id="forwarding" class="gr-jump-target"></span>', unsafe_allow_html=True)
