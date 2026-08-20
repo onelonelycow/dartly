@@ -69,6 +69,31 @@ FAQ = [
      "Treat anything asking for money up front or unpaid \"test work\" the way "
      "you would anywhere else."),
 
+    # THIS ANSWER IS TRUE TODAY AND STOPS BEING TRUE THE DAY POSTHOG IS
+    # SWITCHED ON. telemetry.py is inert until POSTHOG_API_KEY is set; the
+    # moment it is, swap in the replacement below and regenerate the site in
+    # the SAME commit, so the page never describes something that is not
+    # happening — in either direction.
+    #
+    # Replacement, written to be about the reader rather than the plumbing:
+    #
+    #   "We keep your email so you can sign back in, plus the profile you fill
+    #    in so we can match gigs to you. We also count what gets used, which
+    #    pages are opened and which buttons are pressed, so we can see what's
+    #    working and make Nabbly better for you. We read those counts in an
+    #    outside tool, and they record what happened, not who did it. There are
+    #    no advertising cookies and no tracking scripts in your browser. What
+    #    you write never leaves us: your profile, your resume, and anything you
+    #    forward. Nothing is sold."
+    #
+    # AND THE PRIVACY PAGE MATTERS MORE THAN THIS ONE. site/privacy.html
+    # currently says, flatly, "We do not use Google Analytics or any
+    # third-party analytics service". That is the formal statement, it is far
+    # more specific than this FAQ line, and it has to change too. The FAQ can
+    # stay plain and reader-facing; the specifics belong there. Note that the
+    # privacy page already discloses processing in the United States, so
+    # PostHog's US region keeps that section correct as written and the EU
+    # region would not.
     ("What do you do with my data?",
      "We keep your email so you can sign back in, plus the profile you fill in "
      "so we can match gigs to you. Analytics are counted on our own server "
