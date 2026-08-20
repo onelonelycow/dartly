@@ -78,8 +78,8 @@ what we never do with it. It is written to be read, not to be survived.
 
 We collect the little we need to show you relevant gigs and let you sign back
 in. We do not sell your data, we do not run advertising trackers, and we do not
-share your information with advertisers. Analytics are counted on our own
-server.
+share your information with advertisers. Usage is counted on our own server,
+and a copy of those counts goes to PostHog, the service we use to read them.
 
 ### What we collect
 
@@ -116,9 +116,15 @@ user can see them.**
 **Feedback you send us**, and the message you wrote.
 
 **Basic usage analytics.** Page views, clicks, which site referred you, and
-whether you are on a desktop or a phone. These are counted on our own server. We
-do not use Google Analytics or any third-party analytics service, and we set no
-advertising cookies and no tracking pixels.
+whether you are on a desktop or a phone. These are counted on our own server,
+and a copy is sent to PostHog, a product analytics service, so we can see which
+parts of Nabbly are used and make it better.
+
+PostHog receives a rotating session identifier and nothing that identifies you:
+not your email, not your name, and nothing you have written into Nabbly — your
+profile, your resume and anything you forward are never sent. The counts are
+sent from our server, so there is no analytics script running in your browser,
+and we set no advertising cookies and no tracking pixels.
 
 **A sign-in token.** A random token identifies you between visits. It is held in
 your browser session and appears in your address bar. Anyone who obtains that
