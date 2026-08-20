@@ -187,6 +187,21 @@ if webauth.SESSION_DOMAIN:
 # a test account actually received rather than that the request returned 200.
 # First tag wins — someone who arrives through a partner and later wanders back
 # in from a search result should still be credited to the partner.
+# Deliberately a substring list rather than anything clever. Every one of these
+# appears in the user agent of something that is not a person, they are all
+# lowercase-matched, and a name that slips through costs one inflated row —
+# where a false positive would silently drop a real visitor.
+_BOT_UA = ("bot", "crawler", "spider", "slurp", "curl/", "wget", "python-requests",
+           "httpx", "headless", "monitor", "uptime", "preview", "scrape",
+           "fetcher", "facebookexternalhit", "embedly", "phantomjs", "selenium",
+           "nabbly-selfcheck")   # our own monitoring is not a visitor either
+
+
+def _is_bot(ua: str) -> bool:
+    ua = (ua or "").lower()
+    return not ua or any(b in ua for b in _BOT_UA)
+
+
 def _ev(request: Request, event: str, detail: str = ""):
     """
     Record one thing a visitor did.
@@ -209,6 +224,12 @@ def _ev(request: Request, event: str, detail: str = ""):
     a rotating session identifier and nothing that identifies you.
     """
     try:
+        # CRAWLERS MUST NOT COUNT AS PEOPLE. This service is indexable and the
+        # /out/ links are followed by bots that never see a page — left in,
+        # they would inflate gig_click most of all, and a number you cannot
+        # trust is worse than no number, because you act on it.
+        if _is_bot(request.headers.get("user-agent", "")):
+            return
         sid = request.session.get("_vid")
         if not sid:
             sid = secrets.token_urlsafe(9)
