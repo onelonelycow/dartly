@@ -172,6 +172,9 @@ details.grp .skills{padding:2px 0 14px}
    feedback each act on their own, so a Save button sitting under them invites
    somebody to press it and wonder what it did. */
 #pt-acct:checked ~ .bar{display:none}
+.hint.warn{color:#e8907e}   /* no --bad token on the board; the app's value */
+input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
+  font-size:13px;color:var(--ink2)}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -282,9 +285,42 @@ details.grp .skills{padding:2px 0 14px}
              value="{{ prof.draft_signoff }}" {% if not is_pro %}disabled{% endif %}>
     </div>
 
+    <div class="card{% if not is_pro %} locked{% endif %}">
+      <div class="ttl">Your resume</div>
+      <span class="sub">Upload it once and your drafts can name real, specific
+        work instead of reading like a form letter.</span>
+      {% if not is_pro %}
+        <div class="pro-note">A Pro perk. Drafts still get written for you on
+          Free; this is what lets them cite what you have actually done.
+          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
+      {% endif %}
+      {% if resume_bad %}
+        <p class="hint warn">That file would not read. A scanned PDF has no text
+          in it to find. A PDF, DOCX or TXT with selectable text works.</p>
+      {% endif %}
+      {% if resume_chars %}
+        <div class="plan">
+          <div>
+            <div class="plan-name">Held for this visit</div>
+            <div class="plan-what">{{ "{:,}".format(resume_chars) }} characters,
+              in memory only. Never written to disk, and gone in a couple of
+              hours or when you clear it.</div>
+          </div>
+          <button class="ghost small" type="submit" form="cv-clear">Clear</button>
+        </div>
+      {% else %}
+        <input type="file" name="resume" form="cv" accept=".pdf,.docx,.txt"
+               {% if not is_pro %}disabled{% endif %}>
+        <button class="ghost small" type="submit" form="cv"
+                {% if not is_pro %}disabled{% endif %}>Upload</button>
+        <p class="hint">PDF, DOCX or TXT. We never store it: it is read to write
+          your reply and held in memory for this visit only.</p>
+      {% endif %}
+    </div>
+
     <div class="card">
       <div class="ttl">Where you are</div>
-      <span class="sub">Your location decides which on-site and region-locked gigs are worth showing you. The rules that use it live under Preferences.</span>
+      <span class="sub">Your location decides which on-site and region-locked gigs are worth showing you. The rules that use it live under Your feed.</span>
       <div class="two">
         <div>
           <label class="f" for="city">City</label>
@@ -513,6 +549,8 @@ details.grp .skills{padding:2px 0 14px}
    sign-out button and the feedback box are bound to these by their form=
    attribute instead. #}
 <form id="so" method="post" action="/signout"></form>
+<form id="cv" method="post" action="/resume" enctype="multipart/form-data"></form>
+<form id="cv-clear" method="post" action="/resume/clear"></form>
 <form id="fb" method="post" action="/feedback">
   <input type="hidden" name="page" value="profile">
 </form>

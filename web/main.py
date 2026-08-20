@@ -652,6 +652,66 @@ def save(request: Request, gig: str = Form(""), back: str = Form("/")):
     return RedirectResponse(back, status_code=303)
 
 
+def _sid(request: Request) -> str:
+    """The per-visit key the resume is held against. Never an email."""
+    sid = request.session.get("_vid")
+    if not sid:
+        sid = secrets.token_urlsafe(9)
+        request.session["_vid"] = sid
+    return sid
+
+
+@app.post("/resume")
+async def resume_upload(request: Request):
+    """
+    Take a resume, keep the text in memory for this visit, never on disk.
+
+    Same promise the app has always made and site/privacy.html still states:
+    processed only to write your reply, never stored. resume_store.py holds it
+    in a process-local dict with a two-hour life.
+
+    A file it cannot read is not an error. extract_text returns "" for a
+    scanned PDF, something corrupt or something oversized, and the honest
+    answer then is "that one did not read", not a stack trace on a page
+    somebody came to for settings.
+    """
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    form = await request.form()
+    up = form.get("resume")
+    text = ""
+    if up is not None and getattr(up, "filename", ""):
+        try:
+            import resume as resume_mod
+            import resume_store
+            raw = await up.read()
+
+            class _Shim:      # extract_text wants .name and .getvalue()
+                name = up.filename
+                def getvalue(self_inner):
+                    return raw
+            text = resume_mod.extract_text(_Shim())
+            if text:
+                resume_store.put(_sid(request), text)
+        except Exception:
+            text = ""
+    return RedirectResponse(
+        "/profile?tab=you&" + ("saved_ok=1" if text else "resume_bad=1"),
+        status_code=303)
+
+
+@app.post("/resume/clear")
+async def resume_clear(request: Request):
+    webauth.scope_for_request(request)
+    try:
+        import resume_store
+        resume_store.clear(_sid(request))
+    except Exception:
+        pass
+    return RedirectResponse("/profile?tab=you&saved_ok=1", status_code=303)
+
+
 @app.post("/feedback")
 async def feedback_post(request: Request):
     """
@@ -775,7 +835,15 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     text = "" if regen else drafts_mod.load(gig_id)
     if not text:
         if pro and pitch.ai_available():
-            text = pitch.draft_pitch(g, prof, who=me)
+            # THE RESUME IS WHY THIS MOVED. A draft that can name real work
+            # beats one written from a one-line bio, and until now the board
+            # could not do that at all — the upload only existed on the app.
+            try:
+                import resume_store
+                _cv = resume_store.get(_sid(request))
+            except Exception:
+                _cv = ""
+            text = pitch.draft_pitch(g, prof, who=me, resume_text=_cv)
         else:
             text = pitch.draft_template(g, prof)
 
@@ -813,7 +881,8 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
 
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request, saved_ok: int = Query(0),
-                 welcome: int = Query(0), tab: str = Query("")):
+                 welcome: int = Query(0), tab: str = Query(""),
+                 resume_bad: int = Query(0)):
     """
     What ranks the board and what drafts are written from.
 
@@ -852,9 +921,15 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         inbox_address = inbox_mod.address_for(me) if inbox_mod.enabled() else ""
     except Exception:
         inbox_address = ""
+    try:
+        import resume_store
+        _resume_chars = resume_store.held_chars(_sid(request))
+    except Exception:
+        _resume_chars = 0
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
         "is_pro": is_pro, "plan": plan, "inbox_address": inbox_address,
+        "resume_chars": _resume_chars, "resume_bad": bool(resume_bad),
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
         "tab_open": tab if tab in ("board", "acct") else "you",
         "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
