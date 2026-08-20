@@ -652,6 +652,30 @@ def save(request: Request, gig: str = Form(""), back: str = Form("/")):
     return RedirectResponse(back, status_code=303)
 
 
+@app.post("/feedback")
+async def feedback_post(request: Request):
+    """
+    The feedback box on the Account tab.
+
+    Straight into the same store the app's own box writes to, so there is one
+    list to read rather than two. Never allowed to fail loudly: somebody
+    telling you something is broken should not meet a second broken thing.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    form = await request.form()
+    msg = (form.get("feedback") or "").strip()[:2000]
+    if msg:
+        try:
+            import people
+            people.add_feedback(msg, email=me, page="board-profile")
+        except Exception:
+            pass
+    return RedirectResponse("/profile?saved_ok=1&tab=acct", status_code=303)
+
+
 @app.post("/signout")
 def signout(request: Request):
     webauth.sign_out_session(request)
@@ -804,15 +828,35 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import alerts as alerts_mod
     import profile as profile_mod
+    st_ = {}
     try:
-        is_pro = bool(accounts.status(webauth.account_for(request)).get("pro"))
+        st_ = accounts.status(webauth.account_for(request)) or {}
     except Exception:
-        is_pro = False
+        st_ = {}
+    is_pro = bool(st_.get("pro"))
+    # What the Account tab says you are on. Read from accounts.status rather
+    # than inferred from is_pro, so a trial with days left reads as a trial.
+    if is_pro and st_.get("plan") == "trial":
+        plan = {"name": "Pro trial", "tag": f"{st_.get('days_left', 0)} days left",
+                "what": "Everything Pro does, free until it runs out."}
+    elif is_pro:
+        plan = {"name": "Pro", "tag": "Active",
+                "what": "Ranking, post-aware drafts, market rates and instant alerts."}
+    else:
+        plan = {"name": "Free", "tag": "The whole board",
+                "what": "Every gig from every source, search and browse, "
+                        "and a drafted reply on every card."}
+    # The forwarding address, if the mailbox behind it is configured at all.
+    try:
+        import inbox as inbox_mod
+        inbox_address = inbox_mod.address_for(me) if inbox_mod.enabled() else ""
+    except Exception:
+        inbox_address = ""
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
-        "is_pro": is_pro,
+        "is_pro": is_pro, "plan": plan, "inbox_address": inbox_address,
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
-        "tab_open": "board" if tab == "board" else "you",
+        "tab_open": tab if tab in ("board", "acct") else "you",
         "saved_ok": bool(saved_ok), "welcome": bool(welcome), "tab": "profile",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
@@ -898,7 +942,8 @@ async def profile_save(request: Request):
     # convention for exactly this content: LinkedIn ships "Feed preferences",
     # X ships "Content preferences", and "Preferences" specifically implies
     # personalization where "Settings" is the generic catch-all.
-    _tab = "board" if (form.get("ptab") or "") == "board" else "you"
+    _ptab = (form.get("ptab") or "").strip()
+    _tab = _ptab if _ptab in ("board", "acct") else "you"
     return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
 
 

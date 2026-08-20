@@ -21,7 +21,8 @@
   margin-bottom:-1px;border-bottom:2px solid transparent}
 .tabs label:hover{color:var(--ink)}
 #pt-you:checked ~ .tabs label[for=pt-you],
-#pt-board:checked ~ .tabs label[for=pt-board]{color:var(--amber);
+#pt-board:checked ~ .tabs label[for=pt-board],
+#pt-acct:checked ~ .tabs label[for=pt-acct]{color:var(--amber);
   border-bottom-color:var(--amber)}
 .tabin:focus-visible ~ .tabs label[for=pt-you],
 #pt-board.tabin:focus-visible ~ .tabs label[for=pt-board]{outline:2px solid var(--amber-d);
@@ -29,6 +30,7 @@
 .pane{display:none}
 #pt-you:checked ~ .pane-you{display:block}
 #pt-board:checked ~ .pane-board{display:block}
+#pt-acct:checked ~ .pane-acct{display:block}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:20px 22px;margin:0 0 14px}
@@ -146,6 +148,30 @@ details.grp > summary .grp-name{padding-top:0;flex:1}   /* the count and the che
 .grp-n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
 details.grp[open] .grp-n{color:var(--amber)}
 details.grp .skills{padding:2px 0 14px}
+/* Account tab */
+.plan{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 14px}
+.plan-name{font-size:16px;font-weight:650;color:var(--ink)}
+.plan-what{font-size:12.5px;color:var(--faint);margin-top:2px}
+.plan-tag{font-size:12.5px;color:var(--amber);font-weight:600;white-space:nowrap}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;
+  color:var(--ink2);background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;word-break:break-all}
+.ghost{display:inline-block;background:var(--bg);color:var(--ink2);
+  border:1px solid var(--line2);border-radius:10px;padding:9px 15px;
+  font-size:13.5px;font-family:inherit;cursor:pointer;text-decoration:none}
+.ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.go.small,.ghost.small{padding:8px 14px;font-size:13px}
+/* THE FEEDBACK BOX IS NOT A SETTING. It earns a place here because this is
+   where people are when something annoys them, but a settings page is about
+   settings — so it sits last, in a quieter card, at a smaller size. */
+.card.quiet{background:transparent;border-style:dashed;padding:16px 18px}
+.card.quiet .ttl{font-size:14px}
+.card.quiet textarea{min-height:52px;margin-bottom:10px}
+/* NOTHING ON THE ACCOUNT TAB IS SAVED BY THIS BUTTON. Plan, sign out and
+   feedback each act on their own, so a Save button sitting under them invites
+   somebody to press it and wonder what it did. */
+#pt-acct:checked ~ .bar{display:none}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -177,14 +203,22 @@ details.grp .skills{padding:2px 0 14px}
        for anyone who did not scroll. -->
   <div class="savedbar" role="status">Saved.</div>
 {% endif %}
+  {# THREE TABS, ONE PAGE. Settings used to live in two places on two
+     services: this page for the feed, and the app's own page for resume,
+     forwarding, plan and feedback. Clicking between them lost your place and
+     opened another browser tab. There is one page now, and Account is the
+     third tab rather than a second destination. #}
   <input class="tabin" type="radio" name="ptab" id="pt-you" value="you"
-    {% if tab_open != 'board' %}checked{% endif %}>
+    {% if tab_open not in ('board', 'acct') %}checked{% endif %}>
   <input class="tabin" type="radio" name="ptab" id="pt-board" value="board"
     {% if tab_open == 'board' %}checked{% endif %}>
+  <input class="tabin" type="radio" name="ptab" id="pt-acct" value="acct"
+    {% if tab_open == 'acct' %}checked{% endif %}>
 
   <div class="tabs">
-    <label for="pt-you">About you</label>
-    <label for="pt-board">Preferences</label>
+    <label for="pt-you">You</label>
+    <label for="pt-board">Your feed</label>
+    <label for="pt-acct">Account</label>
   </div>
 
   <!-- ── TAB: You ───────────────────────────────────────────────────── -->
@@ -421,10 +455,66 @@ details.grp .skills{padding:2px 0 14px}
     </div>
   </div>
 
+  <!-- ── TAB: Account ────────────────────────────────────────────────── -->
+  <div class="pane pane-acct">
+    <div class="card">
+      <div class="ttl">Your plan</div>
+      <span class="sub">What you are on today, and what it gets you.</span>
+      <div class="plan">
+        <div>
+          <div class="plan-name">{{ plan.name }}</div>
+          <div class="plan-what">{{ plan.what }}</div>
+        </div>
+        <div class="plan-tag">{{ plan.tag }}</div>
+      </div>
+      {% if not is_pro %}
+        <p class="hint">Pro adds gigs ranked against your profile, replies
+          drafted from the actual posting, market rates, and instant alerts.</p>
+        <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
+      {% else %}
+        <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>
+      {% endif %}
+    </div>
+
+    {% if inbox_address %}
+    <div class="card">
+      <div class="ttl">Forward your newsletters</div>
+      <span class="sub">A lot of the best work goes out on a listserv or a paid
+        newsletter and never reaches a job board. Forward one to this address
+        and the gigs inside land on your board, visible only to you.</span>
+      <div class="mono">{{ inbox_address }}</div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="ttl">Getting back in</div>
+      <span class="sub">There is no password on your account. Signing in sends a
+        code to {{ me }}, which is all you ever need.</span>
+      <button class="ghost small" type="submit" form="so">Sign out</button>
+    </div>
+
+    <div class="card quiet">
+      <div class="ttl small">Something wrong, or missing?</div>
+      <span class="sub">Goes straight to the person building this.</span>
+      <textarea name="feedback" form="fb" rows="2"
+                placeholder="The gigs are all remote, I wanted local ones…"></textarea>
+      <button class="ghost small" type="submit" form="fb">Send</button>
+    </div>
+  </div>
+
   <div class="bar">
     <button class="go" type="submit">Save profile</button>
     {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
+</form>
+
+{# BOTH OF THESE SIT OUTSIDE THE PROFILE FORM ON PURPOSE. A form inside a form
+   is invalid HTML and the browser silently discards the inner one, so the
+   sign-out button and the feedback box are bound to these by their form=
+   attribute instead. #}
+<form id="so" method="post" action="/signout"></form>
+<form id="fb" method="post" action="/feedback">
+  <input type="hidden" name="page" value="profile">
 </form>
 
 {% endblock %}
