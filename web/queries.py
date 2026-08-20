@@ -46,6 +46,55 @@ CARD_COLS = ("id", "title", "url", "source", "sort_at", "posted_at",
 PAGE_SIZE = 25
 MAX_LIMIT = 100          # a caller cannot ask for the whole board
 
+# ONE SOURCE SHOULD NOT OWN THE SHOP WINDOW.
+#
+# The board is ordered newest-first, and the feeds do not post at the same
+# rate. Measured on the live board on 2026-08-19, the first 60 gigs a visitor
+# saw under "Writing / content" were 90% one source, and under "Design /
+# creative" 53%. Nothing in the code caused that and nothing prevented it:
+# volume alone decides the top of a recency sort.
+#
+# It matters because of what the field pages promise — work gathered "from
+# across the job boards and hiring communities" — and a first page that is
+# nine-tenths one site does not read like that, whatever the total says.
+#
+# NOTHING IS HIDDEN OR DROPPED. This is a reordering: a gig held out of one
+# page is the next page's first candidate, so the same gigs appear, slightly
+# later. It reaches SPREAD_PAGES deep and then stops, because past that point
+# somebody is searching rather than browsing and strict recency serves them
+# better.
+SPREAD_SHARE = 0.4       # at most this share of any one page from one source
+SPREAD_PAGES = 8         # how deep the rebalance reaches
+
+
+def _spread(pairs, page_size: int, share: float = SPREAD_SHARE) -> list:
+    """
+    Reorder (id, source) pairs so no source exceeds `share` of a page.
+
+    Recency is preserved inside a source and inside a page: this only decides
+    which page a gig lands on, never whether it lands. If a page cannot be
+    filled under the cap (a field with one source, say) it takes the overflow
+    in order rather than coming back short.
+    """
+    cap = max(1, int(page_size * share))
+    remaining, out = list(pairs), []
+    while remaining:
+        used: dict = {}
+        page, deferred = [], []
+        for pid, src in remaining:
+            if len(page) < page_size and used.get(src, 0) < cap:
+                page.append(pid)
+                used[src] = used.get(src, 0) + 1
+            else:
+                deferred.append((pid, src))
+        if len(page) < page_size and deferred:
+            need = page_size - len(page)
+            page += [pid for pid, _ in deferred[:need]]
+            deferred = deferred[need:]
+        out += page
+        remaining = deferred
+    return out
+
 
 def _db_path() -> str:
     import db as _db
@@ -254,10 +303,25 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
                                       since_hours, city, relocate)
         total = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         cols = ", ".join(f"p.{c}" for c in CARD_COLS)
-        rows = conn.execute(
-            f"SELECT {cols} {frm} {where} ORDER BY p.sort_at DESC LIMIT ? OFFSET ?",
-            params + [page_size, page * page_size]).fetchall()
-        return {"rows": [dict(r) for r in rows], "total": total, "page": page,
+        depth = SPREAD_PAGES * page_size
+        if page * page_size < depth:
+            # Two queries on purpose. The spread needs to see further down the
+            # board than one page, and CARD_COLS carries every gig's body, so
+            # reading 200 full rows to show 25 would cost eight times what this
+            # page costs today. id and source are enough to decide the order;
+            # the bodies are then fetched for the 25 that survive it.
+            window = conn.execute(
+                f"SELECT p.id, p.source {frm} {where} "
+                f"ORDER BY p.sort_at DESC LIMIT ?", params + [depth]).fetchall()
+            order = _spread([(str(r["id"]), r["source"] or "") for r in window],
+                            page_size)
+            rows = by_ids(order[page * page_size:(page + 1) * page_size], conn)
+        else:
+            rows = [dict(r) for r in conn.execute(
+                f"SELECT {cols} {frm} {where} ORDER BY p.sort_at DESC "
+                f"LIMIT ? OFFSET ?",
+                params + [page_size, page * page_size]).fetchall()]
+        return {"rows": rows, "total": total, "page": page,
                 "pages": max(1, -(-total // page_size))}
     finally:
         if own:
