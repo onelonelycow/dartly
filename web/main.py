@@ -19,6 +19,7 @@ Runs alongside the Streamlit app rather than replacing it — same database,
 same db.py. Nothing here writes.
 """
 import os
+import secrets
 import sys
 import time
 
@@ -46,6 +47,7 @@ import googleauth  # noqa: E402
 import location  # noqa: E402
 import paths  # noqa: E402
 import queries  # noqa: E402
+import telemetry  # noqa: E402
 import textfmt  # noqa: E402
 import webauth  # noqa: E402
 
@@ -185,6 +187,40 @@ if webauth.SESSION_DOMAIN:
 # a test account actually received rather than that the request returned 200.
 # First tag wins — someone who arrives through a partner and later wanders back
 # in from a search result should still be credited to the partner.
+def _ev(request: Request, event: str, detail: str = ""):
+    """
+    Record one thing a visitor did.
+
+    THE BOARD RECORDED NOTHING UNTIL NOW. Every event Nabbly had came from the
+    Streamlit app, and when the Gigs tab moved here the event stream did not
+    follow — so the place people actually browse was invisible, and so was
+    every arrival from the marketing site.
+
+    Straight to telemetry, not through analytics.track(), for a reason: track()
+    opens SQLite, inserts, commits and closes on the calling thread, and this
+    route answers in 3-4ms. The PostHog client appends to an in-memory queue
+    and a background thread does the sending, so the cost here is a dict lookup
+    and a list append. It is also honest about this service's disk, which
+    Render wipes on every deploy — a local events table here would be lost
+    every time you shipped.
+
+    The distinct id is a random key kept in the session cookie. Not an email
+    and not an account id, which is exactly what the privacy page now promises:
+    a rotating session identifier and nothing that identifies you.
+    """
+    try:
+        sid = request.session.get("_vid")
+        if not sid:
+            sid = secrets.token_urlsafe(9)
+            request.session["_vid"] = sid
+        telemetry.capture(event, detail, sid)
+        camp = request.session.get("_camp")
+        if camp and event == "board_view":
+            telemetry.capture("from_campaign", camp, sid)
+    except Exception:
+        pass          # a counter must never stand between someone and a gig
+
+
 @app.middleware("http")
 async def _remember_campaign(request: Request, call_next):
     try:
@@ -872,6 +908,11 @@ def out(request: Request, gig_id: int):
         conn.close()
     if not rows or not (rows[0].get("url") or "").startswith(("http://", "https://")):
         return RedirectResponse("/gigs", status_code=303)
+    # Which kinds of gig actually pull a click, from everyone rather than only
+    # from members. activity.log_apply below stays members-only on purpose: it
+    # feeds the outcomes number, and an anonymous click has nobody to
+    # attribute it to.
+    _ev(request, "gig_click", (rows[0].get("job_type") or "")[:60])
     if webauth.current_email(request):
         try:
             import activity
@@ -996,6 +1037,13 @@ def board(request: Request,
             res = queries.fit_ranked(prof, keyword=q, page=page, conn=conn, **ctx)
         else:
             res = queries.board(keyword=q, page=page, conn=conn, **ctx)
+        # WHAT PEOPLE WANT, AND WHAT THEY WANTED AND DID NOT GET. A search that
+        # returns nothing is the most useful line in the whole stream: it is
+        # somebody telling you, in their own words, what the board is missing.
+        _ev(request, "board_view", (field or "all")[:60])
+        if q:
+            _ev(request, "search" if res.get("total") else "search_empty",
+                q.strip().lower()[:60])
         # The chip counts take the same filters MINUS the quick-filter, so a
         # chip still says how many it would give you, not how many survive a
         # temporary narrowing you are about to replace.
