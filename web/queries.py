@@ -64,7 +64,17 @@ MAX_LIMIT = 100          # a caller cannot ask for the whole board
 # somebody is searching rather than browsing and strict recency serves them
 # better.
 SPREAD_SHARE = 0.4       # at most this share of any one page from one source
-SPREAD_PAGES = 8         # how deep the rebalance reaches
+
+# WHY 16 AND NOT 8. The cap can only use the gigs inside its window, so on a
+# field where one source posts nine tenths of everything, a shallow window runs
+# out of anything else to promote and the page takes the overflow. Measured on
+# real data: at 8 pages the writing field settled at 48% rather than the 40%
+# the cap asks for, at 16 it reaches 40%, and past 16 nothing improves.
+#
+# It costs nothing in freshness. The oldest gig on page one is the same at 8
+# pages and at 80 — the reach back in time is set by the cap, not the window —
+# and the extra rows are id and source only, 6ms against 5ms for three pages.
+SPREAD_PAGES = 16        # how deep the rebalance reaches
 
 
 def _spread(pairs, page_size: int, share: float = SPREAD_SHARE) -> list:
