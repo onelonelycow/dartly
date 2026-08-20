@@ -110,6 +110,14 @@ def track(event: str, detail: str = "", session: str = ""):
         conn.close()
     except sqlite3.Error:
         pass  # analytics must never take the app down
+    # Optional second destination, off unless POSTHOG_API_KEY is set. Mirrored
+    # from here rather than from each call site so there is exactly one place
+    # events leave the building, and so this file stays the source of truth.
+    try:
+        import telemetry
+        telemetry.capture(event, detail, session)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

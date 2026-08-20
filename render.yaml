@@ -75,6 +75,15 @@ services:
         sync: false
       - key: NABBLY_BOARD_URL      # set to https://board.nabbly.co to move the
         sync: false                # Gigs tab to the fast board; clear to undo
+      # PostHog, server-side and OFF until both of these are true: this key is
+      # set here, and `posthog` is added to requirements.txt. See telemetry.py
+      # for why there is no browser SDK (Streamlit strips script tags, and a
+      # browser SDK would mean a consent banner on a site that sets no cookies
+      # today). Leave POSTHOG_HOST unset for the EU region.
+      - key: POSTHOG_API_KEY
+        sync: false
+      - key: POSTHOG_HOST
+        sync: false
       # Optional: keep data + profile across redeploys (needs the disk below).
       # - key: DATA_DIR
       #   value: /var/data

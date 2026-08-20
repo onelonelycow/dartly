@@ -33,3 +33,9 @@ fastapi>=0.115,<1        # 0.141 today
 uvicorn>=0.30,<1         # ASGI server for the board service
 jinja2>=3.1,<4           # board templates (Streamlit already depends on it)
 itsdangerous>=2.0,<3     # signs the board service session cookie
+
+# PostHog, server-side only — see telemetry.py. NOT INSTALLED ON PURPOSE: the
+# code is inert without POSTHOG_API_KEY, and carrying an unused dependency
+# means every build pays for it and every one of its releases can break a
+# deploy. Uncomment this line on the day the key goes in, not before.
+# posthog>=3.7,<4
