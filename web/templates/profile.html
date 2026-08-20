@@ -129,6 +129,23 @@ button.go:hover{background:var(--amber-l)}
   color:var(--amber-l);background:rgba(232,147,58,.10)}
 .savedbar::before{content:"";width:7px;height:7px;border-radius:50%;
   background:var(--amber);flex:none}
+/* Overrides the two-column grid .grp still carries for anything that is not
+   a <details>: inside a fold the row is a full-width summary with the vertical
+   on the left, and the pills sit underneath it rather than beside it. */
+details.grp{display:block;border-top:1px solid var(--line);padding:0}
+details.grp:first-of-type{border-top:0}
+details.grp > summary{display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:12px 2px;cursor:pointer;list-style:none;user-select:none}
+details.grp > summary::-webkit-details-marker{display:none}
+details.grp > summary::after{content:"";width:7px;height:7px;flex:none;
+  border-right:1.6px solid var(--mute);border-bottom:1.6px solid var(--mute);
+  transform:rotate(45deg) translateY(-2px);transition:transform .15s ease}
+details.grp[open] > summary::after{transform:rotate(-135deg) translateY(1px)}
+details.grp > summary:hover .grp-name{color:var(--ink2)}
+details.grp > summary .grp-name{padding-top:0;flex:1}   /* the count and the chevron travel together on the right */
+.grp-n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+details.grp[open] .grp-n{color:var(--amber)}
+details.grp .skills{padding:2px 0 14px}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -252,16 +269,26 @@ button.go:hover{background:var(--amber-l)}
     <div class="card">
       <div class="ttl">What you do</div>
       <span class="sub">This is what Best match sorts by. Pick nothing and the board stays newest-first.</span>
+      {# ONE ROW PER VERTICAL, FOLDED SHUT. Twenty-two pills open at once was
+         the loudest thing on the page and made a settings form look like a
+         quiz. Each vertical is a <details>, so the page is six quiet rows
+         until you open the one you work in. Native element, no JavaScript,
+         and it stays keyboard-operable. A vertical with something selected
+         opens on load, so nobody has to hunt for their own answers. #}
       {% for group, fields in skill_groups %}
-        <div class="grp">
-          <div class="grp-name">{{ group }}</div>
+        {% set chosen = fields | select("in", prof.skills) | list %}
+        <details class="grp" {% if chosen %}open{% endif %}>
+          <summary>
+            <span class="grp-name">{{ group }}</span>
+            <span class="grp-n">{% if chosen %}{{ chosen|length }} selected{% else %}none{% endif %}</span>
+          </summary>
           <div class="skills">
             {% for s in fields %}
               <label><input type="checkbox" name="skills" value="{{ s }}"
                 {% if s in prof.skills %}checked{% endif %}><span>{{ s }}</span></label>
             {% endfor %}
           </div>
-        </div>
+        </details>
       {% endfor %}
       <p class="picked">{% if prof.skills %}<b>{{ prof.skills|length }}</b>
         selected{% else %}Nothing picked yet — the board stays newest-first{% endif %}</p>
