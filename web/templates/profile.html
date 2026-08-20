@@ -82,6 +82,26 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 .seg label:hover{border-color:var(--amber-d)}
 .seg input:disabled + label:hover{border-color:var(--line)}
 .locked input,.locked textarea{opacity:.5}
+/* Channel picker. The radios sit before the labels and the panes so a checked
+   one can reach both as later siblings; that is the whole mechanism, and it is
+   why they are not next to the label they control. */
+.chanin{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.chanseg{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.chanseg label{flex:1 1 auto;text-align:center;padding:9px 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--bg);color:#c8ced6;
+  font-size:13px;cursor:pointer;user-select:none;white-space:nowrap}
+.chanseg label:hover{border-color:var(--amber-d)}
+.pane{display:none}
+#ch-sms:checked ~ .chanseg label[for="ch-sms"],
+#ch-push:checked ~ .chanseg label[for="ch-push"],
+#ch-chat:checked ~ .chanseg label[for="ch-chat"],
+#ch-tg:checked ~ .chanseg label[for="ch-tg"]{background:rgba(232,147,58,.16);
+  border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
+#ch-sms:checked ~ .pane.p-sms,
+#ch-push:checked ~ .pane.p-push,
+#ch-chat:checked ~ .pane.p-chat,
+#ch-tg:checked ~ .pane.p-tg{display:block}
+.split{height:1px;background:var(--line);margin:4px 0 16px}
 .pro-note{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:11px 14px;font-size:13px;
   line-height:1.55;margin:0 0 15px}
@@ -278,54 +298,83 @@ button.go:hover{background:var(--amber-l)}
 
     <div class="card" id="alerts">
       <div class="ttl">Alerts</div>
-      <span class="sub">Fill in a channel to turn alerts on. Leave a field blank to
-        turn that channel off.</span>
-      <div class="two">
-        <div>
-          <label class="f" for="sms_to">Text message</label>
+      <span class="sub">Nabbly can ping you the moment a matching gig lands.
+        Pick where it should go, fill in that one field, and save. Clearing the
+        field turns it off again.</span>
+
+      {% set ch = 'sms' if prefs.sms_to else ('push' if prefs.ntfy_topic
+                  else ('chat' if prefs.discord_webhook
+                  else ('tg' if prefs.telegram_token else 'sms'))) %}
+      <div class="chan">
+        <input class="chanin" type="radio" name="chanpick" id="ch-sms"
+               {% if ch == 'sms' %}checked{% endif %}>
+        <input class="chanin" type="radio" name="chanpick" id="ch-push"
+               {% if ch == 'push' %}checked{% endif %}>
+        <input class="chanin" type="radio" name="chanpick" id="ch-chat"
+               {% if ch == 'chat' %}checked{% endif %}>
+        <input class="chanin" type="radio" name="chanpick" id="ch-tg"
+               {% if ch == 'tg' %}checked{% endif %}>
+        <div class="chanseg">
+          <label for="ch-sms">Text message</label>
+          <label for="ch-push">Phone push</label>
+          <label for="ch-chat">Discord or Slack</label>
+          <label for="ch-tg">Telegram</label>
+        </div>
+
+        <div class="pane p-sms">
           <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
-                 placeholder="+15551234567">
+                 placeholder="+15551234567" aria-label="Mobile number">
+          <p class="hint">Your mobile number, with the country code.</p>
         </div>
-        <div>
-          <label class="f" for="ntfy_topic">Phone push (ntfy topic)</label>
+        <div class="pane p-push">
           <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
-                 placeholder="my-nabbly-alerts">
+                 placeholder="my-nabbly-alerts" aria-label="ntfy topic">
+          <p class="hint">A free push app called ntfy. Install it, invent a topic
+            name, subscribe to it there, and put the same name here.</p>
+        </div>
+        <div class="pane p-chat">
+          <input id="discord_webhook" name="discord_webhook"
+                 value="{{ prefs.discord_webhook }}"
+                 placeholder="https://discord.com/api/webhooks/…"
+                 aria-label="Discord or Slack webhook">
+          <p class="hint">A webhook address from your own server or workspace.
+            Both work the same way.</p>
+        </div>
+        <div class="pane p-tg">
+          <div class="two">
+            <div><input id="telegram_token" name="telegram_token"
+                        value="{{ prefs.telegram_token }}" placeholder="Bot token"
+                        aria-label="Telegram bot token"></div>
+            <div><input id="telegram_chat" name="telegram_chat"
+                        value="{{ prefs.telegram_chat }}" placeholder="Chat id"
+                        aria-label="Telegram chat id"></div>
+          </div>
+          <p class="hint">Both come from BotFather when you create a bot.</p>
         </div>
       </div>
-      <label class="f" for="discord_webhook">Discord or Slack webhook</label>
-      <input id="discord_webhook" name="discord_webhook"
-             value="{{ prefs.discord_webhook }}" placeholder="https://discord.com/api/webhooks/…">
+
+      <div class="split"></div>
+      <label class="f">How often</label>
       <div class="two">
         <div>
-          <label class="f" for="telegram_token">Telegram bot token</label>
-          <input id="telegram_token" name="telegram_token" value="{{ prefs.telegram_token }}">
-        </div>
-        <div>
-          <label class="f" for="telegram_chat">Telegram chat id</label>
-          <input id="telegram_chat" name="telegram_chat" value="{{ prefs.telegram_chat }}">
-        </div>
-      </div>
-      <div class="two">
-        <div>
-          <label class="f" for="every_min">At most one ping every</label>
-          <select id="every_min" name="every_min">
-            {% for m in [5, 15, 30, 60, 180] %}
-              <option value="{{ m }}" {% if prefs.every_min == m %}selected{% endif %}>
-                {{ m }} minutes</option>
+          <select id="every_min" name="every_min" aria-label="How often at most">
+            {% for m, t in [(5, 'At most every 5 minutes'),
+                            (15, 'At most every 15 minutes'),
+                            (30, 'At most every 30 minutes'),
+                            (60, 'At most once an hour'),
+                            (180, 'At most every 3 hours')] %}
+              <option value="{{ m }}" {% if prefs.every_min == m %}selected{% endif %}>{{ t }}</option>
             {% endfor %}
           </select>
         </div>
         <div>
-          <label class="f" for="max_per_alert">Gigs per message</label>
-          <select id="max_per_alert" name="max_per_alert">
+          <select id="max_per_alert" name="max_per_alert" aria-label="Gigs per message">
             {% for n in [3, 5, 10, 20] %}
-              <option value="{{ n }}" {% if prefs.max_per_alert == n %}selected{% endif %}>{{ n }}</option>
+              <option value="{{ n }}" {% if prefs.max_per_alert == n %}selected{% endif %}>{{ n }} gigs a message</option>
             {% endfor %}
           </select>
         </div>
       </div>
-      <p class="hint">A quarter-hour digest of five gigs beats a buzz every two
-        minutes. Alerts use the fields and words above.</p>
       <label class="check"><input type="checkbox" name="urgent_only" value="1"
         {% if prefs.urgent_only %}checked{% endif %}>
         <span>Only ping me for gigs marked urgent.</span></label>
