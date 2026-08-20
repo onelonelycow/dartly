@@ -112,6 +112,18 @@ def decorate(rows, ranked=False):
         r["is_new"] = bool((r.get("sort_at") or "") >= fresh_cut)
         r["preview"] = textfmt.smart_trim(
             textfmt.display_body(r.get("body")), target=620, hard=1200)
+        # DOES THIS CARD ACTUALLY HAVE MORE TO SHOW? The body is clamped to
+        # three lines in CSS and a "See more" was drawn on every card that had
+        # a body at all — so on roughly half of them the label was there and
+        # pressing it did nothing, because the text already fitted.
+        #
+        # CSS cannot measure text, so this is a character count, and it is
+        # deliberately generous: below the threshold the clamp is released as
+        # well as the label being dropped, so a body that would have wrapped
+        # past three lines on a narrow phone is shown in full rather than
+        # being cut off with no way to open it. Nothing is ever hidden without
+        # a control, and no control is ever there without something behind it.
+        r["clamped"] = len(r["preview"]) > 300
         # Falls back to fetched_at exactly as the SQL sort does. Without it a
         # gig with no posted_at reads "Posted recently", which sounds like
         # minutes ago and actually means we could not read a date.

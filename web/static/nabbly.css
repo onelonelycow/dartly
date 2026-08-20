@@ -461,6 +461,9 @@ a.gr-title{font-weight:650}
 .gr-body{font-size:14.5px;line-height:1.55;color:var(--mute);
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
   overflow:hidden;white-space:pre-line}
+/* A body short enough to fit is not clamped at all, so nothing is hidden
+   behind a control that is not there. See decorate() in web/main.py. */
+.gr-body.gr-full{-webkit-line-clamp:unset}
 .gr-more-cb{display:none}
 .gr-more-cb:checked ~ .gr-body{-webkit-line-clamp:unset}
 .gr-more-lbl{display:inline-block;margin-top:5px;font-size:12.5px;font-weight:600;

@@ -33,9 +33,13 @@
   <div class="gr-bodywrap">
     {# A checkbox, not a button: the text is already in the DOM, so revealing
        it must not cost a request. Same trick app.py uses. #}
-    <input type="checkbox" id="gm{{ g.id }}" class="gr-more-cb">
-    <div class="gr-body">{{ g.preview }}</div>
-    <label class="gr-more-lbl" for="gm{{ g.id }}"></label>
+    {% if g.clamped %}
+      <input type="checkbox" id="gm{{ g.id }}" class="gr-more-cb">
+      <div class="gr-body">{{ g.preview }}</div>
+      <label class="gr-more-lbl" for="gm{{ g.id }}"></label>
+    {% else %}
+      <div class="gr-body gr-full">{{ g.preview }}</div>
+    {% endif %}
     <div class="gr-posted">{{ g.posted_line }}</div>
   {# Shown signed OUT as well, like the app. It is the clearest thing on the
      card about what Nabbly does beyond listing gigs, and hiding it from the
