@@ -248,8 +248,14 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
       <b>No gigs match those filters right now.</b><br>
       Loosen one, or <a href="{{ link(field='', size='', source='', langs='', urgent='', where='') }}">clear them all</a>.
     {% else %}
-      <b>The board is empty right now.</b><br>
-      That is unusual — it should refill within a few minutes.
+      {% if booting %}
+        <b>The board is still loading.</b><br>
+        Nabbly is pulling the gigs back in after a deploy. Give it a minute and
+        refresh.
+      {% else %}
+        <b>The board is empty right now.</b><br>
+        That is unusual, and it should refill within a few minutes.
+      {% endif %}
     {% endif %}
   </div>
 {% endif %}

@@ -1379,7 +1379,9 @@ a.gr-jump:active,a.gr-jump:focus-visible{background:rgba(232,147,58,.28);
    navigation (no Streamlit rerun involved), so this is the whole fix. */
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}
-  a.gr-jump{transition:none}a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
+  a.gr-jump{transition:none}
+.gr-settings-link{display:inline-block;padding:9px 16px;border-radius:10px;
+  font-size:13.5px;margin-top:2px}a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
 
 /* "Switch to Free" — a bordered stButton reads as the loudest thing on the
    card, which is wrong right after someone just paid; it's the exit, not a
@@ -4130,10 +4132,14 @@ def view_profile(pro):
         st.caption("What you do, the words that lift or bury a gig, where you "
                    "are, how your replies read, and where alerts go. All on "
                    "one page there.")
-        _o, _ = st.columns([1, 2])
-        with _o:
-            st.link_button("Open feed settings", f"{BOARD_URL}/profile",
-                           width="stretch")
+        # A PLAIN ANCHOR, NOT st.link_button, WHICH ALWAYS OPENS A NEW TAB and
+        # has no parameter to stop it. The board is the same product on a
+        # sibling subdomain and the session cookie is scoped to .nabbly.co, so
+        # opening a second tab makes an internal navigation look like leaving
+        # the site — the same reasoning the Gigs tab link already carries.
+        st.markdown(
+            f'<a class="gr-jump gr-settings-link" href="{BOARD_URL}/profile">'
+            f'Open feed settings &rarr;</a>', unsafe_allow_html=True)
     else:
         _essentials_form()
 

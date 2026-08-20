@@ -1185,7 +1185,19 @@ def board(request: Request,
               "where": where, "sort": sort, "qf": qf,
               "urgent": urgent or ""}.items() if v}
 
+    # AN EMPTY BOARD MID-DEPLOY IS NOT AN EMPTY BOARD. Render wipes the disk on
+    # every deploy and the mirror pull takes over a minute, so a visitor in that
+    # window was told "that is unusual" about the most usual thing there is.
+    # Same signal /health already uses, so the two cannot drift apart.
+    booting = False
+    try:
+        if not res.get("total"):
+            import sync
+            booting = not int(sync.state().get("rows") or 0)
+    except Exception:
+        booting = False
     resp = templates.TemplateResponse(request, "board.html", {
+        "booting": booting,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "tab": "dashboard" if landing else "gigs",
