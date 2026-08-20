@@ -124,6 +124,11 @@ button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
 .said{font-size:13px;color:var(--amber)}
+.savedbar{display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:10px 14px;
+  border:1px solid var(--amber-d);border-radius:11px;font-size:13.5px;
+  color:var(--amber-l);background:rgba(232,147,58,.10)}
+.savedbar::before{content:"";width:7px;height:7px;border-radius:50%;
+  background:var(--amber);flex:none}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -147,6 +152,14 @@ button.go:hover{background:var(--amber-l)}
 <form method="post" action="/profile">
   {# Checked state decides which pane shows. After saving we come back to the
      tab you were on rather than snapping to the first one. #}
+  {% if saved_ok %}
+  <!-- SAVED. IS SHOWN WHERE THE EYE LANDS, NOT WHERE THE BUTTON WAS.
+       Save sits at the bottom of a long page, the POST redirects, and the
+       browser puts you back at the top — so the only confirmation was three
+       screens below the fold and nobody saw it. The one by the button stays
+       for anyone who did not scroll. -->
+  <div class="savedbar" role="status">Saved.</div>
+{% endif %}
   <input class="tabin" type="radio" name="ptab" id="pt-you" value="you"
     {% if tab_open != 'board' %}checked{% endif %}>
   <input class="tabin" type="radio" name="ptab" id="pt-board" value="board"
