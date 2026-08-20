@@ -483,8 +483,7 @@ dd{{margin:10px 0 0;color:var(--ink2)}}
   <p class="lead">{lead}</p>
   {body}
   <a class="btn" href="{BOARD}/gigs?ref={REF}-guide">Open the board &rarr;</a>
-  <h2>Browse by field</h2>
-  <ul class="more">{siblings}</ul>
+{morefields}
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
@@ -524,10 +523,21 @@ def write_prose_pages(written):
         h1="Frequently asked questions",
         lead=("Everything people ask before they trust a board with their "
               "week's work."),
-        body=faq_body, siblings=sibs), encoding="utf-8")
+        # NO FIELD LIST UNDER THE FAQ. Someone reading the FAQ has a
+        # question, not a browsing intent, and 23 pills under the last answer
+        # were the loudest thing on a page that is meant to be reassuring.
+        body=faq_body, morefields=""), encoding="utf-8")
+
+    # A BLANK LINE IS A PARAGRAPH BREAK. content.py holds prose, not markup —
+    # everything here is escaped, so a <p> written in there arrives on the page
+    # as visible tag text. The founder's message is the first entry long enough
+    # to need more than one paragraph, and this is how it gets them.
+    def _paras(text: str) -> str:
+        return "".join(f"<p>{html.escape(p.strip())}</p>"
+                       for p in text.split("\n\n") if p.strip())
 
     about_body = "".join(
-        f"<h2>{html.escape(h)}</h2><p>{html.escape(p)}</p>"
+        f"<h2>{html.escape(h)}</h2>{_paras(p)}"
         for h, p in content.ABOUT)
     (OUT / "about.html").write_text(PROSE.format(
         BOARD=BOARD, REF=REF,
@@ -538,7 +548,9 @@ def write_prose_pages(written):
               "doesn't."),
         url=f"{BASE}/about.html", base=BASE, css=CSS, schema="",
         h1="About Nabbly", lead=html.escape(content.ABOUT_LEAD),
-        body=about_body, siblings=sibs), encoding="utf-8")
+        body=about_body,
+        morefields=f'<h2>Browse by field</h2><ul class="more">{sibs}</ul>',
+        ), encoding="utf-8")
     # ── the applying guide ──────────────────────────────────────────────
     # A directory rather than a flat .html because this is the first of a kind
     # and /guides/ is where the next one goes. Every rule on it is one the
@@ -565,7 +577,9 @@ def write_prose_pages(written):
         css=CSS + GUIDE_CSS, schema="",
         h1=html.escape(content.GUIDE_APPLY_TITLE),
         lead=html.escape(content.GUIDE_APPLY_LEAD),
-        body=guide_body, siblings=sibs), encoding="utf-8")
+        body=guide_body,
+        morefields=f'<h2>Browse by field</h2><ul class="more">{sibs}</ul>',
+        ), encoding="utf-8")
 
     return ["about.html", "faq.html",
             "guides/how-to-reply-to-a-freelance-job-post/"]

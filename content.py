@@ -116,10 +116,43 @@ ABOUT = [
      "anything asking for money up front. And it can't promise you the job: "
      "replying early gets you read, it doesn't beat being the better fit."),
 
-    ("Who made it",
-     "One freelancer who wanted it to exist, and got tired of refreshing ten "
-     "tabs to find the work. It is still small and still being built, which is "
-     "why the feedback box goes straight to a person rather than a queue."),
+    # A MESSAGE, NOT A CREDIT LINE. This was one sentence about who built it,
+    # which answered a question nobody was asking. People subscribe to the why,
+    # so this is the why, written to the reader rather than about the founder:
+    # the paragraph turns on "You're not", and the last line hands the looking
+    # from them to Nabbly.
+    ("A message from our founder",
+     "I'm Benjamin. I freelance, same as you. I built Nabbly because of how "
+     "that actually feels."
+     "\n\n"
+     "Not the work itself. The work is the good part. It's everything around "
+     "it. The Sunday night you count what's booked and it isn't enough. The "
+     "gig you'd have been perfect for, found four days after it closed. The "
+     "week you spent refreshing tabs instead of doing the thing you're good "
+     "at, telling yourself that counted as working."
+     "\n\n"
+     "Nobody warns you that going out on your own means the looking never "
+     "stops. It follows you into evenings and weekends, and into the holiday "
+     "you finally took. It sits in your chest at 2am, doing arithmetic about "
+     "next month."
+     "\n\n"
+     "And because it's unpaid, and nobody sees it, you start to assume "
+     "everyone else has this figured out. That you're the only one scrambling. "
+     "You're not. It's the job nobody put in the job description."
+     "\n\n"
+     "I wanted the opposite. Not more hustle. Less. A version of freelancing "
+     "where the work comes to you, where security stops being something you "
+     "chase and becomes something you have. Whatever you do, whatever field "
+     "you're in, there should always be something worth going after. Finding "
+     "it shouldn't cost you your evenings."
+     "\n\n"
+     "That's the whole reason this exists. Freedom is the point. Not the word "
+     "on a brochure. The real kind: knowing something is coming next. Turning "
+     "down the work that's wrong for you. Asking for what you're worth. "
+     "Resting on a Sunday."
+     "\n\n"
+     "You didn't go freelance to spend your evenings looking. Take them back. "
+     "Leave the looking to us, and let the work come to you."),
 ]
 
 
