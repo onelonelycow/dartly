@@ -268,10 +268,6 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
    — FEEL.md's one-amber-focal-point rule earns its keep here rather than
    fighting it. Sits between the live stats and the divider: after "here's
    the board" but before "here's what's new", since it's neither. */
-.gr-won-banner{background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.30);
-  border-radius:12px;padding:13px 16px;margin:14px 0 4px;font-size:14.5px;
-  color:var(--ink2);text-align:center}
-.gr-won-banner b{color:var(--amber-l);font-variant-numeric:tabular-nums}
 /* Four saturated bars competing for attention read as noise. Keep the colour
    as a quiet cue, not a stripe: thinner, dimmer, shorter. */
 .gr-stat .accent{position:absolute;left:0;top:18px;bottom:18px;width:2px;
@@ -348,13 +344,6 @@ a.gr-save.on:hover{color:var(--amber-l)!important}
    identical DOM-shape reason. Grayscale until it's actually been tapped, so
    an untapped card doesn't read as "you haven't won this one yet" (every
    card would say that); it earns color only once it's true. */
-a.gr-won{display:inline-block;margin:-8px -8px -8px -1px;padding:8px;
-  font-size:15px;line-height:1;text-decoration:none!important;vertical-align:1px;opacity:.45;
-  filter:grayscale(1);transition:opacity .15s ease,filter .15s ease,transform .15s ease}
-a.gr-won:hover{opacity:.85;transform:scale(1.15)}
-a.gr-won.on{opacity:1;filter:none}
-a.gr-won.on:hover{transform:scale(1.15)}
-@media (prefers-reduced-motion:reduce){a.gr-won{transition:none}}
 /* Let a multiselect show all of its chips. Streamlit caps this container at
    155.5px, and with every skill selected (which is the DEFAULT on the Gigs
    filters) the content is 170px — so the last row rendered sliced through the
@@ -1579,7 +1568,6 @@ if st.query_params.get("signout"):
     # with the identity. Without this the nav still shows "Saved 7" to whoever
     # sits down next on a shared machine.
     st.session_state.pop("_saved_set", None)
-    st.session_state.pop("_won_set", None)
     st.session_state.pop("_rated", None)
     st.query_params.clear()
     if _was_google:
@@ -1634,20 +1622,11 @@ def saved_ids() -> list:
     return st.session_state["_saved_set"]
 
 
-def won_ids() -> list:
-    """This person's landed-gig ids, cached once per session — same reasoning
-    as saved_ids(): checking outcomes per-card would be one Supabase-fallback
-    round trip per gig on the page."""
-    if "_won_set" not in st.session_state:
-        st.session_state["_won_set"] = (
-            [w["gig_id"] for w in outcomes.my_wins(ACCESS.get("email", ""))]
-            if ACCESS["signed_in"] else [])
-    return st.session_state["_won_set"]
 
 
 def my_ratings() -> dict:
     """{gig_id: 'up'|'down'} for this person, cached once per session — same
-    reasoning as won_ids() and saved_ids()."""
+    reasoning as saved_ids()."""
     if "_rated" not in st.session_state:
         st.session_state["_rated"] = (
             match_feedback.my_ratings(ACCESS.get("email", ""))
@@ -2660,16 +2639,19 @@ def gig_card(r, pro):
                     f'href="{ilink(f"?save={gid}&from={_from}")}" target="_self" '
                     f'title="{"Saved — click to remove" if _on else "Save for later"}">'
                     f'{"★" if _on else "☆"}</a>')
-            # The one thing Nabbly never used to find out: did the board
-            # actually work for you. One tap, no form, no amount to type —
-            # the amount is read straight off the post itself when this
-            # fires (see the ?won= handler). Toggle, not one-way, so a
-            # misclick isn't permanent.
-            _iwon = str(gid) in won_ids()
-            won = (f'<a class="gr-won{" on" if _iwon else ""}" '
-                   f'href="{ilink(f"?won={gid}&from={_from}")}" target="_self" '
-                   f'title="{"You got hired for this — click to undo" if _iwon else "I got hired!"}">'
-                   f'{"🎉" if _iwon else "🎯"}</a>')
+            # THE "I GOT HIRED" TAP IS GONE, and the reason is that nothing
+            # could ever check it. Anyone could press it on any gig, so the
+            # number it produced was unverifiable in principle rather than
+            # merely unverified — and it was the number most likely to be
+            # quoted to a partner or a board member, which is the worst place
+            # for a figure you cannot stand behind. It was also self-selecting
+            # in the honest direction: most people who land work never come
+            # back to say so, so it undersold as well as being unprovable.
+            #
+            # outcomes.py and its table are left alone deliberately. Nothing
+            # writes to them now, nothing is deleted, and the door stays open
+            # for a version that can actually be evidenced.
+            won = ""
         # rel is not optional on a target="_blank" we write by hand. noreferrer
         # stops the Referer header telling the poster which page on Nabbly the
         # click came from — that URL carries the filters, and on a signed-in
@@ -3221,13 +3203,8 @@ def view_dashboard(pro):
     # forever, until someone's first win, would be a worse look than saying
     # nothing — it would read as the board's own scoreboard sitting at zero
     # rather than as a thing waiting for THIS person's first tap.
-    if ACCESS["signed_in"]:
-        _wins = outcomes.my_count(ACCESS.get("email", ""))
-        if _wins:
-            st.markdown(
-                f'<div class="gr-won-banner">🎉 You\'ve landed '
-                f'<b>{_wins}</b> gig{"s" if _wins != 1 else ""} through Nabbly.</div>',
-                unsafe_allow_html=True)
+    # The "you've landed N gigs" banner went with the tap that fed it. It read
+    # as a verified count and was a tally of self-reports.
 
     # Category browsing moved to the Gigs page (where people are actually
     # looking), so the dashboard top stays a clean headline + search + stats.
@@ -4188,7 +4165,6 @@ def view_profile(pro):
                 # login, otherwise st.logout() reruns and we never get here.
                 st.session_state.pop("_tok", None)
                 st.session_state.pop("_saved_set", None)   # see ?signout= above
-                st.session_state.pop("_won_set", None)
                 st.session_state.pop("_rated", None)
                 st.query_params.clear()
                 if auth.google_email(st):
@@ -4476,7 +4452,6 @@ def sign_in_here(email: str, where: str):
     # they press save and it silently deletes. Exactly the path anyone who
     # lost their link and signed in again would take.
     st.session_state.pop("_saved_set", None)
-    st.session_state.pop("_won_set", None)
     st.session_state.pop("_rated", None)
     note("signup" if is_new else "signin", where)
     return True, ""
@@ -5012,19 +4987,24 @@ def view_admin():
     else:
         st.caption("No near-empty searches logged in the last 30 days.")
 
-    # --- Outcomes: did the board actually work for anyone -------------------
-    # Not shown publicly yet — deliberately. "3 gigs landed" reads as a
-    # scoreboard nobody's using this early, and would undercut trust rather
-    # than build it. This is where it lives while it's still small, so it's
-    # watchable without being a claim made to a stranger. Once this is a real
-    # number, it belongs on the front page far more than "16,000 gigs" does.
+    # --- Outcomes: retired, and the history kept ----------------------------
+    # The "I got hired" tap that fed these is gone, because nothing could check
+    # it: anyone could press it on any gig. It was also the number most likely
+    # to be quoted to a partner or a board member, which is the worst place for
+    # a figure that cannot be evidenced.
+    #
+    # What was already recorded is still shown, clearly labelled as what it is,
+    # and clearly marked as no longer growing. Deleting somebody's history to
+    # tidy up a metric would be worse than the metric was.
     _out = outcomes.site_stats()
-    st.markdown("#### Outcomes")
-    st.caption("Not shown to visitors yet — watch this grow before it's a "
-               "front-page stat.")
-    _o1, _o2 = st.columns(2)
-    _o1.metric("Gigs landed", f"{_out['wins']:,}")
-    _o2.metric("Total value", f"${_out['total_amount']:,}")
+    if _out.get("wins"):
+        st.markdown("#### Outcomes (retired)")
+        st.caption("Self-reported by members while the \"I got hired\" tap "
+                   "existed. Never verified, and no longer collected — kept "
+                   "here as history, not as a number to quote.")
+        _o1, _o2 = st.columns(2)
+        _o1.metric("Reported landed", f"{_out['wins']:,}")
+        _o2.metric("Reported value", f"${_out['total_amount']:,}")
 
     # --- Match quality: where the ranking is quietly wrong -------------------
     _worst = match_feedback.worst_categories(30)
@@ -5341,14 +5321,10 @@ if st.query_params.get("save"):
 # an st.button, so the card's DOM stays exactly what the stylesheet expects.
 # Same whitelist-then-escape on `from` too — see the comment on ?save= for
 # why that's load-bearing and not decorative.
+# ?won= is retired with the control that produced it. An old link or a
+# bookmark carrying it now just goes back to the board rather than recording
+# something nobody can check.
 if st.query_params.get("won"):
-    _wgid = st.query_params.get("won", "")
-    if ACCESS["signed_in"] and _wgid:
-        import db as _db
-        _wrow = _db.post_by_id(_wgid)
-        _wamt = score.gig_amount(_wrow) if _wrow else 0
-        outcomes.toggle(ACCESS.get("email", ""), _wgid, _wamt or 0)
-        st.session_state.pop("_won_set", None)
     _allowed = {t.lower() for t in _TABS} | set(_SIDE_PAGES)
     _raw = (st.query_params.get("from") or "").lower()
     _back = _raw if _raw in _allowed else "gigs"
