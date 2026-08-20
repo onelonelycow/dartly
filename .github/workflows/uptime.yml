@@ -15,7 +15,19 @@ name: uptime
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # EVERY TEN MINUTES, NOT FIFTEEN, AND THE REASON IS NOT MONITORING.
+    #
+    # The app holds two @st.cache_resource caches with ttl=900 — fifteen
+    # minutes. This job renders the whole app, which rebuilds them, so it
+    # doubles as the thing that keeps them warm. At */15 it was racing the
+    # expiry at exactly the same interval and losing often enough that real
+    # visitors were paying the rebuild: measured at 128s, 32s and 30s on
+    # first load, against 1-2s once warm.
+    #
+    # Ten minutes means the cache is always refreshed before it dies, so
+    # nobody lands on a cold app. The extra runs cost Actions minutes and
+    # nothing else.
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 # A queued run behind a stuck one tells you nothing new, and GitHub will happily
