@@ -40,9 +40,13 @@ the tooling on top — funnels, cohorts, retention — not a replacement.
 import os
 import re
 
-# EU by default. If this is ever switched on, it should be switched on in the
-# region that keeps the promise on the FAQ page easiest to keep.
-HOST = (os.environ.get("POSTHOG_HOST") or "https://eu.i.posthog.com").strip()
+# US by default, to match what the site already says. site/privacy.html
+# discloses that Nabbly runs in the United States and that data is processed
+# there, so the US region leaves that section correct as written. The EU region
+# this defaulted to first would have been the better privacy story in the
+# abstract and the wrong one here — it would have put the page and the product
+# out of step, which is the failure that actually matters.
+HOST = (os.environ.get("POSTHOG_HOST") or "https://us.i.posthog.com").strip()
 _KEY = (os.environ.get("POSTHOG_API_KEY") or "").strip()
 
 _MAX_DETAIL = 200          # same cap the events table uses
