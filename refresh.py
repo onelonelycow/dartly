@@ -120,6 +120,12 @@ def _loop(on_update=None):
     # trust. One-off and idempotent: finds nothing to do once they're gone.
     _state["nodesk_removed"] = _step(
         "archive_source(nodesk)", lambda: db.archive_source("nodesk"))
+    # Dribbble's feed publishes titles and no descriptions at all — verified
+    # live, 54 items, every body zero characters. Pulled from ENABLE_SOURCES;
+    # this clears the 20 rows already on the board rather than leaving gigs
+    # nobody can read a brief from. Same one-off, idempotent shape as nodesk.
+    _state["dribbble_removed"] = _step(
+        "archive_source(dribbble)", lambda: db.archive_source("dribbble"))
     # fetch_freelancer() used to store Freelancer's own truncated preview
     # instead of the real description; this backfills the rows already on
     # the board with the full text now that the fetcher reads it.

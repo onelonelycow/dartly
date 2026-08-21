@@ -34,7 +34,22 @@ ENABLE_SOURCES = [
     "weworkremotely",  # We Work Remotely — remote jobs
     "workingnomads",   # Working Nomads — curated remote jobs, direct outbound apply
     # Config-only boards (see RSS_SOURCES below)
-    "dribbble", "himalayas", "realworkfromanywhere", "jobspresso", "pythonjobs",
+    # DRIBBBLE CUT 2026-08-21. Its feed publishes titles and nothing else:
+    # fetched live, 54 items, every single description zero characters long.
+    # That is the feed, not our parser — sources.fetch_rss returns the same 54
+    # rows with empty bodies. All 20 dribbble gigs on the board had a body
+    # under 60 characters, which is 100% of them.
+    #
+    # A gig with no description cannot be classified beyond its title, cannot
+    # have a budget read off it, and cannot have a reply drafted from it, which
+    # is the thing Pro is sold on. It was 0.03% of the board and a
+    # disproportionate share of the "about a third of listings are thin"
+    # number that has to be defensible.
+    #
+    # Not fixable cheaply: the descriptions exist on Dribbble's own listing
+    # pages, so recovering them means an HTTP fetch per item on a source
+    # contributing twenty gigs.
+    "himalayas", "realworkfromanywhere", "jobspresso", "pythonjobs",
     "larajobs", "wpjobs", "wwr_design", "wwr_devops", "wwr_support", "wwr_other",
     # vertical backfill
     "jobicy_health", "jobicy_legal", "jobicy_finance", "jobicy_edu",
