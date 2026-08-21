@@ -283,6 +283,20 @@
   .foot .fine{color:var(--faint);font-size:13.5px}
   .foot .fine a{color:var(--mute)}
   .foot .fine a:hover{color:var(--ink)}
+
+  /* ── Why ─────────────────────────────────────────────────────────────── */
+  #why{padding:6px 0 4px}
+  .whybox{max-width:640px;margin:0 auto;text-align:center;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    padding:44px 8px 40px}
+  .why-eyebrow{color:var(--amber);font-size:12px;font-weight:700;
+    letter-spacing:.12em;text-transform:uppercase;margin:0 0 16px}
+  .why-lead{font-size:21px;line-height:1.5;color:var(--ink);margin:0 0 14px;
+    letter-spacing:-.01em;text-wrap:balance}
+  .why-body{font-size:15.5px;line-height:1.65;color:var(--ink2);margin:0 0 22px}
+  .why-link{color:var(--amber);font-size:14.5px;font-weight:600;text-decoration:none}
+  .why-link:hover{color:var(--amber-l)}
+  @media (max-width:640px){.whybox{padding:34px 4px 30px}.why-lead{font-size:18.5px}}
 </style>
 </head>
 <body>
@@ -452,11 +466,34 @@
   </div>
 </section>
 
+<!-- ══ WHY ══ -->
+<!-- THE HOMEPAGE HAD NO WHY ON IT. Every section above this one is what it
+     does or how it works; the reason it exists lived only on /about.html,
+     behind a footer link most visitors never press. This is the strongest
+     passage of the founder's message, placed immediately before the pricing
+     block on purpose: they have just seen what it does, and this is what makes
+     them act. The full version stays on About. -->
+<section id="why">
+  <div class="wrap">
+    <div class="whybox">
+      <p class="why-eyebrow">Why this exists</p>
+      <p class="why-lead">Nobody warns you that going out on your own means the
+        looking never stops. It follows you into evenings and weekends, and into
+        the holiday you finally took.</p>
+      <p class="why-body">Because it&#x27;s unpaid and nobody sees it, you start
+        to assume everyone else has this figured out and you&#x27;re the only one
+        scrambling. You&#x27;re not. It&#x27;s the job nobody put in the job
+        description, and Nabbly exists to take it off you.</p>
+      <a class="why-link" href="/about.html">Read the full message from our founder &rarr;</a>
+    </div>
+  </div>
+</section>
+
 <!-- ══ PLANS ══ -->
 <section id="plans">
   <div class="wrap">
     <div class="sec-head">
-      <h2>Start free. The whole board's yours.</h2>
+      <h2>Start free.</h2>
       <!-- The founding-50 offer already has its own badge on the Pro card
            right below — restating it here too read as the same sentence
            twice in one screen. This paragraph's job is the OTHER fact: how
