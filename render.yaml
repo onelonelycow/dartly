@@ -157,6 +157,20 @@ services:
       # so much as "http" fails the handshake.
       - key: NABBLY_PUBLIC_URL
         value: "https://board.nabbly.co"
+      # Pro drafts. WITHOUT THIS THE BOARD SILENTLY SERVES THE FREE TEMPLATE TO
+      # PAYING READERS. pitch.ai_available() is False when the key is unset, so
+      # web/main.py takes the `else` branch and calls pitch.draft_template even
+      # for a Pro account — same canned paragraph on every gig, no model call,
+      # no error, nothing in the logs. The draft-voice settings (Length,
+      # Include, Avoid, Signature) only ever reach pitch.SYSTEM on the model
+      # path, so on the board they did nothing at all until this was declared.
+      #
+      # The app service declares this too and the two must hold the SAME value;
+      # set it in the dashboard, not here. Undeclared is how it went missing:
+      # the board was split out of the app and this one variable did not come
+      # with it.
+      - key: ANTHROPIC_API_KEY
+        sync: false
     domains:
       - board.nabbly.co
 
