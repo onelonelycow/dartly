@@ -378,6 +378,13 @@ a.gr-cat:hover .n{color:#eaa662}
   .gr-doc h3{font-size:16.5px;margin-top:30px}
   .gr-doc p,.gr-doc li{font-size:15px}}
 .gr-footer .foot-links{display:flex;gap:16px;align-items:center}
+/* The legal pair sits under a hairline, quieter and smaller, so About
+   and FAQ are not competing with Privacy and Terms for the same eye. */
+.gr-footer .foot-legal{display:flex;flex-wrap:wrap;justify-content:center;
+  align-items:center;gap:14px;margin-top:13px;padding-top:12px;
+  border-top:1px solid var(--line)}
+.gr-footer .foot-legal a{color:#5a616c;font-size:11.5px;text-decoration:none}
+.gr-footer .foot-legal a:hover{color:#8a919c}
 .gr-about h2{text-align:center}
 .gr-about ol li::before{counter-increment:step;content:counter(step);
   position:absolute;left:0;top:0;width:27px;height:27px;border-radius:8px;

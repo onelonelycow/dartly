@@ -198,14 +198,21 @@ button.go:hover{background:var(--amber-l)}
   <div class="gr-footer">
     <span class="brand">Nabbly</span>
     <span class="tag">Every gig. The moment it drops.</span>
+    {# ABOUT AND FAQ ARE NOT LEGAL BOILERPLATE. All five sat on one line at one
+       weight, so the two pages people actually want — the founder's message and
+       the answers — ranked level with the two nobody reads. Every comparable
+       site separates them: Jobicy, Himalayas and Wellfound all group company
+       and support links, then hold the legal pair apart underneath. #}
     <div class="foot-links">
       <a class="foot-link" href="https://nabbly.co/about.html">About</a>
-      <a class="foot-link" href="{{ app_url }}/?nav=pricing">Pricing</a>
       <a class="foot-link" href="https://nabbly.co/faq.html">FAQ</a>
-      <a class="foot-link" href="https://nabbly.co/privacy.html">Privacy</a>
-      <a class="foot-link" href="https://nabbly.co/terms.html">Terms</a>
+      <a class="foot-link" href="{{ app_url }}/?nav=pricing">Pricing</a>
     </div>
-    <span class="meta">OneLonelyCow · © 2026</span>
+    <div class="foot-legal">
+      <a href="https://nabbly.co/privacy.html">Privacy</a>
+      <a href="https://nabbly.co/terms.html">Terms</a>
+      <span class="meta">OneLonelyCow &middot; &copy; 2026</span>
+    </div>
   </div>
 </div>
 

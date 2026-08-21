@@ -205,6 +205,9 @@ border:1px solid var(--line);padding:8px 14px;border-radius:100px}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
+/* Privacy and Terms drop to a quieter line of their own, so About and FAQ
+   are not ranked level with the two pages nobody reads. */
+footer .legal{display:inline-block;margin-top:6px;opacity:.7;font-size:12.5px}
 footer a{color:var(--mute)}
 .guidelink{margin-top:30px;font-size:15px;color:var(--mute)}
 .guidelink a{color:var(--amber);text-decoration:none;font-weight:600}
@@ -488,7 +491,8 @@ dd{{margin:10px 0 0;color:var(--ink2)}}
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
   &middot; <a href="/about.html">About</a> &middot; <a href="/faq.html">FAQ</a>
-  &middot; <a href="/privacy.html">Privacy</a> &middot; <a href="/terms.html">Terms</a>
+  <br><span class="legal"><a href="/privacy.html">Privacy</a>
+  &middot; <a href="/terms.html">Terms</a></span>
 </div></footer>
 </body>
 </html>
