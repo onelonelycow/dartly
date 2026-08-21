@@ -259,8 +259,9 @@ else.
 
 ### Free and Pro
 
-The board itself is free to search and browse. Pro adds ranked picks, drafted
-replies, market rate data, and instant alerts.
+The board itself is free to search and browse, and every gig comes with a
+drafted reply on any plan. Pro adds ranked picks, replies drafted from the
+posting itself, market rate data, and instant alerts.
 
 Nabbly does not currently charge anyone. Where we offer free Pro access, whether
 as a founding-member gift or a trial, it lasts for the period stated at the

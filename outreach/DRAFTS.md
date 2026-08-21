@@ -116,7 +116,7 @@ which is the first of the eight and currently holds eleven entries.
 > One for the General Freelance Job Boards & Newsletters section, if it earns a
 > place: Nabbly gathers freelance projects and remote roles from job boards and
 > hiring communities into a single board, usually within minutes of a posting
-> going live, across 25 fields. Free to search without an account.
+> going live, across more than 20 fields. Free to search without an account.
 > https://nabbly.co
 >
 > It is not a marketplace and it hosts nothing of its own, so it sits alongside
