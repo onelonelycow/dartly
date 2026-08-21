@@ -45,6 +45,30 @@ ENABLE_SOURCES = [
     "blenderartists", "threejs", "bubble", "nurserecruiter", "entcareers",
     "soundlister",     # Soundlister — audio/sound-design jobs; bespoke fetcher,
                         # its feed is weekly roundup posts, not one-item-per-job
+    # ADDED 2026-08-20, after measuring the gap rather than guessing at it.
+    # Sales / outreach was 9.4% of the board with NO dedicated source at all,
+    # and management none either — both categories exist on We Work Remotely
+    # and had simply never been wired up. Every feed below was fetched and its
+    # titles compared against the 53,270 already on the board, so these are
+    # ranked by work Nabbly does not already have, not by how busy they look:
+    #   jobicy_dev      100 gigs a pass   the largest field on the board
+    #   wwr_sales       123 gigs a pass   a field that had nothing
+    #   wwr_management   43 gigs a pass
+    #
+    # NOT ADDED, and two of them are worth recording. jobicy_seo returned 2 new
+    # of 9, not worth a fetch slot. remotive and nodesk measured well but are
+    # AGGREGATORS: they re-list other boards, so they duplicate over time and an
+    # /out/ click lands on a middleman rather than the source.
+    #
+    # AND TWO THAT LOOKED PERFECT AND WERE NOT JOBS AT ALL. authenticjobs and
+    # codeable both scored 100% "new" against the board and both are BLOG
+    # feeds — "How to Get a Design Job in 2026", "Codeable vs Toptal". They
+    # scored perfectly BECAUSE they are articles: an article never matches a job
+    # title already on the board, so the uniqueness check was measuring the
+    # wrong thing and rewarding the worst possible result. Caught by reading the
+    # parsed titles instead of trusting the count. Any future candidate gets the
+    # same treatment: fetch it, print the titles, read them.
+    "jobicy_dev", "wwr_sales", "wwr_management",
 ]
 
 # ---------------------------------------------------------------------------
@@ -71,6 +95,15 @@ RSS_SOURCES = {
                    "label": "Dribbble"},
     "himalayas":  {"url": "https://himalayas.app/jobs/rss",
                    "label": "Himalayas"},
+    # See the note in ENABLE_SOURCES for why these five and not the others.
+    "jobicy_dev": {"url": "https://jobicy.com/?feed=job_feed&job_categories=dev",
+                   "label": "Jobicy"},
+    "wwr_sales":  {"url": "https://weworkremotely.com/categories/"
+                          "remote-sales-and-marketing-jobs.rss",
+                   "label": "We Work Remotely"},
+    "wwr_management": {"url": "https://weworkremotely.com/categories/"
+                              "remote-management-and-finance-jobs.rss",
+                       "label": "We Work Remotely"},
     # General remote-jobs board, same shape as RemoteOK/Remotive above. Its
     # own listing page (not the feed link) carries the real employer apply
     # link with no login — confirmed on a live posting, an AshbyHQ link sat
