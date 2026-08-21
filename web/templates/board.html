@@ -239,14 +239,22 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   {% set filtered = sel_field or sel_size or sel_source or sel_langs or urgent or where %}
   <div class="empty">
     {% if q and filtered %}
-      <b>Nothing matches “{{ q }}” inside these filters.</b><br>
+      <b>Nothing for “{{ q }}” inside these filters.</b><br>
       Try a broader word, or <a href="{{ link(q=q, field='', size='', source='', langs='', urgent='', where='') }}">search the whole board</a>.
     {% elif q %}
-      <b>Nothing matches “{{ q }}” right now.</b><br>
-      Try a broader word — the board changes through the day.
+      {# COMING UP EMPTY IS A MOMENT WORTH SPENDING A SENTENCE ON. Somebody
+         just looked for their own work and found nothing, and "no results"
+         reads like the board failed them. It did not: it declined to pad the
+         page out with things that are not what they asked for, which is the
+         whole reason to trust it the next time it does return something. #}
+      <b>Nothing for “{{ q }}” right now.</b><br>
+      We would rather show you nothing than pad this out with work that isn’t
+      yours. Try a broader word. New gigs land every few minutes, so this search
+      will read differently by tonight.
     {% elif filtered %}
-      <b>No gigs match those filters right now.</b><br>
-      Loosen one, or <a href="{{ link(field='', size='', source='', langs='', urgent='', where='') }}">clear them all</a>.
+      <b>Nothing fits all of that right now.</b><br>
+      Loosen one and see, or <a href="{{ link(field='', size='', source='', langs='', urgent='', where='') }}">clear them all</a>.
+      Nothing has gone missing. The board just changes through the day.
     {% else %}
       {% if booting %}
         <b>The board is still loading.</b><br>
