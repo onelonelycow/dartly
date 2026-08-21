@@ -112,7 +112,7 @@ def _connect():
     return _client
 
 
-def capture(event: str, detail: str = "", session: str = ""):
+def capture(event: str, detail: str = "", session: str = "", path: str = ""):
     """
     Mirror one already-recorded event. Never allowed to break the page.
 
@@ -128,6 +128,20 @@ def capture(event: str, detail: str = "", session: str = ""):
         d = _clean(detail)
         if d:
             props["detail"] = d
+        # THE PATH, NEVER THE QUERY STRING. PostHog's own URL column reads
+        # $current_url, and without it every row in Activity shows a dash and
+        # you cannot tell a board view from a draft page without adding a
+        # custom column by hand. The path alone is enough to do that.
+        #
+        # The query string is deliberately dropped. On this site it carries the
+        # search someone typed and the filters they set, and the search already
+        # arrives as its own event with its own detail. Putting it in a URL as
+        # well would send the same text twice and widen what leaves the server
+        # for no gain.
+        p = (path or "").split("?")[0].strip()[:120]
+        if p:
+            props["$current_url"] = p
+            props["path"] = p
         c.capture(distinct_id=(session or "anonymous"),
                   event=str(event)[:64], properties=props)
     except Exception:

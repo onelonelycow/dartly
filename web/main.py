@@ -246,10 +246,11 @@ def _ev(request: Request, event: str, detail: str = ""):
         if not sid:
             sid = secrets.token_urlsafe(9)
             request.session["_vid"] = sid
-        telemetry.capture(event, detail, sid)
+        path = request.url.path
+        telemetry.capture(event, detail, sid, path)
         camp = request.session.get("_camp")
         if camp and event == "board_view":
-            telemetry.capture("from_campaign", camp, sid)
+            telemetry.capture("from_campaign", camp, sid, path)
     except Exception:
         pass          # a counter must never stand between someone and a gig
 
