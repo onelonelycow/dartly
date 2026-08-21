@@ -5,7 +5,7 @@
 {% block extra_css %}
 .sec-h{font-size:31px;font-weight:700;letter-spacing:-.6px;margin:26px 0 6px}
 .sec-h .accent{color:var(--amber)}
-.lede{color:var(--mute);font-size:14px;margin:0 0 20px;line-height:1.6}
+.lede{color:var(--mute);font-size:13.5px;margin:0 0 20px;line-height:1.6}
 
 /* ── two tabs, no JavaScript ───────────────────────────────────────────
    The radios sit in the form and carry a name the handler ignores, which is
@@ -16,7 +16,7 @@
    because that is the language this product already uses for "you are here". */
 .tabin{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 20px}
-.tabs label{padding:9px 15px;font-size:14px;font-weight:600;color:var(--mute);
+.tabs label{padding:9px 15px;font-size:13.5px;font-weight:600;color:var(--mute);
   cursor:pointer;border-radius:9px 9px 0 0;user-select:none;
   margin-bottom:-1px;border-bottom:2px solid transparent}
 .tabs label:hover{color:var(--ink)}
@@ -82,7 +82,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 .seg input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 .seg label{flex:1;text-align:center;padding:9px 10px;border-radius:10px;
   border:1px solid var(--line);background:var(--bg);color:#c8ced6;
-  font-size:13px;cursor:pointer;user-select:none}
+  font-size:12.5px;cursor:pointer;user-select:none}
 .seg label small{display:block;font-size:11px;color:var(--faint);margin-top:2px}
 .seg input:checked + label{background:rgba(232,147,58,.16);
   border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
@@ -104,7 +104,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
    row past the 44px touch target §10 asks for. */
 .chanseg label{flex:1 1 auto;text-align:center;padding:9px 12px;border-radius:10px;
   border:1px solid var(--line);background:var(--bg);color:#c8ced6;
-  font-size:13px;cursor:pointer;user-select:none;white-space:nowrap}
+  font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
 .chanseg label:hover{border-color:var(--amber-d)}
 .pane{display:none}
 /* The channel picker went out with no focus state, so tabbing through it was
@@ -125,7 +125,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 #ch-tg:checked ~ .pane.p-tg{display:block}
 .split{height:1px;background:var(--line);margin:4px 0 16px}
 .pro-note{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
-  color:#eaa662;border-radius:11px;padding:11px 14px;font-size:13px;
+  color:#eaa662;border-radius:11px;padding:11px 14px;font-size:12.5px;
   line-height:1.55;margin:0 0 15px}
 .pro-note a{color:var(--amber-l)}
 .picked b{color:var(--amber-l);font-weight:600}
@@ -145,7 +145,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
 button.go:hover{background:var(--amber-l)}
-.said{font-size:13px;color:var(--amber)}
+.said{font-size:12.5px;color:var(--amber)}
 .savedbar{display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:10px 14px;
   border:1px solid var(--amber-d);border-radius:11px;font-size:13.5px;
   color:var(--amber-l);background:rgba(232,147,58,.10)}
@@ -165,7 +165,7 @@ details.grp > summary::after{content:"";width:7px;height:7px;flex:none;
 details.grp[open] > summary::after{transform:rotate(-135deg) translateY(1px)}
 details.grp > summary:hover .grp-name{color:var(--ink2)}
 details.grp > summary .grp-name{padding-top:0;flex:1}   /* the count and the chevron travel together on the right */
-.grp-n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.grp-n{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums}
 details.grp[open] .grp-n{color:var(--amber)}
 details.grp .skills{padding:2px 0 14px}
 /* Account tab */
@@ -181,12 +181,12 @@ details.grp .skills{padding:2px 0 14px}
   border:1px solid var(--line2);border-radius:10px;padding:9px 15px;
   font-size:13.5px;font-family:inherit;cursor:pointer;text-decoration:none}
 .ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
-.go.small,.ghost.small{padding:8px 14px;font-size:13px}
+.go.small,.ghost.small{padding:8px 14px;font-size:12.5px}
 /* THE FEEDBACK BOX IS NOT A SETTING. It earns a place here because this is
    where people are when something annoys them, but a settings page is about
    settings — so it sits last, in a quieter card, at a smaller size. */
 .card.quiet{background:transparent;border-style:dashed;padding:16px 18px}
-.card.quiet .ttl{font-size:14px}
+.card.quiet .ttl{font-size:13.5px}
 .card.quiet textarea{min-height:52px;margin-bottom:10px}
 /* NOTHING ON THE ACCOUNT TAB IS SAVED BY THIS BUTTON. Plan, sign out and
    feedback each act on their own, so a Save button sitting under them invites
@@ -194,7 +194,7 @@ details.grp .skills{padding:2px 0 14px}
 #pt-acct:checked ~ .bar{display:none}
 .hint.warn{color:#e8907e}   /* no --bad token on the board; the app's value */
 input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
-  font-size:13px;color:var(--ink2)}
+  font-size:12.5px;color:var(--ink2)}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:12px 15px;font-size:13.5px;
   line-height:1.55;margin:0 0 18px}
@@ -210,7 +210,8 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   /* One rule, not two. A second .tabs label further down this block used to
      override the first at 9px, which is how the tab strip stayed at 37px while
      the CSS above it claimed 13. Both live here now. */
-  .tabs label{flex:1;text-align:center;padding:14px 8px}
+  /* 15px, not 14: the strip sat exactly on the 44px floor and the type migration took 1px of line box back. Measured, not assumed. */
+  .tabs label{flex:1;text-align:center;padding:15px 8px}
   details.grp > summary{padding:14px 2px}
   /* Not from today's work, but on the same page and measured in the same pass:
      the primary action was 41px and the field pills 29px, both under the 44px

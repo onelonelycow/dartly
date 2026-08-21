@@ -1367,10 +1367,15 @@ a.gr-jump:active,a.gr-jump:focus-visible{background:rgba(232,147,58,.28);
 /* Real scroll instead of an instant jump — the anchor is a plain browser
    navigation (no Streamlit rerun involved), so this is the whole fix. */
 html{scroll-behavior:smooth}
+/* Outside the media block on purpose: this was accidentally inserted INSIDE
+   prefers-reduced-motion when it was added, so the settings link only styled
+   for people who ask for reduced animation. Found by Remy dry-running the CSS
+   extractor; the bug was in this source, not the extractor. */
+.gr-settings-link{display:inline-block;padding:9px 16px;border-radius:10px;
+  font-size:13.5px;margin-top:2px}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}
   a.gr-jump{transition:none}
-.gr-settings-link{display:inline-block;padding:9px 16px;border-radius:10px;
-  font-size:13.5px;margin-top:2px}a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
+  a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
 
 /* "Switch to Free" — a bordered stButton reads as the loudest thing on the
    card, which is wrong right after someone just paid; it's the exit, not a

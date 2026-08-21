@@ -79,10 +79,6 @@ button[kind="primary"]:active,button[kind="primaryFormSubmit"]:active{
 .gr-quick a{color:var(--mute)!important;text-decoration:none!important;
   transition:.15s;border-bottom:1px solid transparent;padding-bottom:1px}
 .gr-quick a:hover{color:var(--amber-l)!important;border-bottom-color:rgba(232,147,58,.5)}
-.gr-won-banner{background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.30);
-  border-radius:12px;padding:13px 16px;margin:14px 0 4px;font-size:14.5px;
-  color:var(--ink2);text-align:center}
-.gr-won-banner b{color:var(--amber-l);font-variant-numeric:tabular-nums}
 .gr-stat .accent{position:absolute;left:0;top:18px;bottom:18px;width:2px;
   border-radius:0 3px 3px 0;opacity:.55}
 .gr-stat .l{font-size:12.5px;color:#98a0ab;font-weight:500;margin:0 0 9px}
@@ -117,13 +113,6 @@ a.gr-save:hover{color:var(--amber-l)!important;transform:scale(1.18)}
 a.gr-save.on{color:var(--amber)!important}
 a.gr-save.on:hover{color:var(--amber-l)!important}
 @media (prefers-reduced-motion:reduce){a.gr-save{transition:none}}
-a.gr-won{display:inline-block;margin:-8px -8px -8px -1px;padding:8px;
-  font-size:15px;line-height:1;text-decoration:none!important;vertical-align:1px;opacity:.45;
-  filter:grayscale(1);transition:opacity .15s ease,filter .15s ease,transform .15s ease}
-a.gr-won:hover{opacity:.85;transform:scale(1.15)}
-a.gr-won.on{opacity:1;filter:none}
-a.gr-won.on:hover{transform:scale(1.15)}
-@media (prefers-reduced-motion:reduce){a.gr-won{transition:none}}
 a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-decoration-color:rgba(232,147,58,.55);text-underline-offset:3px}
 .gr-new{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.5px;
@@ -378,13 +367,6 @@ a.gr-cat:hover .n{color:#eaa662}
   .gr-doc h3{font-size:16.5px;margin-top:30px}
   .gr-doc p,.gr-doc li{font-size:15px}}
 .gr-footer .foot-links{display:flex;gap:16px;align-items:center}
-/* The legal pair sits under a hairline, quieter and smaller, so About
-   and FAQ are not competing with Privacy and Terms for the same eye. */
-.gr-footer .foot-legal{display:flex;flex-wrap:wrap;justify-content:center;
-  align-items:center;gap:14px;margin-top:13px;padding-top:12px;
-  border-top:1px solid var(--line)}
-.gr-footer .foot-legal a{color:#5a616c;font-size:11.5px;text-decoration:none}
-.gr-footer .foot-legal a:hover{color:#8a919c}
 .gr-about h2{text-align:center}
 .gr-about ol li::before{counter-increment:step;content:counter(step);
   position:absolute;left:0;top:0;width:27px;height:27px;border-radius:8px;
@@ -468,9 +450,6 @@ a.gr-title{font-weight:650}
 .gr-body{font-size:14.5px;line-height:1.55;color:var(--mute);
   display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;
   overflow:hidden;white-space:pre-line}
-/* A body short enough to fit is not clamped at all, so nothing is hidden
-   behind a control that is not there. See decorate() in web/main.py. */
-.gr-body.gr-full{-webkit-line-clamp:unset}
 .gr-more-cb{display:none}
 .gr-more-cb:checked ~ .gr-body{-webkit-line-clamp:unset}
 .gr-more-lbl{display:inline-block;margin-top:5px;font-size:12.5px;font-weight:600;
@@ -521,8 +500,11 @@ a.gr-jump:active,a.gr-jump:focus-visible{background:rgba(232,147,58,.28);
   color:#f7b569;transform:scale(.94);outline:none}
 .gr-jump-target{scroll-margin-top:76px;display:block}
 html{scroll-behavior:smooth}
+.gr-settings-link{display:inline-block;padding:9px 16px;border-radius:10px;
+  font-size:13.5px;margin-top:2px}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}
-  a.gr-jump{transition:none}a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
+  a.gr-jump{transition:none}
+  a.gr-jump:active,a.gr-jump:focus-visible{transform:none}}
 .gr-confirm{display:flex;align-items:center;gap:11px;background:var(--bg2);
   border:1px solid var(--line);border-radius:14px;padding:14px 16px}
 .gr-confirm-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;

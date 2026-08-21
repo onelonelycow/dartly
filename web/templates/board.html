@@ -24,7 +24,7 @@
 .gr-save:hover{color:var(--amber-l)}
 .gr-save.on{color:var(--amber)}
 .grouprow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0 4px}
-.quiet{display:block;text-align:center;font-size:13px;color:var(--faint);margin:10px 0 0}
+.quiet{display:block;text-align:center;font-size:12.5px;color:var(--faint);margin:10px 0 0}
 .quiet a{color:var(--faint);text-decoration:none}
 .quiet a:hover{color:var(--amber-l);text-decoration:underline}
 .quiet a.on{color:var(--amber)}
@@ -37,7 +37,7 @@ a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .refresh{flex:none;padding:9px 22px;border-radius:10px;border:1px solid var(--line);
-  background:var(--panel);color:var(--ink);font-size:14px;text-decoration:none}
+  background:var(--panel);color:var(--ink);font-size:13.5px;text-decoration:none}
 .refresh:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .findrow{display:flex;gap:10px;margin:0 0 12px}
 /* min-width:0 on BOTH, or the select refuses to shrink. A flex item defaults
@@ -71,7 +71,7 @@ details.narrow summary:hover{color:var(--ink)}
   letter-spacing:.06em;min-width:74px}
 a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .pager span.off{color:#4d545e;border-color:transparent;background:none}
-.count{font-size:14px;color:var(--mute);font-variant-numeric:tabular-nums}
+.count{font-size:13.5px;color:var(--mute);font-variant-numeric:tabular-nums}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
 /* Matched to the app, where Prev and Next are wide substantial buttons with
    the page indicator centred between them. These were small links that read as
@@ -83,7 +83,7 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   margin-top:26px}
 .pager a,.pager span.off{flex:1;max-width:250px;text-align:center;
   padding:11px 18px;border-radius:10px;border:1px solid var(--line);
-  font-size:14px;text-decoration:none;background:var(--panel);color:var(--ink)}
+  font-size:13.5px;text-decoration:none;background:var(--panel);color:var(--ink)}
 .pager span.at{color:var(--mute);border:0;background:none;padding:0;
   font-size:13.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .pager a:hover{border-color:var(--amber-d);color:var(--amber-l)}
@@ -96,8 +96,11 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   .findrow{flex-direction:column}
   .findrow input[type=search],.findrow select{width:100%}
   .pagehead{gap:8px}
-  .refresh{padding:8px 16px;font-size:13.5px}
-  .pager a,.pager span.off{padding:10px 12px;font-size:13.5px}
+  /* Pre-existing 44px-floor misses the type-migration harness surfaced:
+     .refresh measured 34px and .pager a 38px at 375. Not caused by the
+     migration, but a thumb does not care whose fault a small target is. */
+  .refresh{padding:13px 16px;font-size:13.5px}
+  .pager a,.pager span.off{padding:13px 12px;font-size:13.5px}
   .pager span.at{font-size:12.5px}
 }
 {% endblock %}
