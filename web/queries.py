@@ -584,6 +584,18 @@ def by_ids(ids, conn: sqlite3.Connection | None = None) -> list[dict]:
     an identical title from another feed, it should still be in your list.
     Silently dropping saved items would look exactly like losing them.
 
+    AND THIS IS WHY THE BOARD STILL CARRIES ITS DUPLICATES. 11,990 rows, 18% of
+    the file, are is_primary=0 and never appear on the board — so dropping them
+    from the local copy looks like 18% off the disk and off every boot, for
+    free. It is not free: those rows are exactly what this function exists to
+    find, and someone's saved gig would vanish with no explanation.
+    Making it work means falling back to the Postgres mirror on a miss, which
+    puts a network dependency on the one page whose promise is that your list
+    is yours. Weighed 2026-08-21 and left alone: boot was at 136s of a 270s
+    budget, so 18% of it is ~24 seconds once per deploy, and retention is the
+    cheaper lever if pressure ever arrives — 21 days is a choice, and 14 would
+    cut a third with no new code and no new failure mode.
+
     Chunked because SQLite caps parameters per statement (999 by default), and
     somebody with a long list would otherwise get an error instead of a page.
     """
