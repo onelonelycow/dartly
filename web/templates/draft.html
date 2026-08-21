@@ -50,9 +50,14 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
 
 <div class="sec">Your reply</div>
 <p class="hint">
-  {% if pro %}Written against this post and your profile. Edit it — it's a
-    starting point, not a script.
-  {% else %}A starting point built from your profile. Edit it before you send.
+  {# THE BLANK MESSAGE IS THE THING THAT STOPS PEOPLE REPLYING, and this page
+     is the one moment Nabbly is visibly doing the job the About page promises
+     to take off them. It was describing its own mechanics instead. #}
+  {% if pro %}Written against this post and your profile. The blank message is
+    the part that stops most people replying, so it is already started. Edit it
+    freely: it is a beginning, not a script.
+  {% else %}Started from your profile, so you are not looking at an empty box.
+    Edit it before you send.
   {% endif %}
 </p>
 
