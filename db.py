@@ -582,6 +582,68 @@ def archive_stale(days: int = STALE_DAYS) -> int:
     return n
 
 
+def archive_not_openings() -> int:
+    """
+    Take postings that are not openings off the board. Returns how many.
+
+    Talent pools, spontaneous applications, "future opportunities" and outright
+    test rows. A member who opens "Expression of Interest - Account Executive"
+    finds a body that says it is not a live vacancy, so the board told them
+    something untrue. config.NOT_AN_OPENING carries the phrase list, the
+    measured traps and the reasoning; classify.py stops new ones at the door.
+    This is the one-off for what is already here.
+
+    Modelled on archive_stale above, including the two things that function
+    learned the hard way: read the pairs BEFORE the update, and check what the
+    mirror actually accepted. Skipping the mirror is not a small bug here —
+    archival written only to local sqlite is wiped on the next deploy and every
+    row returns to the board as live.
+
+    THE BODY IS KEPT, which is where this deliberately differs from
+    archive_stale. That function drops it because the stale tail grows forever
+    and body is 93% of a row's weight. This is a bounded ~190 rows chosen by a
+    hand-written phrase list, so the space saved is meaningless and the ability
+    to undo the whole change with one UPDATE is worth more than the bytes.
+    """
+    import classify
+    conn = connect()
+    try:
+        hits = [(r["source"], r["source_id"], r["id"])
+                for r in conn.execute(
+                    "SELECT id, source, source_id, title FROM posts "
+                    "WHERE is_demand = 1").fetchall()
+                if classify._is_not_an_opening((r["title"] or "").lower())]
+        if not hits:
+            return 0
+        ids = [h[2] for h in hits]
+        # Chunked because SQLite caps host parameters per statement at 999.
+        n = 0
+        for i in range(0, len(ids), 900):
+            chunk = ids[i:i + 900]
+            cur = conn.execute(
+                f"UPDATE posts SET is_demand = 0 WHERE id IN "
+                f"({','.join('?' * len(chunk))})", chunk)
+            n += cur.rowcount or 0
+        conn.commit()
+    finally:
+        conn.close()
+
+    pairs = [(h[0], h[1]) for h in hits]
+    try:
+        import board_store
+        pushed = board_store.mark_archived(pairs)
+        if pushed < len(pairs):
+            print(f"  ! archive_not_openings: retired {len(pairs):,} locally "
+                  f"but only {pushed:,} reached the mirror. The board service "
+                  f"will keep showing the difference until a later pass "
+                  f"succeeds.", flush=True)
+    except Exception as e:
+        print(f"  ! archive_not_openings: mirror archival raised, "
+              f"{len(pairs):,} are retired locally only: "
+              f"{type(e).__name__}: {e}", flush=True)
+    return n
+
+
 def compact_archived() -> int:
     """
     Drop the body from gigs that were archived before we started doing it.

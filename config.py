@@ -207,6 +207,73 @@ SUBREDDITS = ["forhire", "freelance_forhire", "jobbit", "slavelabour"]
 # A Reddit post is real DEMAND if its title carries one of these tags.
 HIRING_TAGS = ["[hiring]", "[task]"]
 
+
+# NOT AN OPENING — postings that are not a job a person can apply to and be paid
+# for. These are removed from the board, not merely ranked down, because showing
+# one is the board saying something untrue: "Expression of Interest - Account
+# Executive" has a body that reads "this is an expression of interest for future
+# opportunities, not a live vacancy". FEEL.md §7 makes that a spec violation
+# rather than a matter of taste.
+#
+# NOT A SIZE MEASURE. It removes about 190 rows from a 53,000-row board. The
+# case for it is honesty, and any argument that starts with disk or memory is
+# the wrong argument.
+#
+# MATCHED AGAINST THE TITLE ONLY, NEVER THE BODY. Measured 2026-08-22: "talent
+# pool" appears in the BODY of 100 rows whose titles are clean, "candidate pool"
+# in 29, "(unpaid)" in 29. Those are real jobs that mention a talent pool or an
+# unpaid trial in passing. Matching the body would turn a 190-row fix into the
+# deletion of 158 real openings.
+#
+# THREE TRAPS, ALL MEASURED, DO NOT ADD THEM BACK:
+#   "pipeline"      54 hits, all false. It is a data-engineering word:
+#                   "AWS EC2 Jenkins Pipeline", "AI Video Pipeline Build".
+#   "survey"        a PROFESSION. "Quantity Surveyor", "Land Survey Drafter",
+#                   "Regulatory Asbestos Survey Report Writing" are real gigs.
+#                   Same shape as bare "hr" matching "$77/hr".
+#   "do not apply"  catches the real test postings, but also "AI Film Trailer
+#                   Creator MUST BE US BASED DO NOT APPLY IF NOT". Anchor on
+#                   "test job"/"test posting" instead.
+# Also excluded after measuring: "evergreen" (1 of 3 is a real agency role,
+# 33% churn), "career fair" (1 row), "we are hiring" (1 row, a real gig).
+#
+# UNPAID IS INCLUDED, AND THE RULE IS POSITIONAL. "Volunteer Coordinator" is a
+# PAID staff role that manages volunteers; "Marketing Manager (Remote,
+# Volunteer)" is unpaid work. Volunteer-as-qualifier is parenthesised or trails
+# the role noun; volunteer-as-object precedes it. So bare "volunteer",
+# "volunteer coordinator" and "volunteer manager" are deliberately absent.
+# All 20 matched rows were read individually: zero paid roles among them.
+#
+# German and Portuguese carry a third of the catch despite being 9% of the
+# board, because "Initiativbewerbung" and "Banco de Talentos" are common
+# posting types there. Spanish, French, Italian and Dutch equivalents measured
+# near zero and are left out rather than carried dead.
+NOT_AN_OPENING = {
+    "open_application": [
+        "general application", "open application", "open applications",
+        "spontaneous application", "speculative application", "speculative cv",
+        "unsolicited application", "general interest", "introduce yourself",
+        "initiativbewerbung", "banco de talentos", "candidature spontan",
+    ],
+    "talent_pool": [
+        "talent pool", "talent pooling", "talent community", "talent network",
+        "candidate pool", "join our talent",
+    ],
+    "future": [
+        "expression of interest", "register your interest", "future opening",
+        "future consideration", "futuras oportunidades",
+    ],
+    "test_posting": [
+        "test job", "test posting",
+    ],
+    "unpaid": [
+        "(volunteer)", "(unpaid)", "(volunteer, unpaid)", "(unpaid/remote)",
+        "(remote, volunteer)", "(volunteer / portfolio credit)",
+        "volunteer position", "volunteer role", "unpaid internship",
+        "- unpaid",
+    ],
+}
+
 # ---------------------------------------------------------------------------
 # SKILL (the "skill" toggles in the dashboard come from these)
 # Each skill maps to words that signal it. First match wins, top to bottom.

@@ -62,6 +62,19 @@ def _fix_mojibake(text: str) -> str:
 # of the description and is pure noise to a reader, so we cut from there on.
 BOILERPLATE = re.compile(r"\s*please mention the word\b.*$", re.I | re.S)
 
+# Entertainment Careers publishes through a Twitter relay, so every one of its
+# descriptions opens with the retweet request rather than the job:
+#
+#   "pls RT ECNIDRSS @entcareersnet Calling all entertainers and performers!…"
+#
+# Measured 2026-08-22: all 273 of its gigs on the board, and it is the first
+# thing a member reads on the card, because the preview starts where the body
+# starts. The jobs themselves are good ones — Stage Manager for the Philadelphia
+# 76ers, Production Runner at the Uptown Theater — which is why the answer is to
+# clean the feed rather than drop the source. Anchored to the start so it can
+# only ever remove a prefix.
+FEED_DEBRIS = re.compile(r"^\s*pls\s+RT\s+ECNIDRSS\s+@?\w+\s*", re.I)
+
 
 def _strip(text) -> str:
     """
@@ -86,6 +99,7 @@ def _strip(text) -> str:
         text = unescaped
     text = re.sub(r"<[^>]+>", " ", text)
     text = BOILERPLATE.sub("", text)
+    text = FEED_DEBRIS.sub("", text)
     # \xa0 (from &nbsp;) is whitespace to Python's \s, so this folds it away too.
     return re.sub(r"\s+", " ", text).strip()
 

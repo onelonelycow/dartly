@@ -61,6 +61,31 @@ def _budget_amounts(text):
     return out
 
 
+def _is_not_an_opening(title_l: str) -> bool:
+    """
+    True when the TITLE says this is not a job you can apply to and be paid for.
+
+    Title only, deliberately. The phrases here appear innocently in the bodies of
+    real jobs — "talent pool" in 100 of them, "candidate pool" in 29 — so reading
+    the body would delete real work. config.NOT_AN_OPENING carries the full
+    reasoning and the traps.
+
+    Phrases that contain punctuation at either end, like "(unpaid)" or
+    "- unpaid", are matched as plain substrings: a bracket is not a word
+    character, so the word-boundary lookarounds would refuse to match at all.
+    Everything else gets whole-word matching, which is what keeps "test job"
+    from firing on "latest jobs".
+    """
+    for phrases in config.NOT_AN_OPENING.values():
+        for p in phrases:
+            if not (p[0].isalnum() and p[-1].isalnum()):
+                if p in title_l:
+                    return True
+            elif _skill_re(p).search(title_l):
+                return True
+    return False
+
+
 def classify(title: str, body: str, source: str) -> dict:
     title_l = (title or "").lower()
     text = f"{title} {body}".lower()
@@ -72,6 +97,14 @@ def classify(title: str, body: str, source: str) -> dict:
         is_demand = _contains_any(title_l, config.HIRING_TAGS)
     else:
         is_demand = True
+
+    # A job board posting is an opening by default, but not all of them are.
+    # Talent pools, spontaneous applications, "future opportunities" and test
+    # rows are postings you cannot apply to and be paid for, and showing one is
+    # the board saying something untrue. Gated on the same is_demand flag the
+    # stale sweep uses, so nothing downstream has to learn a new concept.
+    if is_demand and _is_not_an_opening(title_l):
+        is_demand = False
 
     # --- Skill: prefer a match in the TITLE (names the real role); the body
     # often mentions other skills in passing, so only fall back to it. ---
