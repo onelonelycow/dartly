@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real data postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>SAP S/4 HANA Analytics (SAC) Report Writer - DTS073</li><li>Analista Gestão Performance III - Venda Direta</li><li>Staff AI Engineer</li><li>Sr. Business Intelligence Analyst (Remote, US)</li><li>Senior Data Engineer – Streaming, Analytics &amp; Visualization</li><li>Sr Manager, Product Management - Data and Analytics</li><li>Analista de Redes</li><li>Data Engineer</li><li>Applied AI Engineer</li><li>Data Analyst (all genders) — MUVN</li><li>Business Development Manager - EU/US — Skin Analytics</li><li>AI Enablement Engineer — Skin Analytics</li><li>Head of Customer Operations — Skin Analytics</li><li>Senior Product Marketing Manager — Skin Analytics</li><li>Analista de Infraestrutura de TI - SecOPS</li><li>Senior Data Scientist II</li></ul>
+  <ul class="gigs"><li>Senior Vice President, Mortgage Analytics</li><li>Manager/ Senior Manager - Analytics Consulting (Pharma)</li><li>Data Engineer Senior - Vaga afirmativa para mulheres</li><li>Data Ops/ ML Engineer x 2</li><li>Analista de Modelagem Estatística III- Foco em Monitoramento</li><li>Analista de Suporte Técnico Jr. (ERP Omie)</li><li>Health AI ML Data Scientist</li><li>Data Engineer (m/w/d) - Azure Cloud &amp; MS Fabric — Doehle</li><li>Business Intelligence Specialist</li><li>Level 2 Engineer - Certified in Citrix Analytics</li><li>ANALISTA DE TI</li><li>Data Scientist Pleno - Prevenção a Fraudes</li><li>Fix Power BI Slicer Issues</li><li>Business Intelligence (BI) Developer (Level 2)</li><li>Sr Machine Learning Engineer</li><li>Data Engineer - Machine learning/ Artificial Intelligence</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=Data%20%2F%20analytics&amp;ref=site-data">See live data work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

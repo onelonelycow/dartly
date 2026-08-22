@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real admin postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>PBM Regulatory Reporting Coordinator</li><li>Human Resources Coordinator</li><li>Executive Assistant, Client Projects - Search Operations</li><li>Executive Assistant and Office Operations Lead - Client Delivery</li><li>Billing/Scheduling Associate II - Ophthalmology</li><li>Remote Executive Assistant - Operations &amp; Project Management Focus</li><li>Regional Operations Manager</li><li>ALLERGY &amp; ASTHMA MEDICAL VIRTUAL ASSISTANT</li><li>Senior Executive Assistant (Partner Support) - Search Operations</li><li>IBA Accounts Assistant - 6 month FTC (remote or Manchester based)</li><li>Care Coordinator (Fully Remote)</li><li>Remote Waiver Legal Assistant</li><li>Profesor de oposiciones Auxiliar Administrativo SERMAS</li><li>App Operations Manager (remote - m/f/d)</li><li>(Senior) Program Operations Manager*in (d/m/w) — Zukunftsmotor Gmbh</li><li>Data Entry Assistant I</li></ul>
+  <ul class="gigs"><li>Coordinator, Patient Access (Care Coordinator)</li><li>Administrative Specialist III</li><li>Scheduler / Shift Coordinator</li><li>Logistics and Inventory Coordinator</li><li>Intake and Case Initiation Coordinator</li><li>Program Coordinator, ASAPconnect</li><li>Denials RN Coordinator</li><li>(FR&amp;EN) Bilingual Executive Assistant</li><li>Administrative Services Coordinator II - Temporary (Home Based, VT, US)</li><li>Administrative Assistant (USA Financial Services) - EST Hours</li><li>All-Round Real Estate Virtual Assistant Needed</li><li>Payroll Coordinator</li><li>Healthcare Coordinator</li><li>Project Operations Assistant – K12 Test Materials</li><li>Donor Resource Coordinator</li><li>Deal Operations Manager — Sierra</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=Admin%20%2F%20VA&amp;ref=site-admin">See live admin work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

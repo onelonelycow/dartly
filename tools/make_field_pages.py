@@ -202,6 +202,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}

@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real customer support postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>Customer Success Manager, MidMarket (US/LATAM)</li><li>Remote Customer Support Manager</li><li>Customer Service Advisor — Allica Bank</li><li>PESSOA ESTAGIÁRIA DE DADOS PARA SUPORTE E ATENDIMENTO AO CLIENTE</li><li>Seasonal Call Center Representative- Arizona</li><li>Customer Support Specialist</li><li>Bilingual Medical Customer Service Representative (English &amp; Spanish)</li><li>Enterprise Customer Success Manager</li><li>Intern — Support Specialist / Business Analyst</li><li>Client Success Manager</li><li>Bilingual Customer Service Representative — Beyond Finance</li><li>Customer Support Analyst, Tier I (Home based, US)</li><li>Technical Architect (Customer Success)</li><li>Customer Success Manager (Enterprise), Max</li><li>Customer Experience Representative - EMC Life</li><li>Mitarbeiter Customer Service (m/w/d)</li></ul>
+  <ul class="gigs"><li>Home-Based Customer Service Assistant</li><li>Customer Success Manager</li><li>E-Learning Support Specialist I</li><li>Accounting Support Specialist</li><li>Customer Support Specialist, Payroll Integrations</li><li>Customer Support Representative (German)</li><li>Pharmacy Technician- Call Center</li><li>EverHealth - RCM Client Success Manager (Remote, US)</li><li>Peer Support Specialist (Vaya&#x27;s Eastern Counties)</li><li>Dutch Gaming Support Agent</li><li>Swedish Customer Service Agent(Chat/email) in Greece</li><li>Customer Implementation and Support Specialist (Remote - USA)</li><li>Customer Service and Rebate Processing Team Supervisor</li><li>Help Desk Specialist- IT Support (LATAM only)</li><li>Swedish Customer Support Representative - Remote in Greece</li><li>Help Desk Manager</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=Customer%20support&amp;ref=site-customer-support">See live customer support work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

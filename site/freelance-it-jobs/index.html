@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real IT postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>Sr. Manager, Technical Support</li><li>Manager, Information Security</li><li>Information Security Officer (Any city, TX, US, 99999)</li><li>Cybersecurity Consultant – Palo Alto Networks (m/w/d) — Nomios</li><li>Information Security Incident Response Manager (Remote, MEX, MX)</li><li>Cybersecurity Manager</li><li>Manager, Cyber Security</li><li>Helpdesk / Servicedesk</li><li>IT-Systemadministrator (m/w/d) – Windows Server — Reservix GmbH</li><li>System Administrator (Intune &amp; Endpoint Management)</li><li>Systemadministrator/ 3rd Level Tech Support (m/w/d)</li><li>Account Security Specialist</li><li>Cybersecurity Consultant – Juniper &amp; Arista (m/w/d) — Nomios</li><li>IT Support - Mini Job — AMBOSS</li><li>SOL-1664 Technical Support Agents</li><li>Security Analyst (Part-Time)</li></ul>
+  <ul class="gigs"><li>Technical Support Representative, Novelist</li><li>System Administrator</li><li>Tier 1 Technical Support Manager</li><li>Technical Support Representative II</li><li>Cyber Security Specialist</li><li>Helpdesk Technician</li><li>Cyber Security Technical Manager</li><li>IT Helpdesk Agent</li><li>Windows System Administrator</li><li>Student Worker, Information Security – Incident Response</li><li>Atlassian System Administrator</li><li>Classroom Cybersecurity Activity Pilot</li><li>Information Security Engineering Specialist Advisor (Brasov, BV, RO)</li><li>Cybersecurity Analyst</li><li>Network Security Analyst</li><li>Working Student IT Support — share GmbH</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=IT%20%2F%20support&amp;ref=site-it">See live IT work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

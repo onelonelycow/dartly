@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real marketing postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>Amazon PPC Expert</li><li>Social Media Manager</li><li>Growth Marketing Manager</li><li>Werkstudent (m/w/d) Marketing &amp; E-Commerce</li><li>GEO/SEO, Senior Manager - 100% Remote - Europe</li><li>Senior Field Marketing Manager — Siteimprove</li><li>Werkstudent B2C Marketing (x/f/m) — Doctolib</li><li>Account Executive, Affiliate Marketing — Accelerationpartners</li><li>Influencer Marketing Specialist (Freelance)</li><li>XTN-E0F9988 | DIGITAL AND MARKETING TECHNOLOGY MANAGER</li><li>Sr. Dir, SVODs Product Marketing</li><li>Performance Marketing Specialist (Remote, Lahore, PKR Salary)</li><li>Manager, Marketing Operations</li><li>Marketing Manager</li><li>Content marketing team manager</li><li>Sr. Director, Marketing Finance</li></ul>
+  <ul class="gigs"><li>Social Media Manager</li><li>Digital Marketing Executive</li><li>Working student - Affiliate marketing (f/m/x) (~5 hours/week) — Feather</li><li>Sales Development Representative (SDR) - Marketing Industry</li><li>Senior Growth Marketing Manager</li><li>Marketing Specialist - Fully Remote | Upto $80/hr</li><li>Marketing Specialist</li><li>Salesforce Marketing and Data Cloud Architect</li><li>YOU are good in marketing? I am your CTO!</li><li>Email Marketing Specialist</li><li>Account Manager (Marketing Industry)</li><li>Growth Marketing Manager</li><li>Becario de Marketing para Startup</li><li>Marketing Executive</li><li>Head of Marketing</li><li>Director, Product Marketing - Nvidia Partnership</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=Marketing%20%2F%20SEO&amp;ref=site-marketing">See live marketing work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

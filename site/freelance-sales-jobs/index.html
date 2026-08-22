@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -82,7 +89,7 @@ footer a{color:var(--mute)}
   <h2>Recently on the board</h2>
   <p>Real sales postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>Strategic Account Executive - Boston</li><li>Sales Development Representative - Environmental Services</li><li>Senior Account Manager- G&amp;A/SGO - FACTS - NBS</li><li>Assistant Vice President, Enterprise Accounts EV Battery Sales</li><li>Account Executive (Northwest - Seattle)</li><li>Solutions Advisor (Services Pre-Sales)</li><li>Customer Success Manager (Sales - APAC)</li><li>Sr. Sales Representative - New England (Virtual, US, 99999)</li><li>Business Development Representative</li><li>Regional Vice President, Commercial Sales - SMB (Remote Eligible)</li><li>Account Executive</li><li>Enterprise Account Executive</li><li>Lead Talent Acquisition Business Partner - Sales</li><li>Director of Sales Operation</li><li>Inside Sales Representative- Advertising Executive</li><li>Account Manager [España]</li></ul>
+  <ul class="gigs"><li>Account Executive</li><li>Clinical Sales Lead</li><li>Multi-Channel Sales Representative II (India Home Office, IN, NA)</li><li>Vice President of Sales, EMEA</li><li>Commercial Account Manager</li><li>Business Development Manager (Brazil)</li><li>Medical Virtual Assistant – (Scheduling &amp; Outreach Support)</li><li>BIS Account Direct Sales</li><li>Internal Business Development - Broker Sales</li><li>Account Manager II</li><li>Complex Group Sales Manager / Remote</li><li>Business Development Representative</li><li>Sales Development Representative, Health Plan</li><li>Global Hyperscale Account Manager</li><li>Appointment Setter</li><li>Partnerships and Outreach Specialist, Enterprise and Procurement Services</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=Sales%20%2F%20outreach&amp;ref=site-sales">See live sales work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place

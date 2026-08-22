@@ -55,6 +55,13 @@ background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
 .more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
 .more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
 border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
 .more a:hover{border-color:var(--amber);color:var(--ink)}
 footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
 color:var(--mute);font-size:13px}
@@ -77,12 +84,12 @@ footer a{color:var(--mute)}
   <p>Nabbly reads HR briefs and roles from job boards and hiring
      communities around the clock, and puts each one on the board minutes after
      it posts. A gig reaches this page when it talks about work like this:</p>
-  <ul class="terms"><li>human resources</li><li>recruiter</li><li>recruiting</li><li>recruitment</li><li>talent acquisition</li><li>headhunter</li><li>sourcer</li><li>people operations</li><li>hr manager</li><li>personalreferent</li><li>personalwesen</li><li>personalsachbearbeiter</li><li>hr-medewerker</li><li>personeelszaken</li><li>reclutador</li><li>recursos humanos</li><li>selección de personal</li><li>recruteur</li><li>ressources humaines</li><li>chargé de recrutement</li><li>recursos humanos</li><li>seleção de pessoal</li></ul>
+  <ul class="terms"><li>human resources</li><li>recruiter</li><li>recruiting</li><li>recruitment</li><li>talent acquisition</li><li>headhunter</li><li>sourcer</li><li>people operations</li><li>hr manager</li><li>personalreferent</li><li>personalwesen</li><li>personalsachbearbeiter</li><li>hr-medewerker</li><li>personeelszaken</li><li>reclutador</li><li>recursos humanos</li><li>selección de personal</li><li>recruteur</li><li>ressources humaines</li><li>chargé de recrutement</li><li>seleção de pessoal</li><li>risorse umane</li></ul>
 
   <h2>Recently on the board</h2>
   <p>Real HR postings Nabbly picked up. The live board carries far more,
      and it changes through the day.</p>
-  <ul class="gigs"><li>Student Recruitment Counselor</li><li>Talent Acquisition Business Partner - EAST COAST</li><li>Talent Acquisition Partner</li><li>Regional Talent Acquisition Manager (Inland Empire)</li><li>Talent Acquisition Manager, Stakeholder Partnering - Search Operations</li><li>Freelance Recruitment Partner (Thai)</li><li>Freelance Recruitment Partner (Korean)</li><li>Regional HR Manager - EMEA</li><li>Werkstudent oder Praktikant Human Resources (m/w/d) — Plutos</li><li>Talent Acquisition Manager, Operations and Quality - Quality and Compliance</li><li>Senior Recruitment Consultant, Talent Mapping - Market Mapping</li><li>Talent Acquisition Recruiter</li><li>Executive Recruiter, Leadership Hiring</li><li>Senior Talent Acquisition Partner — Sumup</li><li>Senior Executive Recruiter, Retained Search</li><li>Recruitment Consultant - US</li></ul>
+  <ul class="gigs"><li>Head of Recruitment (Philippines)</li><li>US Technical Recruiter</li><li>Associate Partner - Headhunter</li><li>Staffing Recruiter</li><li>Talent Acquisition Analyst</li><li>Recruitment Operations Administrator</li><li>Remote HR Consultant / International Recruiter (Europe Recruitment)</li><li>Talent Acquisition Partner - Temporary</li><li>Intermediate Technical Recruiter (Jhb)</li><li>Part-Time Client Consultant (Recruitment Services)</li><li>Sr. Workday Recruiting Consultant</li><li>Human Resources Trainee</li><li>People Operations Lead</li><li>Contract Technical Recruiter – Cloud, Infrastructure, AI/ML</li><li>Werkstudent:in People &amp; Culture (all genders) - Recruiting — Foodji GmbH</li><li>Human Resources Business Partner - REMOTE - Atlanta, Cleveland, or Chicago</li></ul>
   <a class="btn" href="https://board.nabbly.co/gigs?field=HR%20%2F%20recruiting&amp;ref=site-hr">See live HR work &rarr;</a>
 
   <h2>Why speed matters here</h2>
@@ -99,7 +106,7 @@ footer a{color:var(--mute)}
      first two lines &rarr;</a></p>
 
   <h2>Other fields</h2>
-  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+  <ul class="more"><li><a href="/freelance-development-jobs/">Development</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-admin-jobs/">Admin</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-video-jobs/">Video</a></li><li><a href="/freelance-management-jobs/">Management</a></li><li><a href="/freelance-product-jobs/">Product</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li></ul>
 </main>
 <footer><div class="wrap">
   <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
