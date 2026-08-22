@@ -257,12 +257,11 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
     {% elif filtered %}
       <b>Nothing fits all of that right now.</b><br>
       Loosen one and see, or <a href="{{ link(field='', size='', source='', langs='', urgent='', where='') }}">clear them all</a>.
-      Nothing has gone missing. The board just changes through the day.
+      The board changes through the day, so this will read differently later.
     {% else %}
       {% if booting %}
-        <b>The board is still loading.</b><br>
-        Nabbly is pulling the gigs back in after a deploy. Give it a minute and
-        refresh.
+        <b>The board is still catching up.</b><br>
+        Give it a minute and refresh.
       {% else %}
         <b>The board is empty right now.</b><br>
         That is unusual, and it should refill within a few minutes.
