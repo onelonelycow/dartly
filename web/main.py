@@ -462,33 +462,46 @@ _facets = _Facets()
 
 class _Market:
     """
-    The Market page's numbers: one slot, keyed on a board fingerprint,
-    hold-last-good. Same shape as _Facets above, and next to it on purpose so
-    a reader meets one pattern twice instead of two patterns once.
+    The Market page's numbers: one slot, TIME-based, hold-last-good.
 
-    The build is ~1-3s because market.skill_stats reads every public gig's
-    full text (truncation measurably corrupts the rates — see
-    queries.market_stats). One reader per board change pays it; everyone else
-    gets the cached dict. Hold-last-good means even that reader gets the
-    PREVIOUS numbers instantly if a build is already running.
+    KEYED ON A CLOCK, NOT ON THE BOARD'S ROW COUNT. It was keyed on
+    board_total() first, which reads like the careful choice and is the wrong
+    one here: gigs land continuously, about two a minute, so the fingerprint
+    moved every ~30 seconds and effectively every Market view paid a full
+    rebuild. Measured — inserting ONE synthetic gig into a copy of the board
+    invalidated the whole cache and forced the scan again.
+
+    Fifteen minutes, matching the ttl=900 the Streamlit version used before the
+    port. These are aggregate statistics over a 21-day window; they do not
+    move in a minute, and pretending they do costs a scan of the whole board
+    for a number that reads the same either way.
+
+    The scan itself is I/O bound on the gig text, so its cost grows with the
+    board and is worst when the file is cold, right after a deploy. A clock
+    bounds that to four rebuilds an hour no matter how large the board gets,
+    which is the property that actually matters as intake grows.
     """
+    TTL_S = 900
+
     def __init__(self):
         self._lock = threading.Lock()
-        self._version = None
+        self._built_at = 0.0
         self._value = None
         self._building = False
 
     def get(self, conn):
-        v = queries.board_total(conn)   # a fingerprint, not a headline: moves
-        with self._lock:                # when rows land, cheap to read
-            if self._value is not None and (v == self._version or self._building):
+        now = time.monotonic()
+        with self._lock:
+            fresh_enough = (self._value is not None
+                            and now - self._built_at < self.TTL_S)
+            if fresh_enough or (self._value is not None and self._building):
                 return self._value
             self._building = True
         try:
-            fresh = queries.market_stats(conn=conn)
+            built = queries.market_stats(conn=conn)
             with self._lock:
-                self._version, self._value = v, fresh
-            return fresh
+                self._value, self._built_at = built, time.monotonic()
+            return built
         finally:
             with self._lock:
                 self._building = False
