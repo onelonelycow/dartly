@@ -61,18 +61,74 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
   {% endif %}
 </p>
 
-<form method="post" action="/draft/{{ g.id }}/save">
+<form method="post" action="/draft/{{ g.id }}/save"{% if pending %} class="waiting"{% endif %}>
   <input type="hidden" name="back" value="{{ back }}">
-  <textarea name="text" aria-label="Your draft">{{ draft }}</textarea>
+  <textarea id="d" name="text" aria-label="Your draft"
+    {% if pending %}readonly aria-busy="true"
+      placeholder="Writing your reply. This takes a few seconds."{% endif %}
+  >{{ draft }}</textarea>
   <div class="row">
-    <button class="go" type="submit">Save draft</button>
+    <button class="go" type="submit" {% if pending %}disabled{% endif %}>Save draft</button>
     {% if mailto %}
-      <a class="ghost" href="{{ mailto }}">Open in email</a>
+      <a class="ghost" id="mailto" href="{{ mailto }}">Open in email</a>
+    {% elif pending and apply_addr %}
+      <a class="ghost" id="mailto" hidden href="#">Open in email</a>
     {% endif %}
     <a class="ghost" href="/draft/{{ g.id }}?regen=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write a new one</a>
     {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
+
+{% if pending %}
+  {# The draft is fetched AFTER this page has painted. A model call took 27.5s
+     in production and it used to sit inside the page request, so the reader
+     got a blank browser and no way to tell a slow draft from a dead site.
+     Everything above renders instantly now; only the textarea waits. #}
+  <noscript>
+    <p class="cap"><a href="/draft/{{ g.id }}?sync=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write my reply</a>
+      — takes a few seconds, and the page will wait.</p>
+  </noscript>
+  <script>
+  (function () {
+    var box = document.getElementById("d"),
+        save = document.querySelector("form.waiting button.go"),
+        mail = document.getElementById("mailto"),
+        dots = 0,
+        tick = setInterval(function () {
+          dots = (dots + 1) % 4;
+          box.placeholder = "Writing your reply" + "...".slice(0, dots)
+                          + "\n\nThis takes a few seconds.";
+        }, 450);
+
+    function done(text) {
+      clearInterval(tick);
+      box.value = text;
+      box.removeAttribute("readonly");
+      box.removeAttribute("aria-busy");
+      box.placeholder = "";
+      if (save) { save.disabled = false; }
+      if (mail && text) {
+        mail.href = "mailto:" + {{ apply_addr|tojson }}
+                  + "?subject=" + encodeURIComponent("Re: " + {{ g.title|tojson }})
+                  + "&body=" + encodeURIComponent(text);
+        mail.hidden = false;
+      }
+    }
+
+    fetch({{ text_url|tojson }}, { credentials: "same-origin" })
+      .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+      .then(done)
+      .catch(function () {
+        clearInterval(tick);
+        box.removeAttribute("readonly");
+        box.removeAttribute("aria-busy");
+        box.placeholder = "That did not come back. Reload to try again, or "
+                        + "just write your own opening line here.";
+        if (save) { save.disabled = false; }
+      });
+  })();
+  </script>
+{% endif %}
 
 {% if mailto %}
   <p class="cap">Opens your mail app with this draft already in it, addressed to
