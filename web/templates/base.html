@@ -117,6 +117,19 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+{# THE PER-PAGE BLOCK RENDERS ABOVE THE MOBILE RAMP, NOT BELOW IT.
+
+   It used to sit after, and every page defining its own .sec-h silently killed
+   the phone override: board.html sets 27px, saved and profile set 31px, same
+   specificity and later in the sheet, so they won at EVERY width. Measured at
+   375px the section headings came out 27 and 31 against the 21 intended below.
+   The media block has to be last to win. Same cascade rule that already bit
+   the settings picker once this week.
+
+   Checked before moving it: no template's own mobile block styles anything
+   this ramp styles, so nothing a page deliberately overrides on a phone is
+   lost by putting base's ramp last. #}
+{% block extra_css %}{% endblock %}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
   /* The avatar belongs top-RIGHT on phones, same as desktop. On desktop the
@@ -148,7 +161,6 @@ button.go:hover{background:var(--amber-l)}
      not a heading — the board sections were louder than the app ones. */
   .sec-h{font-size:21px;letter-spacing:-.4px}
 }
-{% block extra_css %}{% endblock %}
 /* BOARD-ONLY RULES LIVE HERE, NOT IN nabbly.css. That file is generated from
    app.py and overwritten on every extract — two groups below were hand-added
    there and silently deleted the first time anyone reran the generator. */

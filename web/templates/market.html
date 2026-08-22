@@ -36,8 +36,8 @@
        board, not the reader's filtered view — otherwise someone whose Gigs
        tab shows 12,000 reads these numbers as a contradiction (FEEL §7:
        numbers must be true at all times). #}
-    <p>Counted across the whole board, every source at once — not just the
-      slice your filters show.</p>
+    <p>Counted across the whole board, every source at once. This is not
+      the slice your filters show.</p>
   {% endif %}
 </div>
 
@@ -71,7 +71,7 @@
 
   <div class="mkt-cols">
     <div>
-      <div class="mkt-sec">Budget mix — how the board splits</div>
+      <div class="mkt-sec">Budget mix: how the board splits</div>
       {{ donut(m.size_slices, m.size_hover) }}
     </div>
     <div>
@@ -80,11 +80,11 @@
     </div>
   </div>
 
-  <div class="mkt-sec">Where the big budgets sit — gigs by skill, split by budget</div>
+  <div class="mkt-sec">Where the big budgets sit, by skill and budget</div>
   {{ stacked(m.stack_rows, m.stack_legend) }}
 
   <p class="mkt-note">Treat these as a range to price against, not a fixed
-    rate — posts quote by project and by hour, and both are counted here.</p>
+    rate. Posts quote by project and by hour, and both are counted here.</p>
 
 {% endif %}
 {% endblock %}

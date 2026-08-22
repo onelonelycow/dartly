@@ -639,7 +639,25 @@ def _oops_page(request: Request, status: int, heading: str, message: str,
 @app.get("/robots.txt")
 def robots():
     from fastapi.responses import PlainTextResponse
-    body = ("User-agent: *\nAllow: /\n" if _INDEXABLE
+    # Allow the board itself, but never the redirect endpoint or the
+    # signed-in pages.
+    #
+    # /out/ is what sent this here. It is a 302 to the original posting, not
+    # content, and crawlers were following thousands of them. Meta's crawler
+    # then did something worse: it took the DESTINATION's path and re-requested
+    # it against board.nabbly.co, so the logs filled with 404s for Freelancer
+    # URLs like /projects/sewing/... and /u/someone that were never ours.
+    # Nothing was broken and each cost 3ms, but it buried real 404s in noise.
+    #
+    # The private pages carry X-Robots-Tag: noindex already. That only stops
+    # indexing after the fetch; robots.txt stops the fetch.
+    private = ("Disallow: /out/\n"
+               "Disallow: /profile\n"
+               "Disallow: /saved\n"
+               "Disallow: /draft/\n"
+               "Disallow: /market\n"
+               "Disallow: /signin\n")
+    body = ("User-agent: *\nAllow: /\n" + private if _INDEXABLE
             else "User-agent: *\nDisallow: /\n")
     return PlainTextResponse(body)
 
