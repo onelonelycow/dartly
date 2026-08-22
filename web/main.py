@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -897,9 +897,77 @@ def saved_page(request: Request):
     return resp
 
 
+def _wants_model(request: Request, pro: bool) -> bool:
+    """Whether this reader gets a written draft rather than the free template."""
+    import pitch
+    return bool(pro and pitch.ai_available())
+
+
+def _write_draft(request: Request, g: dict, prof: dict, me: str) -> str:
+    """
+    The model call, in one place so the page and the text endpoint cannot
+    drift apart.
+
+    THE RESUME IS WHY THIS MOVED. A draft that can name real work beats one
+    written from a one-line bio, and until the board grew its own upload the
+    resume only existed on the app.
+    """
+    import pitch
+    try:
+        import resume_store
+        cv = resume_store.get(_sid(request))
+    except Exception:
+        cv = ""
+    return pitch.draft_pitch(g, prof, who=me, resume_text=cv)
+
+
+@app.get("/draft/{gig_id}/text", response_class=PlainTextResponse)
+def draft_text(request: Request, gig_id: int, regen: int = Query(0)):
+    """
+    The draft alone, fetched by the page after it has already rendered.
+
+    Same guards as the page, because this is a model call behind a URL and a
+    signed-out reader must not be able to spend it. Returns text/plain: there
+    is no markup to send and the page only ever puts it in a textarea.
+    """
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    if not me:
+        return PlainTextResponse("", status_code=401)
+
+    conn = queries.connect(DB_PATH)
+    try:
+        rows = queries.by_ids([gig_id], conn=conn)
+    finally:
+        conn.close()
+    if not rows:
+        return PlainTextResponse("", status_code=404)
+    g = rows[0]
+
+    import pitch
+    import profile as profile_mod
+    prof = profile_mod.load() or {}
+    pro = bool(accounts.status(webauth.account_for(request)).get("pro"))
+
+    import drafts as drafts_mod
+    saved = "" if regen else drafts_mod.load(gig_id)
+    if saved:
+        text = saved
+    elif _wants_model(request, pro):
+        text = _write_draft(request, g, prof, me)
+    else:
+        text = pitch.draft_template(g, prof)
+
+    resp = PlainTextResponse(text)
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
 @app.get("/draft/{gig_id}", response_class=HTMLResponse)
 def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
-               regen: int = Query(0), saved_ok: int = Query(0)):
+               regen: int = Query(0), saved_ok: int = Query(0),
+               sync: int = Query(0)):
     """
     A reply, drafted for one gig, generated ON REQUEST.
 
@@ -940,17 +1008,23 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     # An edited draft is the reader's, not ours — never overwrite it with a
     # fresh generation unless they explicitly ask for one.
     text = "" if regen else drafts_mod.load(gig_id)
+
+    # A MODEL CALL DOES NOT BELONG IN A PAGE LOAD. Measured on production:
+    # 27,542ms for the Pro path against 43ms for the template. That is half a
+    # minute of blank browser with no spinner and no way to tell a slow draft
+    # from a dead site, on the one page where Nabbly is visibly doing the job
+    # it advertises. So the page now returns immediately and the draft arrives
+    # from /draft/{id}/text.
+    #
+    # The template path stays inline. It is ~1ms of string formatting, and
+    # deferring it would add a round trip to save nothing.
+    pending = False
     if not text:
-        if pro and pitch.ai_available():
-            # THE RESUME IS WHY THIS MOVED. A draft that can name real work
-            # beats one written from a one-line bio, and until now the board
-            # could not do that at all — the upload only existed on the app.
-            try:
-                import resume_store
-                _cv = resume_store.get(_sid(request))
-            except Exception:
-                _cv = ""
-            text = pitch.draft_pitch(g, prof, who=me, resume_text=_cv)
+        if _wants_model(request, pro):
+            if sync:
+                text = _write_draft(request, g, prof, me)   # no-JS fallback
+            else:
+                pending = True
         else:
             text = pitch.draft_template(g, prof)
 
@@ -963,6 +1037,8 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     resp = templates.TemplateResponse(request, "draft.html", {
         "g": g, "draft": text, "pro": pro, "me": me, "back": back,
         "mailto": mailto, "saved_ok": bool(saved_ok),
+        "pending": pending, "apply_addr": addr,
+        "text_url": f"/draft/{gig_id}/text" + ("?regen=1" if regen else ""),
         "upsell": "" if pro else pitch.free_draft_note(g),
         "tab": "gigs", "css_v": CSS_V, "indexable": _INDEXABLE,
         "app_url": APP_URL, "took_ms": (time.perf_counter() - t0) * 1000,
