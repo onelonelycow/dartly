@@ -32,7 +32,6 @@
 #pt-board:focus-visible ~ .tabs label[for=pt-board],
 #pt-acct:focus-visible ~ .tabs label[for=pt-acct]{outline:2px solid var(--amber-d);
   outline-offset:-2px}
-.pane{display:none}
 #pt-you:checked ~ .pane-you{display:block}
 #pt-board:checked ~ .pane-board{display:block}
 #pt-acct:checked ~ .pane-acct{display:block}
@@ -91,38 +90,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
 .seg label:hover{border-color:var(--amber-d)}
 .seg input:disabled + label:hover{border-color:var(--line)}
 .locked input,.locked textarea{opacity:.5}
-/* Channel picker. The radios sit before the labels and the panes so a checked
-   one can reach both as later siblings; that is the whole mechanism, and it is
-   why they are not next to the label they control. */
-.chanin{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.chanseg{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
 /* FEEL.md §9: "If a control set wraps on a phone, that is the signal to
    collapse it into one, not to restyle the chips." Four labels cannot sit on
    one 375px line, and a <select> cannot drive a :checked sibling selector
    without JavaScript, which this service does not have. Stacking them full
    width is the collapse that stays inside that constraint, and it takes each
    row past the 44px touch target §10 asks for. */
-.chanseg label{flex:1 1 auto;text-align:center;padding:9px 12px;border-radius:10px;
-  border:1px solid var(--line);background:var(--bg);color:#c8ced6;
-  font-size:12.5px;cursor:pointer;user-select:none;white-space:nowrap}
-.chanseg label:hover{border-color:var(--amber-d)}
-.pane{display:none}
-/* The channel picker went out with no focus state, so tabbing through it was
-   invisible. Same treatment .skills input already had. */
-#ch-sms:focus-visible ~ .chanseg label[for="ch-sms"],
-#ch-push:focus-visible ~ .chanseg label[for="ch-push"],
-#ch-chat:focus-visible ~ .chanseg label[for="ch-chat"],
-#ch-tg:focus-visible ~ .chanseg label[for="ch-tg"]{outline:2px solid var(--amber-d);
-  outline-offset:2px}
-#ch-sms:checked ~ .chanseg label[for="ch-sms"],
-#ch-push:checked ~ .chanseg label[for="ch-push"],
-#ch-chat:checked ~ .chanseg label[for="ch-chat"],
-#ch-tg:checked ~ .chanseg label[for="ch-tg"]{background:rgba(232,147,58,.16);
-  border-color:var(--amber-d);color:var(--amber-l);font-weight:600}
-#ch-sms:checked ~ .pane.p-sms,
-#ch-push:checked ~ .pane.p-push,
-#ch-chat:checked ~ .pane.p-chat,
-#ch-tg:checked ~ .pane.p-tg{display:block}
 .split{height:1px;background:var(--line);margin:4px 0 16px}
 .pro-note{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
   color:#eaa662;border-radius:11px;padding:11px 14px;font-size:12.5px;
@@ -192,7 +165,8 @@ details.grp .skills{padding:2px 0 14px}
    feedback each act on their own, so a Save button sitting under them invites
    somebody to press it and wonder what it did. */
 #pt-acct:checked ~ .bar{display:none}
-.hint.warn{color:#e8907e}   /* no --bad token on the board; the app's value */
+.hint.warn{color:#e8907e}
+.chrow{margin:0 0 6px}   /* no --bad token on the board; the app's value */
 input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   font-size:12.5px;color:var(--ink2)}
 .welcome{background:rgba(232,147,58,.09);border:1px solid var(--amber-d);
@@ -200,12 +174,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   line-height:1.55;margin:0 0 18px}
 .hint{font-size:12.5px;color:var(--faint);margin:-8px 0 14px;line-height:1.55}
 @media (max-width:640px){
-  /* MUST SIT AFTER THE BASE RULES, NOT BEFORE THEM. These were written above
-     .chanseg label at the same specificity, so the desktop rule simply won and
-     the picker stayed centred at 35px on a phone. Measured in a real 375px
-     viewport, which is the only way that shows up. */
-  .chanseg{flex-direction:column;gap:8px}
-  .chanseg label{flex:none;text-align:left;padding:14px 15px;white-space:normal}
   .grp-name{padding-top:0}
   /* One rule, not two. A second .tabs label further down this block used to
      override the first at 9px, which is how the tab strip stayed at 37px while
@@ -292,7 +260,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       {% if not is_pro %}
         <div class="pro-note">This one's a Pro perk. Drafts still get written
           for you on Free — this decides how they sound.
-          <a href="{{ app_url }}/?nav=pricing" target="_blank" rel="noopener">See Pro</a></div>
+          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
       {% endif %}
 
       <label class="f">Length</label>
@@ -449,58 +417,45 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         Pick where it should go, fill in that one field, and save. Clearing the
         field turns it off again.</span>
 
-      {% set ch = 'sms' if prefs.sms_to else ('push' if prefs.ntfy_topic
-                  else ('chat' if prefs.discord_webhook
-                  else ('tg' if prefs.telegram_token else 'sms'))) %}
-      <div class="chan">
-        <input class="chanin" type="radio" name="chanpick" id="ch-sms"
-               {% if ch == 'sms' %}checked{% endif %}>
-        <input class="chanin" type="radio" name="chanpick" id="ch-push"
-               {% if ch == 'push' %}checked{% endif %}>
-        <input class="chanin" type="radio" name="chanpick" id="ch-chat"
-               {% if ch == 'chat' %}checked{% endif %}>
-        <input class="chanin" type="radio" name="chanpick" id="ch-tg"
-               {% if ch == 'tg' %}checked{% endif %}>
-        <div class="chanseg">
-          <label for="ch-sms">Text message</label>
-          <label for="ch-push">Phone push</label>
-          <label for="ch-chat">Discord or Slack</label>
-          <label for="ch-tg">Telegram</label>
-        </div>
+      {# EVERY CHANNEL VISIBLE, ALWAYS. This was a picker showing one channel at
+     a time, and the founder called the failure: save a Telegram token, come
+     back with the picker on Text message, and your setup looks GONE. A saved
+     value must never be hidden behind a control. Each channel is now its own
+     labelled row; a filled one reads as on at a glance. #}
+  <div class="chrow">
+    <label class="f" for="sms_to">Text message</label>
+    <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
+           placeholder="+15551234567">
+    <p class="hint">Your mobile number, with the country code.</p>
+  </div>
+  <div class="chrow">
+    <label class="f" for="ntfy_topic">Phone push</label>
+    <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
+           placeholder="my-nabbly-alerts">
+    <p class="hint">A free push app called ntfy. Install it, invent a topic
+      name, subscribe to it there, and put the same name here.</p>
+  </div>
+  <div class="chrow">
+    <label class="f" for="discord_webhook">Discord or Slack</label>
+    <input id="discord_webhook" name="discord_webhook"
+           value="{{ prefs.discord_webhook }}"
+           placeholder="https://discord.com/api/webhooks/…">
+    <p class="hint">A webhook address from your own server or workspace.</p>
+  </div>
+  <div class="chrow">
+    <label class="f">Telegram</label>
+    <div class="two">
+      <div><input id="telegram_token" name="telegram_token"
+                  value="{{ prefs.telegram_token }}" placeholder="Bot token"
+                  aria-label="Telegram bot token"></div>
+      <div><input id="telegram_chat" name="telegram_chat"
+                  value="{{ prefs.telegram_chat }}" placeholder="Chat id"
+                  aria-label="Telegram chat id"></div>
+    </div>
+    <p class="hint">Both come from BotFather when you create a bot.</p>
+  </div>
 
-        <div class="pane p-sms">
-          <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
-                 placeholder="+15551234567" aria-label="Mobile number">
-          <p class="hint">Your mobile number, with the country code.</p>
-        </div>
-        <div class="pane p-push">
-          <input id="ntfy_topic" name="ntfy_topic" value="{{ prefs.ntfy_topic }}"
-                 placeholder="my-nabbly-alerts" aria-label="ntfy topic">
-          <p class="hint">A free push app called ntfy. Install it, invent a topic
-            name, subscribe to it there, and put the same name here.</p>
-        </div>
-        <div class="pane p-chat">
-          <input id="discord_webhook" name="discord_webhook"
-                 value="{{ prefs.discord_webhook }}"
-                 placeholder="https://discord.com/api/webhooks/…"
-                 aria-label="Discord or Slack webhook">
-          <p class="hint">A webhook address from your own server or workspace.
-            Both work the same way.</p>
-        </div>
-        <div class="pane p-tg">
-          <div class="two">
-            <div><input id="telegram_token" name="telegram_token"
-                        value="{{ prefs.telegram_token }}" placeholder="Bot token"
-                        aria-label="Telegram bot token"></div>
-            <div><input id="telegram_chat" name="telegram_chat"
-                        value="{{ prefs.telegram_chat }}" placeholder="Chat id"
-                        aria-label="Telegram chat id"></div>
-          </div>
-          <p class="hint">Both come from BotFather when you create a bot.</p>
-        </div>
-      </div>
-
-      <div class="split"></div>
+  <div class="split"></div>
       <label class="f">How often</label>
       <div class="two">
         <div>

@@ -119,6 +119,11 @@ button.go:hover{background:var(--amber-l)}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
+  /* The avatar sits top-LEFT on phones, and a right-anchored 212px menu hung
+     off the screen edge with its text amputated — seen on a real phone, missed
+     by every measurement because the harness never opened it. Fixed to the
+     viewport instead of the avatar. */
+  .acct-menu{position:fixed;top:64px;left:14px;right:14px;min-width:0}
   .topbar nav{order:3;width:100%;margin:0;overflow-x:auto}
   /* The app collapses its own hero spacing on small screens, so the desktop
      head room would be dead space on a phone. */
@@ -165,8 +170,10 @@ button.go:hover{background:var(--amber-l)}
     {# Market is Pro analytics and still lives on the Streamlit app. It is a
        low-traffic page behind a sign-in, which is exactly the kind that was
        never the concurrency problem — but the link leaves the fast service, so
-       it opens in its own tab rather than replacing this one. #}
-    <a href="{{ app_url }}/?nav=market" target="_blank" rel="noopener">Market</a>
+       it opens in its own tab rather than replacing this one.
+       OVERRIDDEN 2026-08-22 by the founder: no internal link opens a new tab.
+       Same product, sibling subdomain, session cookie scoped to .nabbly.co. #}
+    <a href="{{ app_url }}/?nav=market">Market</a>
     <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
   </nav>
   <span class="who">
@@ -187,7 +194,7 @@ button.go:hover{background:var(--amber-l)}
         <div class="acct-hd">{{ me }}</div>
         <a href="/profile">Profile &amp; settings</a>
         <a href="/saved">Saved gigs</a>
-        <a href="{{ app_url }}/?nav=pricing" target="_blank" rel="noopener">Upgrade to Pro</a>
+        <a href="{{ app_url }}/?nav=pricing">Upgrade to Pro</a>
         <div class="acct-sep"></div>
         <form method="post" action="/signout">
           <button type="submit">Sign out</button>
