@@ -117,6 +117,18 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+/* THE SECTION HEADING, DECLARED ONCE. It used to be declared in board.html,
+   saved.html and profile.html separately, at 26px on one page and 31px on the
+   other two: the same element, two sizes, depending which tab you were on.
+   Three copies of a shared class is also exactly what let the phone override
+   die unnoticed, so the repetition was the real defect and not just the
+   inconsistency.
+   26, not 31. The 31 came from mirroring .gr-stat .n, which is a stat NUMBER
+   and not a heading, and it made the board's sections louder than the app's.
+   Pages still set their own margin, which genuinely differs: the board has a
+   search row tight underneath, the others have body copy. */
+.sec-h{font-size:26px;font-weight:700;letter-spacing:-.6px;margin:26px 0 14px}
+.sec-h .accent{color:var(--amber)}
 {# THE PER-PAGE BLOCK RENDERS ABOVE THE MOBILE RAMP, NOT BELOW IT.
 
    It used to sit after, and every page defining its own .sec-h silently killed
