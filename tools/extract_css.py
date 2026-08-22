@@ -35,7 +35,12 @@ STREAMLIT_ONLY = ("data-testid", "stApp", "stMain", "stSidebar", "stToolbar",
                   "stVerticalBlock", "stHorizontalBlock", "stElementContainer",
                   "stAppViewContainer", "stHeader", "stSpinner", "stAlert",
                   "stCheckbox", "stSegmentedControl", "stFileUploader",
-                  "stRadio", "stSlider", "stTabs", "stDataFrame", "stMetric")
+                  "stRadio", "stSlider", "stTabs", "stDataFrame", "stMetric",
+                  # st-key-* classes style st.button widgets by key. They pass
+                  # the token test above because "st-key" is not a testid, and
+                  # twelve of their rules were shipping to every board visitor,
+                  # styling buttons that do not exist there.
+                  "st-key-")
 
 
 def css_block(src: str) -> str:

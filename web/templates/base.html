@@ -134,7 +134,9 @@ button.go:hover{background:var(--amber-l)}
   .gr-sub{font-size:14.5px;line-height:1.55}
   .gr-hero{padding:4px 2px 2px;margin-top:0}
   a.gr-title,.gig .t{font-size:16.5px;line-height:1.35}
-  .sec-h{font-size:24px;letter-spacing:-.4px}
+  /* 21, matching app.py mobile h3. 24 mirrored .gr-stat .n, a stat NUMBER,
+     not a heading — the board sections were louder than the app ones. */
+  .sec-h{font-size:21px;letter-spacing:-.4px}
 }
 {% block extra_css %}{% endblock %}
 /* BOARD-ONLY RULES LIVE HERE, NOT IN nabbly.css. That file is generated from

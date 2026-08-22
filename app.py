@@ -193,7 +193,7 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
    instead of a second rendering engine's. */
 .gr-hbars{display:flex;flex-direction:column;gap:13px}
 .gr-hbar-top{display:flex;justify-content:space-between;align-items:baseline;
-  font-size:13px;color:var(--ink2);margin-bottom:5px}
+  font-size:13.5px;color:var(--ink2);margin-bottom:5px}
 .gr-hbar-n{font-weight:700;color:#eaeef4;font-variant-numeric:tabular-nums}
 .gr-hbar-track{height:9px;border-radius:5px;background:#1a1d23;overflow:hidden}
 .gr-hbar-fill{height:100%;border-radius:5px 0 0 5px}
@@ -212,7 +212,7 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
   flex:0 0 auto}
 .gr-donut-hole{position:absolute;inset:29%;border-radius:50%;
   background:var(--bg)}
-.gr-donut-legend{display:flex;flex-direction:column;gap:9px;font-size:13px;
+.gr-donut-legend{display:flex;flex-direction:column;gap:9px;font-size:13.5px;
   color:var(--ink2)}
 .gr-donut-legend .sw{display:inline-block;width:10px;height:10px;
   border-radius:3px;margin-right:9px;vertical-align:-1px;flex:0 0 auto}
@@ -248,7 +248,7 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
 /* !important because Streamlit styles every markdown link amber and
    underlined, which turned the pills into five underlined amber phrases in
    boxes. Same override a.gr-save already needs, for the same reason. */
-.gr-cat a{display:inline-block;font-size:15px;font-weight:600;letter-spacing:-.01em;
+.gr-cat a{display:inline-block;font-size:14.5px;font-weight:600;letter-spacing:-.01em;
   color:var(--ink2)!important;background:rgba(232,147,58,.07);
   border:1px solid rgba(232,147,58,.18);padding:11px 19px;border-radius:100px;
   white-space:nowrap;transition:.15s;text-decoration:none!important}
@@ -318,7 +318,9 @@ a.gr-stat:focus-visible,a.gr-cat:focus-visible{
 .gr-count-reel{display:flex;flex-direction:column;animation-fill-mode:forwards}
 .gr-count-reel>span{height:1em;line-height:1em;white-space:nowrap}
 @media (prefers-reduced-motion:reduce){.gr-count-reel{animation:none!important}}
-a.gr-title{font-size:19px;font-weight:600;color:#eaeef4 !important;
+/* Base applies only in the 640-641px gap: 16.5!important below, 18!important
+   above. 18 so the gap matches desktop instead of inventing a third size. */
+a.gr-title{font-size:18px;font-weight:600;color:#eaeef4 !important;
   text-decoration:none !important;line-height:1.35;letter-spacing:-.1px}
 /* The save star. Dim until you go near it, so a column of sixty cards isn't
    sixty little icons competing with the titles they sit beside — it's there
@@ -355,6 +357,11 @@ a.gr-save.on:hover{color:var(--amber-l)!important}
   max-height:none!important}
 a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-decoration-color:rgba(232,147,58,.55);text-underline-offset:3px}
+/* THE BADGE RAMP: eyebrow 10 (.gr-new, .gr-why .lead, .gr-matchfb .lead)
+   -> chip 11 (.gr-why-chip, .gr-founding, .gr-ch-st) -> pill 12 (.gr-pill,
+   .gr-feat span, .gr-plan-price span) -> check-label 12.5 (.gr-more-lbl).
+   Four deliberate 1px rungs of uppercase chrome. NOT part of the text
+   scale; do not flatten it into the label/meta steps. */
 .gr-new{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.5px;
   text-transform:uppercase;color:#69d7a1;background:rgba(53,179,126,.13);
   border:1px solid rgba(53,179,126,.32);border-radius:6px;padding:1px 7px;
@@ -436,7 +443,7 @@ a.gr-stat{text-decoration:none;color:inherit;cursor:pointer;display:block}
 .gr-stat .go{position:absolute;top:12px;right:14px;color:#5a616c;font-size:16px;
   opacity:0;transition:opacity .15s ease}
 .gr-stat:hover .go{opacity:1;color:#E8933A}
-.gr-qf{display:inline-block;font-size:13px;font-weight:500;color:#eaa662;
+.gr-qf{display:inline-block;font-size:13.5px;font-weight:500;color:#eaa662;
   background:rgba(232,147,58,.1);border:1px solid rgba(232,147,58,.28);
   border-radius:999px;padding:4px 13px}
 .gr-cats{display:flex;flex-wrap:wrap;gap:9px;margin:2px 0 6px}
@@ -468,7 +475,7 @@ a.gr-cat:hover .n{color:#eaa662}
   transform:translateY(-6px);transition:opacity .14s ease,transform .14s ease,visibility .14s}
 .gr-acct:hover .gr-menu,.gr-acct:focus-within .gr-menu,
 .gr-acct-cb:checked ~ .gr-menu{opacity:1;visibility:visible;transform:translateY(0)}
-.gr-menu-hd{padding:8px 10px 7px;color:#eaeef4;font-weight:600;font-size:14px;
+.gr-menu-hd{padding:8px 10px 7px;color:#eaeef4;font-weight:600;font-size:14.5px;
   display:flex;flex-direction:column;line-height:1.55;text-align:left}
 .gr-menu-hd span{color:#eaa662;font-weight:500;font-size:11.5px;letter-spacing:.02em}
 .gr-menu a,.gr-menu .gr-mi{display:block;padding:8px 10px;border-radius:8px;text-align:left;
@@ -500,6 +507,8 @@ div[data-testid="stHorizontalBlock"]:has(.gr-home) iframe{display:block;margin:0
 /* Streamlit paints markdown links its own accent colour, which washed out the
    active pill's label and made the inactive tabs read as links, so the colours
    here have to win outright. */
+/* 15.5 here is navigation, deliberately larger than control — not the
+   prose step even though it shares the value. */
 .gr-nav a,.gr-nav a:link,.gr-nav a:visited{position:relative;font-size:15.5px;
   font-weight:600;color:#c3cad3!important;text-decoration:none!important;
   padding:10px 20px;border-radius:9px;white-space:nowrap;letter-spacing:-.1px;
@@ -647,8 +656,8 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-footer{max-width:980px;margin:52px auto 6px;padding:22px 16px 4px;
   border-top:1px solid #23262d;display:flex;flex-direction:column;
   align-items:center;gap:4px;text-align:center}
-.gr-footer .brand{color:#eaa662;font-weight:700;font-size:14px;letter-spacing:.02em}
-.gr-footer .tag{color:#8a919c;font-size:13px}
+.gr-footer .brand{color:#eaa662;font-weight:700;font-size:14.5px;letter-spacing:.02em}
+.gr-footer .tag{color:#8a919c;font-size:13.5px}
 .gr-footer .foot-link{color:#8a919c;font-size:12.5px;font-weight:600;
   text-decoration:none;margin:2px 0}
 .gr-footer .foot-link:hover{color:#eaa662}
@@ -676,13 +685,10 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   gap:6px!important}
 .gr-search-lbl{text-align:center;font-size:13.5px;font-weight:600;color:#98a0ab;
   letter-spacing:.01em;margin:0 0 2px}
-.gr-search-hint{text-align:center;font-size:13px;color:#7c838d;margin:8px 0 0}
+.gr-search-hint{text-align:center;font-size:13.5px;color:#7c838d;margin:8px 0 0}
 .gr-search-hint a{color:#98a0ab!important;text-decoration:none!important;
   font-weight:600;border-bottom:1px solid rgba(232,147,58,.35)}
 .gr-search-hint a:hover{color:#eaa662!important}
-.gr-onb-hit{max-width:620px;margin:10px auto 2px;text-align:center;font-size:15px;
-  color:#b9c0c9;animation:gr-count .32s ease-out}
-.gr-onb-hit b{color:#E8933A;font-size:21px;font-weight:750;font-variant-numeric:tabular-nums}
 @keyframes gr-count{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 /* --- New gigs landing while you watch ------------------------------------
@@ -699,7 +705,6 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 @media (prefers-reduced-motion:reduce){
   [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] .gr-new){
     animation:none}
-  .gr-onb-hit{animation:none}
 }
 /* --- The reply we already wrote ------------------------------------------
    This was the best thing in the product and it was hidden behind a collapsed
@@ -709,6 +714,8 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   overflow:hidden;background:linear-gradient(180deg,rgba(232,147,58,.07),rgba(232,147,58,.02))}
 .gr-draft-hd{padding:14px 18px 13px;border-bottom:1px solid rgba(232,147,58,.20);
   display:flex;flex-direction:column;gap:5px}
+/* Monospace renders optically smaller at equal px — excluded from the
+   scale by name, stays 10.5. */
 .gr-draft-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
   letter-spacing:.16em;text-transform:uppercase;color:#eaa662;font-weight:700}
 .gr-draft-t{font-size:17px;font-weight:650;color:#f2f4f7;line-height:1.3;letter-spacing:-.2px}
@@ -716,7 +723,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 /* Real paragraphs, not pre-wrap: the template's blank lines rendered as
    full-height gaps and the text ran the whole window. A message needs a
    readable measure, same as any other prose. */
-.gr-draft-body{padding:16px 18px 17px;font-size:14px;line-height:1.62;color:#cbd2db;
+.gr-draft-body{padding:16px 18px 17px;font-size:14.5px;line-height:1.62;color:#cbd2db;
   font-family:inherit;max-width:70ch}
 .gr-draft-body p{margin:0 0 11px}
 .gr-draft-body p:last-child{margin-bottom:0}
@@ -737,7 +744,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 /* Deliberately not a flex row: `gap` treats every inline run as its own item,
    so a bolded phrase mid-sentence got 9px punched in before the next word and
    it read as "Nabbly Free ." */
-.gr-trial{display:block;font-size:13px;line-height:1.5;padding:9px 16px;
+.gr-trial{display:block;font-size:13.5px;line-height:1.5;padding:9px 16px;
   border-radius:11px;margin:0 0 6px;text-align:center;text-wrap:pretty;
   background:rgba(232,147,58,.08);border:1px solid rgba(232,147,58,.24);color:#c3cad3}
 .gr-trial b{color:#E8933A;font-weight:700}
@@ -754,7 +761,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   border-color:rgba(53,179,126,.32)}
 .gr-cap.plain{background:#15181d;border-color:#262a31}
 .gr-cap-h{font-size:19px;font-weight:650;color:#f2f4f7;letter-spacing:-.25px;margin-bottom:6px}
-.gr-cap-s{font-size:14px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
+.gr-cap-s{font-size:14.5px;color:#98a0ab;line-height:1.55;max-width:52ch;margin:0 auto}
 .gr-cap-s b{color:#eaa662}
 
 /* --- Cohesive call-to-action / feedback cards -----------------------------
@@ -786,9 +793,9 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   border-radius:999px;padding:3px 11px;white-space:nowrap}
 .gr-feat span::before{content:"✓ ";color:#eaa662;font-weight:700}
 .gr-cta-fine{text-align:center;font-size:11.5px;color:var(--faint);margin:9px 0 6px}
-.gr-updialog-hook{font-size:15px;line-height:1.55;color:#d3d9e1;text-align:center;
+.gr-updialog-hook{font-size:15.5px;line-height:1.55;color:#d3d9e1;text-align:center;
   max-width:46ch;margin:2px auto 18px}
-.gr-mini{text-align:center;font-size:13px;color:#9aa1ab;margin:4px 0 8px}
+.gr-mini{text-align:center;font-size:13.5px;color:#9aa1ab;margin:4px 0 8px}
 .gr-mini b{color:#eaa662;font-weight:700}
 .gr-dash-end{text-align:center;font-size:13.5px;color:#868d98;margin:6px 0 4px;
   padding:18px 0 6px}
@@ -808,7 +815,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 /* --- Gig-list pager: quiet page controls, top and bottom of the list ------
    Same two ghost buttons every time, so paging feels like one continuous
    control rather than a different widget depending on where you are. */
-.gr-page-n{text-align:center;font-size:13px;color:#969da7;line-height:1.3;
+.gr-page-n{text-align:center;font-size:13.5px;color:#969da7;line-height:1.3;
   font-variant-numeric:tabular-nums}
 .gr-page-top{text-align:center;margin-top:3px}
 .gr-page-top .gr-about-link{font-size:12.5px;margin-top:0}
@@ -822,7 +829,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-about p b{color:#e7ebf1;font-weight:600}
 .gr-about .lead{font-size:18px;color:#dfe4ea;line-height:1.6}
 .gr-about ol{margin:0 0 16px;padding-left:0;counter-reset:step;list-style:none}
-.gr-about ol li{position:relative;padding:2px 0 12px 40px;font-size:15px;color:#b8bfc9}
+.gr-about ol li{position:relative;padding:2px 0 12px 40px;font-size:15.5px;color:#b8bfc9}
 .gr-about ol li b{color:#eef1f5}
 .gr-faq-a{font-size:14.5px;color:#b8bfc9;line-height:1.65;padding:2px 2px 6px;
   max-width:70ch}
@@ -868,7 +875,8 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
   .gr-doc .gr-doc-title{font-size:25px}
   .gr-doc h2{font-size:19px;margin-top:28px}
   .gr-doc h3{font-size:16.5px;margin-top:30px}
-  .gr-doc p,.gr-doc li{font-size:15px}}
+  /* prose stays 15.5 at every width — line-height is the mobile lever,
+     not a smaller size on the surface built for reading. */}
 .gr-footer .foot-links{display:flex;gap:16px;align-items:center}
 /* Keep the FAQ's heading and its rows in one column — the heading sat in a
    centred 680px block while the expanders ran the full width. */
@@ -878,7 +886,7 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-about ol li::before{counter-increment:step;content:counter(step);
   position:absolute;left:0;top:0;width:27px;height:27px;border-radius:8px;
   background:rgba(232,147,58,.14);border:1px solid rgba(232,147,58,.3);
-  color:#eaa662;font-weight:700;font-size:13px;display:flex;align-items:center;
+  color:#eaa662;font-weight:700;font-size:13.5px;display:flex;align-items:center;
   justify-content:center;font-family:ui-monospace,Menlo,monospace}
 /* Free vs Pro as two cards. The same information was a single paragraph of
    bolded fragments — you had to read it to compare two things that a reader
@@ -986,7 +994,6 @@ div[data-testid="stForm"]{border:0;padding:0}
   .gr-stat .l{min-height:2.5em}          /* a wrapped label can't skew a row */
   .gr-stat .n{font-size:24px}
   .gr-cap{padding:17px 16px 15px}
-  .gr-pill{font-size:11px}
 
   /* Anything you tap gets a thumb-sized target. Streamlit ships text inputs at
      36px and selects at 38px, which is fine with a mouse and fiddly with a
@@ -1060,7 +1067,7 @@ div[data-testid="stForm"]{border:0;padding:0}
 .st-key-arrivals button:hover{
   background:#1c2027!important;border-color:rgba(232,147,58,.55)!important;
   transform:none!important}
-.st-key-arrivals button p{font-size:13px!important;font-weight:500!important;margin:0!important}
+.st-key-arrivals button p{font-size:13.5px!important;font-weight:500!important;margin:0!important}
 
 /* Sign-in page: the quiet "or" between email and Google */
 .gr-or{display:flex;align-items:center;gap:12px;margin:14px 0 10px;color:#7c828d;
@@ -1109,7 +1116,7 @@ div[data-testid="stForm"]{border:0;padding:0}
 .gr-page-head{margin:4px 0 22px}
 .gr-page-head h2{font-size:36px;font-weight:700;letter-spacing:-.5px;color:#ECEEF1;
   margin:0 0 7px}
-.gr-page-head p{font-size:15px;color:#8a919c;margin:0}
+.gr-page-head p{font-size:15.5px;color:#8a919c;margin:0}
 @media (max-width:640px){.gr-page-head h2{font-size:26px}}
 
 /* ── Gigs page: make the controls read as ONE toolbar ───────────────────────
@@ -1248,7 +1255,7 @@ a.gr-title{font-weight:650}
 /* "Posted Jan 31" is the quietest thing in the card — it was 14px pure white. */
 [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title)
   [data-testid="stCaptionContainer"] p{
-  font-size:12px!important;color:var(--faint)!important}
+  font-size:12.5px!important;color:var(--faint)!important}
 
 /* ── Card body: same height every time, expandable in place ────────────────
    Cards ran from two lines to twelve depending on the post, so a column of
@@ -1289,13 +1296,13 @@ a.gr-title{font-weight:650}
    visible; it was there unhovered too. Adding the missing 16px back as
    margin-bottom makes this element's own box match its real rendered size,
    which pulls the wrapper's reported height back in line with it. */
-.gr-posted{font-size:12px;color:var(--faint);margin-top:9px;margin-bottom:16px}
+.gr-posted{font-size:12.5px;color:var(--faint);margin-top:9px;margin-bottom:16px}
 
 /* "Send to hr@company.com" — the one place a draft turns into a sent message.
    Amber gradient because on a card where it appears, it IS the primary action
    (FEEL.md §4: one primary per screen; a gig card is that screen). */
 a.gr-sendmail{display:block;margin:10px 0 2px;padding:11px 16px;border-radius:11px;
-  text-align:center;font-size:14px;font-weight:650;letter-spacing:-.1px;
+  text-align:center;font-size:14.5px;font-weight:650;letter-spacing:-.1px;
   color:#141414!important;text-decoration:none!important;
   background:linear-gradient(180deg,var(--amber-l),var(--amber-d));
   transition:filter .15s ease,transform .15s ease}
@@ -1308,7 +1315,7 @@ a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
    as someone else's component dropped into ours. */
 /* "Coming soon" beside a section heading — same quiet amber chip the landing
    page uses, so a not-yet-live feature reads identically in both places. */
-.gr-soon{display:inline-block;margin-left:10px;font-size:10.5px;font-weight:650;
+.gr-soon{display:inline-block;margin-left:10px;font-size:10px;font-weight:650;
   letter-spacing:.08em;text-transform:uppercase;color:var(--amber);
   background:rgba(232,147,58,.10);border:1px solid rgba(232,147,58,.26);
   border-radius:100px;padding:3px 9px;vertical-align:4px}
@@ -1323,7 +1330,7 @@ a.gr-sendmail:hover{filter:brightness(1.06);transform:translateY(-1px)}
 .gr-plan-anim{opacity:0;animation:gr-plan-in .4s ease-out .1s forwards}
 .gr-unlocks{display:flex;flex-direction:column;gap:9px;margin-top:14px;
   padding-top:14px;border-top:1px solid var(--line)}
-.gr-unlock{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink2);
+.gr-unlock{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink2);
   opacity:0;transform:translateY(7px);animation:gr-rise-in .38s cubic-bezier(.22,.9,.35,1) forwards}
 .gr-tick{width:16px;height:16px;border-radius:50%;flex:0 0 auto;
   background:rgba(84,185,90,.14);color:#54B95A;font-size:10px;font-weight:900;
@@ -1384,7 +1391,7 @@ html{scroll-behavior:smooth}
 [data-testid="stElementContainer"]:has(.gr-downgrade-mark)
   + [data-testid="stElementContainer"] button{
   background:transparent!important;border:none!important;box-shadow:none!important;
-  color:var(--mute)!important;font-weight:400!important;font-size:13px!important;
+  color:var(--mute)!important;font-weight:400!important;font-size:13.5px!important;
   text-decoration:underline!important;text-underline-offset:2px!important;
   padding:2px 0!important;min-height:0!important}
 [data-testid="stElementContainer"]:has(.gr-downgrade-mark)
@@ -1406,8 +1413,8 @@ html{scroll-behavior:smooth}
 .gr-plan-top{display:flex;justify-content:space-between;align-items:flex-start;
   gap:16px;flex-wrap:wrap}
 .gr-plan-name{font-size:17px;font-weight:650;color:var(--ink);letter-spacing:-.2px}
-.gr-plan-note{font-size:13px;color:var(--mute);margin-top:3px;line-height:1.5}
-.gr-plan-price{text-align:right;font-size:15px;font-weight:600;color:var(--amber);
+.gr-plan-note{font-size:13.5px;color:var(--mute);margin-top:3px;line-height:1.5}
+.gr-plan-price{text-align:right;font-size:14.5px;font-weight:600;color:var(--amber);
   white-space:nowrap}
 .gr-plan-price span{display:block;font-size:12px;font-weight:500;
   color:var(--faint);margin-top:3px}
@@ -1437,7 +1444,7 @@ html{scroll-behavior:smooth}
   [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title){
     padding:13px 14px 11px!important;border-radius:12px!important}
   [data-testid="stVerticalBlock"]:has(> [data-testid="stElementContainer"] a.gr-title)
-    > [data-testid="stElementContainer"] > [data-testid="stMarkdown"] p{font-size:14px}
+    > [data-testid="stElementContainer"] > [data-testid="stMarkdown"] p{font-size:14.5px}
   /* Refresh is styled quiet with min-height:0, which left it at 41.6px — under
      the 44px thumb target. Quiet is about colour and weight, not hit area. */
   .st-key-checknew button{min-height:44px!important}
