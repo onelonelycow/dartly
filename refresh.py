@@ -126,6 +126,20 @@ def _loop(on_update=None):
     # nobody can read a brief from. Same one-off, idempotent shape as nodesk.
     _state["dribbble_removed"] = _step(
         "archive_source(dribbble)", lambda: db.archive_source("dribbble"))
+    # Talent pools, spontaneous applications, "future opportunities" and test
+    # rows: postings you cannot apply to and be paid for. New arrivals are
+    # stopped at the door by classify.py, so this clears the ~190 already on
+    # the board and then acts as the safety net for anything that reaches the
+    # mirror without passing the gate. Same one-off, idempotent shape as the
+    # two above.
+    #
+    # COSTS ~2.1s ON EVERY BOOT EVEN WHEN IT FINDS NOTHING, because it has to
+    # read every live title to know there is nothing. That is 0.8% of a 270s
+    # budget currently sitting at ~136s, which is worth paying for a sweep that
+    # catches a classifier gap rather than trusting one path forever. If boot
+    # ever gets tight, this is a fair thing to make conditional.
+    _state["not_openings_removed"] = _step(
+        "archive_not_openings", db.archive_not_openings)
     # fetch_freelancer() used to store Freelancer's own truncated preview
     # instead of the real description; this backfills the rows already on
     # the board with the full text now that the fetcher reads it.
