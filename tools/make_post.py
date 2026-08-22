@@ -1,19 +1,34 @@
 """
 make_post.py — the weekly social image for @nabbly.co.
 
-One 1080x1080 square per week, built from the brand's own language: amber on
-near-black. This week's theme is the clock. A single quiet rail runs down the
-frame with a day's worth of gigs landing against it, timestamped, from just
-after midnight to late evening. The one that landed at 4:12 in the morning is
-lit amber and everything else stays grey, so the frame makes its point without
-saying it: the board does not keep office hours.
+This week is a two card post about the new draft-voice controls, plus one
+spare single that can go up later in the week.
 
-Editorial and vertical, so it reads as a different piece from the radar sweep
-(week 1), the field of gig cards (week 2) and the pack of racing trails
-(week 3).
+  brand/posts/week-05-voice-carousel/01-draft.png
+      The hook. A real gig, the reply Nabbly drafted for it, and the four
+      settings that produced it. The clause the writer told Nabbly to always
+      work in is the only thing lit, and it appears a second time beside the
+      Include label, so the amber in the body and the amber in the footer
+      rhyme and the causality reads without an arrow. Self-contained, because
+      most people never swipe.
+
+  brand/posts/week-05-voice-carousel/02-controls.png
+      The explanation, for the people who do. The same four labels, this time
+      with what each one actually controls, closing on the value from card one
+      so the pair ties back together.
+
+  brand/posts/week-05-shipped.png
+      Spare single: the week as a dated shipping list, newest first, with the
+      draft-voice line lit.
+
+Card one carries a small page number and card two carries the lockup, which is
+how the August carousels in brand/posts/ are signed.
+
+Both cards are editorial and text-first, so they read as different pieces from
+the radar sweep (week 1), the field of gig cards (week 2), the pack of racing
+trails (week 3) and the timestamped rail down the day (week 4).
 
 Run:  .venv/bin/python tools/make_post.py
-Out:  brand/posts/<name>.png   (1080x1080, ready to post)
 
 Each week this file gets rewritten with a NEW visual idea rather than a new seed
 of the same one — the point is a fresh piece, not a recolour. Git history keeps
@@ -25,16 +40,23 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "brand" / "posts"
-OUT.mkdir(parents=True, exist_ok=True)
+CAR = OUT / "week-05-draft-voice"
+CAR.mkdir(parents=True, exist_ok=True)
 
 S = 1080          # final size
-SS = 3            # supersample factor for the vector work
-W = S * SS
+SS = 3            # supersample factor for the hairlines
 
 # Brand palette
 BG      = (11, 13, 16)
 AMBER   = (232, 147, 58)
 AMBER_L = (247, 181, 105)
+
+DIM   = (112, 119, 130)
+GREY  = (150, 157, 168)
+BODY  = (219, 223, 229)
+HOT   = (233, 175, 116)          # amber, pulled back so it sits in the text
+
+M = 96            # side margin, ~9% in from every edge
 
 SF = "/System/Library/Fonts/SFNS.ttf"
 ARIAL_B = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
@@ -55,93 +77,35 @@ def font(size, variation="Bold", fallback=ARIAL_B):
     return ImageFont.load_default()
 
 
-# ---------------------------------------------------------------------------
-# The day. Seven moments, ordered, spanning midnight to late evening. The hot
-# one sits third so the emphasis lands in the upper third of the artwork rather
-# than dead centre, and it is deliberately the small-hours one.
-# ---------------------------------------------------------------------------
-ROWS = [
-    ("12:41 am", "Podcast editing"),
-    ("2:26 am",  "Brand identity"),
-    ("4:12 am",  "Motion graphics"),        # <- the one that carries the idea
-    ("7:58 am",  "Copywriting"),
-    ("11:30 am", "React development"),
-    ("3:04 pm",  "Product photography"),
-    ("9:47 pm",  "Illustration"),
-]
-HOT = 2
+def ground(glow_box, strength=106):
+    """
+    Near-black with one soft warm bloom, so the amber has somewhere to sit
+    instead of floating on flat black.
+    """
+    img = Image.new("RGB", (S, S), BG)
+    glow = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(glow).ellipse(glow_box, fill=strength)
+    glow = glow.filter(ImageFilter.GaussianBlur(170))
+    return Image.composite(Image.new("RGB", (S, S), (92, 56, 22)), img, glow)
 
-ROW_Y0, ROW_Y1 = 168, 700                  # final-scale, well inside the edges
-GAP = 34                                   # breathing room either side of rail
 
-f_time    = font(25, "Regular", ARIAL)
-f_time_h  = font(25, "Semibold", ARIAL_B)
-f_field   = font(31, "Regular", ARIAL)
-f_field_h = font(31, "Semibold", ARIAL_B)
+def hairlines(img, ys):
+    """Rules drawn at 3x and downscaled, so they land soft rather than wiry."""
+    rules = Image.new("RGBA", (S * SS, S * SS), (0, 0, 0, 0))
+    rd = ImageDraw.Draw(rules)
+    for y in ys:
+        rd.line([(M * SS, y * SS), ((S - M) * SS, y * SS)],
+                fill=(255, 255, 255, 26), width=SS)
+    return Image.alpha_composite(img.convert("RGBA"),
+                                 rules.resize((S, S), Image.LANCZOS)).convert("RGB")
 
-# Measure at final scale, then centre the whole two-column block on the canvas.
-_m = ImageDraw.Draw(Image.new("RGB", (10, 10)))
-time_w = max(_m.textlength(t, font=(f_time_h if i == HOT else f_time))
-             for i, (t, _) in enumerate(ROWS))
-field_w = max(_m.textlength(g, font=(f_field_h if i == HOT else f_field))
-              for i, (_, g) in enumerate(ROWS))
-RAIL_X = (S + time_w - field_w) / 2         # block centred, not the rail
 
-row_y = [ROW_Y0 + (ROW_Y1 - ROW_Y0) * i / (len(ROWS) - 1) for i in range(len(ROWS))]
-hot_y = row_y[HOT]
-
-img = Image.new("RGB", (W, W), BG).convert("RGBA")
-
-# ---------------------------------------------------------------------------
-# The rail and its one bloom, drawn supersampled. The rail is brightest beside
-# the amber row and falls away to nothing at both ends, so the eye is given a
-# single place to go and the line never reads as a hard-edged border.
-# ---------------------------------------------------------------------------
-rail = Image.new("RGBA", (W, W), (0, 0, 0, 0))
-rd = ImageDraw.Draw(rail)
-
-RAIL_TOP, RAIL_BOT = 120 * SS, 748 * SS
-rx = RAIL_X * SS
-half = 1.05 * SS
-
-for y in range(int(RAIL_TOP), int(RAIL_BOT)):
-    span = RAIL_BOT - RAIL_TOP
-    t = (y - RAIL_TOP) / span
-    edge = min(t, 1 - t) / 0.5                      # 0 at the ends, 1 mid-rail
-    edge = min(1.0, edge * 2.2) ** 1.4              # hold, then fall off fast
-    near = max(0.0, 1 - abs(y - hot_y * SS) / (210 * SS))
-    a = 34 * edge + 92 * edge * near ** 2
-    c = tuple(int(58 + (172 - 58) * near ** 2) for _ in range(1))[0]
-    rd.rectangle([rx - half, y, rx + half, y + 1],
-                 fill=(c, int(c * 0.93), int(c * 0.88), int(a)))
-
-glow = Image.new("RGBA", (W, W), (0, 0, 0, 0))
-gd = ImageDraw.Draw(glow)
-gr = 320 * SS
-gcx = (S / 2) * SS                                  # centred on the text block
-gd.ellipse([gcx - gr, hot_y * SS - gr * 0.66, gcx + gr, hot_y * SS + gr * 0.66],
-           fill=(232, 147, 58, 23))
-gr2 = 74 * SS
-gd.ellipse([rx - gr2, hot_y * SS - gr2, rx + gr2, hot_y * SS + gr2],
-           fill=(240, 168, 92, 74))
-glow = glow.filter(ImageFilter.GaussianBlur(radius=46 * SS))
-img = Image.alpha_composite(img, glow)
-
-# The markers on the rail: quiet dots for the day, one lit for the small hours.
-for i, y in enumerate(row_y):
-    yy = y * SS
-    if i == HOT:
-        r = 5.6 * SS
-        rd.ellipse([rx - r, yy - r, rx + r, yy + r], fill=(253, 235, 210, 255))
-        r2 = 10.5 * SS
-        rd.ellipse([rx - r2, yy - r2, rx + r2, yy + r2],
-                   outline=(240, 168, 92, 128), width=int(1.4 * SS))
-    else:
-        r = 2.9 * SS
-        rd.ellipse([rx - r, yy - r, rx + r, yy + r], fill=(120, 127, 137, 190))
-
-img = Image.alpha_composite(img, rail).convert("RGB")
-img = img.resize((S, S), Image.LANCZOS)
+def runs(d, x, y, segments, f):
+    """Draw coloured runs of text along one baseline and return the end x."""
+    for text, colour in segments:
+        d.text((x, y), text, font=f, fill=colour, anchor="lm")
+        x += d.textlength(text, font=f)
+    return x
 
 
 def nabbly_mark(size, ss=3):
@@ -179,51 +143,222 @@ def nabbly_mark(size, ss=3):
     return tile.resize((size, size), Image.LANCZOS)
 
 
-# ---------------------------------------------------------------------------
-# Type — set on the finished art, at final scale, so it stays crisp
-# ---------------------------------------------------------------------------
-d = ImageDraw.Draw(img)
+def signature(img, d):
+    """
+    The mark beside the domain, centred as one unit at the foot of the frame.
+    Small enough to read as a signature rather than a second focal point, and
+    identical every week. Carousels carry it on the last card only.
+    """
+    f_url = font(24, "Semibold", ARIAL_B)
+    mk, gap, t = 36, 11, "nabbly.co"
+    x0 = (S - (mk + gap + d.textlength(t, font=f_url))) / 2
+    y = S * 0.949
+    mark = nabbly_mark(mk)
+    img.paste(mark, (int(x0), int(y - mk / 2)), mark)
+    d.text((x0 + mk + gap, y), t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
-SOFT_AMBER = (214, 152, 88)           # the accent, pulled back from full strength
 
-for i, (t, g) in enumerate(ROWS):
-    y = row_y[i]
-    if i == HOT:
-        d.text((RAIL_X - GAP, y), t, font=f_time_h, fill=(206, 150, 92), anchor="rm")
-        d.text((RAIL_X + GAP, y), g, font=f_field_h, fill=(243, 190, 128), anchor="lm")
-        continue
-    # The rest of the day falls away with distance from the lit row, so the
-    # amber one keeps the frame to itself instead of sharing it with six others.
-    k = 1.0 - 0.30 * (abs(i - HOT) - 1) / (len(ROWS) - 1 - 1)
-    d.text((RAIL_X - GAP, y), t, font=f_time,
-           fill=tuple(int(c * k) for c in (100, 107, 117)), anchor="rm")
-    d.text((RAIL_X + GAP, y), g, font=f_field,
-           fill=tuple(int(c * k) for c in (144, 151, 162)), anchor="lm")
+def page_number(d, n, total):
+    """How the August carousels number their inner cards."""
+    d.text((S / 2, S * 0.941), f"{n} / {total}", font=font(24, "Semibold", ARIAL_B),
+           fill=(104, 111, 122), anchor="mm")
 
-f_h = font(58, "Semibold")             # smaller and a shade lighter than Bold
-f_sub = font(27, "Regular", ARIAL)
-f_url = font(24, "Semibold", ARIAL_B)
 
-# No eyebrow label — the headline says it, and the empty space above it does
-# more for the composition than a second line of type would.
-d.text((S * 0.5, S * 0.782), "Every gig,", font=f_h, fill=(226, 229, 234), anchor="mm")
-d.text((S * 0.5, S * 0.845), "the moment it drops.", font=f_h, fill=SOFT_AMBER,
-       anchor="mm")
-d.text((S * 0.5, S * 0.905), "Gigs land at 4am too.",
-       font=f_sub, fill=(126, 133, 143), anchor="mm")
+# ===========================================================================
+# Card 1 — the announcement cover
+#
+# Built to the format the August covers already use: the mark glowing at the
+# top, a white line over an amber line, one grey line under, and the lockup.
+# ===========================================================================
+COVER = [("Introducing", BODY), ("Draft Voice.", (214, 152, 88))]
+COVER_SUB = "Your replies, the way you write them."
+# The tier line lives in the caption, not on the card.
 
-# Sign-off lockup: the mark beside the domain, centred as one unit. Small enough
-# to read as a signature rather than a second focal point.
-MK = 36
-LGAP = 11
-_t = "nabbly.co"
-_tw = d.textlength(_t, font=f_url)
-_x0 = (S - (MK + LGAP + _tw)) / 2
-_y = S * 0.949
-mark = nabbly_mark(MK)
-img.paste(mark, (int(_x0), int(_y - MK / 2)), mark)
-d.text((_x0 + MK + LGAP, _y), _t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
-path = OUT / "week-04-around-the-clock.png"
-img.save(path, "PNG", optimize=True)
-print("wrote", path, img.size)
+def card_cover():
+    img = Image.new("RGB", (S, S), BG)
+
+    # The bloom behind the mark, then the mark itself.
+    cx, cy, r = S // 2, 350, 106
+    glow = Image.new("L", (S, S), 0)
+    ImageDraw.Draw(glow).ellipse([cx - r, cy - r, cx + r, cy + r], fill=150)
+    glow = glow.filter(ImageFilter.GaussianBlur(50))
+    img = Image.composite(Image.new("RGB", (S, S), (146, 84, 26)), img, glow)
+
+    mk = 148
+    mark = nabbly_mark(mk)
+    img.paste(mark, (cx - mk // 2, cy - mk // 2), mark)
+
+    d = ImageDraw.Draw(img)
+    f_h = font(58, "Semibold")
+    f_sub = font(27, "Regular", ARIAL)
+
+    for i, (text, colour) in enumerate(COVER):
+        d.text((S * 0.5, 728 + i * 68), text, font=f_h, fill=colour, anchor="mm")
+    d.text((S * 0.5, 871), COVER_SUB, font=f_sub, fill=(126, 133, 143),
+           anchor="mm")
+
+    signature(img, d)
+    return img, CAR / "01-introducing.png"
+
+
+# ===========================================================================
+# Card 2 — the draft, and the settings behind it
+# ===========================================================================
+GIG = "Brand identity for a healthcare startup"
+META = "Design / creative  ·  posted 4 minutes ago"
+
+DRAFT = [
+    [("Hi Maya, I can take this on.", BODY)],
+    [("I've spent ", BODY), ("ten years on brand identity", HOT), (",", BODY)],
+    [("and healthcare brands are most of it.", BODY)],
+    [("Happy to send two directions this week.", BODY)],
+]
+SIGN = "Alex"
+
+CLAIM = "Alex set four things, once."
+
+# Two columns, because the split between the control and the value Alex typed
+# is what the block is for, and a dim label beside a lighter value shows it
+# without spending any amber. The draft's lit clause stays the only warm thing
+# on the card; an amber value column was tried and read as too much orange.
+SETTINGS = [
+    ("Length", "Standard"),
+    ("Include", "ten years on brand identity"),
+    ("Avoid", "hourly rates"),
+    ("Signature", "Alex"),
+]
+
+
+def card_draft():
+    img = ground([M - 190, 300, S - M + 60, 580])
+    img = hairlines(img, (240, 678))
+    d = ImageDraw.Draw(img)
+
+    f_gig = font(33, "Semibold")
+    f_meta = font(25, "Regular", ARIAL)
+    f_body = font(40, "Regular", ARIAL)
+    f_claim = font(29, "Semibold")
+    f_lbl = font(23, "Semibold")
+    f_val = font(23, "Regular", ARIAL)
+
+    # The gig being replied to, so the draft has something to be a reply to.
+    d.text((M, 152), GIG, font=f_gig, fill=(139, 146, 157), anchor="lm")
+    d.text((M, 196), META, font=f_meta, fill=DIM, anchor="lm")
+
+    # The draft. Runs, so the configured clause carries the accent mid-line.
+    y = 318
+    for line in DRAFT:
+        runs(d, M, y, line, f_body)
+        y += 65
+    d.text((M, y + 27), SIGN, font=f_body, fill=BODY, anchor="lm")
+
+    # Below the rule: what the feature is, then the settings behind the draft.
+    d.text((M, 722), CLAIM, font=f_claim, fill=(198, 203, 211), anchor="lm")
+    ry = 786
+    for label, value in SETTINGS:
+        d.text((M, ry), label, font=f_lbl, fill=(99, 106, 116), anchor="lm")
+        d.text((M + 132, ry), value, font=f_val, fill=GREY, anchor="lm")
+        ry += 40
+
+    signature(img, d)
+    return img, CAR / "02-in-action.png"
+
+
+# ===========================================================================
+# Card 2 — what each of the four settings actually controls
+# ===========================================================================
+CONTROLS_TITLE = "Four settings, set once."
+
+CONTROLS = [
+    ("Length", "Brief, Standard or Detailed"),
+    ("Include", "one line it always works in"),
+    ("Avoid", "what it never brings up"),
+    ("Signature", "how you sign off"),
+]
+
+# Closes on the value from card one, so the pair ties back together.
+TIE = [
+    [("Alex set Include to ", GREY), ("ten years on brand identity", HOT),
+     (".", GREY)],
+    [("Every draft says it.", GREY)],
+]
+
+
+def card_controls():
+    img = ground([M - 190, 320, S - M + 60, 560], strength=100)
+    img = hairlines(img, (272, 790))
+    d = ImageDraw.Draw(img)
+
+    f_ttl = font(44, "Semibold")
+    f_lbl = font(28, "Semibold")
+    f_val = font(35, "Regular", ARIAL)
+    f_tie = font(26, "Regular", ARIAL)
+
+    d.text((M, 206), CONTROLS_TITLE, font=f_ttl, fill=BODY, anchor="lm")
+
+    ry = 375
+    for label, value in CONTROLS:
+        d.text((M, ry), label, font=f_lbl, fill=(103, 110, 121), anchor="lm")
+        d.text((M + 186, ry), value, font=f_val, fill=GREY, anchor="lm")
+        ry += 100
+
+    ty = 848
+    for line in TIE:
+        runs(d, M, ty, line, f_tie)
+        ty += 42
+
+    signature(img, d)
+    return img, CAR / "02-controls.png"
+
+
+# ===========================================================================
+# Spare single — the week as a shipping list
+# ===========================================================================
+SHIPPED_TITLE = "New on Nabbly this week"
+
+# Newest first, so the lit line sits high in the frame. Every one of these is a
+# real dated change; check git before editing the dates.
+SHIPPED = [
+    ("Aug 18", "You set how every draft reads", True),
+    ("Aug 17", "The board works on a phone", False),
+    ("Aug 17", "Alerts back off instead of nagging", False),
+    ("Aug 16", "Sign in with Google", False),
+    ("Aug 14", "Draft my reply, on every gig", False),
+]
+
+SHIPPED_CLOSER = "All of it is live now."
+
+
+def single_shipped():
+    img = ground([M - 190, 300, S - M + 60, 500], strength=100)
+    img = hairlines(img, (272, 848))
+    d = ImageDraw.Draw(img)
+
+    f_ttl = font(44, "Semibold")
+    f_date = font(25, "Semibold")
+    f_item = font(35, "Regular", ARIAL)
+    f_note = font(26, "Regular", ARIAL)
+
+    d.text((M, 206), SHIPPED_TITLE, font=f_ttl, fill=BODY, anchor="lm")
+
+    # The dates stay uniform so the one amber line is the only emphasis.
+    ry = 375
+    for date, item, lit in SHIPPED:
+        d.text((M, ry), date, font=f_date, fill=(99, 106, 116), anchor="lm")
+        d.text((M + 150, ry), item, font=f_item,
+               fill=HOT if lit else GREY, anchor="lm")
+        ry += 100
+
+    d.text((M, 898), SHIPPED_CLOSER, font=f_note, fill=(130, 137, 148),
+           anchor="lm")
+
+    signature(img, d)
+    return img, OUT / "week-05-shipped.png"
+
+
+if __name__ == "__main__":
+    for render in (card_cover, card_draft, single_shipped):
+        im, path = render()
+        im.save(path, "PNG", optimize=True)
+        print("wrote", path, im.size)
