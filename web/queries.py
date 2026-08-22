@@ -629,3 +629,66 @@ def board_total(conn: sqlite3.Connection | None = None) -> int:
     finally:
         if own:
             conn.close()
+
+
+def market_stats(conn: sqlite3.Connection | None = None) -> dict:
+    """
+    Everything the Market page counts, over the PUBLIC board.
+
+    One _filters() call drives every aggregate, so Market cannot disagree with
+    /gigs about how many gigs exist — the exact bug the app's version had
+    (17,882 vs 16,007 on the same board, in the same session).
+
+    THE GENERATOR IS THE WHOLE MEMORY STORY. market.skill_stats needs title and
+    body for every public row because the pay parser reads the full text —
+    truncating bodies was measured to corrupt the typical rate for 22 of 25
+    skills, so that shortcut is dead. Streamed, the scan peaks ~2MB above
+    baseline; materialised as a list it is ~100MB on a service that has been
+    OOM-killed before. Do not turn `rows` into a list.
+
+    Returns plain primitives only. Charts want pre-rounded widths, computed
+    here rather than in the template so Jinja never does arithmetic.
+    """
+    own = conn is None
+    conn = conn or connect()
+    try:
+        import market
+        where, params, frm = _filters(conn, "", None, None, None, None,
+                                      "", None, 0, "", False)
+        total = conn.execute(f"SELECT COUNT(*) {frm} {where}",
+                             params).fetchone()[0]
+        # source is NOT optional: skill_stats computes per-source medians so
+        # one over-posting board cannot set the "typical" rate alone. Omitting
+        # it collapses every gig into one anonymous source and the medians go
+        # sideways — caught because the rendered top rate looked wrong, not by
+        # any error.
+        rows = ({"job_type": jt, "source": src, "title": t, "body": b}
+                for jt, src, t, b in conn.execute(
+                    f"SELECT p.job_type, p.source, p.title, p.body {frm} {where}",
+                    params))
+        stats = market.skill_stats(rows)
+        hot = market.hot_skills(stats, top=8)
+        priced = sorted(((s, d["typical"]) for s, d in stats.items()
+                         if d.get("typical")), key=lambda x: -x[1])[:8]
+        size_mix = {r[0]: r[1] for r in conn.execute(
+            f"SELECT p.size_tier, COUNT(*) {frm} {where} GROUP BY p.size_tier",
+            params)}
+        urgency = {r[0] or "": r[1] for r in conn.execute(
+            f"SELECT p.urgency, COUNT(*) {frm} {where} GROUP BY p.urgency",
+            params)}
+        urgency_mix = {"Standard": sum(v for k, v in urgency.items()
+                                       if k != "Urgent"),
+                       "Urgent": urgency.get("Urgent", 0)}
+        top_skills = [r[0] for r in conn.execute(
+            f"SELECT p.job_type, COUNT(*) c {frm} {where} "
+            f"GROUP BY p.job_type ORDER BY c DESC LIMIT 8", params)]
+        cross = {(r[0], r[1]): r[2] for r in conn.execute(
+            f"SELECT p.job_type, p.size_tier, COUNT(*) {frm} {where} "
+            f"GROUP BY p.job_type, p.size_tier", params)}
+        return {"total": total, "stats_n": len(stats), "hot": hot,
+                "priced": priced, "size_mix": size_mix,
+                "urgency_mix": urgency_mix, "top_skills": top_skills,
+                "cross": cross}
+    finally:
+        if own:
+            conn.close()

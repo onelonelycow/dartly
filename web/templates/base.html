@@ -173,7 +173,7 @@ button.go:hover{background:var(--amber-l)}
        it opens in its own tab rather than replacing this one.
        OVERRIDDEN 2026-08-22 by the founder: no internal link opens a new tab.
        Same product, sibling subdomain, session cookie scoped to .nabbly.co. #}
-    <a href="{{ app_url }}/?nav=market">Market</a>
+    <a href="/market" class="{% if tab == 'market' %}on{% endif %}">Market</a>
     <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
   </nav>
   <span class="who">

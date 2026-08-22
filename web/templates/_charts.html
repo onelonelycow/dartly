@@ -1,0 +1,79 @@
+{# The Market charts, transliterated from app.py's stat_cards / hbar_chart /
+   donut_chart / stacked_hbar_chart (app.py ~1799-1918). All CSS, no script,
+   no chart library — the same reason the app hand-builds them: altair cost
+   51MB of memory and nearly took the service down. The .gr-* classes these
+   emit are already in nabbly.css, shipped by the extractor.
+
+   Widths and percentages arrive PRE-ROUNDED from queries.market_stats via the
+   route; Jinja formats, it does not do arithmetic. The title= attributes stay:
+   on a phone they are the only way to read the exact number off a bar. #}
+
+{% macro stat_cards(items) -%}
+<div class="gr-stats" style="max-width:980px;margin-left:auto;margin-right:auto;justify-content:center">
+  {%- for label, value, accent, small in items %}
+  <div class="gr-stat">
+    <div class="accent" style="background:{{ accent }}"></div>
+    <div class="l">{{ label }}</div>
+    {# Plain text, no count-up, no flip spans: the board's job is to be
+       instant, and FEEL §5 wants motion earned, not ambient. #}
+    <div class="n{% if small %} small{% endif %}">{{ value }}</div>
+  </div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro hbar(rows, color, money=false) -%}
+{# rows: (label, value, width_pct) triples, already ordered and rounded. #}
+<div class="gr-hbars">
+  {%- for lbl, v, w in rows %}
+  <div class="gr-hbar">
+    <div class="gr-hbar-top"><span>{{ lbl }}</span>
+      <span class="gr-hbar-n">{% if money %}${{ "{:,}".format(v) }}{% else %}{{ "{:,}".format(v) }}{% endif %}</span></div>
+    <div class="gr-hbar-track">
+      <div class="gr-hbar-fill{% if loop.first %} max{% endif %}"
+           style="width:{{ w }}%;background:{{ color }}"
+           title="{{ lbl }}: {% if money %}${% endif %}{{ "{:,}".format(v) }}"></div>
+    </div>
+  </div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{% macro donut(slices, hover) -%}
+{# slices: (label, value, color, start_pct, end_pct) — the conic-gradient stops
+   computed in the route. hover: the whole-donut title text. #}
+<div class="gr-donut-wrap">
+  <div class="gr-donut"
+       style="background:conic-gradient({% for l,v,c,a,b in slices %}{{ c }} {{ a }}% {{ b }}%{% if not loop.last %}, {% endif %}{% endfor %})"
+       title="{{ hover }}">
+    <div class="gr-donut-hole"></div>
+  </div>
+  <div class="gr-donut-legend">
+    {%- for l, v, c, a, b in slices %}
+    <div class="row"><span class="sw" style="background:{{ c }}"></span>{{ l }}<b>{{ "{:,}".format(v) }}</b></div>
+    {%- endfor %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro stacked(rows, legend) -%}
+{# legend: (label, color) pairs. rows: (row_label, segs) where each seg is
+   (seg_label, value, color, width_pct). #}
+<div class="gr-donut-legend" style="flex-direction:row;flex-wrap:wrap;margin-bottom:12px">
+  {%- for l, c in legend %}
+  <span class="row" style="display:inline-flex;margin-right:16px"><span class="sw" style="background:{{ c }}"></span>{{ l }}</span>
+  {%- endfor %}
+</div>
+<div class="gr-stack">
+  {%- for r, segs in rows %}
+  <div class="gr-stack-row">
+    <div class="gr-stack-lbl" title="{{ r }}">{{ r }}</div>
+    <div class="gr-stack-bar">
+      {%- for s, v, c, w in segs %}
+      <div class="seg" style="width:{{ w }}%;background:{{ c }}" title="{{ s }}: {{ "{:,}".format(v) }}"></div>
+      {%- endfor %}
+    </div>
+  </div>
+  {%- endfor %}
+</div>
+{%- endmacro %}

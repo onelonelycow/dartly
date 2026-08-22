@@ -3621,6 +3621,19 @@ def view_market(pro):
     st.markdown('<div class="gr-page-head"><h2>What gigs like yours are '
                 '<span class="gr-accent">paying</span></h2></div>',
                 unsafe_allow_html=True)
+    # MOVED TO THE BOARD, 2026-08-22. Entering Streamlit cost every visitor
+    # ~10s of JS bundle and websocket before the first pixel, and this page's
+    # math was never the slow part. board.nabbly.co/market serves the same
+    # numbers in ~0.2s, computed once per board change. Same pointer pattern
+    # as view_profile; the full page below survives as the fallback when
+    # BOARD_URL is unset, so clearing one variable cannot strand Pro members.
+    if ACCESS["signed_in"] and BOARD_URL:
+        st.caption("Market lives on the board now, where it loads instantly.")
+        st.markdown(
+            f'<a class="gr-jump gr-settings-link" href="{BOARD_URL}/market">'
+            f'Open Market &rarr;</a>', unsafe_allow_html=True)
+        return
+
     if not pro:
         st.info("This one's a **Pro** perk. See what work like yours actually pays, "
                 "what's hot this week, and which posts are lowballing — pulled from "

@@ -20,6 +20,7 @@ same db.py. Nothing here writes.
 """
 import os
 import secrets
+import threading
 import sys
 import time
 
@@ -459,6 +460,99 @@ class _Facets:
 _facets = _Facets()
 
 
+class _Market:
+    """
+    The Market page's numbers: one slot, keyed on a board fingerprint,
+    hold-last-good. Same shape as _Facets above, and next to it on purpose so
+    a reader meets one pattern twice instead of two patterns once.
+
+    The build is ~1-3s because market.skill_stats reads every public gig's
+    full text (truncation measurably corrupts the rates — see
+    queries.market_stats). One reader per board change pays it; everyone else
+    gets the cached dict. Hold-last-good means even that reader gets the
+    PREVIOUS numbers instantly if a build is already running.
+    """
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._version = None
+        self._value = None
+        self._building = False
+
+    def get(self, conn):
+        v = queries.board_total(conn)   # a fingerprint, not a headline: moves
+        with self._lock:                # when rows land, cheap to read
+            if self._value is not None and (v == self._version or self._building):
+                return self._value
+            self._building = True
+        try:
+            fresh = queries.market_stats(conn=conn)
+            with self._lock:
+                self._version, self._value = v, fresh
+            return fresh
+        finally:
+            with self._lock:
+                self._building = False
+
+
+_market = _Market()
+
+
+# Sequential amber ramp for budget size — the same three hex values the app
+# uses, light = small, deep = large.
+_BUDGET_COLORS = {"Small": "#F3C07A", "Medium": "#E8933A", "Large": "#A85D1B"}
+
+
+def _market_view(m: dict) -> dict:
+    """
+    Shape market_stats' primitives into exactly what market.html renders:
+    labels, pre-rounded widths and gradient stops. All arithmetic happens
+    here so the template only formats.
+    """
+    hot = m["hot"]
+    hottest = hot[0][0] if hot else "—"
+    top_rate = m["priced"][0][1] if m["priced"] else 0
+    cards = [
+        ("Gigs on the board", f"{m['total']:,}", "#E8933A", False),
+        ("Skills tracked", str(m["stats_n"]), "#4C8DFF", False),
+        ("Hottest skill", hottest, "#35B37E", True),
+        ("Top typical rate", f"${top_rate:,}", "#B889F0", False),
+    ]
+    def bars(pairs):
+        top = max((v for _, v in pairs), default=1) or 1
+        return [(l, v, round(v / top * 100, 1)) for l, v in pairs]
+    def slices(pairs, colors):
+        total = sum(v for _, v in pairs) or 1
+        out, pct = [], 0.0
+        for l, v in pairs:
+            a, pct = pct, pct + v / total * 100
+            out.append((l, v, colors[l], round(a, 2), round(pct, 2)))
+        return out
+    size_pairs = [(t, m["size_mix"].get(t, 0))
+                  for t in ("Small", "Medium", "Large") if m["size_mix"].get(t)]
+    urg_pairs = [(t, m["urgency_mix"].get(t, 0))
+                 for t in ("Standard", "Urgent") if m["urgency_mix"].get(t)]
+    urg_colors = {"Standard": "#4C8DFF", "Urgent": "#E96250"}
+    stack_rows = []
+    for jt in m["top_skills"]:
+        cells = [(t, m["cross"].get((jt, t), 0)) for t in ("Small", "Medium", "Large")]
+        row_total = sum(v for _, v in cells) or 1
+        stack_rows.append((jt, [(t, v, _BUDGET_COLORS[t],
+                                 round(v / row_total * 100, 1))
+                                for t, v in cells if v]))
+    return {
+        "cards": cards,
+        "hot_rows": bars(hot),
+        "hot_links": hot,
+        "priced_rows": bars(m["priced"]),
+        "size_slices": slices(size_pairs, _BUDGET_COLORS),
+        "size_hover": "; ".join(f"{l}: {v:,}" for l, v in size_pairs),
+        "urgency_slices": slices(urg_pairs, urg_colors),
+        "urgency_hover": "; ".join(f"{l}: {v:,}" for l, v in urg_pairs),
+        "stack_rows": stack_rows,
+        "stack_legend": [(t, _BUDGET_COLORS[t]) for t in ("Small", "Medium", "Large")],
+    }
+
+
 def _csv(v: str | None) -> list[str]:
     return [x for x in (v or "").split(",") if x.strip()]
 
@@ -890,6 +984,46 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
         back = "/gigs"
     return RedirectResponse(
         f"/draft/{gig_id}?saved_ok=1&back={quote_plus(back)}", status_code=303)
+
+
+@app.get("/market", response_class=HTMLResponse)
+def market_page(request: Request):
+    """
+    What gigs like yours are paying — Pro analytics, served from the board.
+
+    Moved off Streamlit because the page's math is ~1-3s once per board change
+    (cached in _Market) while ENTERING Streamlit cost every visitor ~10s of JS
+    bundle, websocket and script run. The upsell a free reader sees now loads
+    in the board's normal 0.2s instead of making them wait ten seconds to be
+    told the page is a Pro perk.
+
+    THE STATS ARE NEVER COMPUTED FOR FREE READERS. Gating the computation
+    rather than only the render is what keeps this route cheap for anonymous
+    traffic — an unauthenticated 2s route is a free amplification lever.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    try:
+        is_pro = bool(accounts.status(webauth.account_for(request)).get("pro"))
+    except Exception:
+        is_pro = False
+    m = None
+    if is_pro:
+        conn = queries.connect(DB_PATH)
+        try:
+            m = _market_view(_market.get(conn))
+        finally:
+            conn.close()
+    _ev(request, "market_view", "pro" if is_pro else "free")
+    resp = templates.TemplateResponse(request, "market.html", {
+        "m": m, "is_pro": is_pro, "me": me, "tab": "market",
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "took_ms": (time.perf_counter() - t0) * 1000,
+    })
+    resp.headers["Cache-Control"] = "private, no-store"
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
 
 
 @app.get("/profile", response_class=HTMLResponse)

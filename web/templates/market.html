@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% from "_charts.html" import stat_cards, hbar, donut, stacked %}
+{% block title %}Market · Nabbly{% endblock %}
+
+{% block extra_css %}
+.mkt-head{margin:6px 0 18px}
+.mkt-head h1{font-size:26px;font-weight:650;letter-spacing:-.02em;margin:0}
+.mkt-head p{font-size:12.5px;color:var(--faint);margin:6px 0 0}
+.mkt-cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin:26px 0}
+.mkt-sec{font-size:17px;font-weight:650;margin:0 0 12px}
+.mkt-sub{font-size:12.5px;color:var(--faint);margin:10px 0 6px}
+.mkt-note{font-size:12.5px;color:var(--faint);margin:18px 0 0}
+.upsell{max-width:560px;margin:30px auto;text-align:center;
+  border:1px solid var(--line2);border-radius:14px;padding:30px 26px}
+.upsell p{font-size:15.5px;color:var(--ink2);line-height:1.6;margin:0 0 18px}
+.upsell .go{display:inline-block;background:var(--amber);color:#161616;
+  font-weight:650;font-size:13.5px;padding:12px 22px;border-radius:11px;
+  text-decoration:none}
+.upsell .go:hover{background:var(--amber-l)}
+@media (max-width:640px){
+  /* One column, and the donut wraps under its legend: a 168px circle plus a
+     legend cannot share 349px, and FEEL §9 says collapse, not shrink. */
+  .mkt-cols{grid-template-columns:1fr;gap:30px}
+  .gr-donut-wrap{flex-direction:column;align-items:flex-start}
+  /* a.gr-cat ships at ~33px tall from the shared sheet; that misses the 44px
+     floor on a phone. Raised here, not in the generated stylesheet. */
+  .gr-cats a.gr-cat{padding:13px 14px}
+}
+{% endblock %}
+
+{% block body %}
+<div class="mkt-head">
+  <h1>What gigs like yours are <span class="gr-accent">paying</span></h1>
+  {% if is_pro %}
+    {# One lens, said plainly: every figure below counts the whole public
+       board, not the reader's filtered view — otherwise someone whose Gigs
+       tab shows 12,000 reads these numbers as a contradiction (FEEL §7:
+       numbers must be true at all times). #}
+    <p>Counted across the whole board, every source at once — not just the
+      slice your filters show.</p>
+  {% endif %}
+</div>
+
+{% if not is_pro %}
+  <div class="upsell">
+    <p>This one is a <b>Pro</b> perk. See what work like yours actually pays,
+      what is hot this week, and which posts are lowballing, pulled from every
+      source at once.</p>
+    <a class="go" href="{{ app_url }}/?nav=pricing">See Pro</a>
+  </div>
+{% else %}
+
+  {{ stat_cards(m.cards) }}
+
+  <div class="mkt-cols">
+    <div>
+      <div class="mkt-sec">What&#x27;s hot right now</div>
+      {{ hbar(m.hot_rows, "#E8933A") }}
+      <div class="mkt-sub">Open one on the board:</div>
+      <div class="gr-cats" style="justify-content:flex-start">
+        {%- for skill, n in m.hot_links %}
+        <a class="gr-cat" href="/gigs?field={{ skill|urlencode }}">{{ skill }}<span class="n">{{ "{:,}".format(n) }}</span></a>
+        {%- endfor %}
+      </div>
+    </div>
+    <div>
+      <div class="mkt-sec">Typical budget by skill</div>
+      {{ hbar(m.priced_rows, "#4C8DFF", money=true) }}
+    </div>
+  </div>
+
+  <div class="mkt-cols">
+    <div>
+      <div class="mkt-sec">Budget mix — how the board splits</div>
+      {{ donut(m.size_slices, m.size_hover) }}
+    </div>
+    <div>
+      <div class="mkt-sec">How fast you need to move</div>
+      {{ donut(m.urgency_slices, m.urgency_hover) }}
+    </div>
+  </div>
+
+  <div class="mkt-sec">Where the big budgets sit — gigs by skill, split by budget</div>
+  {{ stacked(m.stack_rows, m.stack_legend) }}
+
+  <p class="mkt-note">Treat these as a range to price against, not a fixed
+    rate — posts quote by project and by hour, and both are counted here.</p>
+
+{% endif %}
+{% endblock %}
