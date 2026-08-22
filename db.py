@@ -511,6 +511,26 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
 # meant the board was converging on ~54,000 rows, and it was already at 33,000
 # and climbing. 21 days settles it around ~25,000.
 #
+# THAT ~25,000 IS NO LONGER WHAT HAPPENS, because intake is not 1,200 any more.
+# Measured 2026-08-22 over seven full days: ~2,919 new gigs a day, so 21 days
+# converges on ~61,000 and the board was holding 65,347. Nobody was wrong;
+# sources were added since the note above. The board IS at steady state, so it
+# is not climbing, but at roughly 2.5x what this paragraph predicts.
+#
+# WHAT BREAKS FIRST IF IT GROWS AGAIN IS BOOT, not memory and not page speed.
+# Page queries are 21ms and flat (indexed, 25 rows a page). Memory sits near
+# 250MB of 536MB and barely tracks row count. Boot was ~136s of a 270s budget,
+# and its row-dependent part is hauling the ~237MB file from the mirror; the
+# local write of 65,000 rows is 0.7s and irrelevant.
+#
+# SO THE LEVER IS THIS CONSTANT, and 14 days would cut about a third with no new
+# code. Do NOT reach for a row cap instead: a cap makes what is on the board
+# depend on arrival order rather than freshness, so it would start dropping good
+# recent gigs because older ones got there first.
+#
+# AND WATCH INTAKE, NOT BOARD SIZE. Every source added raises the steady state
+# permanently. That is the trigger to retune this number.
+#
 # 21 rather than 45 because freelance work moves faster than salaried hiring. A
 # six-week-old gig is nearly always filled, and a dead listing is worse than no
 # listing (see archive_stale). The board is a marketing number; the part a
