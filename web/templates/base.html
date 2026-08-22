@@ -119,6 +119,11 @@ button.go:hover{background:var(--amber-l)}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
 @media (max-width:640px){
   .topbar{flex-wrap:wrap;gap:10px;padding:12px 14px}
+  /* The avatar belongs top-RIGHT on phones, same as desktop. On desktop the
+     centred nav's auto margins push .who right; on phones the nav drops to
+     its own row and that push vanishes, leaving the avatar huddled next to
+     the wordmark. Push it explicitly. */
+  .topbar .who{margin-left:auto}
   /* The avatar sits top-LEFT on phones, and a right-anchored 212px menu hung
      off the screen edge with its text amputated — seen on a real phone, missed
      by every measurement because the harness never opened it. Fixed to the
