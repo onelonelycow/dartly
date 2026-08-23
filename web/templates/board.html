@@ -201,7 +201,12 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <select name="field" onchange="this.form.submit()" aria-label="Field">
     <option value="">All fields</option>
     {% for name, n in facets.job_type.items() %}
-      <option value="{{ name }}"{% if name in sel_field %} selected{% endif %}>{{ name }} · {{ "{:,}".format(n) }}</option>
+      {# No counts. Category tallies live on Market, and only there — the
+         founder's call, and app.py's category_strip made the same one already:
+         picking a field immediately shows "N gigs for you" below, so a number
+         here says the same thing twice, and a tally next to each name turns a
+         choice into a leaderboard. #}
+      <option value="{{ name }}"{% if name in sel_field %} selected{% endif %}>{{ name }}</option>
     {% endfor %}
   </select>
   {% for k, v in carry.items() %}{% if k != 'field' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
