@@ -82,9 +82,11 @@ Z_MOVE = 20              # frames gliding between consecutive targets
 Z_OUT = 18               # frames: last target -> full frame
 SEND_SLIDE = 40          # frames: the reply lifts off the top of the frame
 SENT_HOLD = 44           # frames: the ping ring and the word Sent.
-WORDMARK = 86            # frames: Sent. clears and the mark spells itself
+WORDMARK = 124           # frames: the mark spells itself, then the line, then the domain
 
 # What each zoom is about: the setting name and the value the user typed.
+SLOGAN = "Every gig, the moment it drops."
+
 CHIPS = [
     ("Include", "ten years on brand identity"),
     ("Avoid", "hourly rates · not one mention"),
@@ -461,9 +463,13 @@ def render(L):
     # busy and pulled the eye left to right chasing each one; fading the
     # wordmark up as a single object lets it land with some weight instead.
     WORD_IN, WORD_DUR = 12, 24
-    # The domain follows a beat later, in the same amber the lockup has used all
-    # the way through, so the last thing on screen is where to go.
-    URL_IN, URL_DUR = 34, 20
+    # Then the line, then the domain. Three beats rather than two: the name
+    # says who, the line says what it does, the domain says where to go, and
+    # each waits for the one before it to settle. Landing the line and the URL
+    # together made the foot of the frame arrive as one grey lump.
+    SLOGAN_IN, SLOGAN_DUR = 38, 22
+    URL_IN, URL_DUR = 64, 20
+    f_slogan = mp.font(34, "Regular", mp.ARIAL)
     f_url_end = mp.font(34, "Semibold", mp.ARIAL_B)
 
     for f in range(WORDMARK):
@@ -483,9 +489,13 @@ def render(L):
         if a > 0:
             dl.text((text_x, cy), letters, font=f_word,
                     fill=(236, 238, 241, int(255 * a)), anchor="lm")
+        sl = ease(SLOGAN_IN, SLOGAN_IN + SLOGAN_DUR, f)
+        if sl > 0:
+            dl.text((W / 2, cy + mk // 2 + 66), SLOGAN, font=f_slogan,
+                    fill=(126, 133, 143, int(255 * sl)), anchor="mm")
         u = ease(URL_IN, URL_IN + URL_DUR, f)
         if u > 0:
-            dl.text((W / 2, cy + mk // 2 + 62), "nabbly.co", font=f_url_end,
+            dl.text((W / 2, cy + mk // 2 + 126), "nabbly.co", font=f_url_end,
                     fill=(190, 140, 92, int(255 * u)), anchor="mm")
         img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
         img.paste(mark, (int(mx), cy - mk // 2), mark)
