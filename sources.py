@@ -123,6 +123,21 @@ def _clean_title(text: str) -> str:
 HINT_SEP = "\x1f"
 
 
+def clean_stored(text: str) -> str:
+    """
+    _strip, for text that may already carry the HINT_SEP.
+
+    Python's \\s matches \\x1f (the Unicode information separators), so running
+    _strip over an assembled body would silently weld the machine hints onto
+    the human text and they would surface in card previews. Split, clean each
+    half, rejoin. Idempotent on clean text; ingest runs every title and body
+    through this as a choke point, and the backfill uses the same function so
+    the two can never disagree about what clean means.
+    """
+    parts = (text or "").split(HINT_SEP)
+    return HINT_SEP.join(_strip(p) for p in parts)
+
+
 def _body(human, *hints) -> str:
     """Human description first, machine hints after an invisible separator."""
     human = _strip(human or "")

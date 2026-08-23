@@ -666,6 +666,72 @@ def archive_not_openings() -> int:
     return n
 
 
+def fix_text_encoding() -> int:
+    """
+    Repair stored titles and bodies carrying mojibake or unresolved entities.
+    Returns how many rows changed.
+
+    "Forces armÃ©es canadiennes" and "Alexander &amp; Bebout" were live on
+    member-facing cards: five fetchers assembled titles straight from API
+    fields and skipped the cleaning that existed. ingest.py now runs
+    sources.clean_stored() as a choke point for new arrivals; this repairs
+    what those paths already stored, with the SAME function, so the two
+    cannot disagree about what clean means.
+
+    A SQL marker prefilter keeps the scan cheap, and clean_stored is a no-op
+    on legitimate accents — "INOVAÇÃO" and "română" are real Portuguese and
+    Romanian, and the mojibake regex only fires on byte-pair shapes real text
+    does not produce. Verified by reading the rows that move.
+
+    Corrected rows are re-pushed through board_store.push(), an upsert on
+    (source, source_id) — without that the mirror keeps the broken copy and
+    every deploy resurrects it, the exact failure mark_archived exists for.
+    """
+    import sources
+    conn = connect()
+    try:
+        cand = conn.execute(
+            "SELECT id FROM posts WHERE "
+            "title LIKE '%Ã%' OR title LIKE '%â%' OR title LIKE '%Â%' "
+            "OR title LIKE '%&%;%' "
+            "OR body LIKE '%Ã%' OR body LIKE '%â%' OR body LIKE '%&amp;%'"
+        ).fetchall()
+        changed_ids = []
+        for (pid,) in cand:
+            r = conn.execute("SELECT title, body FROM posts WHERE id=?",
+                             (pid,)).fetchone()
+            nt = sources.clean_stored(r["title"] or "")
+            nb = sources.clean_stored(r["body"] or "")
+            if nt != (r["title"] or "") or nb != (r["body"] or ""):
+                conn.execute("UPDATE posts SET title=?, body=? WHERE id=?",
+                             (nt, nb, pid))
+                changed_ids.append(pid)
+        conn.commit()
+        if not changed_ids:
+            return 0
+        # Full records for the mirror upsert, in chunks under the param cap.
+        fixed = []
+        for i in range(0, len(changed_ids), 900):
+            chunk = changed_ids[i:i + 900]
+            rows = conn.execute(
+                f"SELECT * FROM posts WHERE id IN "
+                f"({','.join('?' * len(chunk))})", chunk).fetchall()
+            fixed.extend(dict(r) for r in rows)
+    finally:
+        conn.close()
+    try:
+        import board_store
+        pushed = board_store.push(fixed)
+        if pushed < len(fixed):
+            print(f"  ! fix_text_encoding: repaired {len(fixed):,} locally but "
+                  f"only {pushed:,} reached the mirror; the rest revert at the "
+                  f"next deploy until a later pass succeeds.", flush=True)
+    except Exception as e:
+        print(f"  ! fix_text_encoding: mirror push raised, {len(fixed):,} "
+              f"repairs are local only: {type(e).__name__}: {e}", flush=True)
+    return len(fixed)
+
+
 def compact_archived() -> int:
     """
     Drop the body from gigs that were archived before we started doing it.
