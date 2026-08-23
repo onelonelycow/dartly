@@ -36,8 +36,7 @@
 a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
   color:#eaa662!important}
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
-.pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.feedtop{display:flex;justify-content:flex-end;margin:0 0 10px}
+.feedtop{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 10px}
 .refresh{flex:none;width:44px;height:44px;display:flex;align-items:center;
   justify-content:center;font-size:19px;line-height:1;
   border-radius:10px;border:1px solid var(--line);
@@ -52,31 +51,19 @@ a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
    search box is the main control on this page; it cannot be the thing that
    loses. */
 .findrow input[type=search]{flex:1.6;min-width:0}
-.findrow select,.fieldrow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
+.fieldrow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
   color:var(--ink);border-radius:12px;padding:13px 14px;font-size:14.5px;
   font-family:inherit;appearance:none;cursor:pointer;
   background-image:linear-gradient(45deg,transparent 50%,#868D98 50%),
     linear-gradient(135deg,#868D98 50%,transparent 50%);
   background-position:calc(100% - 20px) 21px,calc(100% - 14px) 21px;
   background-size:6px 6px,6px 6px;background-repeat:no-repeat}
-.findrow select:focus{outline:2px solid var(--amber-d);outline-offset:1px}
-.locrow{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
-details.narrow{margin:0 0 14px;background:var(--panel);border:1px solid var(--line);
-  border-radius:12px;overflow:hidden}
-details.narrow summary{cursor:pointer;padding:11px 15px;font-size:13.5px;
-  color:var(--mute);list-style:none;user-select:none}
-details.narrow summary::-webkit-details-marker{display:none}
-details.narrow summary:before{content:"▸ ";color:var(--faint)}
-details.narrow[open] summary:before{content:"▾ "}
-details.narrow summary:hover{color:var(--ink)}
-.narrowbody{padding:2px 15px 15px;display:flex;flex-direction:column;gap:11px}
 .grp{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .grp .lbl{font-size:11.5px;color:var(--faint);text-transform:uppercase;
   letter-spacing:.06em;min-width:74px}
 a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .pager span.off{color:#4d545e;border-color:transparent;background:none}
 .count{font-size:13.5px;color:var(--mute);font-variant-numeric:tabular-nums}
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
 /* Matched to the app, where Prev and Next are wide substantial buttons with
    the page indicator centred between them. These were small links that read as
    an afterthought beside the same control on the other surface. The PAGING
@@ -99,8 +86,7 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 @media (max-width:640px){
   .findrow{flex-direction:column}
   .findrow input[type=search],.findrow select{width:100%}
-  .pagehead{gap:8px}
-  /* Pre-existing 44px-floor misses the type-migration harness surfaced:
+    /* Pre-existing 44px-floor misses the type-migration harness surfaced:
      .refresh measured 34px and .pager a 38px at 375. Not caused by the
      migration, but a thumb does not care whose fault a small target is. */
   .refresh{width:44px;height:44px;padding:0;font-size:19px}
@@ -132,6 +118,17 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .dash-grid{display:grid;grid-template-columns:196px minmax(0,1fr);gap:0 28px;align-items:start}
 .dash-grid > .rail{grid-column:1}
 .dash-grid > .dash-col{grid-column:2;min-width:0}
+/* /gigs: search sits row 1 in the feed column, rail and feed share row 2, so
+   the rail's Categories label tops out level with the feed, not the search. */
+.gigs-search{grid-column:2;grid-row:1}
+.dash-grid.gigs > .rail{grid-row:2}
+.dash-grid.gigs > .dash-col{grid-row:2}
+.filt-t{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.filt-lbl{display:none}
+.viewsort{display:inline-flex;gap:2px;margin-right:4px}
+.viewsort a{font-size:12.5px;color:#aeb4be;text-decoration:none;padding:12px 10px;border-radius:9px}
+.viewsort a:hover{color:var(--amber-l)}
+.viewsort a.on{color:var(--amber)}
 .rail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto;
   display:flex;flex-direction:column;gap:2px;padding-top:29px}
 .rail .lbl{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
@@ -156,11 +153,25 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    them loses at equal specificity — measured, again, the third time this exact
    cascade shape has bitten this codebase in one week. */
 @media (max-width:640px){
-  /* The rail cannot fit a phone and the founder approved yesterday's layout:
-     the select + Go row IS the phone's category control. */
+  /* The DASHBOARD rail cannot fit a phone and the founder approved that
+     layout: the select + Go row is its category control there. On /GIGS the
+     rail hides behind a Filters toggle instead — the house checkbox pattern. */
   .dash-grid{display:block}
   .rail{display:none}
   .fieldrow{display:flex}
+  .filt-lbl{display:flex;align-items:center;min-height:44px;padding:0 15px;
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);
+    color:var(--mute);font-size:13.5px;cursor:pointer;margin:0 0 12px}
+  .filt-t:checked ~ .filt-lbl{color:var(--ink)}
+  .filt-t:checked ~ .rail{display:flex;position:static;max-height:none;
+    padding:10px;margin:0 0 14px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px}
+  .rail a{padding:14px 10px}
+  /* The old column stack existed to fit the field select; with the select
+     gone, a column turns Search into a full-bleed amber bar. A row fits. */
+  .findrow{flex-direction:row}
+  .findrow input[type=search]{width:auto;flex:1}
+  .findrow button.go{flex:none;padding:0 18px}
 }
 {% endblock %}
 
@@ -258,82 +269,75 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
 
 {% if not landing %}
-{# The app's Gigs page: heading, search + field select on one row, the location
-   segmented control, then everything else folded into "Narrow it down" so the
-   page does not open with a wall of twenty pills. #}
-<div class="pagehead"><h2 class="sec-h">The whole <span class="accent">board</span></h2></div>
+{# /GIGS, CONSOLIDATED — the founder, looking at the old head: "way too much
+   going on, too many actual clickable things". It was a heading, a search
+   row with a field select, three location chips, a drawer holding budget,
+   language and source chips, a sort toolbar and the refresh: 7 controls
+   painted, 28 with the drawer open. Now: one search row, one rail, one feed.
 
-<form class="findrow" method="get" action="/gigs">
+   CUT, each argued in the plan of record:
+   - the heading ("The whole board"): restated the amber Gigs tab above it.
+   - the field select and its onchange submit — the service's ONLY inline
+     script. Zero JavaScript is true again. The rail's typeahead and category
+     links replace it.
+   - the Source group: ten other job boards' brand names is plumbing on the
+     surface (FEEL §10.6), filtering by where we scraped instead of anything
+     a reader wants. ?source= still works for anyone holding a URL.
+   - the Language group: a standing preference, not a per-search filter — the
+     profile already owns it (show_all_languages). ?langs= still works.
+   - the "Narrow it down" drawer: with source and language gone it held four
+     chips, and a disclosure hiding four items is a click that buys nothing.
+   - the last count tallies, which rode the drawer's chips.
+   Sort (Newest / Best match) is a view control, not a filter: it moves down
+   to the feed's edge beside the refresh. #}
+<div class="dash-grid gigs">
+<form class="findrow gigs-search" method="get" action="/gigs">
   <input type="search" name="q" value="{{ q }}"
          placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
-  <select name="field" onchange="this.form.submit()" aria-label="Field">
-    <option value="">All fields</option>
-    {% for name, n in facets.job_type.items() %}
-      {# No counts. Category tallies live on Market, and only there — the
-         founder's call, and app.py's category_strip made the same one already:
-         picking a field immediately shows "N gigs for you" below, so a number
-         here says the same thing twice, and a tally next to each name turns a
-         choice into a leaderboard. #}
-      <option value="{{ name }}"{% if name in sel_field %} selected{% endif %}>{{ name }}</option>
-    {% endfor %}
-  </select>
+  <button class="go" type="submit">Search</button>
   {% for k, v in carry.items() %}{% if k != 'field' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
 </form>
-
-<div class="locrow">
-  <a class="gr-cat{% if not where %} on{% endif %}" href="{{ link(where='') }}">Everywhere</a>
-  <a class="gr-cat{% if where == 'remote' %} on{% endif %}" href="{{ link(where='remote') }}">Remote I can take</a>
-  <a class="gr-cat{% if where == 'onsite' %} on{% endif %}" href="{{ link(where='onsite') }}">On-site / local</a>
-</div>
-
-<details class="narrow"{% if sel_size or sel_source or sel_langs or urgent %} open{% endif %}>
-  <summary>Narrow it down</summary>
-  <div class="narrowbody">
-    <div class="grp"><span class="lbl">Budget</span>
-      {% for sz in ["Small", "Medium", "Large"] %}
-        <a class="gr-cat sm{% if sz in sel_size %} on{% endif %}" href="{{ link(size='' if sz in sel_size else sz) }}">{{ sz }}
-          <span class="n">{{ "{:,}".format(facets.size_tier.get(sz, 0)) }}</span></a>
-      {% endfor %}
-      <a class="gr-cat sm{% if urgent %} on{% endif %}" href="{{ link(urgent='' if urgent else 1) }}">Urgent only</a>
-    </div>
-    <div class="grp"><span class="lbl">Language</span>
-      {% for code, n in facets.lang_code.items() %}
-        <a class="gr-cat sm{% if code in sel_langs %} on{% endif %}" href="{{ link(langs='' if code in sel_langs else code) }}">{{ code|upper }}
-          <span class="n">{{ "{:,}".format(n) }}</span></a>
-      {% endfor %}
-    </div>
-    <div class="grp"><span class="lbl">Source</span>
-      {% for name, n in facets.source.items() %}{% if loop.index <= 10 %}
-        <a class="gr-cat sm{% if name in sel_source %} on{% endif %}" href="{{ link(source='' if name in sel_source else name) }}">{{ name }}
-          <span class="n">{{ "{:,}".format(n) }}</span></a>
-      {% endif %}{% endfor %}
-    </div>
-  </div>
-</details>
-
-{# The count line is gone — the founder's call, same as the field tallies:
-   after picking a field, "6,881 gigs for you" is the leaderboard number
-   resurfacing. The one total lives at the BOTTOM pager, subtle, findable by
-   anyone who wants it. Zero results still speak: the empty state below
-   already says "Nothing matches". #}
-{% if qf or can_rank %}
-<div class="toolbar">
-  {% if qf %}<a class="gr-cat sm" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
-  {% if can_rank %}
-    <a class="gr-cat sm{% if not ranked %} on{% endif %}" href="{{ link(sort='') }}">Newest</a>
-    <a class="gr-cat sm{% if ranked %} on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
-  {% endif %}
-</div>
-{% endif %}
-
-{# Pagination sits ABOVE the cards as well as below, like the app — on a list
-   this long, having to scroll to the bottom to move a page is the difference
-   between browsing and giving up. #}
-{# The top pager is gone — the founder's call: the head of the page was
-   cluttered to begin with, and paging belongs at the bottom, where you have
-   actually finished the page. The earlier comment argued for both; he
-   overruled it, and the bottom one carries the total. #}
+{# The phone's Filters toggle: the house checkbox-and-sibling pattern, same
+   mechanism as the card's See more and the settings tabs. <details> cannot be
+   forced open per-breakpoint from CSS, which is why it is not one. #}
+<input type="checkbox" class="filt-t" id="filt">
+<label class="filt-lbl" for="filt">▸ Filters</label>
+<nav class="rail" aria-label="Filters">
+  <span class="lbl">Categories</span>
+  <form method="get" action="/gigs">
+    <input type="text" name="field" list="fieldlist" autocomplete="off"
+           placeholder="Type a category" aria-label="Jump to a category">
+    <datalist id="fieldlist">
+      {% for f in all_fields %}<option value="{{ f }}"></option>{% endfor %}
+      {% for a, f in field_aliases.items() %}<option value="{{ f }}" label="{{ a }}"></option>{% endfor %}
+    </datalist>
+  </form>
+  <a href="{{ link(field='') }}" class="{% if not carry.field %}on{% endif %}">Everything</a>
+  {% for g in groups %}
+    <a href="{{ link(field=g.fields|join(',')) }}"
+       class="{% if g.fields|join(',') == carry.field %}on pick{% endif %}">{{ g.name }}</a>
+  {% endfor %}
+  <a href="{{ link(field='Other / general') }}"
+     class="{% if carry.field == 'Other / general' %}on pick{% endif %}">Everything else</a>
+  <span class="lbl mt">Location</span>
+  <a href="{{ link(where='') }}" class="{% if not where %}on{% endif %}">Everywhere</a>
+  <a href="{{ link(where='remote') }}" class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
+  <a href="{{ link(where='onsite') }}" class="{% if where == 'onsite' %}on pick{% endif %}">On-site / local</a>
+  <span class="lbl mt">Budget</span>
+  {% for sz in ["Small", "Medium", "Large"] %}
+    <a href="{{ link(size='' if sz in sel_size else sz) }}"
+       class="{% if sz in sel_size %}on pick{% endif %}">{{ sz }}</a>
+  {% endfor %}
+  <a href="{{ link(urgent='' if urgent else 1) }}"
+     class="{% if urgent %}on pick{% endif %}">Urgent only</a>
+</nav>
+<div class="dash-col">
 <div class="feedtop">
+  {% if qf %}<a class="gr-cat sm" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
+  {% if can_rank %}<span class="viewsort">
+    <a class="{% if not ranked %}on{% endif %}" href="{{ link(sort='') }}">Newest</a>
+    <a class="{% if ranked %}on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
+  </span>{% endif %}
   {# The refresh, moved from the page heading DOWN to the feed's own edge and
      stripped to the symbol — the founder's call: next to the feed, users know
      what it acts on. Honest as ever: this service re-pulls from the mirror
@@ -359,6 +363,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 </div>{# /dash-grid #}
   {% else %}
     {{ pager(res, link, with_total=true) }}
+  </div>{# /dash-col #}
+</div>{# /dash-grid #}
   {% endif %}
 {% else %}
   {# Three different situations, three different sentences. One template that
@@ -395,9 +401,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
       {% endif %}
     {% endif %}
   </div>
-  {# When the DASHBOARD comes up empty the grid opened above must still close —
-     the happy path closes it before the handoff line. #}
-  {% if landing %}</div></div>{% endif %}
+  {# BOTH branches open a grid now, so the empty path always closes one. #}
+  </div></div>
 {% endif %}
 
 {% endblock %}
