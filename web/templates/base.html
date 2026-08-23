@@ -238,9 +238,10 @@ button.go:hover{background:var(--amber-l)}
              role="button" tabindex="0" aria-label="Account menu">{{ me[0]|upper }}</label>
       <label class="acct-scrim" for="acctmenu" aria-hidden="true"></label>
       <div class="acct-menu">
+      {# Saved lives in the nav tabs and only there — it was here too, and the
+         founder cut the duplicate: one thing, one place. #}
         <div class="acct-hd">{{ me }}</div>
         <a href="/profile">Profile &amp; settings</a>
-        <a href="/saved">Saved gigs</a>
         <a href="{{ app_url }}/?nav=pricing">Upgrade to Pro</a>
         <div class="acct-sep"></div>
         <form method="post" action="/signout">
