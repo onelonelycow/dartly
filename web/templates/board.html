@@ -131,8 +131,11 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .viewsort a.on{color:var(--amber)}
 .rail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto;
   display:flex;flex-direction:column;gap:2px;padding-top:29px}
+/* The signature amber on the group labels — the founder asked to see the
+   subheaders carry it. Small caps at 11.5px keeps it an accent, not a shout,
+   so the nav tab and Search stay the view's real focal points. */
 .rail .lbl{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--faint);padding:0 10px 8px}
+  color:var(--amber);padding:0 10px 8px}
 .rail .lbl.mt{padding-top:18px}
 .rail form{margin:0 0 10px}
 .rail a{display:block;padding:9px 10px;border-radius:9px;font-size:13.5px;
@@ -140,6 +143,19 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .rail a:hover{background:rgba(232,147,58,.09);color:#eaa662}
 .rail a.on{color:var(--ink);background:#1b1f25}
 .rail a.on.pick{color:var(--amber);background:rgba(232,147,58,.12)}
+/* The category expander: checkbox + swapped label text, the house pattern. */
+.more-t{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.more-lbl{display:block;padding:9px 10px;border-radius:9px;font-size:12.5px;
+  font-weight:500;color:var(--faint);cursor:pointer;line-height:1.25}
+.more-lbl:hover{background:rgba(232,147,58,.09);color:#eaa662}
+.more-lbl .wo{display:none}
+.more-t:checked ~ .more-lbl .wc{display:none}
+.more-t:checked ~ .more-lbl .wo{display:inline}
+.subcats{display:none}
+.more-t:checked ~ .subcats{display:block}
+.subcats a.sub{font-size:12.5px;padding:8px 10px 8px 20px;color:#8e949e}
+.subcats a.sub:hover{color:#eaa662}
+.subcats a.sub.on.pick{color:var(--amber)}
 /* Desktop: the rail replaces the select row. Phone gets the reverse below. */
 .fieldrow{display:none}
 /* One amber primary per view (FEEL §2): Search keeps it, Go is a ghost. */
@@ -167,6 +183,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     padding:10px;margin:0 0 14px;background:var(--panel);
     border:1px solid var(--line);border-radius:12px}
   .rail a{padding:14px 10px}
+  .subcats a.sub{padding:15px 10px 15px 20px}
+  .more-lbl{padding:14px 10px}
   /* The old column stack existed to fit the field select; with the select
      gone, a column turns Search into a full-bleed amber bar. A row fits. */
   .findrow{flex-direction:row}
@@ -233,18 +251,6 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 <div class="dash-grid">
   <nav class="rail" aria-label="Categories">
     <span class="lbl">Categories</span>
-    {# The typeahead: native datalist, zero script. Values are canonical field
-       names; alias options carry label= so typing "web devel" surfaces the
-       right field. Enter submits the single-input form natively — no button,
-       which also keeps FEEL §2's one-amber-primary rule intact. #}
-    <form method="get" action="/">
-      <input type="text" name="field" list="fieldlist" autocomplete="off"
-             placeholder="Type a category" aria-label="Jump to a category">
-      <datalist id="fieldlist">
-        {% for f in all_fields %}<option value="{{ f }}"></option>{% endfor %}
-        {% for a, f in field_aliases.items() %}<option value="{{ f }}" label="{{ a }}"></option>{% endfor %}
-      </datalist>
-    </form>
     <a href="/" class="{% if not carry.field %}on{% endif %}">Everything</a>
     {% for g in groups %}
       <a href="{{ link(field=g.fields|join(',')) }}"
@@ -255,6 +261,17 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
        "other" went; this is the answer. #}
     <a href="{{ link(field='Other / general') }}"
        class="{% if carry.field == 'Other / general' %}on pick{% endif %}">Everything else</a>
+        {# All 24 fine-grained fields behind one expander — the founder's call:
+       "it seems wonky to search from a dropdown menu"; the typeahead is gone
+       and the broad groups stay put, with the rest one tap away. The house
+       checkbox pattern; the label swaps its own text when open. #}
+    <input type="checkbox" class="more-t" id="morecats-d">
+    <label class="more-lbl" for="morecats-d"><span class="wc">＋ All categories</span><span class="wo">－ Fewer categories</span></label>
+    <div class="subcats">
+      {% for f in all_fields %}
+      <a href="{{ link(field=f) }}" class="sub {% if carry.field == f %}on pick{% endif %}">{{ f }}</a>
+      {% endfor %}
+    </div>
     <span class="lbl mt">Refine</span>
     <a href="{{ link(where='' if where == 'remote' else 'remote') }}"
        class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
@@ -304,14 +321,6 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 <label class="filt-lbl" for="filt">▸ Filters</label>
 <nav class="rail" aria-label="Filters">
   <span class="lbl">Categories</span>
-  <form method="get" action="/gigs">
-    <input type="text" name="field" list="fieldlist" autocomplete="off"
-           placeholder="Type a category" aria-label="Jump to a category">
-    <datalist id="fieldlist">
-      {% for f in all_fields %}<option value="{{ f }}"></option>{% endfor %}
-      {% for a, f in field_aliases.items() %}<option value="{{ f }}" label="{{ a }}"></option>{% endfor %}
-    </datalist>
-  </form>
   <a href="{{ link(field='') }}" class="{% if not carry.field %}on{% endif %}">Everything</a>
   {% for g in groups %}
     <a href="{{ link(field=g.fields|join(',')) }}"
@@ -319,6 +328,17 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   {% endfor %}
   <a href="{{ link(field='Other / general') }}"
      class="{% if carry.field == 'Other / general' %}on pick{% endif %}">Everything else</a>
+    {# All 24 fine-grained fields behind one expander — the founder's call:
+     "it seems wonky to search from a dropdown menu"; the typeahead is gone
+     and the broad groups stay put, with the rest one tap away. The house
+     checkbox pattern; the label swaps its own text when open. #}
+  <input type="checkbox" class="more-t" id="morecats-g">
+  <label class="more-lbl" for="morecats-g"><span class="wc">＋ All categories</span><span class="wo">－ Fewer categories</span></label>
+  <div class="subcats">
+    {% for f in all_fields %}
+    <a href="{{ link(field=f) }}" class="sub {% if carry.field == f %}on pick{% endif %}">{{ f }}</a>
+    {% endfor %}
+  </div>
   <span class="lbl mt">Location</span>
   <a href="{{ link(where='') }}" class="{% if not where %}on{% endif %}">Everywhere</a>
   <a href="{{ link(where='remote') }}" class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
