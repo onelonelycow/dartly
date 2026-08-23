@@ -127,10 +127,14 @@ button.go.ghostgo{background:var(--panel);border:1px solid var(--line);color:var
 button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);color:var(--amber-l)}
 {% endblock %}
 
-{% macro pager(res, link) -%}
+{% macro pager(res, link, with_total=false) -%}
 <nav class="pager">
   {% if res.page > 0 %}<a href="{{ link(page=res.page - 1) }}">‹ Prev</a>{% else %}<span class="off">‹ Prev</span>{% endif %}
-  <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}</span>
+  {# The board's one and only gig count, and only on the BOTTOM pager: subtle,
+     out of the way, findable by anyone who scrolls for it. The founder's
+     placement, his reasoning verbatim: "if a user really wants to, they can
+     find it". #}
+  <span class="at">Page {{ "{:,}".format(res.page + 1) }} of {{ "{:,}".format(res.pages) }}{% if with_total %} · {{ "{:,}".format(res.total) }} gigs{% endif %}</span>
   {% if res.page + 1 < res.pages %}<a href="{{ link(page=res.page + 1) }}">Next ›</a>{% else %}<span class="off">Next ›</span>{% endif %}
 </nav>
 {%- endmacro %}
@@ -213,9 +217,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 </form>
 
 <div class="locrow">
-  <a class="gr-cat{% if not where %} on{% endif %}" href="{{ link(where='') }}">Everywhere · {{ "{:,}".format(loc.all) }}</a>
-  <a class="gr-cat{% if where == 'remote' %} on{% endif %}" href="{{ link(where='remote') }}">Remote I can take · {{ "{:,}".format(loc.remote) }}</a>
-  <a class="gr-cat{% if where == 'onsite' %} on{% endif %}" href="{{ link(where='onsite') }}">On-site / local · {{ "{:,}".format(loc.onsite) }}</a>
+  <a class="gr-cat{% if not where %} on{% endif %}" href="{{ link(where='') }}">Everywhere</a>
+  <a class="gr-cat{% if where == 'remote' %} on{% endif %}" href="{{ link(where='remote') }}">Remote I can take</a>
+  <a class="gr-cat{% if where == 'onsite' %} on{% endif %}" href="{{ link(where='onsite') }}">On-site / local</a>
 </div>
 
 <details class="narrow"{% if sel_size or sel_source or sel_langs or urgent %} open{% endif %}>
@@ -243,18 +247,20 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
 </details>
 
+{# The count line is gone — the founder's call, same as the field tallies:
+   after picking a field, "6,881 gigs for you" is the leaderboard number
+   resurfacing. The one total lives at the BOTTOM pager, subtle, findable by
+   anyone who wants it. Zero results still speak: the empty state below
+   already says "Nothing matches". #}
+{% if qf or can_rank %}
 <div class="toolbar">
-  <span class="count">{{ "{:,}".format(res.matched if ranked else res.total) }}
-    {{ "gig" if (res.matched if ranked else res.total) == 1 else "gigs" }}
-    {#- "for you" is what the app says on a full board; it reads oddly on
-        zero results, where the honest phrasing is just the count. -#}
-    {%- if q %} for “{{ q }}”{% elif res.total %} for you{% endif %}</span>
   {% if qf %}<a class="gr-cat sm" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
   {% if can_rank %}
     <a class="gr-cat sm{% if not ranked %} on{% endif %}" href="{{ link(sort='') }}">Newest</a>
     <a class="gr-cat sm{% if ranked %} on{% endif %}" href="{{ link(sort='fit') }}">Best match</a>
   {% endif %}
 </div>
+{% endif %}
 
 {# Pagination sits ABOVE the cards as well as below, like the app — on a list
    this long, having to scroll to the bottom to move a page is the difference
@@ -271,7 +277,7 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     <div class="gr-dash-end">Showing the newest {{ res.rows|length }}.
       <a href="/gigs">See the whole board →</a></div>
   {% else %}
-    {{ pager(res, link) }}
+    {{ pager(res, link, with_total=true) }}
   {% endif %}
 {% else %}
   {# Three different situations, three different sentences. One template that
