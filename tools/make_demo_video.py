@@ -451,7 +451,12 @@ def render(L):
     # static lockup drops away. Letters are drawn BEFORE the mark is pasted, so
     # the mark occludes them and they genuinely emerge from under it rather
     # than fading in beside it.
-    f_word = mp.font(96, "Bold")
+    # Weight 600 and the two-tone split are lifted straight from
+    # web/static/logo.svg: "Nabb" #ECEEF1, "ly" #E8933A. The mark supplies the
+    # N, so the type here carries "abb" light and "ly" amber and the finished
+    # lockup matches the one in the app header rather than approximating it.
+    f_word = mp.font(96, "Semibold")
+    WORD_LIGHT, WORD_AMBER = (236, 238, 241), (232, 147, 58)
     probe2 = ImageDraw.Draw(Image.new("RGB", (8, 8)))
     letters = "abbly"
     wgap = 9           # tight to the tile: the mark IS the N
@@ -487,8 +492,11 @@ def render(L):
         dl = ImageDraw.Draw(layer)
         a = ease(WORD_IN, WORD_IN + WORD_DUR, f)
         if a > 0:
-            dl.text((text_x, cy), letters, font=f_word,
-                    fill=(236, 238, 241, int(255 * a)), anchor="lm")
+            wx = text_x
+            for part, colour in (("abb", WORD_LIGHT), ("ly", WORD_AMBER)):
+                dl.text((wx, cy), part, font=f_word,
+                        fill=(*colour, int(255 * a)), anchor="lm")
+                wx += probe2.textlength(part, font=f_word)
         sl = ease(SLOGAN_IN, SLOGAN_IN + SLOGAN_DUR, f)
         if sl > 0:
             dl.text((W / 2, cy + mk // 2 + 66), SLOGAN, font=f_slogan,
