@@ -401,6 +401,9 @@ def _boot():
     sync.start_background()
     global DB_PATH
     DB_PATH = sync.BOARD_DB
+    # Market's first scan costs 4.6-6.1s on this box (measured from the
+    # founder's own visits); pre-building it here means no member ever pays it.
+    _market.warm()
 
 # Anonymous board pages are the same for everyone, so let the CDN keep one copy
 # for a minute. New gigs land every couple of minutes; a stale-while-revalidate
@@ -462,24 +465,24 @@ _facets = _Facets()
 
 class _Market:
     """
-    The Market page's numbers: one slot, TIME-based, hold-last-good.
+    The Market page's numbers: one slot, 900s clock, and STALE IS SERVED.
 
-    KEYED ON A CLOCK, NOT ON THE BOARD'S ROW COUNT. It was keyed on
-    board_total() first, which reads like the careful choice and is the wrong
-    one here: gigs land continuously, about two a minute, so the fingerprint
-    moved every ~30 seconds and effectively every Market view paid a full
-    rebuild. Measured — inserting ONE synthetic gig into a copy of the board
-    invalidated the whole cache and forced the scan again.
+    Measured on production 2026-08-23, from the founder's own three visits:
+    the scan costs 4.6-6.1s there against 1.4s locally, and because his visits
+    were hours apart, every one of them paid it — a 15-minute TTL that blocks
+    on rebuild means the first visitor past the window always eats the scan,
+    and with one Pro member that is effectively every visit.
 
-    Fifteen minutes, matching the ttl=900 the Streamlit version used before the
-    port. These are aggregate statistics over a 21-day window; they do not
-    move in a minute, and pretending they do costs a scan of the whole board
-    for a number that reads the same either way.
+    So expiry no longer blocks anyone. A request past the TTL gets the stale
+    dict immediately and a daemon thread rebuilds behind it; these are
+    aggregate statistics over a 21-day window, and nobody should wait 4.6s for
+    a fresher copy of a number that reads the same. Only the very first build
+    has no stale value to serve, and warm() covers that from a post-boot
+    thread, so in practice no request ever blocks on the scan.
 
-    The scan itself is I/O bound on the gig text, so its cost grows with the
-    board and is worst when the file is cold, right after a deploy. A clock
-    bounds that to four rebuilds an hour no matter how large the board gets,
-    which is the property that actually matters as intake grows.
+    The build lock stays: one builder at a time, foreground or background, on
+    the service that has been OOM-killed before. The scan itself streams
+    (~2MB peak) — see queries.market_stats.
     """
     TTL_S = 900
 
@@ -488,36 +491,63 @@ class _Market:
         self._build_lock = threading.Lock()
         self._built_at = 0.0
         self._value = None
-        self._building = False
+
+    def _build(self):
+        """One builder at a time; losers of the race adopt the winner's work."""
+        with self._build_lock:
+            with self._lock:
+                if (self._value is not None
+                        and time.monotonic() - self._built_at < self.TTL_S):
+                    return self._value
+            conn = queries.connect(DB_PATH)  # our own: the caller's may be
+            try:                             # closed by response time
+                built = queries.market_stats(conn=conn)
+            finally:
+                conn.close()
+            with self._lock:
+                self._value, self._built_at = built, time.monotonic()
+            return built
+
+    def _refresh_bg(self):
+        try:
+            self._build()
+        except Exception as e:
+            # Stale numbers stay up; the next request past the TTL retries.
+            print(f"  ! market stats background rebuild failed: "
+                  f"{type(e).__name__}: {e}", flush=True)
 
     def get(self, conn):
-        now = time.monotonic()
         with self._lock:
-            fresh_enough = (self._value is not None
-                            and now - self._built_at < self.TTL_S)
-            if fresh_enough or (self._value is not None and self._building):
-                return self._value
-            self._building = True
-        try:
-            # COLD CACHE IS THE STAMPEDE CASE, and the flag above cannot stop
-            # it: with no previous value to hand back, every concurrent first
-            # request fell through and ran its own full-board scan — N scans
-            # at once, right after a deploy, on the service that has been
-            # OOM-killed before. One builder; latecomers block here briefly
-            # and take its result. A slow scan makes a slow request instead of
-            # a second scan, which is the right trade on this box.
-            with self._build_lock:
-                with self._lock:
-                    if (self._value is not None
-                            and time.monotonic() - self._built_at < self.TTL_S):
-                        return self._value
-                built = queries.market_stats(conn=conn)
-                with self._lock:
-                    self._value, self._built_at = built, time.monotonic()
-                return built
-        finally:
-            with self._lock:
-                self._building = False
+            value, age = self._value, time.monotonic() - self._built_at
+        if value is not None:
+            if age >= self.TTL_S and not self._build_lock.locked():
+                threading.Thread(target=self._refresh_bg, daemon=True).start()
+            return value
+        return self._build()
+
+    def warm(self):
+        """
+        Build once in the background so no member ever pays the first scan.
+
+        WAITS FOR THE REFILL FIRST. The board wipes its disk on deploy and
+        streams back from the mirror over a couple of minutes; a scan run
+        against the half-full file would cache statistics computed over
+        whatever fraction had landed, and serve those wrong numbers for a
+        full TTL. FEEL §7 outranks warm caches. So the thread polls until
+        the row count stops looking like a boot in progress, then builds.
+        Costs one background scan per deploy, none of it on the boot path.
+        """
+        def _wait_then_build():
+            import sync
+            for _ in range(120):            # give a slow refill 20 minutes
+                try:
+                    if int(sync.state().get("rows") or 0) > 10000:
+                        break
+                except Exception:
+                    pass
+                time.sleep(10)
+            self._refresh_bg()
+        threading.Thread(target=_wait_then_build, daemon=True).start()
 
 
 _market = _Market()
