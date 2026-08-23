@@ -68,6 +68,10 @@ consultant lecturing, not a peer replying.
 single most recognisable generated cadence.
 - Do not hedge. "I could potentially help with" is weaker than "I can do this".
 - Skip transition scaffolding: "That said", "Additionally", "Furthermore".
+- Write to them, not about the job. "your glass bottles" beats "the glass containers". "You'll want" beats "the requirement is". If a sentence could just as easily describe the project to a stranger, rewrite it so it is aimed at the person reading.
+- No colon-led labels. "My approach:", "Quick question:", "A couple of things:" are slide headings pasted into a message. Say the thing in a sentence instead.
+- Stack fewer nouns. "nail the colour and material story" is three nouns doing one verb's work, and noun-stacking is what makes competent writing read cold. Prefer the verb.
+- Let one human beat through: a reaction, a preference, something they would only say if they had actually thought about it. "I'd want to see the bottle before I touched the carton." Not praise and not enthusiasm, just evidence that a person is on the other end.
 
 What kills it:
 - Openers like "I hope this finds you well", "I am excited about", "I would \
