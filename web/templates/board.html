@@ -37,8 +37,7 @@ a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
   color:#eaa662!important}
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.feedtop{display:flex;align-items:center;gap:10px}
-.feedtop .pager{flex:1;margin:0}
+.feedtop{display:flex;justify-content:flex-end;margin:0 0 10px}
 .refresh{flex:none;width:44px;height:44px;display:flex;align-items:center;
   justify-content:center;font-size:19px;line-height:1;
   border-radius:10px;border:1px solid var(--line);
@@ -262,8 +261,11 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {# Pagination sits ABOVE the cards as well as below, like the app — on a list
    this long, having to scroll to the bottom to move a page is the difference
    between browsing and giving up. #}
+{# The top pager is gone — the founder's call: the head of the page was
+   cluttered to begin with, and paging belongs at the bottom, where you have
+   actually finished the page. The earlier comment argued for both; he
+   overruled it, and the bottom one carries the total. #}
 <div class="feedtop">
-  {{ pager(res, link) }}
   {# The refresh, moved from the page heading DOWN to the feed's own edge and
      stripped to the symbol — the founder's call: next to the feed, users know
      what it acts on. Honest as ever: this service re-pulls from the mirror
