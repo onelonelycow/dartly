@@ -9,6 +9,14 @@
 {# The app's own stylesheet, extracted from app.py by tools/extract_css.py so
    the two cannot drift. Versioned by mtime so a deploy busts the cache without
    anyone remembering to. #}
+{# The tab icon. The files were already in /static; the link was never added,
+   so every board tab wore the browser's generic globe — the one place the
+   brand shows before the page even loads. Same favicon.png the marketing site
+   uses, so the tabs match across surfaces. SVG first for crisp rendering,
+   PNG as the universal fallback and the apple-touch icon. #}
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg">
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/favicon.png">
 <link rel="stylesheet" href="/static/nabbly.css?v={{ css_v }}">
 <style>
 /* Only what plain HTML needs and Streamlit provided for itself: a page frame,
