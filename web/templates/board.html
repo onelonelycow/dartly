@@ -37,7 +37,11 @@ a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
   color:#eaa662!important}
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
 .pagehead{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.refresh{flex:none;padding:9px 22px;border-radius:10px;border:1px solid var(--line);
+.feedtop{display:flex;align-items:center;gap:10px}
+.feedtop .pager{flex:1;margin:0}
+.refresh{flex:none;width:44px;height:44px;display:flex;align-items:center;
+  justify-content:center;font-size:19px;line-height:1;
+  border-radius:10px;border:1px solid var(--line);
   background:var(--panel);color:var(--ink);font-size:13.5px;text-decoration:none}
 .refresh:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .findrow{display:flex;gap:10px;margin:0 0 12px}
@@ -100,7 +104,7 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   /* Pre-existing 44px-floor misses the type-migration harness surfaced:
      .refresh measured 34px and .pager a 38px at 375. Not caused by the
      migration, but a thumb does not care whose fault a small target is. */
-  .refresh{padding:13px 16px;font-size:13.5px}
+  .refresh{width:44px;height:44px;padding:0;font-size:19px}
   .pager a,.pager span.off{padding:13px 12px;font-size:13.5px}
   .pager span.at{font-size:12.5px}
   /* THE DASHBOARD IS A GLANCE SURFACE. It shows the newest 8 and every control
@@ -190,14 +194,7 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {# The app's Gigs page: heading, search + field select on one row, the location
    segmented control, then everything else folded into "Narrow it down" so the
    page does not open with a wall of twenty pills. #}
-<div class="pagehead"><h2 class="sec-h">The whole <span class="accent">board</span></h2>
-  {# The app has this button and this page did not, which is the kind of small
-     absence that makes a familiar page feel subtly wrong. It is honest here:
-     this service refreshes its copy from the mirror every 60 seconds, so
-     reloading really does return gigs that were not on the page before. It
-     deliberately does NOT claim to fetch anything — nothing a visitor clicks
-     should imply work the server is not doing. #}
-  <a class="refresh" href="{{ link() }}" title="Reload for gigs added since this page loaded">Refresh</a></div>
+<div class="pagehead"><h2 class="sec-h">The whole <span class="accent">board</span></h2></div>
 
 <form class="findrow" method="get" action="/gigs">
   <input type="search" name="q" value="{{ q }}"
@@ -265,7 +262,16 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {# Pagination sits ABOVE the cards as well as below, like the app — on a list
    this long, having to scroll to the bottom to move a page is the difference
    between browsing and giving up. #}
-{{ pager(res, link) }}
+<div class="feedtop">
+  {{ pager(res, link) }}
+  {# The refresh, moved from the page heading DOWN to the feed's own edge and
+     stripped to the symbol — the founder's call: next to the feed, users know
+     what it acts on. Honest as ever: this service re-pulls from the mirror
+     every 60s, so reloading really does surface gigs that were not here
+     before. aria-label because a bare glyph says nothing to a screen reader. #}
+  <a class="refresh" href="{{ link() }}" aria-label="Refresh the feed"
+     title="Reload for gigs added since this page loaded">&#8635;</a>
+</div>
 {% endif %}
 
 {% if res.rows %}
