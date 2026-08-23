@@ -44,6 +44,14 @@ def run() -> dict:
         if when and when < cutoff:
             stale_count += 1
             continue
+        # EVERY title and body passes through _strip here, whatever the fetcher
+        # did. Five fetchers assemble titles straight from API fields
+        # ("position — company") with no cleaning, which is how "BÃ¢timent" and
+        # "&amp;" reached members' screens — the cleaning existed, those paths
+        # skipped it. One choke point protects future fetchers too, and _strip
+        # is idempotent on already-clean text so the double pass costs nothing.
+        post["title"] = sources.clean_stored(post["title"])
+        post["body"] = sources.clean_stored(post["body"])
         tags = classify.classify(post["title"], post["body"], post["source"])
         record = {
             **post,

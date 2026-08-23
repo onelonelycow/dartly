@@ -138,6 +138,13 @@ def _loop(on_update=None):
     # budget currently sitting at ~136s, which is worth paying for a sweep that
     # catches a classifier gap rather than trusting one path forever. If boot
     # ever gets tight, this is a fair thing to make conditional.
+    # BEFORE archive_not_openings, deliberately: one stored title reads
+    # "CANDIDATURE SPONTANÃE", and the non-openings phrase list can only catch
+    # it after the mojibake repair turns it back into "spontanée". Order is
+    # the difference between one boot and two. ~0.5s when it finds nothing:
+    # the marker prefilter is SQL, the repair only touches candidates.
+    _state["encoding_fixed"] = _step(
+        "fix_text_encoding", db.fix_text_encoding)
     _state["not_openings_removed"] = _step(
         "archive_not_openings", db.archive_not_openings)
     # fetch_freelancer() used to store Freelancer's own truncated preview
