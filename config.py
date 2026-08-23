@@ -248,12 +248,21 @@ HIRING_TAGS = ["[hiring]", "[task]"]
 # board, because "Initiativbewerbung" and "Banco de Talentos" are common
 # posting types there. Spanish, French, Italian and Dutch equivalents measured
 # near zero and are left out rather than carried dead.
+#
+# NO STEMS. Every phrase here must be whole words, unlike JOB_TYPES below which
+# allows stems. The matcher whole-word-bounds anything alphanumeric at both
+# ends, so a stem like "candidature spontan" compiles into a rule that can
+# never match — the é that follows is a word character and the boundary
+# refuses. That exact bug shipped and was caught in review; "opportunit*" needs
+# both "future opportunity" AND "future opportunities" for the same reason
+# (an optional trailing s cannot turn y into ies).
 NOT_AN_OPENING = {
     "open_application": [
         "general application", "open application", "open applications",
         "spontaneous application", "speculative application", "speculative cv",
         "unsolicited application", "general interest", "introduce yourself",
-        "initiativbewerbung", "banco de talentos", "candidature spontan",
+        "initiativbewerbung", "banco de talentos",
+        "candidature spontanée", "candidature spontanee",
     ],
     "talent_pool": [
         "talent pool", "talent pooling", "talent community", "talent network",
@@ -261,6 +270,7 @@ NOT_AN_OPENING = {
     ],
     "future": [
         "expression of interest", "register your interest", "future opening",
+        "future opportunity", "future opportunities",
         "future consideration", "futuras oportunidades",
     ],
     "test_posting": [

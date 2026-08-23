@@ -619,11 +619,13 @@ def archive_not_openings() -> int:
     archival written only to local sqlite is wiped on the next deploy and every
     row returns to the board as live.
 
-    THE BODY IS KEPT, which is where this deliberately differs from
-    archive_stale. That function drops it because the stale tail grows forever
-    and body is 93% of a row's weight. This is a bounded ~190 rows chosen by a
-    hand-written phrase list, so the space saved is meaningless and the ability
-    to undo the whole change with one UPDATE is worth more than the bytes.
+    THE BODY DOES NOT SURVIVE, despite this function leaving it alone.
+    compact_archived() runs on every boot and drops the body of every
+    is_demand = 0 row, so a row archived here keeps its title, source and url
+    and loses its text at the next restart. An earlier version of this
+    docstring promised a one-UPDATE undo; that undo does not exist, and review
+    caught the comment making a claim the codebase breaks two functions down.
+    Undo means re-fetching from the source. Fine for what these rows are.
     """
     import classify
     conn = connect()

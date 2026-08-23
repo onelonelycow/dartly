@@ -33,6 +33,17 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
   padding:14px 16px;color:#c8ced6;font-size:13.5px;line-height:1.65;margin:14px 0 0}
 .note a{color:var(--amber-l)}
 .cap{font-size:12.5px;color:var(--faint);margin-top:9px;line-height:1.6}
+/* base.html's mobile ramp sets a.gr-title,.gig .t to 16.5px, sized for board
+   CARDS in a list. On this page .gig .t is the page's subject, not one row of
+   many, so it holds its own 19px.
+   .wrap on the front, deliberately: this block renders ABOVE base's ramp (the
+   cascade fix), so at equal specificity the ramp still wins on source order —
+   the review's first version of this rule was media-scoped only, and measured
+   16.5px. One extra class outranks it; media queries never beat source order,
+   only specificity does. */
+@media (max-width:640px){
+  .wrap .gig .t{font-size:19px;line-height:1.3}
+}
 {% endblock %}
 
 {% block body %}

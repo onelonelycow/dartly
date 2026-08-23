@@ -485,6 +485,7 @@ class _Market:
 
     def __init__(self):
         self._lock = threading.Lock()
+        self._build_lock = threading.Lock()
         self._built_at = 0.0
         self._value = None
         self._building = False
@@ -498,10 +499,22 @@ class _Market:
                 return self._value
             self._building = True
         try:
-            built = queries.market_stats(conn=conn)
-            with self._lock:
-                self._value, self._built_at = built, time.monotonic()
-            return built
+            # COLD CACHE IS THE STAMPEDE CASE, and the flag above cannot stop
+            # it: with no previous value to hand back, every concurrent first
+            # request fell through and ran its own full-board scan — N scans
+            # at once, right after a deploy, on the service that has been
+            # OOM-killed before. One builder; latecomers block here briefly
+            # and take its result. A slow scan makes a slow request instead of
+            # a second scan, which is the right trade on this box.
+            with self._build_lock:
+                with self._lock:
+                    if (self._value is not None
+                            and time.monotonic() - self._built_at < self.TTL_S):
+                        return self._value
+                built = queries.market_stats(conn=conn)
+                with self._lock:
+                    self._value, self._built_at = built, time.monotonic()
+                return built
         finally:
             with self._lock:
                 self._building = False
