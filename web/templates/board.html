@@ -122,12 +122,46 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   .dash .gr-pills{margin:4px 0 0}
 }
 .fieldrow select{flex:1;min-width:0}
+/* THE DASHBOARD RAIL. Categories + refine as a left column: filters read
+   before the thing they filter (§9 — Linear, Vercel, Raycast all rail left),
+   and the feed narrows 880 -> 656, which is what makes the page read composed
+   instead of floating. Links filter IN PLACE — link() stays on "/" — so the
+   member never leaves their own feed. Active states are deliberately not
+   amber unless a filter is CHOSEN (.pick): the topbar tab is this view's
+   focal point, §2. */
+.dash-grid{display:grid;grid-template-columns:196px minmax(0,1fr);gap:0 28px;align-items:start}
+.dash-grid > .rail{grid-column:1}
+.dash-grid > .dash-col{grid-column:2;min-width:0}
+.rail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto;
+  display:flex;flex-direction:column;gap:2px;padding-top:29px}
+.rail .lbl{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--faint);padding:0 10px 8px}
+.rail .lbl.mt{padding-top:18px}
+.rail form{margin:0 0 10px}
+.rail a{display:block;padding:9px 10px;border-radius:9px;font-size:13.5px;
+  font-weight:500;color:#aeb4be;text-decoration:none;line-height:1.25}
+.rail a:hover{background:rgba(232,147,58,.09);color:#eaa662}
+.rail a.on{color:var(--ink);background:#1b1f25}
+.rail a.on.pick{color:var(--amber);background:rgba(232,147,58,.12)}
+/* Desktop: the rail replaces the select row. Phone gets the reverse below. */
+.fieldrow{display:none}
 /* One amber primary per view (FEEL §2): Search keeps it, Go is a ghost. */
 /* button.go is (0,1,1); a bare class loses to it and Go rendered amber — two
    primaries in one view, against FEEL §2. Match the element to outrank it. */
 button.go.ghostgo{background:var(--panel);border:1px solid var(--line);color:var(--ink);
   font-weight:600;padding:0 20px}
 button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);color:var(--amber-l)}
+/* Phone rules for the rail, LAST in this block on purpose: the desktop rules
+   above include .fieldrow{display:none}, and a media block that renders before
+   them loses at equal specificity — measured, again, the third time this exact
+   cascade shape has bitten this codebase in one week. */
+@media (max-width:640px){
+  /* The rail cannot fit a phone and the founder approved yesterday's layout:
+     the select + Go row IS the phone's category control. */
+  .dash-grid{display:block}
+  .rail{display:none}
+  .fieldrow{display:flex}
+}
 {% endblock %}
 
 {% macro pager(res, link, with_total=false) -%}
@@ -157,13 +191,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
 {% endif %}
 
-{% if landing %}
-<form class="searchrow" method="get" action="/gigs">
-  <input type="search" name="q" value="{{ q }}"
-         placeholder="Search gigs" aria-label="Search gigs">
-  <button class="go" type="submit">Search</button>
-</form>
-{% endif %}
+{# The dashboard search form is gone — the founder's structure: this is the
+   member's customized feed, and searching is what /gigs is for. The rail and
+   its typeahead are the dashboard's way to narrow. #}
 
 {% if landing %}
   {# FEEL §9: a control set that wraps on a phone collapses, it does not get
@@ -174,7 +204,7 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
      link was a near-no-op) and "Urgent only" lives in /gigs' Narrow it down.
      The <hr> is gone for good: §9, never state a separation twice with a rule
      AND a gap. #}
-  <form class="searchrow fieldrow" method="get" action="/gigs">
+  <form class="searchrow fieldrow" method="get" action="/">
     <select name="field" aria-label="Browse by field">
       <option value="">Every field</option>
       {% for g in groups %}
@@ -186,8 +216,46 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {% endif %}
 
 {% if qf_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ qf_note }}</div>{% endif %}
+{% if field_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ field_note }}</div>{% endif %}
 
-{% if landing %}<h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
+{% if landing %}
+<div class="dash-grid">
+  <nav class="rail" aria-label="Categories">
+    <span class="lbl">Categories</span>
+    {# The typeahead: native datalist, zero script. Values are canonical field
+       names; alias options carry label= so typing "web devel" surfaces the
+       right field. Enter submits the single-input form natively — no button,
+       which also keeps FEEL §2's one-amber-primary rule intact. #}
+    <form method="get" action="/">
+      <input type="text" name="field" list="fieldlist" autocomplete="off"
+             placeholder="Type a category" aria-label="Jump to a category">
+      <datalist id="fieldlist">
+        {% for f in all_fields %}<option value="{{ f }}"></option>{% endfor %}
+        {% for a, f in field_aliases.items() %}<option value="{{ f }}" label="{{ a }}"></option>{% endfor %}
+      </datalist>
+    </form>
+    <a href="/" class="{% if not carry.field %}on{% endif %}">Everything</a>
+    {% for g in groups %}
+      <a href="{{ link(field=g.fields|join(',')) }}"
+         class="{% if g.fields|join(',') == carry.field %}on pick{% endif %}">{{ g.name }}</a>
+    {% endfor %}
+    {# The classifier's fallback bucket — 11% of the board, and without this
+       link it was reachable only through Everything. The founder asked where
+       "other" went; this is the answer. #}
+    <a href="{{ link(field='Other / general') }}"
+       class="{% if carry.field == 'Other / general' %}on pick{% endif %}">Everything else</a>
+    <span class="lbl mt">Refine</span>
+    <a href="{{ link(where='' if where == 'remote' else 'remote') }}"
+       class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
+    <a href="{{ link(where='' if where == 'onsite' else 'onsite') }}"
+       class="{% if where == 'onsite' %}on pick{% endif %}">On-site / local</a>
+    <a href="{{ link(urgent='' if urgent else 1) }}"
+       class="{% if urgent %}on pick{% endif %}">Urgent</a>
+    <a href="{{ link(size='' if 'Large' in sel_size else 'Large') }}"
+       class="{% if 'Large' in sel_size %}on pick{% endif %}">Large budget</a>
+  </nav>
+  <div class="dash-col">
+  <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
 
 {% if not landing %}
 {# The app's Gigs page: heading, search + field select on one row, the location
@@ -282,8 +350,13 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
 
   {% if landing %}
+    {# The handoff carries the filter: a filtered feed offering a link that
+       silently drops the filter would be a small lie. #}
     <div class="gr-dash-end">Showing the newest {{ res.rows|length }}.
-      <a href="/gigs">See the whole board →</a></div>
+      <a href="/gigs{% if carry.field %}?field={{ carry.field|urlencode }}{% endif %}">
+        {%- if carry.field %}See all of these →{% else %}See the whole board →{% endif %}</a></div>
+  </div>{# /dash-col #}
+</div>{# /dash-grid #}
   {% else %}
     {{ pager(res, link, with_total=true) }}
   {% endif %}
@@ -322,6 +395,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
       {% endif %}
     {% endif %}
   </div>
+  {# When the DASHBOARD comes up empty the grid opened above must still close —
+     the happy path closes it before the handoff line. #}
+  {% if landing %}</div></div>{% endif %}
 {% endif %}
 
 {% endblock %}

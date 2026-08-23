@@ -609,6 +609,42 @@ def _market_view(m: dict) -> dict:
     }
 
 
+
+def resolve_field(raw: str) -> str:
+    """
+    Turn what someone typed into the category box into real job_type values.
+
+    Exact field names pass through untouched (the rail links and /gigs chips
+    send those, comma-joined). An alias maps to its canonical field, so
+    "web dev" lands on Development / tech. A unique case-insensitive PREFIX of
+    either is accepted, so "web devel" lands where "web dev" does — Safari's
+    datalist matches on prefix and someone will submit half a word. Anything
+    still unmatched is dropped rather than sent to SQL as a filter that
+    matches nothing: a typo showing the whole board with a note beats an
+    empty board with the wrong apology. Cost: a dict lookup, worst case a
+    scan of ~100 short strings, no DB.
+    """
+    import config
+    fields = list(config.JOB_TYPES.keys()) + ["Other / general"]
+    out = []
+    for part in (p.strip() for p in (raw or "").split(",")):
+        if not part:
+            continue
+        if part in fields:
+            out.append(part); continue
+        low = part.lower()
+        hit = config.FIELD_ALIASES.get(low)
+        if hit:
+            out.append(hit); continue
+        pre = {f for f in fields if f.lower().startswith(low)}
+        pre |= {config.FIELD_ALIASES[a] for a in config.FIELD_ALIASES
+                if a.startswith(low)}
+        if len(pre) == 1:
+            out.append(pre.pop())
+        # ambiguous or unmatched: dropped
+    return ",".join(dict.fromkeys(out))
+
+
 def _csv(v: str | None) -> list[str]:
     return [x for x in (v or "").split(",") if x.strip()]
 
@@ -1417,6 +1453,12 @@ def board(request: Request,
     # MUST be first: sets the thread-local scope the per-user helpers read.
     webauth.scope_for_request(request)
     me = webauth.current_email(request)
+    raw_field = field
+    field = resolve_field(field)
+    # The note fires only when someone TYPED something and none of it survived
+    # resolution — the one case where silence would look like a broken filter.
+    field_note = ("No category matches that. Showing everything."
+                  if raw_field.strip() and not field else "")
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
            "urgent_only": bool(urgent), "where_work": where, "since_hours": 0}
@@ -1575,6 +1617,8 @@ def board(request: Request,
         "tab": "dashboard" if landing else "gigs",
         "res": res, "facets": facets, "q": q, "loc": loc,
         "sel_field": _csv(field), "sel_size": _csv(size),
+        "all_fields": list(config.JOB_TYPES.keys()) + ["Other / general"],
+        "field_aliases": config.FIELD_ALIASES, "field_note": field_note,
         "sel_source": _csv(source), "sel_langs": _csv(langs),
         "urgent": bool(urgent), "where": where, "link": link,
         "sort": sort, "ranked": ranked, "can_rank": can_rank,
