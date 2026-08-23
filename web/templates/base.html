@@ -117,6 +117,16 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+/* The card head: title and save star as flex siblings, so the star owns real
+   space instead of being absolutely positioned over the text — five of eight
+   dashboard titles measurably ran underneath it. Shared here because the card
+   renders on the board, Saved and the dashboard. */
+.gr-cardhead{display:flex;align-items:flex-start;gap:10px}
+.gr-cardtitle{flex:1;min-width:0}
+.gr-saveform{flex:none}
+/* The star's 44px hit sizing lives in board.html and saved.html, which carry
+   the button's own rule and render after this sheet — a copy here loses on
+   source order and just confuses the next reader. */
 /* THE SECTION HEADING, DECLARED ONCE. It used to be declared in board.html,
    saved.html and profile.html separately, at 26px on one page and 31px on the
    other two: the same element, two sizes, depending which tab you were on.

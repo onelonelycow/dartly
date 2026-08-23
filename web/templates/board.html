@@ -17,9 +17,11 @@
 @media (prefers-reduced-motion:reduce){
   .gr-cardwrap,.gr-cardwrap:hover{transition:none;transform:none}
 }
-.gr-saveform{position:absolute;top:13px;right:14px}
 .gr-save{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
-  color:#6b7280;font-family:inherit;padding:2px 4px}
+  color:#6e747e;font-family:inherit;
+  /* 44px hit floor: padding grows the target, the negative margin claws the
+     row height back. Was 23px tall — a fingertip-sized star on a phone. */
+  padding:13px 11px;margin:-11px -8px}
 .gr-save:hover{color:var(--amber-l)}
 .gr-save.on{color:var(--amber)}
 .grouprow{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:10px 0 4px}
@@ -47,7 +49,7 @@ a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
    search box is the main control on this page; it cannot be the thing that
    loses. */
 .findrow input[type=search]{flex:1.6;min-width:0}
-.findrow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
+.findrow select,.fieldrow select{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);
   color:var(--ink);border-radius:12px;padding:13px 14px;font-size:14.5px;
   font-family:inherit;appearance:none;cursor:pointer;
   background-image:linear-gradient(45deg,transparent 50%,#868D98 50%),
@@ -101,7 +103,28 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   .refresh{padding:13px 16px;font-size:13.5px}
   .pager a,.pager span.off{padding:13px 12px;font-size:13.5px}
   .pager span.at{font-size:12.5px}
+  /* THE DASHBOARD IS A GLANCE SURFACE. It shows the newest 8 and every control
+     on it leads to /gigs, so a phone card only needs enough to decide "open
+     this or scroll on". Preview text is /gigs' job, where you compare instead
+     of glance; desktop keeps it too, it has the room. Every selector carries
+     .dash so it outranks base's ramp and the shared sheet on specificity, not
+     source order — the draft.html lesson, measured twice now. */
+  .dash .gr-body,.dash .gr-more-lbl,.dash .gr-more-cb{display:none}
+  .dash .gr-bodywrap,.dash .gr-bodywrap.gr-nobody{display:flex;align-items:center;
+    justify-content:space-between;gap:12px;padding-top:9px}
+  .dash .gr-posted{margin:0;min-width:0}
+  /* 44px floor: Draft measured 31px before this. */
+  .dash .draftlink{flex:none;margin-top:0;padding:15px 14px}
+  .dash .gr-cardwrap{padding:13px 15px 11px}
+  .dash .gr-pills{margin:4px 0 0}
 }
+.fieldrow select{flex:1;min-width:0}
+/* One amber primary per view (FEEL §2): Search keeps it, Go is a ghost. */
+/* button.go is (0,1,1); a bare class loses to it and Go rendered amber — two
+   primaries in one view, against FEEL §2. Match the element to outrank it. */
+button.go.ghostgo{background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  font-weight:600;padding:0 20px}
+button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);color:var(--amber-l)}
 {% endblock %}
 
 {% macro pager(res, link) -%}
@@ -114,7 +137,13 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 
 {% block body %}
 
-{% if landing %}
+{% if landing and not me %}
+  {# The pitch, for people who have not heard it. A member has: the nav already
+     says Dashboard, and three lines of headline before the first gig was most
+     of a phone screen spent telling them what they already pay for. Signed-out
+     "/" is the landing page nabbly.co sends everyone to, so it keeps the full
+     hero. Cache-safe: the me-dependent variant is served private,no-store
+     (web/main.py), the CDN only ever holds the anonymous one. #}
   <div class="gr-hero">
     <div class="gr-h1">Every gig, the moment it drops.<br>
       You just <span class="accent">reply first.</span></div>
@@ -124,23 +153,29 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 {% if landing %}
 <form class="searchrow" method="get" action="/gigs">
   <input type="search" name="q" value="{{ q }}"
-         placeholder="Search gigs — figma, shopify, copywriting…" aria-label="Search gigs">
+         placeholder="Search gigs" aria-label="Search gigs">
   <button class="go" type="submit">Search</button>
 </form>
 {% endif %}
 
 {% if landing %}
-  {# The five broad buckets from config.CATEGORY_GROUPS — the same grouping the
-     app's dashboard offers, so the entry points match. #}
-  <div class="grouprow">
-    {% for g in groups %}
-      <a class="gr-cat" href="/gigs?field={{ g.fields|join(',')|urlencode }}">{{ g.name }}</a>
-    {% endfor %}
-  </div>
-  {# Both quick entries the app's dashboard offers, in its order. #}
-  <span class="quiet"><a href="/gigs?qf=recent">Posted today</a>
-    &nbsp;&nbsp;<a href="/gigs?qf=urgent">Urgent only</a></span>
-  <hr class="rule">
+  {# FEEL §9: a control set that wraps on a phone collapses, it does not get
+     restyled. These were five chips in three ragged rows, 140px tall and 32px
+     hit targets, before the first gig. One select, same five buckets, same
+     comma-joined field lists the chips sent, submitted by its own button — no
+     script. "Posted today" is gone (the dashboard is already newest-first, the
+     link was a near-no-op) and "Urgent only" lives in /gigs' Narrow it down.
+     The <hr> is gone for good: §9, never state a separation twice with a rule
+     AND a gap. #}
+  <form class="searchrow fieldrow" method="get" action="/gigs">
+    <select name="field" aria-label="Browse by field">
+      <option value="">Every field</option>
+      {% for g in groups %}
+        <option value="{{ g.fields|join(',') }}">{{ g.name }}</option>
+      {% endfor %}
+    </select>
+    <button class="go ghostgo" type="submit">Go</button>
+  </form>
 {% endif %}
 
 {% if qf_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ qf_note }}</div>{% endif %}
@@ -223,8 +258,8 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 {% endif %}
 
 {% if res.rows %}
-  <div class="cards">
-    {% for g in res.rows %}{{ card(g, me, saved_ids, here, ranked) }}{% endfor %}
+  <div class="cards{% if landing %} dash{% endif %}">
+    {% for g in res.rows %}{{ card(g, me, saved_ids, here, ranked, landing) }}{% endfor %}
   </div>
 
   {% if landing %}

@@ -1,19 +1,26 @@
 {# One gig card, using the app's own .gr-* classes so it renders identically.
    Structure mirrors app.py's gig_card(): title + star, pill row, clamped body
    with a pure-CSS "see more", then the posted line. #}
-{% macro card(g, me, saved_ids, here, ranked) -%}
+{% macro card(g, me, saved_ids, here, ranked, compact=false) -%}
 <div class="gr-cardwrap">
-  {% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
-  {% if me %}
-    {% set is_saved = g.id|string in saved_ids %}
-    <form method="post" action="/save" class="inline gr-saveform">
-      <input type="hidden" name="gig" value="{{ g.id }}">
-      <input type="hidden" name="back" value="{{ here }}">
-      <button class="gr-save{% if is_saved %} on{% endif %}" type="submit"
-              title="{{ 'Saved — click to remove' if is_saved else 'Save for later' }}"
-        >{{ "★" if is_saved else "☆" }}</button>
-    </form>
-  {% endif %}
+  {# MEASURED AT 375px: five of eight dashboard titles ran UNDER the save star
+     — title right edge at 335 against the star's left edge at 320, and the
+     founder screenshotted the same bleed. The star was absolutely positioned,
+     so the title had no idea it was there. A flex head reserves the space
+     instead of hoping. #}
+  <div class="gr-cardhead">
+    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a></div>
+    {% if me %}
+      {% set is_saved = g.id|string in saved_ids %}
+      <form method="post" action="/save" class="inline gr-saveform">
+        <input type="hidden" name="gig" value="{{ g.id }}">
+        <input type="hidden" name="back" value="{{ here }}">
+        <button class="gr-save{% if is_saved %} on{% endif %}" type="submit"
+                title="{{ 'Saved — click to remove' if is_saved else 'Save for later' }}"
+          >{{ "★" if is_saved else "☆" }}</button>
+      </form>
+    {% endif %}
+  </div>
 
   <div class="gr-pills">
     {% if ranked and g._score %}<span class="gr-pill match">{{ g._score }}% match</span>{% endif %}
@@ -26,7 +33,11 @@
     {# Apply-method last on purpose: it is the one pill carrying no signal
        colour, so it reads as a trailing note rather than competing with
        match/budget/urgent for first-glance attention. #}
-    {% if g.apply_note %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
+    {# NOT on the dashboard: 95% of the newest rows carry this note, and a
+       badge on 95% of cards distinguishes nothing — it is a constant printed
+       eight times, costing each card a pill row. /gigs keeps it, where the
+       mix is wider and someone is choosing between rows. #}
+    {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
   </div>
 
   {% if g.preview %}

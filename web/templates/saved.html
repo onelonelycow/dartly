@@ -16,9 +16,11 @@
 @media (prefers-reduced-motion:reduce){
   .gr-cardwrap,.gr-cardwrap:hover{transition:none;transform:none}
 }
-.gr-saveform{position:absolute;top:13px;right:14px}
 .gr-save{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
-  color:#6b7280;font-family:inherit;padding:2px 4px}
+  color:#6e747e;font-family:inherit;
+  /* 44px hit floor: padding grows the target, the negative margin claws the
+     row height back. Was 23px tall — a fingertip-sized star on a phone. */
+  padding:13px 11px;margin:-11px -8px}
 .gr-save:hover{color:var(--amber-l)}
 .gr-save.on{color:var(--amber)}
 .notice{background:rgba(232,147,58,.07);border:1px solid #3a2b17;border-radius:12px;
