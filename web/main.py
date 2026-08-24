@@ -1582,7 +1582,10 @@ def board(request: Request,
 
     landing = request.url.path == "/"
     if landing:
-        res["rows"] = res["rows"][:8]
+        # 25, matching /gigs' page size — 8 read as scarcity on a board holding
+        # tens of thousands, and the founder called it. The dash-end line
+        # renders rows|length, so the copy follows this number by itself.
+        res["rows"] = res["rows"][:25]
     decorate(res["rows"], ranked)
     # Ordered by how many gigs sit behind each bucket, not by however the dict
     # happens to be written — the app's dashboard leads with the biggest, and a
