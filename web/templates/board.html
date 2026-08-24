@@ -140,21 +140,29 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .rail form{margin:0 0 10px}
 .rail a{display:block;padding:9px 10px;border-radius:9px;font-size:13.5px;
   font-weight:500;color:#aeb4be;text-decoration:none;line-height:1.25}
-.rail a:hover{background:rgba(232,147,58,.09);color:#eaa662}
+/* HOVER IS NEUTRAL, DELIBERATELY. It was amber-on-amber-tint, near-identical
+   to the active state, so mousing down the list painted three oranges at once
+   — the founder screenshotted exactly that and called it. Now the amber says
+   one thing only: this filter is CHOSEN. Hover just raises. */
+.rail a:hover{background:#1b1f25;color:var(--ink)}
 .rail a.on{color:var(--ink);background:#1b1f25}
-.rail a.on.pick{color:var(--amber);background:rgba(232,147,58,.12)}
+/* Chosen: amber text + a slim left bar, no glowing pill — enough signal at a
+   fraction of the orange mass, next to labels that keep their small-caps
+   amber as the rail's only decorative use of it. */
+.rail a.on.pick{color:var(--amber);background:#1b1f25;
+  box-shadow:inset 2px 0 0 var(--amber)}
 /* The category expander: checkbox + swapped label text, the house pattern. */
 .more-t{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 .more-lbl{display:block;padding:9px 10px;border-radius:9px;font-size:12.5px;
   font-weight:500;color:var(--faint);cursor:pointer;line-height:1.25}
-.more-lbl:hover{background:rgba(232,147,58,.09);color:#eaa662}
+.more-lbl:hover{background:#1b1f25;color:var(--ink)}
 .more-lbl .wo{display:none}
 .more-t:checked ~ .more-lbl .wc{display:none}
 .more-t:checked ~ .more-lbl .wo{display:inline}
 .subcats{display:none}
 .more-t:checked ~ .subcats{display:block}
 .subcats a.sub{font-size:12.5px;padding:8px 10px 8px 20px;color:#8e949e}
-.subcats a.sub:hover{color:#eaa662}
+.subcats a.sub:hover{color:var(--ink)}
 .subcats a.sub.on.pick{color:var(--amber)}
 /* Desktop: the rail replaces the select row. Phone gets the reverse below. */
 .fieldrow{display:none}
