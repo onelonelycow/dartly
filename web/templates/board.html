@@ -137,11 +137,10 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   border-radius:12px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,.5);
   max-height:320px;overflow-y:auto}
 .sugbox.on{display:block}
-.sugbox b{display:flex;justify-content:space-between;align-items:center;gap:12px;
-  padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:500;
-  color:var(--ink2);cursor:pointer}
+.sugbox b{display:block;padding:10px 12px;border-radius:8px;font-size:13.5px;
+  font-weight:500;color:var(--ink2);cursor:pointer}
 .sugbox b:hover,.sugbox b.sel{background:rgba(232,147,58,.1);color:var(--amber-l)}
-.sugbox b span{font-size:12.5px;color:var(--faint);font-weight:400}
+
 /* /gigs: search sits row 1 in the feed column, rail and feed share row 2, so
    the rail's Categories label tops out level with the feed, not the search. */
 .gigs-search{grid-column:2;grid-row:1}
@@ -457,10 +456,11 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
       panel.innerHTML='';
       items.forEach(function(it,i){
         var row=document.createElement('b');
+        // NAME ONLY. The founder's standing rule: counts live on Market, and
+        // a tally beside each name turns a choice into a leaderboard. The
+        // ranking already carries the volume — the list is ordered by it, so
+        // the most-hired term is simply first.
         row.textContent=it.t;
-        var n=document.createElement('span');
-        n.textContent=it.n.toLocaleString()+' gigs';
-        row.appendChild(n);
         if(i===sel) row.className='sel';
         row.addEventListener('mousedown',function(e){ e.preventDefault(); pick(it.t); });
         panel.appendChild(row);
