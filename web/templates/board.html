@@ -118,6 +118,7 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .dash-grid{display:grid;grid-template-columns:196px minmax(0,1fr);gap:0 28px;align-items:start}
 .dash-grid > .rail{grid-column:1}
 .dash-grid > .dash-col{grid-column:2;min-width:0}
+.dash-grid > .dash-span{grid-column:1 / -1}
 /* /gigs: search sits row 1 in the feed column, rail and feed share row 2, so
    the rail's Categories label tops out level with the feed, not the search. */
 .gigs-search{grid-column:2;grid-row:1}
@@ -398,12 +399,15 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
 
   {% if landing %}
+  </div>{# /dash-col #}
     {# The handoff carries the filter: a filtered feed offering a link that
-       silently drops the filter would be a small lie. #}
-    <div class="gr-dash-end">Showing the newest {{ res.rows|length }}.
+       silently drops the filter would be a small lie. Outside the feed column
+       ON PURPOSE: centered inside it, this line sat visibly off-axis from the
+       centered footer right below — two centers stacked, and the founder saw
+       it. Spanning the grid, it shares the footer's center. #}
+    <div class="gr-dash-end dash-span">Showing the newest {{ res.rows|length }}.
       <a href="/gigs{% if carry.field %}?field={{ carry.field|urlencode }}{% endif %}">
         {%- if carry.field %}See all of these →{% else %}See the whole board →{% endif %}</a></div>
-  </div>{# /dash-col #}
 </div>{# /dash-grid #}
   {% else %}
     {{ pager(res, link, with_total=true) }}
