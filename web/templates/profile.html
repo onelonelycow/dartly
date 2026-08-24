@@ -319,8 +319,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
           <div>
             <div class="plan-name">On file</div>
             <div class="plan-what">{{ "{:,}".format(resume_chars) }} characters,
-              stored with your account and read only when a draft is written.
-              It stays until you delete it, right here.</div>
+              stored with your account and read only when a draft is written.</div>
           </div>
           <button class="ghost small" type="submit" form="cv-clear">Delete</button>
         </div>
@@ -329,8 +328,8 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
                {% if not is_pro %}disabled{% endif %}>
         <button class="ghost small" type="submit" form="cv"
                 {% if not is_pro %}disabled{% endif %}>Upload</button>
-        <p class="hint">PDF, DOCX or TXT. Stored with your account, used only
-          to write your drafts, and yours to delete any time.</p>
+        <p class="hint">PDF, DOCX or TXT. Stored with your account and used only
+          to write your drafts.</p>
       {% endif %}
     </div>
 
