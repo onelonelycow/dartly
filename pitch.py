@@ -532,10 +532,28 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     # this text, and it shouldn't change on a reload just because a fresh
     # random pick landed differently.
     openers = (
-        f'Hi, "{title}" caught my eye.',
-        f'Reaching out about "{title}".',
-        f'I\'d like to help with "{title}".',
+        # THE CLIENT IS READING THIS ON THEIR OWN POST. Quoting their title
+        # back at them in quote marks is what a mail merge does, and the
+        # founder called it: "it seems robotic when you add the WHOLE title".
+        # It also scales badly — "Business Operations & Microsoft 365 Workflow
+        # Implementation Project" as the first eight words of a reply reads
+        # like a form letter no matter what follows.
+        #
+        # So a short title is referenced plainly, without quote marks, because
+        # a human would say it that way. A long one is not said at all: the
+        # specificity moves to the questions further down, which are drawn from
+        # what the post actually leaves out and are far better proof of having
+        # read it than repeating the heading.
+        f'Hi — happy to help with this one.',
+        f'Hi, this is squarely what I do.',
+        f'Hi — this looks like a good fit.',
     )
+    # NO TITLE AT ALL, INCLUDING SHORT ONES. Slotting even a short title into
+    # a sentence was tried and abandoned: job titles are not noun phrases.
+    # "Need a copywriter for landing pages" produced "need a copywriter for
+    # landing pages is a good fit for me", and no length rule fixes a title
+    # that starts with a verb. Titles beginning "Need a", "Looking for",
+    # "Hiring" are everywhere on this board.
     seed = hashlib.sha256(str(gig.get("id") or title).encode()).hexdigest()
     opener = openers[int(seed, 16) % len(openers)]
 

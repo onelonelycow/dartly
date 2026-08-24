@@ -254,7 +254,12 @@ button.go:hover{background:var(--amber-l)}
          founder cut the duplicate: one thing, one place. #}
         <div class="acct-hd">{{ me }}</div>
         <a href="/profile">Profile &amp; settings</a>
-        <a href="{{ app_url }}/?nav=pricing">Upgrade to Pro</a>
+        {% set v = viewer(request) %}
+        {# Only offer the upgrade to someone who has not got it. This was
+           unconditional, so a founding Pro member was told to upgrade. #}
+        {% if not v.pro %}<a href="{{ app_url }}/?nav=pricing">Upgrade to Pro</a>{% endif %}
+        {# Admin lives on the app and was reachable only by typing the URL. #}
+        {% if v.owner %}<a href="{{ app_url }}/?nav=admin">Admin</a>{% endif %}
         <div class="acct-sep"></div>
         <form method="post" action="/signout">
           <button type="submit">Sign out</button>
