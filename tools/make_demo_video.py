@@ -209,6 +209,7 @@ def draw_master(L, k=2):
     half = L["f"][2] * k * 0.62
     boxes, y = [], L["body"] * k
     for pi, para in enumerate(paras):
+        seq = 0                      # word index within this paragraph
         for line in para:
             x = M * k
             for wi, (word, colour) in enumerate(line):
@@ -216,7 +217,8 @@ def draw_master(L, k=2):
                     x += space
                 ww = d.textlength(word, font=f_body)
                 d.text((x, y), word, font=f_body, fill=colour, anchor="lm")
-                boxes.append((pi, colour, x, y - half, x + ww, y + half))
+                boxes.append((pi, seq, colour, x, y - half, x + ww, y + half))
+                seq += 1
                 x += ww
             y += L["lead"] * k
         y += L["gap"] * k
@@ -233,9 +235,41 @@ def draw_master(L, k=2):
 
 
 def union(boxes):
-    """Bounding box of word boxes, which carry (para, colour) before coords."""
-    return (min(b[2] for b in boxes), min(b[3] for b in boxes),
-            max(b[4] for b in boxes), max(b[5] for b in boxes))
+    """Bounding box of word boxes, which carry (para, seq, colour) then coords."""
+    return (min(b[3] for b in boxes), min(b[4] for b in boxes),
+            max(b[5] for b in boxes), max(b[6] for b in boxes))
+
+
+def sentence_with(text, needle):
+    """The whole sentence containing `needle`, terminators kept."""
+    parts, out, buf = text.split(". "), None, ""
+    for i, chunk in enumerate(parts):
+        buf = chunk + ("." if i < len(parts) - 1 else "")
+        if needle in buf:
+            out = buf
+            break
+    return (out or text).strip()
+
+
+def words_of(boxes, pi, para_text, target):
+    """
+    The word boxes covering `target` inside paragraph `pi`.
+
+    Matched on the word sequence rather than character offsets, because wrap()
+    tokenises on spaces and a box exists per token — so finding the run of
+    tokens is exact, and stays correct if the reply is regenerated and the text
+    moves. Highlighting the SENTENCE rather than the bare clause is the point:
+    it shows the setting landing inside a real line the client would read.
+    """
+    para_words = para_text.split()
+    want = target.split()
+    for i in range(len(para_words) - len(want) + 1):
+        if para_words[i:i + len(want)] == want:
+            lo, hi = i, i + len(want)
+            hit = [b for b in boxes if b[0] == pi and lo <= b[1] < hi]
+            if hit:
+                return hit
+    raise AssertionError(f"target not found in paragraph {pi}: {target[:60]!r}")
 
 
 def frame_rect(content, W, H, mW, mH):
@@ -355,10 +389,11 @@ def render(L):
     master, boxes = draw_master(L, K)
     mW, mH = master.size
 
-    hot = [b for b in boxes if b[1] == mp.HOT]
+    # Each beat lights the whole SENTENCE the setting shaped, not the fragment.
     para_last = max(b[0] for b in boxes)
+    hot = words_of(boxes, 0, REPLY[0], sentence_with(REPLY[0], HOT_SPAN))
+    avoid = words_of(boxes, 1, REPLY[1], REPLY[1])
     sig = [b for b in boxes if b[0] == para_last]
-    avoid = [b for b in boxes if b[0] == 1]
     targets = [frame_rect(union(r), W, H, mW, mH)
                for r in (hot, avoid, sig)]
     full = (0.0, 0.0, float(mW), float(mH))
