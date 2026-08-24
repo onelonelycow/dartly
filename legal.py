@@ -11,7 +11,7 @@ the same commit — a privacy policy that quietly stops being true is worse than
 not having one.
 """
 
-UPDATED = "28 July 2026"
+UPDATED = "24 August 2026"
 CONTACT = "hello@nabbly.co"
 
 
@@ -74,14 +74,14 @@ Nabbly helps freelancers find work by gathering job postings from public boards
 and putting them in one place. This policy explains what we collect, why, and
 what we never do with it. It is written to be read, not to be survived.
 
-### The short version
+### Summary
 
 We collect the little we need to show you relevant gigs and let you sign back
 in. We do not sell your data, we do not run advertising trackers, and we do not
 share your information with advertisers. Usage is counted on our own server,
 and a copy of those counts goes to PostHog, the service we use to read them.
 
-### What we collect
+### Information We Collect
 
 **When you sign in.** Your email address. If you use Google sign-in, Google
 tells us your verified email address and your name, and nothing else. We only
@@ -132,13 +132,13 @@ and we set no advertising cookies and no tracking pixels.
 your browser session and appears in your address bar. Anyone who obtains that
 link can access your account, so treat it like a password and do not share it.
 
-### What we do not collect
+### Information We Do Not Collect
 
 We never ask for and never store passwords, payment card details, government
 identification, or your contacts. Nabbly does not currently take payments at
 all.
 
-### Who we share it with
+### How We Share Information
 
 We do not sell your data or share it with advertisers, ever. We use a small
 number of service providers to run Nabbly, and they only handle what they need
@@ -158,20 +158,20 @@ to:
 
 We will also disclose information if the law genuinely requires it.
 
-### Where your data is held
+### Where Your Data Is Stored
 
 Nabbly is operated from the United States, and the services we rely on store
 data there. If you use Nabbly from elsewhere, including the UK or the EU, your
 information is transferred to and processed in the United States.
 
-### How long we keep it
+### Data Retention
 
 We keep your account and profile for as long as your account exists, so you can
 sign back in and keep your settings. Ask us to delete your account and we will
 remove your account record, your profile, your alert settings, and any gigs you
 forwarded in.
 
-### Your choices
+### Your Rights and Choices
 
 You can edit or clear your profile at any time from the Profile page, turn off
 any alert channel by removing it, stop forwarding newsletters at any time, and
@@ -182,19 +182,19 @@ Depending on where you live you may have additional rights over your data, such
 as requesting a copy of it or asking us to correct it. Email us and we will
 help.
 
-### Children
+### Children's Privacy
 
 Nabbly is meant for working adults and is not directed at children under 16. We
 do not knowingly collect their information.
 
-### Security, honestly stated
+### Security
 
 We take reasonable care with your data, but Nabbly is an early product built by
 a very small team. Sign-in works through a link-based token rather than a
 password, which is convenient and less secure than a full password system.
 Please do not store anything sensitive in your profile.
 
-### Changes
+### Changes to This Policy
 
 If we change this policy we will update the date at the top. If a change
 meaningfully affects how we handle your data, we will say so clearly in the app.
@@ -210,10 +210,12 @@ TERMS = f"""
 
 **Last updated: {UPDATED}**
 
-These terms cover your use of Nabbly. By using it, you agree to them. Please
-read the parts about job listings and drafted replies especially carefully.
+These Terms of Service ("Terms") govern your access to and use of Nabbly (the
+"Service"). By accessing or using the Service, you agree to be bound by these
+Terms. Sections 2 and 3, covering third-party listings and AI-assisted drafts,
+limit what you may rely on the Service for and warrant close attention.
 
-### What Nabbly is
+### 1. The Service
 
 Nabbly gathers job and project postings from public job boards and hiring
 communities and shows them in one place, sorted by field, budget and urgency. If
@@ -223,43 +225,47 @@ pull opportunities out of them for your own board.
 Nabbly is an early preview. Features may change or be withdrawn, and the service
 may be unavailable at times.
 
-### Job listings are not ours, and we do not vet them
+### 2. Third-Party Listings
 
-This is the most important thing on this page.
+Listings displayed on the Service are **created and published by third
+parties** and are collected substantially as published. Nabbly classifies,
+ranks and presents them. **Nabbly does not verify listings, does not screen the
+parties who post them, and is not a party to any agreement you enter into with
+them.**
 
-The listings on Nabbly are **written and posted by third parties**, gathered as
-they were published. We classify and rank them. **We do not verify them, we do
-not screen the people behind them, and we are not a party to any arrangement you
-make with them.**
+You should exercise the same diligence you would apply to any other source of
+work. In particular, treat as high-risk any request for advance payment,
+unpaid "test" work, identity documents or financial details early in a
+conversation, or pressure to move quickly to another channel. Nabbly is not
+responsible for the conduct of any party who posts a listing, for listings that
+prove inaccurate, expired or fraudulent, or for the outcome of any engagement
+you enter into.
 
-Treat every listing with the same caution you would anywhere else. Be
-particularly wary of anyone asking you to pay money up front, requesting unpaid
-"test" work, asking for identity documents or bank details early, or pushing you
-to move quickly off-platform. We are not responsible for the conduct of anyone
-who posts a listing, for listings that turn out to be inaccurate, expired, or
-fraudulent, or for how any engagement you enter into turns out.
+Nabbly makes no representation that you will obtain work, be selected for any
+particular engagement, or earn any particular amount.
 
-We make no promise that you will find work, win any particular job, or earn any
-particular amount.
+### 3. AI-Assisted Drafts
 
-### Drafted replies
+Where the drafted reply feature is available, Nabbly uses artificial
+intelligence to generate a draft based on the listing and your profile.
+**Drafts are a starting point and are not finished work.** AI systems can
+produce inaccurate output, misinterpret a listing, or state details that are
+not correct. You are solely responsible for reviewing, editing and verifying
+any material before you send it, and for its content once sent.
 
-Where the drafted reply feature is available, Nabbly uses AI to write a starting
-draft based on the posting and your profile. **It is a starting point, not
-finished work.** AI can be wrong, can misread a posting, and can invent details.
-You are responsible for reading, editing, and standing behind anything you send.
+### 4. Your Account
 
-### Your account
+You are responsible for all activity that occurs under your account.
+Authentication uses a link containing a private token rather than a password;
+any person holding that link can access your account. Keep it confidential and
+notify us at **{CONTACT}** if you believe your account has been accessed by
+someone else.
 
-You are responsible for what happens under your account. Sign-in uses a link
-containing a private token rather than a password, so anyone with that link can
-use your account. Keep it to yourself. Tell us at **{CONTACT}** if you think
-someone else has access.
+You agree to provide accurate information when registering and not to
+impersonate any other person or entity. You must be at least 16 years old to
+hold an account.
 
-Give us accurate information when you sign up, and do not impersonate anyone
-else.
-
-### Free and Pro
+### 5. Plans, Trials and Payment
 
 The board itself is free to search and browse, and every gig comes with a
 drafted reply on any plan. Pro adds ranked picks, replies drafted from the
@@ -272,7 +278,7 @@ today records your interest and does not create a payment or an obligation. If
 we introduce paid plans, we will make the price and terms clear before anyone is
 charged.
 
-### Forwarded newsletters
+### 6. Forwarded Material
 
 If you forward material to Nabbly, you confirm you are allowed to do so, and you
 remain bound by the terms of whatever subscription or list it came from. Gigs we
@@ -280,42 +286,52 @@ extract from your forwarded email stay private to your account and are not added
 to the public board or shown to other users. Do not forward material you are
 contractually forbidden from sharing.
 
-### Using Nabbly fairly
+### 7. Acceptable Use
 
-Please do not scrape, bulk-download, or republish the board; resell or
-redistribute Nabbly's content as your own product; try to break, overload, or
-gain unauthorised access to the service; use Nabbly to send spam or anything
-unlawful; or use it to collect other people's personal information.
+You agree not to: scrape, bulk-download or republish the board; resell or
+redistribute Nabbly's content as your own product or service; attempt to
+disrupt, overload, or gain unauthorised access to the Service or its
+infrastructure; use the Service to transmit unsolicited or unlawful material;
+or use it to collect personal information about other people.
 
-### Our content
+### 8. Intellectual Property
 
-The Nabbly name, logo, design, and software belong to us. Job listings belong to
-whoever wrote them. Anything you write, such as your profile and bio, remains
-yours; you give us permission to use it to operate the service for you, for
-example by including relevant details in a drafted reply you request.
+The Nabbly name, logo, design and software are owned by us and protected by
+applicable intellectual property law. Listings remain the property of their
+authors. Content you provide, including your profile and biography, remains
+yours; you grant us a limited, non-exclusive licence to use it solely to
+operate the Service on your behalf, such as incorporating relevant details into
+a draft you have requested. That licence ends when you delete the content or
+your account.
 
-### No warranty
+### 9. Disclaimer of Warranties
 
-Nabbly is provided "as is". We do not promise it will be uninterrupted,
-error-free, complete, or that any listing is accurate or still open. To the
-fullest extent the law allows, we exclude implied warranties.
+The Service is provided "as is" and "as available". To the fullest extent
+permitted by law, Nabbly disclaims all warranties, express or implied,
+including any implied warranties of merchantability, fitness for a particular
+purpose and non-infringement. We do not warrant that the Service will be
+uninterrupted, error-free or complete, or that any listing is accurate,
+current or still open.
 
-### Limitation of liability
+### 10. Limitation of Liability
 
-To the fullest extent the law allows, Nabbly and the people behind it are not
-liable for lost income, lost opportunities, lost data, or any indirect or
-consequential loss arising from your use of the service, or from any dealings
-with a person or company whose listing you found through us.
+To the fullest extent permitted by law, Nabbly and its operators shall not be
+liable for lost income, lost opportunities, lost data, or any indirect,
+incidental, special or consequential damages arising out of or relating to your
+use of the Service, or to any dealings with a party whose listing you found
+through it.
 
-Nothing here excludes liability that cannot legally be excluded.
+Nothing in these Terms excludes or limits liability that cannot lawfully be
+excluded or limited.
 
-### Ending it
+### 11. Suspension and Termination
 
-You can stop using Nabbly whenever you like and ask us to delete your account at
-**{CONTACT}**. We may suspend or close an account that breaches these terms or
-puts the service or its users at risk.
+You may stop using the Service at any time and may request deletion of your
+account at **{CONTACT}**. We may suspend or terminate an account that breaches
+these Terms or that places the Service or its users at risk. Sections 8 through
+10 survive termination.
 
-### Governing law
+### 12. Governing Law and Venue
 
 These terms are governed by the laws of the State of Oregon, United States,
 without regard to its conflict of law rules. You and we agree that any dispute
@@ -326,13 +342,28 @@ jurisdiction.
 If you use Nabbly from outside the United States, you do so on your own
 initiative and are responsible for complying with your own local laws.
 
-### Changes
+### 13. General
+
+If any provision of these Terms is held unenforceable, that provision will be
+limited or severed to the minimum extent necessary and the remaining
+provisions will remain in full force. Our failure to enforce any provision is
+not a waiver of it. You may not assign or transfer these Terms without our
+written consent; we may assign them in connection with a merger, acquisition
+or sale of assets.
+
+### 14. Entire Agreement
+
+These Terms, together with the Privacy Policy, constitute the entire agreement
+between you and Nabbly regarding the Service and supersede any prior
+understandings on that subject.
+
+### 15. Changes to These Terms
 
 We may update these terms. We will change the date at the top and, where the
 change matters, say so in the app. Continuing to use Nabbly after that means you
 accept the updated terms.
 
-### Contact
+### 16. Contact
 
 **{CONTACT}**
 """
