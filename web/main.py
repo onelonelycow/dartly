@@ -1633,7 +1633,15 @@ def board(request: Request,
     # the app does, and was the last 190 gigs of the app/board gap.
     ctx["city"] = (prof.get("city") or "").strip()
     ctx["relocate"] = bool(prof.get("open_to_relocate"))
-    ranked = sort == "fit" and can_rank
+    # THE DASHBOARD IS RANKED, /gigs IS NOT UNLESS ASKED. The founder believed
+    # his dashboard was already personal and it was not — landing never passed
+    # sort=fit, so every member saw the same newest-25 as everyone else. That
+    # is the whole difference between the two tabs. Measured cost: 24ms -> 41ms,
+    # almost all of it the 500-row scoring window, which /gigs?sort=fit already
+    # pays. Free members and members without skills keep recency: can_rank
+    # refuses both, deliberately, because ranking against an empty profile is
+    # theatre.
+    ranked = can_rank and (sort == "fit" or request.url.path == "/")
 
     # Quick-filters, the same three the Dashboard's stat clicks send:
     # "posted in the last 24h", "in your skills", "urgent only".
