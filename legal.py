@@ -95,12 +95,14 @@ used to sort the board around you.
 
 **Your resume, if you upload one (Pro).** You can upload a resume so drafted
 replies can cite your real, specific experience instead of a generic bio line.
-**We do not store it.** It is held only in your browser's session — never
-written to our database, never mirrored anywhere — and it disappears the
-moment you close the tab or upload a new one. The one thing that does happen:
-when you ask for a drafted reply, the resume text is sent to Anthropic to
-write that reply, the same as the rest of your profile. It is not retained by
-us before or after that.
+**It is stored with your account** — the extracted text, kept alongside your
+profile — so it is still there the next time you sign in, and **you can
+delete it at any moment** from your settings, which removes it immediately
+and everywhere. It is read for exactly one purpose: when you ask for a
+drafted reply, the resume text is sent to Anthropic to write that reply, the
+same as the rest of your profile. It is never shown to anyone else, never
+used for anything but your own drafts, and never sent anywhere except to
+write a reply you asked for.
 
 **Your alert settings, if you set them up.** Only the channels you choose to
 configure: a phone number for SMS, a notification topic, a Telegram bot token
