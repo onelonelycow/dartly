@@ -48,6 +48,16 @@
       source at once.</p>
     <a class="go" href="{{ app_url }}/?nav=pricing">See Pro</a>
   </div>
+{% elif not m.total %}
+  {# The refill window: right after a deploy the board streams back from the
+     mirror oldest-first, and for a minute there is nothing fresh to count.
+     Zero charts on a page about a 50,000-gig market read as the product
+     being broken; the honest sentence does not. Never cached (web/main.py),
+     so the next load self-heals. #}
+  <div class="upsell">
+    <p>The board is refilling after an update — Market's numbers are minutes
+      away. Refresh shortly and this page will be full again.</p>
+  </div>
 {% else %}
 
   {{ stat_cards(m.cards) }}

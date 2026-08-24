@@ -5572,9 +5572,13 @@ with _rcol:
         f'<span>{html.escape(_plan)}</span></div>'
         # One entry, not two. "Your profile" and "Location & settings" were
         # different labels on the identical ?nav=profile link, which reads as a
-        # menu with a broken item. Profile genuinely IS the settings page now —
-        # it holds your details, location, alerts, resume and plan.
-        f'<a href="{ilink("?nav=profile")}" target="_self">Profile &amp; settings</a>'
+        # menu with a broken item. STRAIGHT TO THE BOARD when signed in: the
+        # app's own profile page is a one-button stub pointing there, and the
+        # founder hit it and called it — "this page doesn't even do anything".
+        # A menu item that opens a page whose only job is another click is a
+        # broken menu item with extra steps. The stub stays reachable as the
+        # BOARD_URL-unset fallback only.
+        f'<a href="{(BOARD_URL + "/profile") if (ACCESS["signed_in"] and BOARD_URL) else ilink("?nav=profile")}" target="_self">Profile &amp; settings</a>'
         # One line, every tab, opt-in (the menu only opens on click) — the
         # actual upgrade card still lives at the bottom of the Dashboard feed
         # for anyone reading gigs, but that's a long scroll away on a busy

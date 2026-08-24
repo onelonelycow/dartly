@@ -504,8 +504,16 @@ class _Market:
                 built = queries.market_stats(conn=conn)
             finally:
                 conn.close()
-            with self._lock:
-                self._value, self._built_at = built, time.monotonic()
+            # A ZERO IS NEVER CACHED. The founder hit this live: the post-
+            # deploy refill streams oldest rows first, so there is a window
+            # where the file has plenty of rows and none of them are fresh —
+            # market_stats honestly returns 0 and the cache then served that
+            # zero for a full TTL. A zero total on a product whose whole job
+            # is having gigs is a boot artefact, not a fact worth remembering:
+            # serve it once, honestly, and rebuild on the next request.
+            if built.get("total"):
+                with self._lock:
+                    self._value, self._built_at = built, time.monotonic()
             return built
 
     def _refresh_bg(self):
@@ -596,6 +604,7 @@ def _market_view(m: dict) -> dict:
                                  round(v / row_total * 100, 1))
                                 for t, v in cells if v]))
     return {
+        "total": m["total"],
         "cards": cards,
         "hot_rows": bars(hot),
         "hot_links": hot,
@@ -881,11 +890,18 @@ def _sid(request: Request) -> str:
 @app.post("/resume")
 async def resume_upload(request: Request):
     """
-    Take a resume, keep the text in memory for this visit, never on disk.
+    Take a resume and KEEP it, until its owner deletes it.
 
-    Same promise the app has always made and site/privacy.html still states:
-    processed only to write your reply, never stored. resume_store.py holds it
-    in a process-local dict with a two-hour life.
+    This replaced a two-hour in-memory hold. The founder's call, 2026-08-24,
+    and his reasoning was right: a resume that silently vanishes between
+    sign-ins does not read as privacy, it reads as broken, and re-uploading
+    every session is friction on the exact feature the resume powers. Privacy
+    is served by the visible Delete button and by scope: the text is stored
+    in this person's own account scope (local json + the durable mirror, the
+    same rails the profile rides, healing across deploys) and is read only to
+    write their drafts. site/privacy.html and the settings copy changed in
+    the same commit — a stored resume under a "never stored" promise would
+    be the site lying.
 
     A file it cannot read is not an error. extract_text returns "" for a
     scanned PDF, something corrupt or something oversized, and the honest
@@ -910,7 +926,13 @@ async def resume_upload(request: Request):
                     return raw
             text = resume_mod.extract_text(_Shim())
             if text:
-                resume_store.put(_sid(request), text)
+                import paths
+                from datetime import datetime, timezone
+                paths.write_user_json("resume.json", {
+                    "text": text.strip()[:resume_store.MAX_CHARS],
+                    "file": (up.filename or "")[:120],
+                    "uploaded_at": datetime.now(timezone.utc).isoformat(),
+                })
         except Exception:
             text = ""
     return RedirectResponse(
@@ -922,8 +944,10 @@ async def resume_upload(request: Request):
 async def resume_clear(request: Request):
     webauth.scope_for_request(request)
     try:
+        import paths
+        paths.write_user_json("resume.json", {})
         import resume_store
-        resume_store.clear(_sid(request))
+        resume_store.clear(_sid(request))   # any pre-change in-memory copy
     except Exception:
         pass
     return RedirectResponse("/profile?tab=you&saved_ok=1", status_code=303)
@@ -1025,7 +1049,8 @@ def _write_draft(request: Request, g: dict, prof: dict, me: str) -> str:
     import pitch
     try:
         import resume_store
-        cv = resume_store.get(_sid(request))
+        import paths
+        cv = (paths.read_user_json("resume.json", {}) or {}).get("text", "")
     except Exception:
         cv = ""
     return pitch.draft_pitch(g, prof, who=me, resume_text=cv)
@@ -1256,7 +1281,9 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         inbox_address = ""
     try:
         import resume_store
-        _resume_chars = resume_store.held_chars(_sid(request))
+        import paths
+        _resume = paths.read_user_json("resume.json", {}) or {}
+        _resume_chars = len(_resume.get("text", ""))
     except Exception:
         _resume_chars = 0
     resp = templates.TemplateResponse(request, "profile.html", {
