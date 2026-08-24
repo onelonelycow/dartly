@@ -244,6 +244,12 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {%- endmacro %}
 
 {% block body %}
+{# Search typeahead, shared by both search boxes. Native datalist: the browser
+   filters as you type, no script. Phrases only, never the canonical category
+   names — see web/main.py for why. #}
+<datalist id="searchterms">
+  {% for t in search_terms %}<option value="{{ t }}"></option>{% endfor %}
+</datalist>
 
 {% if landing and not me %}
   {# The pitch, for people who have not heard it. A member has: the nav already
@@ -272,7 +278,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    needs is a way to search WITHIN that. The form submits back to "/" — you
    search your feed and stay in it. The category rail lives on /gigs only. #}
 <form class="searchrow" method="get" action="/">
-  <input type="search" name="q" value="{{ q }}"
+  <input type="search" name="q" value="{{ q }}" list="searchterms"
+         autocomplete="off"
          placeholder="Search your feed" aria-label="Search your feed">
   <button class="go" type="submit">Search</button>
 </form>
@@ -303,7 +310,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    to the feed's edge beside the refresh. #}
 <div class="dash-grid gigs">
 <form class="findrow gigs-search" method="get" action="/gigs">
-  <input type="search" name="q" value="{{ q }}"
+  <input type="search" name="q" value="{{ q }}" list="searchterms"
+         autocomplete="off"
          placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
   <button class="go" type="submit">Search</button>
   {% for k, v in carry.items() %}{% if k != 'field' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
