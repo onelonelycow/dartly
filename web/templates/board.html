@@ -124,6 +124,24 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    era; one column centers itself, so the closing line and footer share a
    centerline for free. */
 .dash-solo{max-width:680px;margin:0 auto}
+/* PREDICTIVE SEARCH. The board's one piece of JavaScript, and it buys the
+   thing a static list could not: suggestions drawn from what is actually on
+   the board right now, with the gig count behind each. Terms only, never
+   individual postings — a posting is gone in 21 days. Progressive by
+   construction: the form is a plain GET, so with the script blocked or
+   broken the box still searches exactly as before. */
+.sugwrap{position:relative;flex:1;min-width:0;display:flex}
+.sugwrap input{width:100%}
+.sugbox{display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;
+  z-index:40;background:var(--bg2);border:1px solid var(--line2);
+  border-radius:12px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,.5);
+  max-height:320px;overflow-y:auto}
+.sugbox.on{display:block}
+.sugbox b{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:500;
+  color:var(--ink2);cursor:pointer}
+.sugbox b:hover,.sugbox b.sel{background:rgba(232,147,58,.1);color:var(--amber-l)}
+.sugbox b span{font-size:12.5px;color:var(--faint);font-weight:400}
 /* /gigs: search sits row 1 in the feed column, rail and feed share row 2, so
    the rail's Categories label tops out level with the feed, not the search. */
 .gigs-search{grid-column:2;grid-row:1}
@@ -244,12 +262,6 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 {%- endmacro %}
 
 {% block body %}
-{# Search typeahead, shared by both search boxes. Native datalist: the browser
-   filters as you type, no script. Phrases only, never the canonical category
-   names — see web/main.py for why. #}
-<datalist id="searchterms">
-  {% for t in search_terms %}<option value="{{ t }}"></option>{% endfor %}
-</datalist>
 
 {% if landing and not me %}
   {# The pitch, for people who have not heard it. A member has: the nav already
@@ -278,9 +290,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    needs is a way to search WITHIN that. The form submits back to "/" — you
    search your feed and stay in it. The category rail lives on /gigs only. #}
 <form class="searchrow" method="get" action="/">
-  <input type="search" name="q" value="{{ q }}" list="searchterms"
-         autocomplete="off"
-         placeholder="Search your feed" aria-label="Search your feed">
+  <span class="sugwrap"><input type="search" name="q" value="{{ q }}"
+         autocomplete="off" placeholder="Search your feed"
+         aria-label="Search your feed"></span>
   <button class="go" type="submit">Search</button>
 </form>
 <div class="dash-solo">
@@ -310,9 +322,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    to the feed's edge beside the refresh. #}
 <div class="dash-grid gigs">
 <form class="findrow gigs-search" method="get" action="/gigs">
-  <input type="search" name="q" value="{{ q }}" list="searchterms"
-         autocomplete="off"
-         placeholder="Search gigs — figma, shopify, medical…" aria-label="Search gigs">
+  <span class="sugwrap"><input type="search" name="q" value="{{ q }}"
+         autocomplete="off" placeholder="Search gigs — figma, shopify, medical…"
+         aria-label="Search gigs"></span>
   <button class="go" type="submit">Search</button>
   {% for k, v in carry.items() %}{% if k != 'field' %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
 </form>
@@ -426,4 +438,56 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   {% if landing %}</div>{% else %}</div></div>{% endif %}
 {% endif %}
 
+
+{# The board's ONLY script. Kept small and defensive on purpose: every line
+   above this point works without it. #}
+<script>
+(function(){
+  var boxes=document.querySelectorAll('.sugwrap');
+  boxes.forEach(function(wrap){
+    var input=wrap.querySelector('input[type=search]');
+    if(!input) return;
+    var panel=document.createElement('div');
+    panel.className='sugbox'; wrap.appendChild(panel);
+    var items=[], sel=-1, timer=null, lastQ='';
+    function hide(){ panel.classList.remove('on'); sel=-1; }
+    function pick(t){ input.value=t; hide(); input.form.submit(); }
+    function draw(){
+      if(!items.length){ hide(); return; }
+      panel.innerHTML='';
+      items.forEach(function(it,i){
+        var row=document.createElement('b');
+        row.textContent=it.t;
+        var n=document.createElement('span');
+        n.textContent=it.n.toLocaleString()+' gigs';
+        row.appendChild(n);
+        if(i===sel) row.className='sel';
+        row.addEventListener('mousedown',function(e){ e.preventDefault(); pick(it.t); });
+        panel.appendChild(row);
+      });
+      panel.classList.add('on');
+    }
+    function fetchNow(){
+      var q=input.value.trim();
+      if(q.length<2||q===lastQ){ if(q.length<2) hide(); return; }
+      lastQ=q;
+      fetch('/suggest?q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}})
+        .then(function(r){ return r.ok?r.json():[]; })
+        .then(function(d){ items=d||[]; sel=-1; draw(); })
+        .catch(function(){ hide(); });
+    }
+    input.addEventListener('input',function(){
+      clearTimeout(timer); timer=setTimeout(fetchNow,120);
+    });
+    input.addEventListener('keydown',function(e){
+      if(!panel.classList.contains('on')) return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); sel=Math.min(sel+1,items.length-1); draw(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); sel=Math.max(sel-1,-1); draw(); }
+      else if(e.key==='Enter'&&sel>=0){ e.preventDefault(); pick(items[sel].t); }
+      else if(e.key==='Escape'){ hide(); }
+    });
+    input.addEventListener('blur',function(){ setTimeout(hide,120); });
+  });
+})();
+</script>
 {% endblock %}

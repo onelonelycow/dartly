@@ -692,3 +692,47 @@ def market_stats(conn: sqlite3.Connection | None = None) -> dict:
     finally:
         if own:
             conn.close()
+
+
+def suggest_index(conn: sqlite3.Connection | None = None) -> list:
+    """
+    The search vocabulary, LEARNED FROM THE BOARD rather than hand-written.
+
+    Every classifier keyword counted against live public titles, keeping only
+    terms with at least MIN_LIVE gigs behind them. That threshold is the whole
+    point: a suggestion the board cannot answer is worse than no suggestion,
+    and this way the list shrinks and grows with what people are actually
+    hiring for. Measured 2026-08-24: 825 keywords in, 418 survive.
+
+    Titles only, not bodies. A body mentions skills in passing ("familiarity
+    with Figma a plus") and would suggest terms the board cannot really fill;
+    a title names the work.
+
+    Returns [(term, count)] sorted by count. ~3.4s over 55k titles, so it is
+    cached upstream per board version, never built per request.
+    """
+    import config
+    own = conn is None
+    conn = conn or connect()
+    try:
+        where, params, frm = _filters(conn, "", None, None, None, None,
+                                      "", None, 0, "", False)
+        titles = [r[0].lower() for r in
+                  conn.execute(f"SELECT p.title {frm} {where}", params) if r[0]]
+    finally:
+        if own:
+            conn.close()
+    terms = set()
+    for keywords in config.JOB_TYPES.values():
+        for k in keywords:
+            k = k.strip().lower()
+            if len(k) >= 3:
+                terms.add(k)
+    counts: dict = {}
+    for t in titles:
+        for k in terms:
+            if k in t:
+                counts[k] = counts.get(k, 0) + 1
+    MIN_LIVE = 5
+    return sorted(((k, n) for k, n in counts.items() if n >= MIN_LIVE),
+                  key=lambda x: -x[1])
