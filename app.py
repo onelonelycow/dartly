@@ -5299,6 +5299,42 @@ _SIDE_PAGES = {"profile": "Profile", "about": "About", "faq": "FAQ",
 # forged query param can't buy a free upgrade. Same redirect-then-stop shape
 # as ?save=/?won=/?rate= below, so the URL doesn't keep the session id around
 # on refresh.
+# ── ONE FRONT DOOR ────────────────────────────────────────────────────────
+# The board is the product now: feed, search, categories, Market, settings all
+# moved there. This app kept rendering its OWN dashboard, so anyone holding an
+# old bookmark — app.nabbly.co was the main site for months — landed in the
+# previous generation and saw a different Nabbly. The founder hit exactly that
+# on his Windows desktop and asked why the site looked completely different.
+#
+# So the browsing surfaces redirect and the money/admin surfaces stay. Pricing,
+# checkout, unsubscribe and admin all live here and are untouched; the redirect
+# only fires for a signed-in member, because a signed-out visitor lands on the
+# marketing site's own paths and Streamlit is where sign-in still happens.
+#
+# BOARD_URL unset means no redirect at all — the same guard settings and Market
+# already use, so clearing one variable cannot strand anybody.
+_BOARD_PAGES = {"dashboard": "/", "gigs": "/gigs", "market": "/market",
+                "saved": "/saved", "profile": "/profile", "alerts": "/profile"}
+# THIS BLOCK RUNS BEFORE EVERY OTHER QUERY-PARAM HANDLER, so it must not
+# swallow their URLs. A returning Stripe checkout arrives as ?stripe_session=
+# with no nav, and redirecting it would bounce a paying member away before the
+# payment is confirmed. The admin key arrives as ?admin=. Same for the one-shot
+# save/won/rate actions and the unsubscribe token. Any of these present means
+# this URL is a job for a handler below, not a front door.
+_PASS_THROUGH = ("stripe_session", "admin", "save", "won", "rate", "t", "gid", "e")
+if (ACCESS["signed_in"] and BOARD_URL
+        and not any(st.query_params.get(k) for k in _PASS_THROUGH)):
+    _want = (st.query_params.get("nav", "") or "").lower()
+    # No ?nav= at all is the bare front door: app.nabbly.co typed or bookmarked.
+    _dest = _BOARD_PAGES.get(_want) if _want else "/"
+    if _dest:
+        st.markdown(
+            f'<meta http-equiv="refresh" content="0; '
+            f'url={html.escape(BOARD_URL + _dest, quote=True)}">',
+            unsafe_allow_html=True)
+        st.caption("Taking you to the board…")
+        st.stop()
+
 if st.query_params.get("stripe_session"):
     _sid = st.query_params.get("stripe_session", "")
     _ok, _ = billing.confirm_session(_sid)
