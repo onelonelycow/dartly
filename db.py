@@ -531,11 +531,29 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
 # AND WATCH INTAKE, NOT BOARD SIZE. Every source added raises the steady state
 # permanently. That is the trigger to retune this number.
 #
+# RETUNED 2026-08-24, 21 -> 14, because the wall arrived. The board reached
+# 85,056 rows and boot hit 232s of the 270s budget — 86% — and the uptime
+# check reported it in the words it was written for: "BUDGET, NOT AN OUTAGE".
+# Past 270s a deploy does not come up at all, so this was a week or two from
+# being an outage rather than a warning. 14 days holds ~52,000 rows and boots
+# in ~142s, which is 53% and real headroom again.
+#
+# The product argument was already written above and still holds: a
+# three-week-old freelance gig is nearly always filled, and a dead listing is
+# worse than no listing. What it costs is honest — the board shows ~52,000
+# instead of ~74,000, and nobody paginates that deep, but the headline number
+# is smaller.
+#
+# A BIGGER INSTANCE DOES NOT FIX THIS. The boot cost is transferring the file
+# from the mirror, not processing it; more CPU buys nothing. Checked at the
+# same time: the board already pulls only is_demand=1, so there is no dead
+# weight to drop instead.
+#
 # 21 rather than 45 because freelance work moves faster than salaried hiring. A
 # six-week-old gig is nearly always filled, and a dead listing is worse than no
 # listing (see archive_stale). The board is a marketing number; the part a
 # member actually feels is whether the links they click are still alive.
-STALE_DAYS = 21
+STALE_DAYS = 14
 
 
 def archive_stale(days: int = STALE_DAYS) -> int:

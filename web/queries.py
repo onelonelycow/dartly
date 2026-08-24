@@ -23,7 +23,12 @@ from datetime import datetime, timedelta, timezone
 # in pandas and the whole app's dependency tree, and this service exists
 # precisely because it does not do that. Duplicated with a name and a note
 # rather than silently diverging.
-STALE_DAYS = int(os.environ.get("NABBLY_STALE_DAYS") or 21)
+# MUST MATCH db.STALE_DAYS. Two copies of one window is how a board serves
+# gigs the sweep already retired: db.py archives at 14 days while this served
+# 21, so a week of rows would render here and 404 on the source. Retuned
+# together 2026-08-24 (21 -> 14) when boot hit 86% of its budget; db.py
+# carries the full reasoning.
+STALE_DAYS = int(os.environ.get("NABBLY_STALE_DAYS") or 14)
 
 
 def _stale_cutoff() -> str:
