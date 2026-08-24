@@ -1051,7 +1051,26 @@ async def feedback_post(request: Request):
 
 @app.post("/signout")
 def signout(request: Request):
+    """
+    Sign out HERE and on the app, because Google outlives this cookie.
+
+    Clearing the board's session alone was not a sign-out. The Streamlit app
+    re-checks the Google session on every render and signs you back in from
+    it, so the founder signed out, opened pricing (which lives on the app),
+    and was silently signed back in. A sign-out that another tab undoes is
+    not a sign-out.
+
+    So the board clears its own session and hands off to the app's signout,
+    which is the only place that can call st.logout() and actually end the
+    Google session. ?back= brings the person home afterwards; if that hop is
+    ever lost, they are still correctly signed out, just standing on the app.
+    APP_URL unset means there is no second surface to clear.
+    """
     webauth.sign_out_session(request)
+    if APP_URL:
+        board = str(request.base_url).rstrip("/")
+        return RedirectResponse(
+            f"{APP_URL}/?signout=1&back={quote_plus(board)}", status_code=303)
     return RedirectResponse("/", status_code=303)
 
 
