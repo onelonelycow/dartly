@@ -1655,6 +1655,13 @@ def board(request: Request,
         "sel_field": _csv(field), "sel_size": _csv(size),
         "all_fields": list(config.JOB_TYPES.keys()) + ["Other / general"],
         "field_aliases": config.FIELD_ALIASES, "field_note": field_note,
+        # Typeahead vocabulary for the search boxes: the HUMAN phrases only.
+        # The canonical names ("Development / tech") are deliberately absent —
+        # in a search box they look like a filter but run as a text search,
+        # returning a smaller incidental set than the category filter of the
+        # same name. Suggesting a term that lies about what it does is worse
+        # than suggesting nothing.
+        "search_terms": sorted(config.FIELD_ALIASES.keys()),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
         "urgent": bool(urgent), "where": where, "link": link,
         "sort": sort, "ranked": ranked, "can_rank": can_rank,
