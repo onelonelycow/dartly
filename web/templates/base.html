@@ -219,7 +219,12 @@ button.go:hover{background:var(--amber-l)}
   <a class="gr-home" href="/" title="Back to the dashboard">
     <img src="/static/logo.svg?v={{ css_v }}" alt="Nabbly" width="132" height="40"></a>
   <nav>
-    <a href="/" class="{% if tab == 'dashboard' %}on{% endif %}">Dashboard</a>
+    {# DASHBOARD IS A SIGNED-IN TAB. Signed out it was Gigs with a different
+       heading — two tabs, one page, and the founder called it. A member gets a
+       feed shaped around them and the tab means something; a visitor gets the
+       board, once. Same argument for Saved: nothing can be saved without an
+       account. #}
+    {% if me %}<a href="/" class="{% if tab == 'dashboard' %}on{% endif %}">Dashboard</a>{% endif %}
     <a href="/gigs" class="{% if tab == 'gigs' %}on{% endif %}">Gigs</a>
     {# Market is Pro analytics and still lives on the Streamlit app. It is a
        low-traffic page behind a sign-in, which is exactly the kind that was
@@ -228,7 +233,7 @@ button.go:hover{background:var(--amber-l)}
        OVERRIDDEN 2026-08-22 by the founder: no internal link opens a new tab.
        Same product, sibling subdomain, session cookie scoped to .nabbly.co. #}
     <a href="/market" class="{% if tab == 'market' %}on{% endif %}">Market</a>
-    <a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>
+    {% if me %}<a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>{% endif %}
   </nav>
   <span class="who">
     {# The app puts an avatar here, not the word "Sign in" — signed out it is

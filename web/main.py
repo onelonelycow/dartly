@@ -1728,6 +1728,9 @@ def board(request: Request,
             return RedirectResponse(link(page=last), status_code=303)
 
     landing = request.url.path == "/"
+    # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
+    # for a visitor — it is the landing: hero, then the newest gigs. What it no
+    # longer is, is a second Gigs tab in the nav. See base.html.
     if landing:
         # 25, matching /gigs' page size — 8 read as scarcity on a board holding
         # tens of thousands, and the founder called it. The dash-end line
