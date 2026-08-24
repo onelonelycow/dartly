@@ -124,6 +124,15 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    era; one column centers itself, so the closing line and footer share a
    centerline for free. */
 .dash-solo{max-width:680px;margin:0 auto}
+.herodraft{border:1px solid var(--line2);border-radius:14px;padding:18px 20px;
+  margin:0 0 26px;background:var(--bg2)}
+.hd-k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--amber);margin:0 0 6px}
+.hd-t{font-size:17px;font-weight:650;margin:0 0 10px}
+.hd-body{font-size:14.5px;line-height:1.6;color:var(--ink2);white-space:pre-wrap;
+  margin:0 0 14px}
+.hd-go{display:flex;gap:10px;flex-wrap:wrap}
+.hd-go .draftlink{margin-top:0;padding:15px 15px}
 /* PREDICTIVE SEARCH. The board's one piece of JavaScript, and it buys the
    thing a static list could not: suggestions drawn from what is actually on
    the board right now, with the gig count behind each. Terms only, never
@@ -296,6 +305,22 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <button class="go" type="submit">Search</button>
 </form>
 <div class="dash-solo">
+  {# THE FIRST DRAFT, ABOVE THE FEED. Honest heading: this is a real opener
+     written for this gig, but it has not read the posting — that is the AI
+     path behind "Edit this reply", and claiming otherwise here would oversell
+     a template (FEEL §7). Plain markup, no interactivity, nothing new to
+     style beyond one block. #}
+  {% if hero_draft %}
+  <div class="herodraft">
+    <div class="hd-k">A first line for your top gig</div>
+    <div class="hd-t">{{ hero_gig.title }}</div>
+    <div class="hd-body">{{ hero_draft }}</div>
+    <div class="hd-go">
+      <a class="draftlink" href="/draft/{{ hero_gig.id }}?back=/">Edit this reply →</a>
+      <a class="draftlink" href="/out/{{ hero_gig.id }}" target="_blank" rel="noopener noreferrer">Open the gig ↗</a>
+    </div>
+  </div>
+  {% endif %}
   <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
 
 {% if not landing %}

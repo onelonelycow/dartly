@@ -486,15 +486,42 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
     # classifier is wrong: an engineering role tagged Design/creative had
     # them introducing themselves as a designer to an engineering client.
     # If we don't know what they do, we say nothing about what they do.
+    # THE SAME ARGUMENT APPLIES TO SKILLS, which the comment above missed.
+    # Skills are chosen from config.JOB_TYPES, so they are OUR category names,
+    # not anyone's self-description: a member with skills and no headline
+    # opened with "I'm Development / tech." — a filing label used as an
+    # identity, under their name, to a stranger. Invisible while drafts sat one
+    # click deep; on the dashboard it is the first sentence every member reads.
+    # Anything they typed themselves still counts; a bare category never does.
     who = _text(profile.get("headline"))
     if not who:
+        import config
         skills = profile.get("skills") or []
-        if isinstance(skills, list):
-            skills = ", ".join(str(s) for s in skills)
-        else:
-            skills = _text(skills)
-        who = skills
+        if not isinstance(skills, list):
+            skills = [skills]
+        own = [str(sk) for sk in skills if str(sk) not in config.JOB_TYPES]
+        who = ", ".join(own)
 
+    # "I'm Brand designer for early-stage teams." is what the profile's own
+    # placeholder produces, because it teaches a headline with no article. The
+    # sentence is the first thing a client reads under someone's name, so it
+    # has to parse. Add the article when it is missing and lowercase the lead
+    # word unless it is an acronym (UX, SEO, iOS keep their shape).
+    if who:
+        first = who.split()[0]
+        if first.lower() not in ("a", "an", "the"):
+            if not (first.isupper() or (len(first) > 1 and first[1:].lower() != first[1:])):
+                who = who[0].lower() + who[1:]
+            # "an" follows the SOUND, not the letter. Plain words go by vowel,
+            # but an acronym is read letter by letter: SEO is "ess-ee-oh" so it
+            # takes "an", UX is "you-ex" so it takes "a". Getting this wrong is
+            # the kind of small wrongness that makes a written reply feel
+            # machine-made, which is the one thing this draft cannot afford.
+            lead = who.split()[0]
+            acronym = sum(1 for ch in lead if ch.isupper()) >= 2
+            vowel_sound = (lead[0].upper() in "AEFHILMNORSX" if acronym
+                           else lead[0].lower() in "aeiou")
+            who = ("an " if vowel_sound else "a ") + who
     intro = f"I'm {who}." if who else ""
     if bio:
         intro = f"{intro} {bio}".strip() if intro else bio
