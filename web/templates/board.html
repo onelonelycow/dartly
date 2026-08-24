@@ -118,7 +118,12 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .dash-grid{display:grid;grid-template-columns:196px minmax(0,1fr);gap:0 28px;align-items:start}
 .dash-grid > .rail{grid-column:1}
 .dash-grid > .dash-col{grid-column:2;min-width:0}
-.dash-grid > .dash-span{grid-column:1 / -1}
+/* The dashboard's single column: the founder's second pass — categories
+   belong to /gigs (everything), the dashboard is the matched set plus a
+   search within it. 680px keeps the composed width he liked from the rail
+   era; one column centers itself, so the closing line and footer share a
+   centerline for free. */
+.dash-solo{max-width:680px;margin:0 auto}
 /* /gigs: search sits row 1 in the feed column, rail and feed share row 2, so
    the rail's Categories label tops out level with the feed, not the search. */
 .gigs-search{grid-column:2;grid-row:1}
@@ -130,8 +135,16 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 .viewsort a{font-size:12.5px;color:#aeb4be;text-decoration:none;padding:12px 10px;border-radius:9px}
 .viewsort a:hover{color:var(--amber-l)}
 .viewsort a.on{color:var(--amber)}
-.rail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto;
-  display:flex;flex-direction:column;gap:2px;padding-top:29px}
+/* NOTHING IN THE RAIL EVER CLIPS. The founder hit the Budget group cut off
+   at the bottom twice, scrollbar or not — a pinned rail taller than the
+   screen is a clipped rail however honest the scrollbar is. So sticky is
+   conditional on the screen actually fitting it: tall viewports pin at 78px
+   with internal scroll as the safety, short ones let the rail flow with the
+   page, where normal scrolling reaches every group. */
+.rail{position:static;display:flex;flex-direction:column;gap:2px;padding-top:29px}
+@media (min-height:820px){
+  .rail{position:sticky;top:78px;max-height:calc(100vh - 96px);overflow-y:auto}
+}
 /* The signature amber on the group labels — the founder asked to see the
    subheaders carry it. Small caps at 11.5px keeps it an accent, not a shout,
    so the nav tab and Search stay the view's real focal points. */
@@ -249,65 +262,21 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    member's customized feed, and searching is what /gigs is for. The rail and
    its typeahead are the dashboard's way to narrow. #}
 
-{% if landing %}
-  {# FEEL §9: a control set that wraps on a phone collapses, it does not get
-     restyled. These were five chips in three ragged rows, 140px tall and 32px
-     hit targets, before the first gig. One select, same five buckets, same
-     comma-joined field lists the chips sent, submitted by its own button — no
-     script. "Posted today" is gone (the dashboard is already newest-first, the
-     link was a near-no-op) and "Urgent only" lives in /gigs' Narrow it down.
-     The <hr> is gone for good: §9, never state a separation twice with a rule
-     AND a gap. #}
-  <form class="searchrow fieldrow" method="get" action="/">
-    <select name="field" aria-label="Browse by field">
-      <option value="">Every field</option>
-      {% for g in groups %}
-        <option value="{{ g.fields|join(',') }}">{{ g.name }}</option>
-      {% endfor %}
-    </select>
-    <button class="go ghostgo" type="submit">Go</button>
-  </form>
-{% endif %}
-
 {% if qf_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ qf_note }}</div>{% endif %}
 {% if field_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ field_note }}</div>{% endif %}
 
 {% if landing %}
-<div class="dash-grid">
-  <nav class="rail" aria-label="Categories">
-    <span class="lbl">Categories</span>
-    <a href="/" class="{% if not carry.field %}on{% endif %}">Everything</a>
-    {% for g in groups %}
-      <a href="{{ link(field=g.fields|join(',')) }}"
-         class="{% if g.fields|join(',') == carry.field %}on pick{% endif %}">{{ g.name }}</a>
-    {% endfor %}
-    {# The classifier's fallback bucket — 11% of the board, and without this
-       link it was reachable only through Everything. The founder asked where
-       "other" went; this is the answer. #}
-    <a href="{{ link(field='Other / general') }}"
-       class="{% if carry.field == 'Other / general' %}on pick{% endif %}">Everything else</a>
-        {# All 24 fine-grained fields behind one expander — the founder's call:
-       "it seems wonky to search from a dropdown menu"; the typeahead is gone
-       and the broad groups stay put, with the rest one tap away. The house
-       checkbox pattern; the label swaps its own text when open. #}
-    <input type="checkbox" class="more-t" id="morecats-d">
-    <label class="more-lbl" for="morecats-d"><span class="wc">＋ All categories</span><span class="wo">－ Fewer categories</span></label>
-    <div class="subcats">
-      {% for f in all_fields %}
-      <a href="{{ link(field=f) }}" class="sub {% if carry.field == f %}on pick{% endif %}">{{ f }}</a>
-      {% endfor %}
-    </div>
-    <span class="lbl mt">Refine</span>
-    <a href="{{ link(where='' if where == 'remote' else 'remote') }}"
-       class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
-    <a href="{{ link(where='' if where == 'onsite' else 'onsite') }}"
-       class="{% if where == 'onsite' %}on pick{% endif %}">On-site / local</a>
-    <a href="{{ link(urgent='' if urgent else 1) }}"
-       class="{% if urgent %}on pick{% endif %}">Urgent</a>
-    <a href="{{ link(size='' if 'Large' in sel_size else 'Large') }}"
-       class="{% if 'Large' in sel_size %}on pick{% endif %}">Large budget</a>
-  </nav>
-  <div class="dash-col">
+{# DASHBOARD = YOUR MATCHED LIST, SEARCHABLE. The founder's second pass after
+   living with the rail: categories belong on /gigs, which is everything on
+   the site; the dashboard is the set that already matches you, so what it
+   needs is a way to search WITHIN that. The form submits back to "/" — you
+   search your feed and stay in it. The category rail lives on /gigs only. #}
+<form class="searchrow" method="get" action="/">
+  <input type="search" name="q" value="{{ q }}"
+         placeholder="Search your feed" aria-label="Search your feed">
+  <button class="go" type="submit">Search</button>
+</form>
+<div class="dash-solo">
   <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
 
 {% if not landing %}
@@ -399,16 +368,12 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
 
   {% if landing %}
-  </div>{# /dash-col #}
-    {# The handoff carries the filter: a filtered feed offering a link that
-       silently drops the filter would be a small lie. Outside the feed column
-       ON PURPOSE: centered inside it, this line sat visibly off-axis from the
-       centered footer right below — two centers stacked, and the founder saw
-       it. Spanning the grid, it shares the footer's center. #}
-    <div class="gr-dash-end dash-span">Showing the newest {{ res.rows|length }}.
-      <a href="/gigs{% if carry.field %}?field={{ carry.field|urlencode }}{% endif %}">
-        {%- if carry.field %}See all of these →{% else %}See the whole board →{% endif %}</a></div>
-</div>{# /dash-grid #}
+    {# The handoff carries the search: a searched feed offering a link that
+       silently drops the query would be a small lie. #}
+    <div class="gr-dash-end">Showing the newest {{ res.rows|length }}.
+      <a href="/gigs{% if q %}?q={{ q|urlencode }}{% endif %}">
+        {%- if q %}Search the whole board →{% else %}See the whole board →{% endif %}</a></div>
+  </div>{# /dash-solo #}
   {% else %}
     {{ pager(res, link, with_total=true) }}
   </div>{# /dash-col #}
@@ -449,8 +414,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
       {% endif %}
     {% endif %}
   </div>
-  {# BOTH branches open a grid now, so the empty path always closes one. #}
-  </div></div>
+  {# /gigs opens a grid (two divs); the dashboard opens dash-solo (one). #}
+  {% if landing %}</div>{% else %}</div></div>{% endif %}
 {% endif %}
 
 {% endblock %}
