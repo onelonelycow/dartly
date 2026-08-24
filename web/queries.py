@@ -191,7 +191,8 @@ def _city_clause(conn, city: str, relocate: bool) -> tuple[str, list]:
 
 
 def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
-             where_work, languages, since_hours=0, city="", relocate=False):
+             where_work, languages, since_hours=0, city="", relocate=False,
+             since_ts=""):
     """
     The WHERE clause, its parameters, and the FROM, for every board query.
 
@@ -260,6 +261,13 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     # "Posted in the last N hours" — the Dashboard's freshness quick-filter.
     # Compared against sort_at, which is the column the board is ordered by,
     # so the filter and the ordering agree about what "recent" means.
+    # since_ts is NOT since_hours. That one is a rolling window ("last 24h");
+    # this is an absolute mark ("since you last looked"). Merging them would
+    # produce a wrong number the first time anyone touched either.
+    if since_ts:
+        where += " AND p.sort_at > ?"
+        params.append(since_ts)
+
     if since_hours:
         cut = (datetime.now(timezone.utc)
                - timedelta(hours=int(since_hours))).isoformat()
@@ -694,6 +702,30 @@ def market_stats(conn: sqlite3.Connection | None = None) -> dict:
                 "priced": priced, "size_mix": size_mix,
                 "urgency_mix": urgency_mix, "top_skills": top_skills,
                 "cross": cross}
+    finally:
+        if own:
+            conn.close()
+
+
+def count_since(since_ts: str, conn=None, **ctx) -> int:
+    """
+    How many gigs landed since a timestamp, THROUGH THE MEMBER'S OWN FILTERS.
+
+    Same ctx the feed uses, deliberately: a count taken over the whole board
+    would promise rows the page below does not contain. ~1ms — ix_posts_sort
+    covers it — so it is cheap enough to run on every dashboard render.
+    """
+    if not since_ts:
+        return 0
+    own = conn is None
+    conn = conn or connect()
+    try:
+        where, params, frm = _filters(
+            conn, ctx.get("keyword", ""), ctx.get("job_types"), ctx.get("sizes"),
+            ctx.get("sources"), ctx.get("urgent_only"), ctx.get("where_work", ""),
+            ctx.get("languages"), 0, ctx.get("city", ""),
+            ctx.get("relocate", False), since_ts=since_ts)
+        return conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
     finally:
         if own:
             conn.close()
