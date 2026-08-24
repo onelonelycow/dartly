@@ -105,6 +105,13 @@ textarea{
   background:var(--panel);border:1px solid var(--line);color:var(--ink);
   border-radius:12px;padding:13px 16px;font-size:15.5px;font-family:inherit;width:100%}
 input::placeholder{color:var(--faint)}
+/* NO DROPDOWN CARET. Chrome paints a caret on any input carrying a suggestion
+   list, which turns a search box into something that looks like a select —
+   the exact thing the founder rejected on the category picker and again here.
+   Hidden, the list behaves as pure type-ahead: nothing until you type, then
+   matches appear under the box. */
+input[type=search]::-webkit-calendar-picker-indicator{display:none!important}
+input[type=search]::-webkit-list-button{display:none!important}
 input:focus{outline:2px solid var(--amber-d);outline-offset:1px;border-color:transparent}
 button.go{background:var(--amber);color:#1b1205;border:0;border-radius:12px;
   padding:0 26px;font-weight:650;font-size:15.5px;cursor:pointer;font-family:inherit}
