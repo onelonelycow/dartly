@@ -1161,7 +1161,6 @@ def draft_text(request: Request, gig_id: int, regen: int = Query(0)):
     if not me:
         return PlainTextResponse("", status_code=401)
 
-    new_since = 0
     conn = queries.connect(DB_PATH)
     try:
         rows = queries.by_ids([gig_id], conn=conn)
@@ -1667,6 +1666,11 @@ def board(request: Request,
     QF_LABEL = {"recent": "posted in the last 24h", "mine": "in your skills",
                 "urgent": "urgent only"}
 
+    # Initialised on EVERY path, before the connection: /gigs skips the block
+    # that assigns it and the template reads it unconditionally, so a
+    # landing-only assignment is a 500 on /gigs. It was, for one commit, and
+    # the sweep caught it in the same breath as the commit that shipped it.
+    new_since = 0
     conn = queries.connect(DB_PATH)
     try:
         if ranked:
@@ -1758,6 +1762,10 @@ def board(request: Request,
         if page != last:
             return RedirectResponse(link(page=last), status_code=303)
 
+    # Initialised for EVERY path through board(), not just the landing one:
+    # /gigs skips the block that assigns it and the template reads it
+    # unconditionally, so a landing-only assignment is a 500 on /gigs. It was,
+    # for one commit.
     hero_gig, hero_draft = None, ""
     landing = request.url.path == "/"
     # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
