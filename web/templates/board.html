@@ -136,9 +136,9 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    so the nav tab and Search stay the view's real focal points. */
 .rail .lbl{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--amber);padding:0 10px 8px}
-.rail .lbl.mt{padding-top:18px}
+.rail .lbl.mt{padding-top:12px}
 .rail form{margin:0 0 10px}
-.rail a{display:block;padding:9px 10px;border-radius:9px;font-size:13.5px;
+.rail a{display:block;padding:7px 10px;border-radius:9px;font-size:13.5px;
   font-weight:500;color:#aeb4be;text-decoration:none;line-height:1.25}
 /* HOVER IS NEUTRAL, DELIBERATELY. It was amber-on-amber-tint, near-identical
    to the active state, so mousing down the list painted three oranges at once
@@ -151,17 +151,32 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    amber as the rail's only decorative use of it. */
 .rail a.on.pick{color:var(--amber);background:#1b1f25;
   box-shadow:inset 2px 0 0 var(--amber)}
+/* If a short screen still forces the rail to scroll, say so visibly: an
+   invisible scrollbar is how the founder got a rail whose top OR bottom was
+   silently cut depending on where he had scrolled it. */
+.rail::-webkit-scrollbar,.subcats::-webkit-scrollbar{width:8px}
+.rail::-webkit-scrollbar-thumb,.subcats::-webkit-scrollbar-thumb{
+  background:#2a2f37;border-radius:4px}
+.rail,.subcats{scrollbar-width:thin;scrollbar-color:#2a2f37 transparent}
 /* The category expander: checkbox + swapped label text, the house pattern. */
 .more-t{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.more-lbl{display:block;padding:9px 10px;border-radius:9px;font-size:12.5px;
+.more-lbl{display:block;padding:7px 10px;border-radius:9px;font-size:12.5px;
   font-weight:500;color:var(--faint);cursor:pointer;line-height:1.25}
 .more-lbl:hover{background:#1b1f25;color:var(--ink)}
 .more-lbl .wo{display:none}
 .more-t:checked ~ .more-lbl .wc{display:none}
 .more-t:checked ~ .more-lbl .wo{display:inline}
 .subcats{display:none}
-.more-t:checked ~ .subcats{display:block}
-.subcats a.sub{font-size:12.5px;padding:8px 10px 8px 20px;color:#8e949e}
+/* THE EXPANDED LIST SCROLLS IN ITS OWN WINDOW. Open, the 24 fields were
+   inserted inline and shoved Location and Budget to the bottom of the page —
+   the founder's exact words: "ALL the way at the bottom". Capped and
+   scrollable, the next group starts ~5 rows down no matter what is open.
+   The faint borders mark where the window starts and ends, which is what
+   makes an internally-scrolling region discoverable at all. */
+.more-t:checked ~ .subcats{display:block;flex:none;max-height:196px;overflow-y:auto;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  margin:2px 0 6px}
+.subcats a.sub{font-size:12.5px;padding:6px 10px 6px 20px;color:#8e949e}
 .subcats a.sub:hover{color:var(--ink)}
 .subcats a.sub.on.pick{color:var(--amber)}
 /* Desktop: the rail replaces the select row. Phone gets the reverse below. */
@@ -192,6 +207,7 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     border:1px solid var(--line);border-radius:12px}
   .rail a{padding:14px 10px}
   .subcats a.sub{padding:15px 10px 15px 20px}
+  .more-t:checked ~ .subcats{max-height:290px}
   .more-lbl{padding:14px 10px}
   /* The old column stack existed to fit the field select; with the select
      gone, a column turns Search into a full-bleed amber bar. A row fits. */
