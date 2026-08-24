@@ -23,7 +23,12 @@
   </div>
 
   <div class="gr-pills">
-    {% if ranked and g._score %}<span class="gr-pill match">{{ g._score }}% match</span>{% endif %}
+    {# The % pill is /gigs' language, not the dashboard's. Ranked, both it and
+       the why chips are amber, so every dashboard card carried two amber rows
+       — 25 pills plus 34 chips in one column, measured. The chips win: "pays
+       your rate" says something, "85% match" is a number with no unit. FEEL §2,
+       one focal point, resolved by dropping the weaker of the two. #}
+    {% if ranked and g._score and not compact %}<span class="gr-pill match">{{ g._score }}% match</span>{% endif %}
     {% if g.job_type %}<span class="gr-pill">{{ g.job_type }}</span>{% endif %}
     {# "Medium budget", not "Medium" — the app says what the number describes,
        and a bare size word next to a job type reads as part of the role. #}
@@ -39,6 +44,18 @@
        mix is wider and someone is choosing between rows. #}
     {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
   </div>
+
+  {# WHY THIS MATCHED YOU. The reasons were already computed and thrown away:
+     queries.fit_ranked sets row["_why"] and this macro ignored it, while
+     nabbly.css has carried .gr-why and .gr-why-chip unused since the port.
+     Shown only when the page is actually ranked, so it can never explain an
+     order that was not produced by it. Three chips: the measured maximum, and
+     a fourth wraps at 375. #}
+  {% if ranked and g._why %}
+    <div class="gr-why"><span class="lead">why</span>
+      {%- for w in g._why[:3] %}<span class="gr-why-chip">{{ w }}</span>{% endfor %}
+    </div>
+  {% endif %}
 
   {% if g.preview %}
   <div class="gr-bodywrap">

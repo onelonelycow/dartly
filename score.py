@@ -6,6 +6,7 @@ so the best-fitting gigs float to the top instead of you filtering by hand.
 
 Weights (roughly): skill 50, keywords 25, budget fit 20, urgency 5.
 """
+import functools
 import re
 
 import config
@@ -157,6 +158,12 @@ def gig_amount(gig: dict):
 FIT_FIELDS = ("title", "body", "job_type", "size_tier", "urgency")
 
 
+@functools.lru_cache(maxsize=2048)
+def _term_re(term: str):
+    """Whole-word matcher for a resume keyword, compiled once per term."""
+    return re.compile(r"(?<!\w)" + re.escape(term.strip()) + r"s?(?!\w)")
+
+
 def fit_score(gig: dict, profile: dict, resume_text: str = "") -> tuple[int, list[str]]:
     """Returns (0-100 score, short 'why' notes). The notes only mention the
     *extra* signal — skill/budget/urgent already show as pills, so we skip those
@@ -216,9 +223,25 @@ def fit_score(gig: dict, profile: dict, resume_text: str = "") -> tuple[int, lis
     if resume_text:
         resume_lower = resume_text.lower()
         cat_terms = config.JOB_TYPES.get(gig.get("job_type"), [])
-        hits = [t for t in cat_terms if t in resume_lower]
+        # WORD BOUNDARIES, NOT SUBSTRINGS. Plain `t in resume_lower` matched
+        # "va" inside "Java" and "available": measured over 2,000 live rows,
+        # a backend engineer's resume matched 81 of 81 Admin/VA gigs. Eighteen
+        # keywords are three characters or fewer (api, aws, sql, seo, tax, va)
+        # and every one of them had this shape. Same family as bare "hr"
+        # matching "$77/hr". It skewed ranking silently; the moment the reason
+        # is printed on a card it becomes visibly wrong.
+        hits = [t for t in cat_terms if _term_re(t).search(resume_lower)]
         if hits:
             score += min(8, 4 * len(hits))
             why.append(f"resume: {hits[0]}")
+
+    # THE STRONGEST SIGNAL WAS THE ONE WITH NO WORDS. A skill match is worth
+    # more than anything else here and deliberately said nothing, because the
+    # job-type pill sits right beside it on a card. That holds on /gigs; it
+    # does not hold in a "why this matched you" block, where a member whose
+    # profile is skills-only saw an EMPTY box on all 25 cards — measured. Said
+    # last so keyword and rate reasons, which are more specific, come first.
+    if not why and gig.get("job_type") and gig.get("job_type") in (profile.get("skills") or []):
+        why.append(gig["job_type"])
 
     return min(100, score), why
