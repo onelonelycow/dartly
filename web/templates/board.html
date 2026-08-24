@@ -124,6 +124,7 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    era; one column centers itself, so the closing line and footer share a
    centerline for free. */
 .dash-solo{max-width:680px;margin:0 auto}
+.newsince{font-size:13.5px;color:var(--mute);margin:0 0 16px}
 .herodraft{border:1px solid var(--line2);border-radius:14px;padding:18px 20px;
   margin:0 0 26px;background:var(--bg2)}
 .hd-k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
@@ -310,6 +311,13 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
      path behind "Edit this reply", and claiming otherwise here would oversell
      a template (FEEL §7). Plain markup, no interactivity, nothing new to
      style beyond one block. #}
+  {# Only when there IS a previous visit and something landed since. No stamp
+     means a first visit and renders nothing; a zero renders nothing, because
+     a line that says zero is a line that says do not bother. Text, no chip,
+     no colour — this page's amber is already spent. #}
+  {% if new_since %}
+  <p class="newsince">{{ "{:,}".format(new_since) }} new since you were last here.</p>
+  {% endif %}
   {% if hero_draft %}
   <div class="herodraft">
     <div class="hd-k">A first line for your top gig</div>

@@ -1161,6 +1161,7 @@ def draft_text(request: Request, gig_id: int, regen: int = Query(0)):
     if not me:
         return PlainTextResponse("", status_code=401)
 
+    new_since = 0
     conn = queries.connect(DB_PATH)
     try:
         rows = queries.by_ids([gig_id], conn=conn)
@@ -1684,6 +1685,28 @@ def board(request: Request,
         # temporary narrowing you are about to replace.
         facets, loc = _facets.get(conn, {k: v for k, v in ctx.items()
                                          if k != "since_hours"})
+        # SINCE YOU LAST LOOKED — inside the connection's lifetime, which is
+        # the whole reason it sits here and not beside the other landing work
+        # further down. conn.close() happens in the finally below; a count
+        # taken after it raised into a bare except and rendered nothing,
+        # silently, forever. Caught by tracing the connection rather than
+        # trusting that the try/except meant it was safe.
+        #
+        # Counted through the member's own ctx so it cannot promise rows the
+        # feed does not contain, and the stamp is written AFTER the count:
+        # stamping first would zero the number being rendered. Deliberately
+        # not accounts.last_seen, which records sign-ins rather than visits —
+        # for anyone holding a live cookie that is their signup date. See
+        # web/lastvisit.py.
+        if me and request.url.path == "/":
+            try:
+                import lastvisit
+                seen = lastvisit.read()
+                if seen:
+                    new_since = queries.count_since(seen, conn=conn, **ctx)
+                lastvisit.touch()
+            except Exception:
+                new_since = 0
     finally:
         conn.close()
 
@@ -1795,6 +1818,7 @@ def board(request: Request,
     resp = templates.TemplateResponse(request, "board.html", {
         "booting": booting,
         "hero_gig": hero_gig, "hero_draft": hero_draft,
+        "new_since": new_since,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "tab": "dashboard" if landing else "gigs",
