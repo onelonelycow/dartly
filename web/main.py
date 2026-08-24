@@ -1735,6 +1735,7 @@ def board(request: Request,
         if page != last:
             return RedirectResponse(link(page=last), status_code=303)
 
+    hero_gig, hero_draft = None, ""
     landing = request.url.path == "/"
     # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
     # for a visitor — it is the landing: hero, then the newest gigs. What it no
@@ -1744,6 +1745,26 @@ def board(request: Request,
         # tens of thousands, and the founder called it. The dash-end line
         # renders rows|length, so the copy follows this number by itself.
         res["rows"] = res["rows"][:25]
+        # THE FIRST DRAFT, WITHOUT THE WAIT. The app's dashboard leads with a
+        # written reply and it is the product's best moment; on the board it
+        # sat one click deep behind a blank page. Generating here is not an
+        # option — the Pro path measured 27,542ms against 43ms for the
+        # template (see the /draft comment), so a generated dashboard would be
+        # a 27-second page and one model call per member per visit. Nor can we
+        # show "a draft if one is cached": this service has no disk, so the AI
+        # cache is empty after every deploy and the card would blink in and out.
+        #
+        # The template draft costs 0.013ms, no key, no network, no budget. It
+        # is a real gig-specific opener and it is what Free already gets. The
+        # click it removes is the BLANK one; "Edit this reply" still escalates
+        # to the real post-aware draft for Pro, which is the click worth making.
+        if me and res["rows"]:
+            try:
+                import pitch
+                hero_gig = res["rows"][0]
+                hero_draft = pitch.draft_template(hero_gig, prof)
+            except Exception:
+                hero_gig, hero_draft = None, ""
     decorate(res["rows"], ranked)
     # Ordered by how many gigs sit behind each bucket, not by however the dict
     # happens to be written — the app's dashboard leads with the biggest, and a
@@ -1773,6 +1794,7 @@ def board(request: Request,
         booting = False
     resp = templates.TemplateResponse(request, "board.html", {
         "booting": booting,
+        "hero_gig": hero_gig, "hero_draft": hero_draft,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "tab": "dashboard" if landing else "gigs",
