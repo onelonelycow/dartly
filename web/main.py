@@ -752,7 +752,13 @@ def robots():
     #
     # The private pages carry X-Robots-Tag: noindex already. That only stops
     # indexing after the fetch; robots.txt stops the fetch.
-    private = ("Disallow: /out/\n"
+    # /gigs?* : the page is indexable, its filter PERMUTATIONS are not. Meta's
+    # crawler was walking the rail's links through every field x size x source
+    # x urgency combination — hundreds of uncached queries that no human ever
+    # shares, contributing to a measured 24s p-worst during a refill. The
+    # clean /gigs stays crawlable; the query space closes.
+    private = ("Disallow: /gigs?*\n"
+               "Disallow: /out/\n"
                "Disallow: /profile\n"
                "Disallow: /saved\n"
                "Disallow: /draft/\n"
