@@ -56,6 +56,37 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
 templates = Jinja2Templates(directory=os.path.join(HERE, "templates"))
 
+
+def _viewer(request):
+    """
+    Who is looking, for the shared chrome: {"pro": bool, "owner": bool}.
+
+    A JINJA GLOBAL RATHER THAN ROUTE CONTEXT, deliberately. base.html renders on
+    every page, but only 2 of 7 TemplateResponse calls were passing is_pro — so
+    the account menu showed "Upgrade to Pro" to a Pro member (measured on the
+    founder's own account: status pro=True, founding, paid to 2026-09-23) and
+    would have kept doing it on any route somebody added later. Chrome that
+    every page shows should not depend on every route remembering to say so.
+
+    Reads the same accounts.status the rest of the app trusts. Note status()
+    computes pro from pro_until — the raw `plan` column still said "free" on
+    that account, so anything reading `plan` directly is wrong.
+    """
+    try:
+        acc = webauth.account_for(request)
+        if not acc:
+            return {"pro": False, "owner": False}
+        st = accounts.status(acc)
+        return {"pro": bool(st.get("pro")),
+                "owner": bool(accounts.is_owner(st.get("email") or ""))}
+    except Exception:
+        # Chrome must never take a page down. Unknown reads as "not pro",
+        # which shows an upgrade link — wrong, but harmless and self-correcting.
+        return {"pro": False, "owner": False}
+
+
+templates.env.globals["viewer"] = _viewer
+
 # Cache-buster for the shared stylesheet. Its mtime changes when
 # tools/extract_css.py regenerates it, so a deploy busts the cache without
 # anyone having to remember a version number.
