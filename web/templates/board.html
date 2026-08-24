@@ -290,8 +290,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    search your feed and stay in it. The category rail lives on /gigs only. #}
 <form class="searchrow" method="get" action="/">
   <span class="sugwrap"><input type="search" name="q" value="{{ q }}"
-         autocomplete="off" placeholder="Search your feed"
-         aria-label="Search your feed"></span>
+         autocomplete="off"
+         placeholder="{% if me %}Search your feed{% else %}Search gigs{% endif %}"
+         aria-label="{% if me %}Search your feed{% else %}Search gigs{% endif %}"></span>
   <button class="go" type="submit">Search</button>
 </form>
 <div class="dash-solo">
