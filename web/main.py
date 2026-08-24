@@ -29,7 +29,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 from fastapi import FastAPI, Form, Query, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -404,6 +404,9 @@ def _boot():
     # Market's first scan costs 4.6-6.1s on this box (measured from the
     # founder's own visits); pre-building it here means no member ever pays it.
     _market.warm()
+    # Same for the search vocabulary: ~3.4s, and it must never land inside
+    # somebody's keystroke.
+    _suggest.warm()
 
 # Anonymous board pages are the same for everyone, so let the CDN keep one copy
 # for a minute. New gigs land every couple of minutes; a stale-while-revalidate
@@ -559,6 +562,69 @@ class _Market:
 
 
 _market = _Market()
+
+
+class _Suggest:
+    """
+    The search vocabulary, cached. Same shape as _Market and for the same
+    reason: a ~3.4s build that must never happen inside a keystroke.
+    Stale-while-revalidate, warmed after boot, so /suggest is a dict lookup.
+    """
+    TTL_S = 1800
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._build_lock = threading.Lock()
+        self._built_at = 0.0
+        self._value = None
+
+    def _build(self):
+        with self._build_lock:
+            with self._lock:
+                if (self._value is not None
+                        and time.monotonic() - self._built_at < self.TTL_S):
+                    return self._value
+            conn = queries.connect(DB_PATH)
+            try:
+                built = queries.suggest_index(conn=conn)
+            finally:
+                conn.close()
+            if built:                      # never cache an empty vocabulary
+                with self._lock:
+                    self._value, self._built_at = built, time.monotonic()
+            return built
+
+    def _refresh_bg(self):
+        try:
+            self._build()
+        except Exception as e:
+            print(f"  ! suggest index rebuild failed: {type(e).__name__}: {e}",
+                  flush=True)
+
+    def get(self):
+        with self._lock:
+            value, age = self._value, time.monotonic() - self._built_at
+        if value is not None:
+            if age >= self.TTL_S and not self._build_lock.locked():
+                threading.Thread(target=self._refresh_bg, daemon=True).start()
+            return value
+        return self._build()
+
+    def warm(self):
+        def _wait_then_build():
+            import sync
+            for _ in range(120):
+                try:
+                    if int(sync.state().get("rows") or 0) > 10000:
+                        break
+                except Exception:
+                    pass
+                time.sleep(10)
+            self._refresh_bg()
+        threading.Thread(target=_wait_then_build, daemon=True).start()
+
+
+_suggest = _Suggest()
 
 
 # Sequential amber ramp for budget size — the same three hex values the app
@@ -1201,6 +1267,35 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
         back = "/gigs"
     return RedirectResponse(
         f"/draft/{gig_id}?saved_ok=1&back={quote_plus(back)}", status_code=303)
+
+
+@app.get("/suggest")
+def suggest(request: Request, q: str = Query("", max_length=40)):
+    """
+    Search suggestions, drawn from what is actually on the board.
+
+    Terms only — skills and roles, never individual gig titles. The founder's
+    call and the right one: a posting is gone in 21 days, so suggesting one
+    teaches a habit the board cannot keep. A term with gigs behind it is
+    stable, and the count tells you it is worth typing.
+
+    Prefix matches first (what someone typing expects), then contains, each
+    ranked by how many live gigs carry the term. Cheap by construction: a
+    scan of ~400 short strings against a cached list, no database.
+    """
+    term = (q or "").strip().lower()
+    if len(term) < 2:
+        return JSONResponse([])
+    try:
+        idx = _suggest.get() or []
+    except Exception:
+        return JSONResponse([])
+    starts = [(t, n) for t, n in idx if t.startswith(term)]
+    inside = [(t, n) for t, n in idx if term in t and not t.startswith(term)]
+    out = [{"t": t, "n": n} for t, n in (starts + inside)[:8]]
+    resp = JSONResponse(out)
+    resp.headers["Cache-Control"] = "public, max-age=300"
+    return resp
 
 
 @app.get("/market", response_class=HTMLResponse)
