@@ -1575,6 +1575,15 @@ def _resolve_account():
 # resolved, so the cleared token actually takes effect on this run.
 if st.query_params.get("signout"):
     _was_google = bool(auth.google_email(st))
+    # Where to land afterwards. The board sends ?back= because its own cookie
+    # clear is only half a sign-out — st.logout() below is the half that ends
+    # the Google session, and only this app can call it. Carried in
+    # session_state because st.logout() returns to the app root with no query
+    # string. If it is lost, the sign-out still stands; only the ride home
+    # goes missing.
+    _sb = (st.query_params.get("back") or "").strip()
+    if _sb.startswith("https://") or _sb.startswith("http://"):
+        st.session_state["_signout_back"] = _sb
     st.session_state.pop("_tok", None)
     # Same reasoning as sign-in: cached-against-the-old-identity data has to go
     # with the identity. Without this the nav still shows "Saved 7" to whoever
@@ -1585,6 +1594,17 @@ if st.query_params.get("signout"):
     if _was_google:
         st.logout()          # reruns on its own
     st.rerun()
+
+# The ride home from a cross-surface sign-out. Runs BEFORE account resolution
+# so a lingering Google session cannot sign the person back in on the very
+# render that is supposed to be sending them away signed out.
+if st.session_state.get("_signout_back") and not auth.google_email(st):
+    _home = st.session_state.pop("_signout_back")
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; '
+        f'url={html.escape(_home, quote=True)}">', unsafe_allow_html=True)
+    st.caption("Signed out.")
+    st.stop()
 
 ACCOUNT = _resolve_account()
 if ACCOUNT:
