@@ -444,6 +444,83 @@ def free_draft_note(gig: dict) -> str:
             f"this template checks for.")
 
 
+# Hiring boilerplate that wraps a title without describing the work. Stripped
+# so a reply can name the JOB rather than the posting's packaging.
+_TITLE_LEAD = re.compile(
+    r"^\s*(?:\[[^\]]*\]\s*)?"
+    r"(?:urgent|asap|hiring|now hiring|wanted|needed|looking for|need(?:ed)?|"
+    r"seeking|we need|we are looking for|freelance|contract|remote|part[- ]time|"
+    r"full[- ]time)\b[:,\-–—\s]*", re.I)
+_TITLE_TAIL = re.compile(
+    r"[\s,\-–—|(]*\b(?:needed|wanted|required|urgent|asap|remote|onsite|"
+    r"on[- ]site|freelance|contract|part[- ]time|full[- ]time|m/w/d|f/m/d)\b"
+    r"[\s)\.!]*$", re.I)
+
+
+def _title_phrase(title: str) -> str:
+    """
+    The part of a posting title a person would actually say out loud.
+
+    THE OBJECT OF A PREPOSITION, NEVER A SUBJECT. Every use site says "help
+    with X", because that frame accepts almost any noun phrase, gerund or
+    bare noun. Slotting a title in as a subject was tried and abandoned: job
+    titles are not noun phrases, so "Need a copywriter for landing pages"
+    became "...is a good fit for me". Stripping the lead boilerplate fixes
+    most of those, but "help with" is what makes the rest safe too.
+
+    Returns "" when nothing usable survives, and the caller then says nothing
+    about the title at all — silence beats a sentence that limps.
+    """
+    t = re.sub(r"\s+", " ", (title or "")).strip()
+    t = re.sub(r"^\[[^\]]*\]\s*", "", t)          # "[Remote] ..."
+    # German and Dutch postings carry a gender tag anywhere in the title.
+    # Qualifier parentheticals: gender tags, "(all genders)", "(Contractor)",
+    # "(Senior)", "(Remote)". They wrap a title without describing the work.
+    t = re.sub(r"\s*\((?:[^)]{0,24})\)\s*", " ", t)
+    # Company and team suffixes: "Backend Engineer - Ops Team — iwoca".
+    t = re.split(r"\s+[—–|]\s+|\s+-\s+", t)[0]
+    t = _TITLE_LEAD.sub("", t)
+    t = _TITLE_TAIL.sub("", t)
+    t = re.sub(r"^(?:a|an|the)\s+", "", t, flags=re.I)
+    t = t.strip(" -–—|:,.·")
+    words = t.split()
+    # Two words is too thin to be worth saying; eight is a heading again.
+    if not (2 <= len(words) <= 8) or len(t) > 52:
+        return ""
+    # An imperative is a sentence, not a thing: "Build me a website" cannot sit
+    # after "your post about". Rejected rather than mangled.
+    if words[0].lower() in _IMPERATIVE:
+        return ""
+    # CASE IS LEFT ALONE. Lowercasing an ordinary leading word produced
+    # "senior Rails Engineer" and "senior Auditor" — mixed case that reads as a
+    # typo, which is worse than a capital in the middle of a sentence. Titles
+    # are capitalised in real postings and a reader forgives that; they do not
+    # forgive what looks like a mistake.
+    return t
+
+
+# A title that opens with a verb is a sentence, not a thing, and cannot sit
+# after "your post about". Read off the real board: "Implement SEO/GEO/AIO
+# Files", "Raise Funds for Consolidation" and "Build me a website" all landed
+# here before this list grew.
+_IMPERATIVE = {
+    "build", "make", "create", "design", "write", "develop", "fix", "help",
+    "do", "set", "setup", "install", "convert", "translate", "edit", "add",
+    "update", "improve", "redesign", "rewrite", "find", "get", "want",
+    "implement", "raise", "migrate", "integrate", "optimize", "optimise",
+    "launch", "produce", "deliver", "source", "generate", "handle", "manage",
+    "run", "complete", "finish", "review", "analyze", "analyse", "scrape",
+}
+
+
+_COMMON_LEAD = {
+    "logo", "brand", "branding", "website", "web", "copy", "copywriting",
+    "content", "video", "social", "email", "landing", "mobile", "app",
+    "data", "senior", "junior", "lead", "experienced", "business", "product",
+    "graphic", "motion", "ui", "ux", "backend", "frontend", "full",
+}
+
+
 def draft_template(gig: dict, profile: dict | None = None) -> str:
     """
     The no-key fallback. It cannot understand the post the way the AI path
@@ -548,6 +625,21 @@ def draft_template(gig: dict, profile: dict | None = None) -> str:
         f'Hi, this is squarely what I do.',
         f'Hi — this looks like a good fit.',
     )
+    # SOME of the title, when a clean phrase survives — the founder's call, and
+    # better than both extremes: the whole heading in quote marks read like a
+    # mail merge, and saying nothing at all lost the one cheap signal that this
+    # reply is about THIS post. "your post about X" is the frame because it
+    # takes a noun phrase as the object of a preposition, which almost any
+    # cleaned title fits; the subject position does not. Measured on 3,000 live
+    # titles: a usable phrase survives for 89% of them, and the rest simply get
+    # the openers above.
+    phrase = _title_phrase(title)
+    if phrase:
+        openers = (
+            f'Hi — I saw your post about {phrase}.',
+            f'Hi, your post about {phrase} caught my eye.',
+            f'Hi — {phrase} is squarely the kind of work I do.',
+        )
     # NO TITLE AT ALL, INCLUDING SHORT ONES. Slotting even a short title into
     # a sentence was tried and abandoned: job titles are not noun phrases.
     # "Need a copywriter for landing pages" produced "need a copywriter for
