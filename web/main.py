@@ -1615,6 +1615,16 @@ def health():
         s = sync.state()
         out.update(rows=s["rows"], drift_s=s["drift_s"],
                    archived=s["archived"], errors=s["errors"])
+        # RETENTION, VISIBLE. The sweep runs unattended once a day and can
+        # legitimately decline to run — the floor guard, an unreachable
+        # mirror — so "it never happened" and "it happened and found nothing"
+        # have to be distinguishable from outside. That distinction is the
+        # entire reason the old arrangement went unnoticed for weeks.
+        out["swept"] = s.get("swept", 0)
+        if s.get("sweep_note"):
+            out["sweep_note"] = s["sweep_note"]
+        if s.get("last_sweep"):
+            out["sweep_age_h"] = round((time.time() - s["last_sweep"]) / 3600, 1)
         if s["note"]:
             out["note"] = s["note"]
         # An empty board is not healthy. This reported ok:true while serving

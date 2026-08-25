@@ -79,11 +79,25 @@ BOARD_DB = os.environ.get("NABBLY_BOARD_DB") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "board.db")
 REFRESH_S = int(os.environ.get("NABBLY_REFRESH_S") or 60)
 RECONCILE_S = int(os.environ.get("NABBLY_RECONCILE_S") or 900)
+# RETENTION, RUN WHERE THE DATA ACTUALLY LIVES.
+#
+# db.archive_stale() sweeps the ingest machine's local SQLite and mirrors the
+# result. That machine is redeployed with an empty disk, so the sweep finds
+# nothing, reports zero, and the mirror keeps every gig it has ever seen. The
+# board boots from the mirror, so the tail lands here: 85,056 rows and a 232s
+# boot against Render's 270s limit, which had to be swept by hand.
+#
+# This service is the one that suffers and the one that is always running, so
+# it does the sweeping. Once a day is plenty for a 14-day window.
+SWEEP_S = int(os.environ.get("NABBLY_SWEEP_S") or 86400)
 
 _COLS = board_store.COLS
 _state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0,
           "watermark": "", "adds": 0, "archived": 0, "errors": 0,
-          "hidden_dupes": 0, "note": ""}
+          "hidden_dupes": 0, "note": "",
+          # Retention against the mirror. last_sweep starts at 0 so the first
+          # pass runs shortly after boot rather than a day later.
+          "last_sweep": 0.0, "swept": 0, "sweep_note": ""}
 _lock = threading.Lock()
 _started = False
 
@@ -295,12 +309,37 @@ def reconcile() -> int:
     return n
 
 
+def sweep_mirror() -> int:
+    """
+    Age gigs past the retention window out of the mirror. Never raises.
+
+    The stamp moves even when the sweep refuses or fails, deliberately: a
+    mirror that is unreachable or a floor that trips would otherwise retry on
+    every pass of the loop, which is a failing network call every REFRESH_S
+    instead of once a day. The reason is kept on _state and surfaced by
+    /health, so a refusal is visible rather than silent.
+    """
+    _state["last_sweep"] = time.time()
+    try:
+        import board_store
+        import queries
+        out = board_store.archive_stale_mirror(queries.STALE_DAYS)
+        _state["swept"] = out.get("archived", 0)
+        _state["sweep_note"] = out.get("note", "")
+        return _state["swept"]
+    except Exception as e:
+        _state["sweep_note"] = f"{type(e).__name__}: {e}"
+        return 0
+
+
 def _loop():
     while True:
         try:
             incremental()
             if time.time() - _state["last_reconcile"] > RECONCILE_S:
                 reconcile()
+            if time.time() - _state["last_sweep"] > SWEEP_S:
+                sweep_mirror()
             _state["note"] = ""
         except Exception as e:
             _state["errors"] += 1

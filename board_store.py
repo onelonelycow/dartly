@@ -21,6 +21,7 @@ It reuses store.py's connection + DSN handling, so the SQLite-or-Postgres
 placeholder juggling lives in one place. Point DATABASE_URL at a sqlite file and
 this runs identically to how it runs against Supabase, which is how it's tested.
 """
+import os
 import store
 
 _TABLE = "nabbly_posts"
@@ -396,6 +397,80 @@ def count() -> int:
             conn.close()
     except Exception:
         return -1
+
+
+# The retention floor. A sweep that would leave the board below this many
+# live gigs is refused rather than run, because the only way to reach that
+# number is a misconfigured window — NABBLY_STALE_DAYS set to 1, a clock skew,
+# a cutoff computed in the wrong units. Retention is supposed to trim a tail,
+# never empty a board, and the difference is worth one COUNT per day.
+MIRROR_FLOOR = int(os.environ.get("NABBLY_MIRROR_FLOOR") or 5000)
+
+
+def archive_stale_mirror(days: int, floor: int = MIRROR_FLOOR) -> dict:
+    """
+    Age gigs out of the MIRROR itself. Returns what happened, never raises.
+
+    WHY THIS EXISTS AT ALL. db.archive_stale() sweeps the local SQLite file
+    and then mirrors the result. That works on a machine that keeps its disk;
+    it does nothing on one that does not. The ingest service is redeployed
+    with an empty database, so the sweep runs against no rows, reports zero,
+    and the mirror — which every reader actually boots from — keeps its full
+    history forever. Retention was measured at 85,056 rows and a 232s boot
+    against a 270s limit before it was swept by hand, and it drifts back the
+    moment nobody is watching.
+
+    So this does not sweep a copy and hope: it archives in the mirror, in one
+    UPDATE, on whatever schedule the caller runs it. Same rule as
+    db.archive_stale — is_demand=0 and the body dropped, never a DELETE, so
+    the row still blocks its own source_id from being re-ingested.
+    """
+    out = {"ran": False, "archived": 0, "live_before": 0, "would_leave": 0,
+           "note": ""}
+    if not enabled():
+        out["note"] = "mirror not configured"
+        return out
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            cur = conn.cursor()
+            # Count first, decide second. The floor check is worthless after
+            # the UPDATE has already committed.
+            cur.execute(f"SELECT COUNT(*) FROM {_TABLE} WHERE is_demand = 1")
+            live = int(cur.fetchone()[0] or 0)
+            cur.execute(
+                f"SELECT COUNT(*) FROM {_TABLE} WHERE is_demand = 1 "
+                f"  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < {ph}",
+                (cutoff,))
+            aged = int(cur.fetchone()[0] or 0)
+            out["live_before"], out["would_leave"] = live, live - aged
+            if aged and (live - aged) < floor:
+                out["note"] = (f"refused: would leave {live - aged:,} live, "
+                               f"below the {floor:,} floor")
+                print(f"  ! archive_stale_mirror {out['note']} "
+                      f"(cutoff {days}d) — nothing was changed", flush=True)
+                return out
+            if not aged:
+                out["ran"] = True
+                return out
+            cur.execute(
+                f"UPDATE {_TABLE} SET is_demand = 0, body = '' "
+                f"WHERE is_demand = 1 "
+                f"  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < {ph}",
+                (cutoff,))
+            conn.commit()
+            out["ran"], out["archived"] = True, int(cur.rowcount or 0)
+            print(f"  archive_stale_mirror: retired {out['archived']:,} gigs "
+                  f"past {days}d, {out['would_leave']:,} still live", flush=True)
+        finally:
+            conn.close()
+    except Exception as e:
+        out["note"] = f"{type(e).__name__}: {e}"
+        print(f"  ! archive_stale_mirror failed: {out['note']}", flush=True)
+    return out
 
 
 def mark_archived(pairs) -> int:
