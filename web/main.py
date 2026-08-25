@@ -275,10 +275,27 @@ def _ev(request: Request, event: str, detail: str = ""):
         if _is_bot(request.headers.get("user-agent", "")):
             return
         sid = request.session.get("_vid")
+        first_of_session = not sid
         if not sid:
             sid = secrets.token_urlsafe(9)
             request.session["_vid"] = sid
         path = request.url.path
+        # HOW THEY GOT HERE, ONCE PER SESSION. Every event below says what a
+        # visitor did; none of them said where they came from, so the one
+        # question worth asking about a stranger — how did they find this —
+        # had no answer even with telemetry switched on. It fires on the first
+        # tracked view of a session only: the referrer on later pages is
+        # Nabbly itself, and repeating it would bury the real source.
+        #
+        # referrer_label reduces the header to a bare host and maps our own
+        # domains to "Direct", so what leaves the server is "reddit.com" or
+        # "Direct" — no paths, no query strings, which is what the privacy
+        # page already promises about referrers.
+        if first_of_session:
+            telemetry.capture(
+                "arrival",
+                analytics.referrer_label(request.headers.get("referer", "")),
+                sid, path)
         telemetry.capture(event, detail, sid, path)
         camp = request.session.get("_camp")
         if camp and event == "board_view":
@@ -1583,6 +1600,16 @@ def health():
     is not monitored.
     """
     out = {"ok": True}
+    # WHETHER ANALYTICS IS ACTUALLY ON, which was invisible until now. The
+    # board has recorded events since the Gigs tab moved here, but every one
+    # is a no-op unless POSTHOG_API_KEY is set and the package imports — and
+    # from outside there was no way to tell "nobody visited" from "nothing was
+    # ever sent". telemetry.status() already answers it; it just had nowhere
+    # to say so. Reports off | ready | no-package | failed, and never the key.
+    try:
+        out["telemetry"] = telemetry.status()
+    except Exception:
+        out["telemetry"] = "unknown"
     if _SYNC:
         import sync
         s = sync.state()
