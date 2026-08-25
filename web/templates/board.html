@@ -141,8 +141,17 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    a shadow no feed row casts, and a hairline catching light along the top
    edge the way a physical card would. Light reads as "raised" pre-verbally,
    which is exactly the register the founder asked for. */
+/* NO overflow:hidden. It was here to clip the amber glow below, which used to
+   be a 320px circle parked outside the card's top-left corner — and it clipped
+   anything else that overhung the card too, which is exactly what a note
+   tacked to the top edge does. The glow was rewritten to sit INSIDE the box
+   (see ::after) so the clip is no longer needed by anything. */
+/* THE TOP MARGIN IS FOR THE NOTE. The card sat flush under the search row,
+   and a note tacked to its top edge overhangs by ~14px — measured, that left
+   a 1px gap to the Search button, so the two read as touching. 22px gives the
+   overhang somewhere to be and still looks deliberate on the cardless case. */
 .herodraft{position:relative;border:1px solid var(--line2);border-radius:16px;
-  padding:20px 22px;margin:0 0 26px;overflow:hidden;
+  padding:20px 22px;margin:22px 0 26px;
   background:linear-gradient(180deg,var(--bg2) 0%,var(--bg) 100%);
   box-shadow:0 16px 40px rgba(0,0,0,.42)}
 /* The catch-light: brightest across the middle, gone at the corners, so the
@@ -153,9 +162,9 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 /* One breath of amber, at 5%, pooled behind the eyebrow. It is the warmth
    that makes the card feel picked rather than listed, and at this opacity it
    reads as light rather than as another orange element. */
-.herodraft::after{content:"";position:absolute;top:-70px;left:-40px;
-  width:320px;height:180px;border-radius:50%;pointer-events:none;
-  background:radial-gradient(closest-side,rgba(232,147,58,.05),transparent)}
+.herodraft::after{content:"";position:absolute;inset:0;pointer-events:none;
+  border-radius:inherit;
+  background:radial-gradient(300px 170px at 14% -8%,rgba(232,147,58,.05),transparent 70%)}
 .herodraft > *{position:relative}
 /* The arrival. One pass, on load, so the card resolves a beat after the page
    instead of with it — the whole gamified feeling in four lines of CSS. */
