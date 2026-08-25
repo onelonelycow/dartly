@@ -1901,7 +1901,11 @@ def board(request: Request,
                 if s > best_s:
                     best, best_s = r, s
             if best is not None:
-                best["_tack"] = "matches your skills"
+                # The short form is the data; _card.html supplies the
+                # "matches " prefix and hides it on a phone, where the full
+                # label measured 45% of the card's width and competed with
+                # the title instead of annotating it.
+                best["_tack"] = "your skills"
         except Exception:
             pass          # a flourish must never cost somebody the page
     # Ordered by how many gigs sit behind each bucket, not by however the dict

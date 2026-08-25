@@ -5,7 +5,7 @@
 <div class="gr-cardwrap{% if g._tack %} tacked{% endif %}">
   {# Set in web/main.py for at most one row per page, and only when that row
      genuinely matches a declared skill. #}
-  {% if g._tack %}<span class="tack">{{ g._tack }}</span>{% endif %}
+  {% if g._tack %}<span class="tack"><span class="tk-lg">matches </span>{{ g._tack }}</span>{% endif %}
   {# MEASURED AT 375px: five of eight dashboard titles ran UNDER the save star
      — title right edge at 335 against the star's left edge at 320, and the
      founder screenshotted the same bleed. The star was absolutely positioned,
