@@ -125,11 +125,57 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    centerline for free. */
 .dash-solo{max-width:680px;margin:0 auto}
 .newsince{font-size:13.5px;color:var(--mute);margin:0 0 16px}
-.herodraft{border:1px solid var(--line2);border-radius:14px;padding:18px 20px;
-  margin:0 0 26px;background:var(--bg2)}
+/* THE TOP MATCH CARD — a different object, not a bigger feed row.
+   The founder: "differentiate it from the rest of the listings, almost
+   gamify it". The feed under this card is a flat list of everything that
+   matched; this is the single row the ranking put first, with the reply
+   already written. That difference has to land before a word is read, or
+   the card is just a large row.
+
+   IT IS NOT DIFFERENTIATED WITH AMBER. Orange was cut back once already
+   ("too much overlapping orange"), and on this page the Gigs tab, the Search
+   button and this card's own eyebrow already spend it. Piling more on would
+   undo that pass and flatten the accent everywhere else by making it common.
+
+   What separates it instead is LIGHT: a ground that lifts off the page,
+   a shadow no feed row casts, and a hairline catching light along the top
+   edge the way a physical card would. Light reads as "raised" pre-verbally,
+   which is exactly the register the founder asked for. */
+.herodraft{position:relative;border:1px solid var(--line2);border-radius:16px;
+  padding:20px 22px;margin:0 0 26px;overflow:hidden;
+  background:linear-gradient(180deg,var(--bg2) 0%,var(--bg) 100%);
+  box-shadow:0 16px 40px rgba(0,0,0,.42)}
+/* The catch-light: brightest across the middle, gone at the corners, so the
+   edge looks lit rather than outlined. */
+.herodraft::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.18) 28%,
+    rgba(255,255,255,.18) 72%,transparent)}
+/* One breath of amber, at 5%, pooled behind the eyebrow. It is the warmth
+   that makes the card feel picked rather than listed, and at this opacity it
+   reads as light rather than as another orange element. */
+.herodraft::after{content:"";position:absolute;top:-70px;left:-40px;
+  width:320px;height:180px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,rgba(232,147,58,.05),transparent)}
+.herodraft > *{position:relative}
+/* The arrival. One pass, on load, so the card resolves a beat after the page
+   instead of with it — the whole gamified feeling in four lines of CSS. */
+@media (prefers-reduced-motion:no-preference){
+  .herodraft{animation:hd-in .45s cubic-bezier(.22,.68,.32,1) both}
+  @keyframes hd-in{from{opacity:0;transform:translateY(7px)}
+                   to{opacity:1;transform:none}}
+}
 .hd-k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--amber);margin:0 0 6px}
 .hd-t{font-size:17px;font-weight:650;margin:0 0 10px}
+/* WHY THIS ONE. The only line on the card that differs between two members
+   looking at the same board, which is what makes the card feel addressed
+   rather than published. Set as a quiet pill: it is evidence, not a control,
+   so it must not read as another thing to click (the founder on the old
+   head: "too many actual clickable things"). */
+.hd-why{display:inline-block;font-size:12px;color:var(--mute);
+  border:1px solid var(--line2);border-radius:999px;padding:4px 11px;
+  margin:0 0 12px}
+.hd-why b{color:var(--ink2);font-weight:600}
 .hd-body{font-size:14.5px;line-height:1.6;color:var(--ink2);white-space:pre-wrap;
   margin:0 0 14px}
 .hd-go{display:flex;gap:10px;flex-wrap:wrap}
@@ -238,6 +284,11 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
      rail hides behind a Filters toggle instead — the house checkbox pattern. */
   .dash-grid{display:block}
   .rail{display:none}
+  /* The card keeps its lift on a phone but not its inset: 22px of padding on
+     a 349px screen costs the draft two words a line. The shadow softens too
+     — a heavy one on a small card looks like a rendering fault, not depth. */
+  .herodraft{padding:17px 15px;border-radius:14px;
+    box-shadow:0 10px 26px rgba(0,0,0,.36)}
   .fieldrow{display:flex}
   .filt-lbl{display:flex;align-items:center;min-height:44px;padding:0 15px;
     border:1px solid var(--line);border-radius:12px;background:var(--panel);
@@ -320,8 +371,12 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   {% endif %}
   {% if hero_draft %}
   <div class="herodraft">
-    <div class="hd-k">A first line for your top gig</div>
+    {# "Today" is the whole scarcity beat: it says one of these arrives per
+       visit and this is it. It is also true — the ranking runs against a
+       board that turned over since the last visit. #}
+    <div class="hd-k">Your top match today</div>
     <div class="hd-t">{{ hero_gig.title }}</div>
+    {% if hero_why %}<div class="hd-why">Matched on <b>{{ hero_why }}</b></div>{% endif %}
     <div class="hd-body">{{ hero_draft }}</div>
     <div class="hd-go">
       <a class="draftlink" href="/draft/{{ hero_gig.id }}?back=/">Edit this reply →</a>

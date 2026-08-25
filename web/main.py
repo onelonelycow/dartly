@@ -1797,7 +1797,7 @@ def board(request: Request,
     # /gigs skips the block that assigns it and the template reads it
     # unconditionally, so a landing-only assignment is a 500 on /gigs. It was,
     # for one commit.
-    hero_gig, hero_draft = None, ""
+    hero_gig, hero_draft, hero_why = None, "", ""
     landing = request.url.path == "/"
     # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
     # for a visitor — it is the landing: hero, then the newest gigs. What it no
@@ -1825,8 +1825,24 @@ def board(request: Request,
                 import pitch
                 hero_gig = res["rows"][0]
                 hero_draft = pitch.draft_template(hero_gig, prof)
+                # WHY THIS ONE IS FIRST, in the member's own terms. fit_ranked
+                # already computed it into _why and nothing rendered it; the
+                # card said "your top gig" and left the reader to take that on
+                # faith. The note is the one thing on this card that changes
+                # from member to member and day to day.
+                #
+                # The SCORE is deliberately not shown. Measured across all 24
+                # categories against 4,000 live gigs, the top row lands on 78
+                # or 83 every single time — the number is a ranking device, and
+                # printing the same "83" for every member every day would be
+                # noise wearing the costume of data (FEEL §7).
+                #
+                # Empty when the member set neither skills nor keywords, and
+                # then the line simply does not render: an unranked feed has
+                # no reason to give, and inventing one is worse than silence.
+                hero_why = ", ".join(hero_gig.get("_why") or [])
             except Exception:
-                hero_gig, hero_draft = None, ""
+                hero_gig, hero_draft, hero_why = None, "", ""
     decorate(res["rows"], ranked)
     # Ordered by how many gigs sit behind each bucket, not by however the dict
     # happens to be written — the app's dashboard leads with the biggest, and a
@@ -1856,7 +1872,7 @@ def board(request: Request,
         booting = False
     resp = templates.TemplateResponse(request, "board.html", {
         "booting": booting,
-        "hero_gig": hero_gig, "hero_draft": hero_draft,
+        "hero_gig": hero_gig, "hero_draft": hero_draft, "hero_why": hero_why,
         "new_since": new_since,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
