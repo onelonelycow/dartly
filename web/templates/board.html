@@ -187,7 +187,14 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
 /* The note sits top-RIGHT here because this card has no save star; the feed
    card does, so it places its own on the left. Overhangs the top edge, which
    is the whole reason .herodraft lost its overflow clip. */
-.herodraft .tack{top:-13px;right:16px;transform:rotate(3deg)}
+/* POSITION IS RE-DECLARED HERE ON PURPOSE. .tack sets position:absolute in
+   base.html, but .herodraft > * below sets position:relative on every direct
+   child so the content clears the card's glow — same specificity, declared
+   later, so it won and the note fell into normal flow: it stacked ABOVE the
+   eyebrow and bunched against the title instead of hanging off the corner.
+   Two classes here outrank that one-class rule, so the note is absolute again.
+   Right-hand side, where nothing else in this card lives. */
+.herodraft .tack{position:absolute;top:-13px;right:16px;transform:rotate(3deg)}
 @media (max-width:640px){.herodraft .tack{right:11px;font-size:15.5px}}
 .hd-k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--amber);margin:0 0 6px}
