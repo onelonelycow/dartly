@@ -171,10 +171,11 @@ def read_board():
 # one request and renders instantly. The tokens are index.html's, copied, so
 # the pages belong to the same site rather than merely linking to it.
 CSS = """
+@font-face{font-family:'Archivo';src:url('/archivo.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}
 :root{--bg:#121418;--bg2:#15181d;--panel:#171a20;--line:#262a31;--line2:#2f343d;
 --ink:#F6F8FA;--ink2:#AEB4BE;--mute:#868D98;--amber:#E8933A;--amber-l:#F7B569;
 --amber-d:#CB6F16;--radius:16px;--maxw:800px;
---sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+--sans:'Archivo',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
 font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}

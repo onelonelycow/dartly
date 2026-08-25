@@ -35,6 +35,23 @@
    type without the four or five static files this would have cost. */
 @font-face{font-family:'Archivo';src:url('/static/archivo.woff2?v={{ css_v }}') format('woff2');
   font-weight:100 900;font-stretch:62% 125%;font-display:swap;font-style:normal}
+/* THE PEN. One face, used for at most one thing per screen: the note that says
+   "this row is yours". It never sets a title, a control, a number or body copy
+   — those are Archivo, and the split is what stops this from creeping. Loaded
+   like the display face and just as small, so the cost is one cached request.
+
+   .tack is deliberately NOT positioned here. Where the note hangs depends on
+   what else is in that corner — the feed card has a save star top-right, the
+   top-match card does not — so each surface places it and this only owns how
+   it LOOKS. */
+@font-face{font-family:'Caveat';src:url('/static/caveat.woff2?v={{ css_v }}') format('woff2');
+  font-weight:400 700;font-display:swap;font-style:normal}
+.tack{position:absolute;background:var(--amber);color:#191308;font-family:'Caveat';
+  font-weight:700;font-size:16.5px;line-height:1;white-space:nowrap;
+  padding:7px 11px 8px;box-shadow:0 7px 15px rgba(0,0,0,.45);z-index:3}
+@media (prefers-reduced-motion:no-preference){
+  .tack{animation:tack-in .38s cubic-bezier(.3,1.35,.4,1) .45s both}}
+@keyframes tack-in{from{opacity:0;transform:translateY(-10px) rotate(0) scale(1.06)}}
 /* Only what plain HTML needs and Streamlit provided for itself: a page frame,
    and the handful of controls Streamlit rendered as widgets. Everything with a
    .gr- class comes from the shared sheet above. */

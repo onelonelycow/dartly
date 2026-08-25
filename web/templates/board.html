@@ -36,6 +36,17 @@
 a.gr-cat.on{border-color:var(--amber-d);background:rgba(232,147,58,.14);
   color:#eaa662!important}
 a.gr-cat.on .n{color:var(--amber);background:rgba(232,147,58,.16)}
+/* A MARKED FEED CARD. The note goes top-LEFT: this card's top-right corner
+   holds the save star, and a note over a control is the one thing this must
+   never do. The card also grows a little headroom so the note has somewhere
+   to overhang instead of landing on the title or the New chip. */
+/* .cards sets gap:14px and the note overhangs by 14px, so measured, its top
+   edge landed EXACTLY on the bottom of the card above — 0px of daylight. The
+   extra top margin buys the overhang its own room. */
+.gr-cardwrap.tacked{padding-top:30px;margin-top:14px;
+  border-color:rgba(232,147,58,.42)}
+.gr-cardwrap.tacked .tack{top:-12px;left:15px;transform:rotate(-3deg)}
+@media (max-width:640px){.gr-cardwrap.tacked .tack{font-size:15.5px}}
 .feedtop{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 10px}
 .refresh{flex:none;width:44px;height:44px;display:flex;align-items:center;
   justify-content:center;font-size:19px;line-height:1;
@@ -173,6 +184,11 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   @keyframes hd-in{from{opacity:0;transform:translateY(7px)}
                    to{opacity:1;transform:none}}
 }
+/* The note sits top-RIGHT here because this card has no save star; the feed
+   card does, so it places its own on the left. Overhangs the top edge, which
+   is the whole reason .herodraft lost its overflow clip. */
+.herodraft .tack{top:-13px;right:16px;transform:rotate(3deg)}
+@media (max-width:640px){.herodraft .tack{right:11px;font-size:15.5px}}
 .hd-k{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--amber);margin:0 0 6px}
 .hd-t{font-size:17px;font-weight:650;margin:0 0 10px}
@@ -383,7 +399,11 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     {# "Today" is the whole scarcity beat: it says one of these arrives per
        visit and this is it. It is also true — the ranking runs against a
        board that turned over since the last visit. #}
-    <div class="hd-k">Your top match today</div>
+    {# THE NOTE. Only with a reason behind it: hero_why is empty when the member
+     set neither skills nor keywords, and an unranked feed has nothing to
+     claim. No reason, no note — the card is complete without it. #}
+  {% if hero_why %}<span class="tack">picked for you</span>{% endif %}
+  <div class="hd-k">Your top match today</div>
     <div class="hd-t">{{ hero_gig.title }}</div>
     {% if hero_why %}<div class="hd-why">Matched on <b>{{ hero_why }}</b></div>{% endif %}
     <div class="hd-body">{{ hero_draft }}</div>

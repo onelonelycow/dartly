@@ -1871,6 +1871,39 @@ def board(request: Request,
             except Exception:
                 hero_gig, hero_draft, hero_why = None, "", ""
     decorate(res["rows"], ranked)
+    # ONE MARKED ROW ON /GIGS, AND ONLY WHEN IT IS TRUE.
+    #
+    # /gigs is the whole board and its default order is newest-first, so
+    # nothing on the page says which of these 25 is actually yours — the fit
+    # numbers exist but only the dashboard ever showed them. This marks the
+    # best-fitting row so the page has one personal thing on it.
+    #
+    # Scoped to /gigs deliberately: the dashboard already carries its own note
+    # on the top-match card, and two hand-written marks on one screen is the
+    # thing the whole scheme is supposed to prevent.
+    #
+    # THE COPY HAS TO BE TRUE, so the row must actually match a declared skill
+    # — a high score from keywords or budget alone is not "matches your
+    # skills". No skills set, no match on the page, no note.
+    #
+    # Cost is 25 fit_score calls on rows already in memory, which is pure
+    # Python over dicts. The expensive version is queries.fit_ranked, which
+    # scores the whole board; this deliberately does not do that.
+    if not landing and me and (prof.get("skills") or []):
+        try:
+            import score as _sc
+            best, best_s = None, 0
+            for r in res["rows"]:
+                if r.get("job_type") not in prof["skills"]:
+                    continue
+                s, _why = _sc.fit_score(
+                    {k: r.get(k) for k in _sc.FIT_FIELDS}, prof)
+                if s > best_s:
+                    best, best_s = r, s
+            if best is not None:
+                best["_tack"] = "matches your skills"
+        except Exception:
+            pass          # a flourish must never cost somebody the page
     # Ordered by how many gigs sit behind each bucket, not by however the dict
     # happens to be written — the app's dashboard leads with the biggest, and a
     # different order is the kind of difference you feel without being able to

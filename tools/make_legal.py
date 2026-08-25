@@ -34,11 +34,12 @@ PAGE = """<!doctype html>
 <link rel="canonical" href="https://nabbly.co/{slug}">
 <meta name="robots" content="index, follow">
 <style>
+  @font-face{{font-family:'Archivo';src:url('/archivo.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}}
   :root{{--bg:#0B0D10;--card:#12151a;--ink:#ECEEF1;--mute:#98A0AB;--faint:#6C737E;
          --amber:#E8933A;--line:#232830}}
   *{{box-sizing:border-box}}
   body{{margin:0;background:var(--bg);color:var(--ink);
-    font:16px/1.75 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font:16px/1.75 'Archivo',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased}}
   .wrap{{max-width:760px;margin:0 auto;padding:0 22px}}
   header{{border-bottom:1px solid var(--line);padding:20px 0}}
