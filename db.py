@@ -87,6 +87,16 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN llm_checked INTEGER")
     except sqlite3.OperationalError:
         pass
+    # WHEN a gig left the board, not merely that it did. is_demand=0 records the
+    # fact and loses the date, and the date is the whole signal: how long work in
+    # a field survives before it is taken is the one number a member cannot get
+    # anywhere else, and the only honest basis for telling them to reply now
+    # rather than tonight. Every day this went unrecorded was a day of it gone
+    # for good — the rows survived, the timing did not.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN archived_at TEXT")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -594,10 +604,15 @@ def archive_stale(days: int = STALE_DAYS) -> int:
         # averages 1,640 bytes and is 93% of what a row weighs, so keeping it
         # meant the archive tail grew forever and had to be hauled back over
         # the network at every boot for nothing.
+        # COALESCE on archived_at, so a row retired once keeps the date it was
+        # first retired on. Re-stamping would quietly reset the clock on the
+        # only measurement this column exists to support.
+        now = datetime.now(timezone.utc).isoformat()
         cur = conn.execute(
-            "UPDATE posts SET is_demand = 0, body = '' "
+            "UPDATE posts SET is_demand = 0, body = '', "
+            "                 archived_at = COALESCE(archived_at, ?) "
             "WHERE is_demand = 1 "
-            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (cutoff,))
+            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (now, cutoff))
         conn.commit()
         n = cur.rowcount or 0
     finally:

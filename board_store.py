@@ -52,13 +52,15 @@ CAP = 40000
 # never catching up. Add a column to posts, add it here too.
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
-         "apply_email", "page_checked", "link_checked", "llm_checked")
+         "apply_email", "page_checked", "link_checked", "llm_checked",
+         "archived_at")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
 # Postgres — taking the whole executemany, and the batch, down with it.
 _DEFAULTS = {"is_demand": 1, "owner": "",
-             "page_checked": None, "link_checked": None, "llm_checked": None}
+             "page_checked": None, "link_checked": None, "llm_checked": None,
+             "archived_at": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
 # rather than keeping a second copy that can drift out of sync (it did).
@@ -89,6 +91,7 @@ def _ensure(conn):
                 page_checked integer,
                 link_checked integer,
                 llm_checked integer,
+                archived_at text,
                 PRIMARY KEY (source, source_id)
             )""")
     _migrate(conn)
@@ -100,7 +103,8 @@ def _ensure(conn):
 _ADDED = (("apply_email", "text"),
           ("page_checked", "integer"),
           ("link_checked", "integer"),
-          ("llm_checked", "integer"))
+          ("llm_checked", "integer"),
+          ("archived_at", "text"))
 
 
 def _migrate(conn):
@@ -551,10 +555,15 @@ def archive_stale_mirror(days: int, floor: int = MIRROR_FLOOR) -> dict:
                 out["ran"] = True
                 return out
             cur.execute(
-                f"UPDATE {_TABLE} SET is_demand = 0, body = '' "
+                # Stamped here as well as in db.archive_stale, because the two
+                # paths retire rows independently: the mirror sweep can retire a
+                # row this copy of the board never saw go. COALESCE so whichever
+                # runs second does not overwrite the first date.
+                f"UPDATE {_TABLE} SET is_demand = 0, body = '', "
+                f"       archived_at = COALESCE(archived_at, {ph}) "
                 f"WHERE is_demand = 1 "
                 f"  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < {ph}",
-                (cutoff,))
+                (datetime.now(timezone.utc).isoformat(), cutoff))
             conn.commit()
             out["ran"], out["archived"] = True, int(cur.rowcount or 0)
             print(f"  archive_stale_mirror: retired {out['archived']:,} gigs "
