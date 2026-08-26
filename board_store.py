@@ -159,6 +159,57 @@ def push(records) -> int:
         return 0
 
 
+def push_tags(rows) -> int:
+    """
+    Mirror what a re-classification decided: job_type, size_tier, urgency.
+    `rows` is [(job_type, size_tier, urgency, source, source_id)].
+
+    WITHOUT THIS A CLASSIFIER FIX SURVIVES ONE PROCESS AND THEN UNDOES ITSELF.
+    db.reclassify_all() UPDATEs the local SQLite file and nothing else, exactly
+    as the sweeps did before push_sweep() existed — and this one is worse,
+    because the re-tag is fingerprint-gated and the stamp is durable. The cycle:
+    change the keywords, boot, re-tag locally, stamp the new fingerprint; next
+    deploy wipes Render's disk, the board restores from the mirror's OLD tags,
+    and reclassify_all sees a fingerprint it has already stamped and skips. The
+    wrong tags are then permanent, and no later run will ever revisit them.
+
+    The SEO generator reads the mirror too, so without this a re-tag never
+    reaches the field pages at all, however many times the board re-tags itself.
+
+    Assignment, not COALESCE, unlike push_sweep: a sweep that finds nothing must
+    not blank an address it did not look for, but a classifier that returns
+    "Other / general" has genuinely decided that, and an empty urgency is a real
+    value meaning "not urgent" rather than an absence.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET "
+                   f"job_type = {ph}, size_tier = {ph}, urgency = {ph} "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
+            # Chunked: a re-tag after a vocabulary change can move tens of
+            # thousands of rows, and one executemany that size is a single
+            # statement the pooler can time out on — losing every row rather
+            # than the batch that failed.
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
 def compact_archived() -> int:
     """
     Mirror-side twin of db.compact_archived(): reclaim old archived bodies.

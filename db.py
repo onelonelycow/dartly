@@ -938,11 +938,13 @@ def reclassify_all(force: bool = False) -> int:
     conn = connect()
     try:
         cur = conn.execute(
-            "SELECT id, title, body, source, job_type, size_tier, urgency FROM posts")
+            "SELECT id, source_id, title, body, source, job_type, size_tier, "
+            "urgency FROM posts")
         # Only the rows that actually changed are held, and each is four short
         # strings rather than a full description. A repeat run finds nothing and
         # so holds nothing — the idempotence this function already promised.
         pending = []
+        mirror = []
         while True:
             rows = cur.fetchmany(2000)
             if not rows:
@@ -953,6 +955,8 @@ def reclassify_all(force: bool = False) -> int:
                         or t["urgency"] != r["urgency"]):
                     pending.append((t["job_type"], t["size_tier"], t["urgency"],
                                     r["id"]))
+                    mirror.append((t["job_type"], t["size_tier"], t["urgency"],
+                                   r["source"], r["source_id"]))
         # Applied after the read cursor is exhausted, never during it: SQLite
         # gives no guarantees about a SELECT still being stepped through while
         # the same table is being written.
@@ -961,6 +965,19 @@ def reclassify_all(force: bool = False) -> int:
                 "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
                 pending)
         conn.commit()
+        # The mirror gets the same decision, or the next deploy restores the old
+        # tags and the durable stamp stops this ever running again. After the
+        # local commit, and best-effort: the board is already correct by here, so
+        # a mirror that refuses the write must not cost the re-tag. Printed
+        # because a silent failure is the exact shape of the bug this fixes.
+        if mirror:
+            try:
+                import board_store
+                sent = board_store.push_tags(mirror)
+                if sent != len(mirror):
+                    print(f"  ! reclassify: mirrored {sent}/{len(mirror)} re-tags")
+            except Exception as e:
+                print(f"  ! reclassify: mirror push failed ({type(e).__name__})")
         # Stamped only after the pass completed. A crash or a killed process
         # part-way leaves the stamp untouched, so the next boot does the work
         # again rather than recording a re-tag that never finished.
