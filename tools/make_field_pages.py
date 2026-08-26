@@ -101,10 +101,21 @@ SAMPLE = 16         # real titles shown per page. The single strongest
 # The IT one shipped live and read as a typo in the h1, the title tag and the
 # meta description of a page we are about to point outreach at. Acronyms keep
 # their case; anything else derives as before.
+# The noun drives the title, the H1 and the prose. Six of these were pointed at
+# a word nobody searches, verified against Google autocomplete for all 24
+# fields: "development" completes to international development and charity work,
+# "admin" to office admin employment, and so on. The SLUG is deliberately not
+# touched here — the URLs keep working and only the language moves.
 NOUN_OVERRIDES = {
     "it": "IT",
     "hr": "HR",
     "qa": "QA",
+    "development": "developer",          # was: development / international dev
+    "admin": "virtual assistant",        # was: admin / office admin
+    "video": "video editing",            # was: video / video production
+    "product": "product manager",        # was: product / physical product
+    "management": "project manager",     # was: management / people management
+    "customer": "customer service",      # was: customer / customer-facing
 }
 
 
@@ -369,7 +380,7 @@ def build(by=None):
         large = sum(1 for r in rows if r["size_tier"] == "Large")
         urgent = sum(1 for r in rows if r["urgency"] == "Urgent")
         url = f"{BASE}/freelance-{s}-jobs/"
-        title = f"Freelance and remote {noun} work · Nabbly"
+        title = f"Freelance {noun} jobs and remote {noun} work · Nabbly"
         desc = (f"New freelance {noun} briefs and remote {noun} roles from every "
                 f"job board and hiring community, in one place, minutes after "
                 f"they post.")
@@ -382,7 +393,8 @@ def build(by=None):
             cat=html.escape(quote(field, safe="")), noun=html.escape(noun),
             name_json=repr(title).replace("'", '"'),
             desc_json=repr(desc).replace("'", '"'),
-            h1=f"Freelance and remote {html.escape(noun)} work,<br>the moment it posts.",
+            h1=f"Freelance {html.escape(noun)} jobs and remote "
+           f"{html.escape(noun)} work,<br>the moment it posts.",
             lead=(f"Every new {html.escape(noun)} brief and {html.escape(noun)} role "
                   f"Nabbly finds, from across the job boards and hiring communities "
                   f"it watches, gathered on one board you can read in a minute."),
@@ -405,13 +417,58 @@ def build(by=None):
                                       f'<ul class="more">{links}</ul>')
         d = OUT / f"freelance-{w['slug']}-jobs"
         d.mkdir(parents=True, exist_ok=True)
+        # remember whether the body actually moved, so the sitemap can keep an
+        # honest lastmod instead of restamping all 28 URLs every single run
+        old = (d / "index.html").read_text(encoding="utf-8") if (d / "index.html").exists() else ""
+        w["changed"] = (old != w["page"])
         (d / "index.html").write_text(w["page"], encoding="utf-8")
 
+    prune(written)
     return written
+
+
+def prune(written):
+    """
+    Delete field pages this run did not write.
+
+    Without this the generator only ever adds. A field that drops below
+    MIN_GIGS keeps its directory, and that page stays live and indexable while
+    quietly falling out of the sitemap, which is built from the current run.
+    That is the /freelance-photography-jobs/ case: HTTP 200, indexable, absent
+    from sitemap.xml, describing work that stopped being there.
+    """
+    keep = {f"freelance-{w['slug']}-jobs" for w in written}
+    removed = []
+    for d in sorted(OUT.glob("freelance-*-jobs")):
+        if d.is_dir() and d.name not in keep:
+            for f in sorted(d.rglob("*")):
+                if f.is_file():
+                    f.unlink()
+            d.rmdir()
+            removed.append(d.name)
+    for name in removed:
+        print(f"  pruned /{name}/ (below MIN_GIGS or no longer a field)")
+    return removed
+
+
+def _previous_lastmods():
+    """url -> lastmod from the sitemap already on disk, so unchanged pages keep
+    the date they actually last changed."""
+    f = OUT / "sitemap.xml"
+    if not f.exists():
+        return {}
+    body = f.read_text(encoding="utf-8")
+    return dict(re.findall(r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", body))
 
 
 def write_sitemap(written):
     today = date.today().isoformat()
+    # A LASTMOD THAT IS ALWAYS TODAY IS A LASTMOD THAT MEANS NOTHING. This file
+    # used to restamp all 28 URLs on every weekly run, telling crawlers the
+    # privacy policy changed as often as the board. A page keeps its previous
+    # date unless its bytes actually moved this run.
+    prior = _previous_lastmods()
+    changed = {w["url"] for w in written if w.get("changed")}
     # app.nabbly.co is NOT listed. It answers a crawler with nine words and the
     # title "Streamlit" — everything it holds is rendered client side — so
     # pointing search engines at it hourly (which this file used to do, at
@@ -421,12 +478,20 @@ def write_sitemap(written):
             *[(w["url"], "daily", "0.8") for w in written],
             (f"{BASE}/about.html", "monthly", "0.6"),
             (f"{BASE}/faq.html", "monthly", "0.6"),
+            (f"{BASE}/guides/", "monthly", "0.6"),
             (f"{BASE}/guides/how-to-reply-to-a-freelance-job-post/",
              "monthly", "0.7"),
             (f"{BASE}/privacy.html", "yearly", "0.3"),
             (f"{BASE}/terms.html", "yearly", "0.3")]
+    def stamp(u):
+        # field pages: today only if this run rewrote them. everything else:
+        # today only if it has never been stamped before.
+        if u in changed:
+            return today
+        return prior.get(u, today)
+
     body = "\n".join(
-        f"  <url>\n    <loc>{u}</loc>\n    <lastmod>{today}</lastmod>\n"
+        f"  <url>\n    <loc>{u}</loc>\n    <lastmod>{stamp(u)}</lastmod>\n"
         f"    <changefreq>{c}</changefreq>\n    <priority>{p}</priority>\n  </url>"
         for u, c, p in urls)
     (OUT / "sitemap.xml").write_text(
@@ -593,8 +658,67 @@ def write_prose_pages(written):
         morefields=f'<h2>Browse by field</h2><ul class="more">{sibs}</ul>',
         ), encoding="utf-8")
 
-    return ["about.html", "faq.html",
+    # THE HUB. /guides/ returned 404 while the guide under it returned 200:
+    # the one place a reader trims the URL to, and the natural root for the
+    # section, was the only broken link in the set.
+    guide_list = (
+        '<ul class="more">'
+        f'<li><a href="/guides/how-to-reply-to-a-freelance-job-post/">'
+        f'{html.escape(content.GUIDE_APPLY_TITLE)}</a></li>'
+        '</ul>')
+    gd = OUT / "guides"
+    gd.mkdir(parents=True, exist_ok=True)
+    (gd / "index.html").write_text(PROSE.format(
+        BOARD=BOARD, REF=REF,
+        title="Guides &middot; Nabbly",
+        desc=("Practical guides to finding freelance work and replying to it "
+              "well, written from what actually lands on the board."),
+        url=f"{BASE}/guides/", base=BASE, css=CSS, schema="",
+        h1="Guides",
+        lead=("How to find work worth replying to, and how to reply so it "
+              "gets read."),
+        body=guide_list,
+        morefields=f'<h2>Browse by field</h2><ul class="more">{sibs}</ul>',
+        ), encoding="utf-8")
+
+    return ["about.html", "faq.html", "guides/",
             "guides/how-to-reply-to-a-freelance-job-post/"]
+
+
+def write_homepage_fields(written):
+    """
+    Fill the field directory in index.html's footer.
+
+    THE HOMEPAGE LINKED TO NONE OF THEM. 23 field pages, and the most-linked
+    page on the site pointed at exactly zero of them, so the only routes in
+    were the sitemap and the pages' own sibling lists — a closed loop with no
+    door. Written between markers rather than by hand so a pruned field cannot
+    leave a dead link behind.
+
+    Also corrects two things measured on the live page: it claimed "25+ fields"
+    when config.JOB_TYPES holds 24, and the title carried an em dash, which
+    FEEL section 7 rules out.
+    """
+    f = OUT / "index.html"
+    if not f.exists():
+        return False
+    s = f.read_text(encoding="utf-8")
+    links = " · ".join(
+        f'<a href="/freelance-{w["slug"]}-jobs/">'
+        f'{html.escape(w["noun"]) if w["noun"].isupper() else html.escape(w["noun"]).title()}</a>'
+        for w in written)
+    start, end = "<!-- FIELDS:START -->", "<!-- FIELDS:END -->"
+    if start in s and end in s:
+        head, rest = s.split(start, 1)
+        _, tail = rest.split(end, 1)
+        s = (head + start + f'\n      <div class="fine">{links}</div>\n      '
+             + end + tail)
+    s = s.replace("25+ fields", f"{len(config.JOB_TYPES)} fields")
+    s = s.replace("<title>Nabbly — every gig and remote role, the moment it drops</title>",
+                  "<title>Freelance and remote jobs, minutes after they post · Nabbly</title>")
+    f.write_text(s, encoding="utf-8")
+    print(f"  homepage: linked {len(written)} field pages, fixed field count and title")
+    return True
 
 
 def record_snapshot(by):
@@ -639,6 +763,7 @@ if __name__ == "__main__":
     board = read_board()
     pages = build(board)
     prose = write_prose_pages(pages)
+    write_homepage_fields(pages)
     write_sitemap(pages)
     record_snapshot(board)
     print(f"wrote {len(pages)} field pages, {len(prose)} prose pages, sitemap.xml\n")
