@@ -381,6 +381,19 @@ def _loop(on_update=None):
                 print(f"  ! refresh has failed {_state['fails']} cycles in a row "
                       f"— the board is not updating", flush=True)
                 traceback.print_exc()
+            # The second-pass classifier, once per cycle and strictly
+            # bounded. It reads only gigs the keyword rules left in
+            # "Other / general" and never touches one they placed, so a bad
+            # answer cannot undo a good tag. It runs LAST because it is the only
+            # step here that makes a network call to a paid API: everything the
+            # board actually needs from this cycle is already committed by the
+            # time it starts, and if it hangs or throws it costs a label, not
+            # the refresh.
+            try:
+                db.classify_unlabelled()
+            except Exception as e:
+                print(f"  ! llm classify step failed: "
+                      f"{type(e).__name__}: {e}", flush=True)
         time.sleep(_INTERVAL_S)
 
 

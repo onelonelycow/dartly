@@ -52,13 +52,13 @@ CAP = 40000
 # never catching up. Add a column to posts, add it here too.
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
-         "apply_email", "page_checked", "link_checked")
+         "apply_email", "page_checked", "link_checked", "llm_checked")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
 # Postgres — taking the whole executemany, and the batch, down with it.
 _DEFAULTS = {"is_demand": 1, "owner": "",
-             "page_checked": None, "link_checked": None}
+             "page_checked": None, "link_checked": None, "llm_checked": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
 # rather than keeping a second copy that can drift out of sync (it did).
@@ -88,6 +88,7 @@ def _ensure(conn):
                 apply_email text,
                 page_checked integer,
                 link_checked integer,
+                llm_checked integer,
                 PRIMARY KEY (source, source_id)
             )""")
     _migrate(conn)
@@ -98,7 +99,8 @@ def _ensure(conn):
 # columns only ever arrive through here.
 _ADDED = (("apply_email", "text"),
           ("page_checked", "integer"),
-          ("link_checked", "integer"))
+          ("link_checked", "integer"),
+          ("llm_checked", "integer"))
 
 
 def _migrate(conn):
@@ -196,6 +198,47 @@ def push_tags(rows) -> int:
             # thousands of rows, and one executemany that size is a single
             # statement the pooler can time out on — losing every row rather
             # than the batch that failed.
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def push_llm_result(rows) -> int:
+    """
+    Mirror one second-pass run: the field it decided, and the fact that it
+    looked. `rows` is [(job_type_or_None, source, source_id)].
+
+    COALESCE on job_type, unlike push_tags: None here does not mean "the
+    classifier had no opinion to record", it means the model declined to place
+    this gig, and the row must keep the "Other / general" it already has rather
+    than be blanked.
+
+    llm_checked is set unconditionally, and that is the whole point of mirroring
+    this. Render wipes the local disk on every deploy and the board restores
+    from here — so a mark that lived only in SQLite would be gone by morning and
+    the entire unplaced backlog would be sent to the model again, and billed
+    again, after every single deploy.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET "
+                   f"job_type = COALESCE({ph}, job_type), llm_checked = 1 "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
             for i in range(0, len(rows), 2000):
                 chunk = rows[i:i + 2000]
                 with conn:

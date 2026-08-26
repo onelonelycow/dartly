@@ -3,6 +3,7 @@ db.py — stores demand posts in a single local file (demand_radar.db).
 
 SQLite is a database that lives in one file. No server, no setup.
 """
+import os
 import sqlite3
 from datetime import datetime, timezone
 
@@ -76,6 +77,14 @@ def init_db():
     # link we checked and found alive isn't re-fetched every cycle.
     try:
         conn.execute("ALTER TABLE posts ADD COLUMN link_checked INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    # Whether the second-pass classifier has already looked at this gig. Same
+    # reason as page_checked above: most of what it reads it cannot place, and
+    # without a mark those gigs would be re-sent — and re-billed — every two
+    # minutes for as long as the board runs, while never moving.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN llm_checked INTEGER")
     except sqlite3.OperationalError:
         pass
     conn.commit()
@@ -983,6 +992,96 @@ def reclassify_all(force: bool = False) -> int:
         # again rather than recording a re-tag that never finished.
         _mark_reclassified(fp)
         return len(pending)
+    finally:
+        conn.close()
+
+
+# How many unplaced gigs one refresh cycle offers the second-pass classifier.
+# At a 120s cycle this is a ceiling of ~14,400 a day against an intake of a few
+# hundred, so the backlog drains in hours and the steady state is idle: once
+# every gig carries llm_checked the SELECT below returns nothing and no request
+# is made at all. The cost of this feature when it has caught up is zero.
+LLM_PER_CYCLE = int(os.environ.get("NABBLY_CLASSIFY_PER_CYCLE") or 20)
+
+
+def classify_unlabelled(limit: int = 0) -> int:
+    """
+    Ask the model to name the gigs the keyword rules could not, and record it.
+
+    ONLY EVER READS ROWS ALREADY IN "Other / general". A gig the keywords
+    placed is never shown to the model and never rewritten, so the second pass
+    can move a row out of the catch-all and nowhere else. No existing
+    classification is at risk from a bad answer here.
+
+    Every row read is marked llm_checked whether or not it got a label. A gig
+    the model declines to place is the common case — the bucket holds German
+    onsite ads, one-line tasks and titles that name no field at all — and
+    without the mark those would be re-sent every cycle forever, paying again
+    each time to learn the same nothing. This is the page_checked lesson: the
+    expensive mistake is not the failed lookup, it is repeating it.
+
+    Returns how many gigs actually moved.
+    """
+    try:
+        import classify_llm
+    except Exception:
+        return 0
+    if not classify_llm.enabled():
+        return 0
+
+    conn = connect()
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, source, source_id, title, body FROM posts "
+            "WHERE is_demand = 1 AND job_type = ? AND llm_checked IS NULL "
+            "AND COALESCE(title,'') != '' "
+            "ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT ?",
+            (classify_llm.OTHER, int(limit or LLM_PER_CYCLE)))]
+        if not rows:
+            return 0
+
+        labels = classify_llm.label(rows)
+        # None means the call never produced a usable answer. Marking here would
+        # record these gigs as read when nothing read them, and the mark is what
+        # stops a retry — so one bad key or model name would spend the backlog
+        # without classifying a single gig. Leave them for the next cycle.
+        if labels is None:
+            return 0
+
+        moved, placed = [], {}
+        for r, field in zip(rows, labels):
+            if field and field != classify_llm.OTHER:
+                moved.append((field, r["id"]))
+                placed[r["id"]] = field
+        if moved:
+            conn.executemany("UPDATE posts SET job_type = ? WHERE id = ?", moved)
+        # Marked in the same transaction as the labels, so a crash between the
+        # two cannot leave a gig relabelled but eligible to be asked again.
+        conn.executemany("UPDATE posts SET llm_checked = 1 WHERE id = ?",
+                         [(r["id"],) for r in rows])
+        conn.commit()
+
+        # One push carries both halves: the field for the gigs that moved, and
+        # the mark for every gig read. The mark matters more than the labels —
+        # Render wipes the disk each deploy and the board restores from the
+        # mirror, so a mark that never left SQLite means buying this whole
+        # backlog again after every deploy.
+        try:
+            import board_store
+            sent = board_store.push_llm_result(
+                [(placed.get(r["id"]), r["source"], r["source_id"])
+                 for r in rows])
+            if sent != len(rows):
+                print(f"  ! llm classify: mirrored {sent}/{len(rows)}",
+                      flush=True)
+        except Exception as e:
+            print(f"  ! llm classify: mirror push failed "
+                  f"({type(e).__name__})", flush=True)
+
+        if moved:
+            print(f"  llm classify: placed {len(moved)} of {len(rows)}",
+                  flush=True)
+        return len(moved)
     finally:
         conn.close()
 
