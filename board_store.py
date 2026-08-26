@@ -425,12 +425,21 @@ def pull_since(since: str, cap: int = CAP) -> list[dict]:
 
 def iter_flags(batch: int = 20000):
     """
-    Every gig's (source, source_id, is_demand), in pages.
+    Every gig's (source, source_id, is_demand, job_type, rare), in pages.
 
     Paged for the same reason as iter_all: capped at CAP, reconciliation could
     not see an archived gig that had fallen past the cap, so it would stay on
     the board copy forever — which is exactly the bug reconciliation exists to
-    prevent. Three small columns, so the pages can be large.
+    prevent. Small columns, so the pages can be large.
+
+    JOB_TYPE AND RARE TRAVEL WITH is_demand BECAUSE THEY HAVE THE SAME PROBLEM.
+    The board's incremental sync asks for rows WHERE fetched_at > watermark, so
+    it can only ever see a gig ARRIVE. Anything that changes an existing row
+    without touching fetched_at is invisible to it — which is the whole reason
+    this reconciliation pass exists for archival, and is equally true of the two
+    columns added since. The second-pass classifier re-tags a gig in the mirror
+    and the board would have gone on showing "Other / general" until its next
+    restart; mark_rare() would have set a badge no visitor ever saw.
     """
     if not enabled():
         return
@@ -441,10 +450,11 @@ def iter_flags(batch: int = 20000):
             try:
                 _ensure(conn)
                 cur = conn.execute(
-                    f"SELECT source, source_id, is_demand FROM {_TABLE} "
+                    f"SELECT source, source_id, is_demand, job_type, rare "
+                    f"FROM {_TABLE} "
                     f"ORDER BY COALESCE(posted_at, fetched_at) DESC "
                     f"LIMIT {int(batch)} OFFSET {int(offset)}")
-                rows = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+                rows = [(r[0], r[1], r[2], r[3], r[4]) for r in cur.fetchall()]
             finally:
                 conn.close()
         except Exception:

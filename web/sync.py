@@ -117,7 +117,8 @@ def _connect_rw():
 
 def _ensure_schema(conn):
     cols = ", ".join(
-        f"{c} INTEGER" if c in ("is_demand", "page_checked", "link_checked")
+        f"{c} INTEGER" if c in ("is_demand", "page_checked", "link_checked",
+                                "llm_checked", "rare")
         else f"{c} TEXT" for c in _COLS)
     conn.execute(f"""CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -280,10 +281,19 @@ def reconcile() -> int:
     # Paged: capped, this could not see an archived gig past the cap, so it
     # would stay on the board copy forever — the exact bug this function is
     # here to prevent.
-    dead = []
+    dead, tags = [], []
     for page in board_store.iter_flags():
-        dead.extend((s, sid) for s, sid, d in page if not d)
-    if not dead:
+        for row in page:
+            # Tolerates the three-column shape too, so a board running ahead of
+            # a mirror that has not been migrated yet reconciles archival rather
+            # than throwing and reconciling nothing.
+            s_, sid, d = row[0], row[1], row[2]
+            job, rare = (row[3], row[4]) if len(row) >= 5 else (None, None)
+            if not d:
+                dead.append((s_, sid))
+            if job is not None or rare is not None:
+                tags.append((job, rare, s_, sid))
+    if not dead and not tags:
         _state["last_reconcile"] = time.time()
         return 0
     conn = _connect_rw()
@@ -294,15 +304,40 @@ def reconcile() -> int:
         # retired hundreds of gigs would report whatever the final UPDATE
         # happened to touch — usually zero. A monitoring number that reads 0
         # while the work is happening is worse than no number.
+        # What this copy currently believes, so only real differences are
+        # written. Two small columns keyed on the natural key.
+        have = {(r[0], r[1]): (r[2], r[3]) for r in conn.execute(
+            "SELECT source, source_id, job_type, rare FROM posts")}
+        changed = []
+        for job, rare, s_, sid in tags:
+            cur = have.get((s_, sid))
+            if cur is None:
+                continue                      # not on this copy yet
+            job = cur[0] if job is None else job
+            rare = cur[1] if rare is None else rare
+            if (job, rare) != cur:
+                changed.append((job, rare, s_, sid))
+
         before = conn.execute(
             "SELECT COUNT(*) FROM posts WHERE is_demand = 0").fetchone()[0]
         with conn:
-            conn.executemany(
-                "UPDATE posts SET is_demand = 0 WHERE source = ? AND source_id = ? "
-                "AND is_demand != 0", dead)
+            if dead:
+                conn.executemany(
+                    "UPDATE posts SET is_demand = 0 WHERE source = ? AND source_id = ? "
+                    "AND is_demand != 0", dead)
+            # Differences are worked out in Python against what this copy
+            # already holds, rather than in a WHERE clause clever enough to be
+            # wrong. This runs on a timer over the whole board, so writing every
+            # row each pass would rewrite 49,000 rows a minute to change none of
+            # them; writing only what differs is usually a handful.
+            if changed:
+                conn.executemany(
+                    "UPDATE posts SET job_type = ?, rare = ? "
+                    "WHERE source = ? AND source_id = ?", changed)
         n = conn.execute(
             "SELECT COUNT(*) FROM posts WHERE is_demand = 0").fetchone()[0] - before
         _state["archived"] += n
+        _state["retagged"] = _state.get("retagged", 0) + len(changed)
     finally:
         conn.close()
     _state["last_reconcile"] = time.time()
