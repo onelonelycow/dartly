@@ -381,19 +381,25 @@ def _loop(on_update=None):
                 print(f"  ! refresh has failed {_state['fails']} cycles in a row "
                       f"— the board is not updating", flush=True)
                 traceback.print_exc()
-            # The second-pass classifier, once per cycle and strictly
-            # bounded. It reads only gigs the keyword rules left in
-            # "Other / general" and never touches one they placed, so a bad
-            # answer cannot undo a good tag. It runs LAST because it is the only
-            # step here that makes a network call to a paid API: everything the
-            # board actually needs from this cycle is already committed by the
-            # time it starts, and if it hangs or throws it costs a label, not
-            # the refresh.
-            try:
-                db.classify_unlabelled()
-            except Exception as e:
-                print(f"  ! llm classify step failed: "
-                      f"{type(e).__name__}: {e}", flush=True)
+        # The second-pass classifier, once per cycle and strictly bounded. It
+        # reads only gigs the keyword rules left in "Other / general" and never
+        # touches one they placed, so a bad answer cannot undo a good tag. It
+        # runs last because it is the only step here that makes a network call
+        # to a paid API: everything the board needs from this cycle is already
+        # committed by the time it starts, and if it hangs or throws it costs a
+        # label rather than the refresh.
+        #
+        # AT THE LOOP'S INDENT, NOT THE HANDLER'S. This first shipped one level
+        # deeper, inside `except Exception as e:` above, where it ran only when
+        # a refresh cycle had already failed. Cycles were succeeding, so it
+        # never ran once in an hour on production and reported nothing: no
+        # error, no output, and a queue that stayed at 5,913 while looking
+        # exactly like a feature still waiting on a deploy.
+        try:
+            db.classify_unlabelled()
+        except Exception as e:
+            print(f"  ! llm classify step failed: "
+                  f"{type(e).__name__}: {e}", flush=True)
         time.sleep(_INTERVAL_S)
 
 
