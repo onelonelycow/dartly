@@ -83,6 +83,12 @@ REF = "site"
 # visitor lands on something nearly empty, which is exactly the thin-content
 # result the whole exercise is trying to avoid.
 MIN_GIGS = 150
+
+# Set only when the whole durable mirror was read. prune() DELETES PAGES, and the
+# sqlite fallback is a developer's partial copy — running this on a laptop with a
+# stale demand_radar.db would otherwise wipe most of the field pages and commit
+# the deletions. A partial read may add and update; it may not remove.
+BOARD_IS_COMPLETE = False
 SAMPLE = 16         # real titles shown per page. The single strongest
                     # thing separating one page from the next: no two
                     # fields share a posting, so this is where the
@@ -153,10 +159,18 @@ def read_board():
     try:
         import board_store
         if board_store.enabled():
-            rows = [r for r in board_store.pull()
-                    if r.get("is_demand") and (r.get("title") or "").strip()]
+            # iter_all, NOT pull. pull() stops at board_store.CAP and the mirror
+            # passed that in August: on 2026-08-26 it held 50,496 demand gigs
+            # against a 40,000 cap, so the newest-40,000 window hid 10,496 of
+            # them. That is not a rounding error in a counting script — it put
+            # Photography at 135 against a MIN_GIGS of 150 and had prune() delete
+            # a live field's page on the first run that prune() existed.
+            for _page in board_store.iter_all(demand_only=True):
+                rows.extend(r for r in _page if (r.get("title") or "").strip())
             rows.sort(key=lambda r: str(r.get("posted_at") or r.get("fetched_at") or ""),
                       reverse=True)
+            global BOARD_IS_COMPLETE
+            BOARD_IS_COMPLETE = True
             print(f"  board: {len(rows):,} gigs from the durable mirror")
     except Exception as e:
         print(f"  ! mirror unavailable ({type(e).__name__}), falling back to local")
@@ -437,6 +451,10 @@ def prune(written):
     That is the /freelance-photography-jobs/ case: HTTP 200, indexable, absent
     from sitemap.xml, describing work that stopped being there.
     """
+    if not BOARD_IS_COMPLETE:
+        print("  prune: skipped, the board was read from a partial source")
+        return []
+
     keep = {f"freelance-{w['slug']}-jobs" for w in written}
     removed = []
     for d in sorted(OUT.glob("freelance-*-jobs")):
