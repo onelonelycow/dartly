@@ -47,6 +47,28 @@ def _skill_re(keyword: str):
     return re.compile(r"(?<!\w)" + re.escape(keyword.strip()) + r"s?(?!\w)")
 
 
+def title_key(title: str) -> str:
+    """
+    A title reduced to what makes two postings the same posting.
+
+    ONE DEFINITION, IMPORTED BY BOTH CALLERS. db.mark_rare() uses it to decide
+    whether a gig also exists on a mainstream board, and tools/probe_source.py
+    uses it to score a candidate source. If those two ever disagreed about what
+    "the same posting" means, the board would badge gigs as hard-to-find using
+    one rule while the tool that justified the badge used another.
+
+    Boards decorate the same role differently — "Senior Rails Engineer (m/w/d)",
+    "Senior Rails Engineer — Acme GmbH", "senior rails engineer" — so raw string
+    equality would call almost everything unique, which is the flattering answer
+    and the wrong one.
+    """
+    t = (title or "").lower()
+    t = re.sub(r"\((?:[^)]{0,24})\)", " ", t)       # (m/w/d), (remote), (uk)
+    t = re.split(r"\s+[—–|]\s+| at | - ", t)[0]     # trailing company
+    t = re.sub(r"[^a-z0-9 ]", " ", t)
+    return " ".join(t.split())
+
+
 def _matches_skill(text: str, keywords) -> bool:
     return any(_skill_re(k).search(text) for k in keywords)
 

@@ -53,14 +53,14 @@ CAP = 40000
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
          "apply_email", "page_checked", "link_checked", "llm_checked",
-         "archived_at")
+         "archived_at", "rare")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
 # Postgres — taking the whole executemany, and the batch, down with it.
 _DEFAULTS = {"is_demand": 1, "owner": "",
              "page_checked": None, "link_checked": None, "llm_checked": None,
-             "archived_at": None}
+             "archived_at": None, "rare": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
 # rather than keeping a second copy that can drift out of sync (it did).
@@ -92,6 +92,7 @@ def _ensure(conn):
                 link_checked integer,
                 llm_checked integer,
                 archived_at text,
+                rare integer,
                 PRIMARY KEY (source, source_id)
             )""")
     _migrate(conn)
@@ -104,7 +105,8 @@ _ADDED = (("apply_email", "text"),
           ("page_checked", "integer"),
           ("link_checked", "integer"),
           ("llm_checked", "integer"),
-          ("archived_at", "text"))
+          ("archived_at", "text"),
+          ("rare", "integer"))
 
 
 def _migrate(conn):
@@ -152,8 +154,16 @@ def push(records) -> int:
             _ensure(conn)
             cols = ", ".join(_COLS)
             marks = ", ".join([ph] * len(_COLS))
-            sets = ", ".join(f"{c}=excluded.{c}" for c in _COLS
-                             if c not in ("source", "source_id"))
+            # archived_at is COALESCEd rather than assigned. An ingest record
+            # carries no archived_at, so a plain assignment would blank the date
+            # on any row this ever re-pushes — and that date cannot be
+            # recomputed from anything, unlike every other column here. A
+            # re-push must be able to correct a gig without erasing when it
+            # left the board.
+            sets = ", ".join(
+                (f"{c}=COALESCE(excluded.{c}, {_TABLE}.{c})"
+                 if c == "archived_at" else f"{c}=excluded.{c}")
+                for c in _COLS if c not in ("source", "source_id"))
             sql = (f"INSERT INTO {_TABLE} ({cols}) VALUES ({marks}) "
                    f"ON CONFLICT (source, source_id) DO UPDATE SET {sets}")
             with conn:                       # commits on clean exit (both drivers)
@@ -241,6 +251,41 @@ def push_llm_result(rows) -> int:
             _ensure(conn)
             sql = (f"UPDATE {_TABLE} SET "
                    f"job_type = COALESCE({ph}, job_type), llm_checked = 1 "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def push_rare(rows) -> int:
+    """
+    Mirror which gigs are hard to find elsewhere. `rows` is
+    [(rare, source, source_id)].
+
+    Same reason as push_tags: db.mark_rare() writes the local SQLite file, and
+    Render wipes that on every deploy. Without this the board would rebuild from
+    the mirror with the marker blank and the badge would vanish from the site
+    until the next recompute — visible to anyone reading, and confusing in the
+    exact place the product is making its strongest claim.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET rare = {ph} "
                    f"WHERE source = {ph} AND source_id = {ph}")
             sent = 0
             for i in range(0, len(rows), 2000):

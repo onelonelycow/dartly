@@ -12,7 +12,10 @@
      so the title had no idea it was there. A flex head reserves the space
      instead of hoping. #}
   <div class="gr-cardhead">
-    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a></div>
+    {# Set by db.mark_rare(): this gig's title appears on none of the boards a
+       member could check on their own. Deliberately says nothing about WHICH
+       boards — FEEL section 7, provenance is plumbing. #}
+    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}{% if g.rare %}<span class="gr-rare" title="You won't find this one on the big boards.">Rare</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a></div>
     {% if me %}
       {% set is_saved = g.id|string in saved_ids %}
       <form method="post" action="/save" class="inline gr-saveform">

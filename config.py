@@ -105,6 +105,21 @@ ENABLE_SOURCES = [
 # demand lives in Slack rooms and listservs, which no crawler can reach. That
 # gap is an inbox problem, not a scraping one.
 # ---------------------------------------------------------------------------
+# The boards a freelancer would plausibly check on their own. Used ONLY to
+# decide which gigs are hard to find elsewhere — see db.mark_rare().
+#
+# DELIBERATELY A JUDGEMENT, NOT A THRESHOLD. Deriving this from volume would
+# quietly promote any niche source that had a good month into "mainstream" and
+# strip the marker from the gigs that earn it. Measured 2026-08-26: these carry
+# 43,154 of 49,395 live gigs, and the 6,241 outside them contain 4,151 whose
+# titles appear nowhere in this set.
+MAINSTREAM_SOURCES = {
+    "himalayas", "freelancer", "remoteok", "weworkremotely", "remotive",
+    "jobicy", "jobicy_dev", "workingnomads", "jobspresso", "wwr_sales",
+    "wwr_management", "realworkfromanywhere",
+}
+
+
 RSS_SOURCES = {
     "dribbble":   {"url": "https://dribbble.com/jobs.rss",
                    "label": "Dribbble"},

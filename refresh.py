@@ -23,6 +23,7 @@ _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
 _NUDGE_CHECK_S = 3600      # how often to check for a lapsed "yes I'd pay" trial
 _ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
+_RARE_CHECK_S = 86400      # how often to recompute what's hard to find
 _GAP_RECHECK_S = 300       # how often to re-read everyone's alert interval
 _started = False
 _lock = threading.Lock()
@@ -182,6 +183,13 @@ def _loop(on_update=None):
     # Same reasoning: the boot-time call above already archived anything stale
     # as of right now, so the clock for the NEXT pass starts here, not at zero.
     last_archive_check = time.time()
+    # 0.0 ON PURPOSE, unlike the archive clock above and the digest clock below.
+    # A zero there would re-archive on every deploy and mail every account on
+    # every deploy respectively; a zero here recomputes a marker that is
+    # idempotent and writes only the rows whose answer changed. The board
+    # restores from the mirror at boot, so starting at zero is how the badge is
+    # right shortly after a deploy instead of up to a day later.
+    last_rare_check = 0.0
 
     while True:
         try:
@@ -400,6 +408,17 @@ def _loop(on_update=None):
         except Exception as e:
             print(f"  ! llm classify step failed: "
                   f"{type(e).__name__}: {e}", flush=True)
+
+        # Which gigs appear on none of the boards a member could check alone.
+        # On the archive's daily clock, not every cycle: it is two passes over
+        # the whole board, and the answer moves on the timescale of a gig being
+        # reposted elsewhere, not of a two-minute fetch.
+        if time.time() - last_rare_check >= _RARE_CHECK_S:
+            last_rare_check = time.time()
+            try:
+                _state["rare"] = db.mark_rare()
+            except Exception as e:
+                print(f"  ! mark_rare failed: {type(e).__name__}: {e}", flush=True)
         time.sleep(_INTERVAL_S)
 
 

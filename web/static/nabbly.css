@@ -119,6 +119,10 @@ a.gr-title:hover{color:#E8933A !important;text-decoration:underline !important;
   text-transform:uppercase;color:#69d7a1;background:rgba(53,179,126,.13);
   border:1px solid rgba(53,179,126,.32);border-radius:6px;padding:1px 7px;
   vertical-align:2px;margin-right:9px}
+.gr-rare{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.5px;
+  text-transform:uppercase;color:#F7B569;background:rgba(232,147,58,.13);
+  border:1px solid rgba(232,147,58,.34);border-radius:6px;padding:1px 7px;
+  vertical-align:2px;margin-right:9px;cursor:help}
 .gr-pills{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 6px}
 .gr-pill{font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;
   background:#1e222a;color:#aab2bd;border:0;line-height:1.55}

@@ -97,6 +97,14 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN archived_at TEXT")
     except sqlite3.OperationalError:
         pass
+    # Whether this gig appears on none of the boards a member could check
+    # themselves. Recomputed, not fixed at ingest: a gig that is the only copy
+    # today can be reposted to a mainstream board tomorrow, and a marker that
+    # said otherwise would be a claim the board could not stand behind.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN rare INTEGER")
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
@@ -1128,6 +1136,85 @@ def classify_unlabelled(limit: int = 0) -> int:
         return len(moved)
     finally:
         conn.close()
+
+
+def mark_rare() -> int:
+    """
+    Mark the gigs that appear on none of the boards a member could check alone.
+
+    THE PRODUCT'S ONLY VISIBLE ANSWER TO "why not just go to the big board".
+    Measured 2026-08-26, 43,154 of 49,395 live gigs came from sources in
+    config.MAINSTREAM_SOURCES, and of the 6,241 outside them, 4,151 carried a
+    title appearing nowhere in that set. Those 4,151 are the ones worth pointing
+    at, and until now nothing knew which they were.
+
+    RECOMPUTED IN FULL, NEVER SET ONCE AT INGEST. A gig that is the only copy
+    today can be reposted to a mainstream board tomorrow, and a marker claiming
+    otherwise is a claim the board cannot stand behind. Cheap enough to redo:
+    two streamed passes and a write of only the rows whose answer changed.
+
+    Compares on classify.title_key, the same definition tools/probe_source.py
+    scores candidate sources with, so the badge and the evidence for it can
+    never mean different things.
+    """
+    import classify
+    import config
+
+    mainstream = set(getattr(config, "MAINSTREAM_SOURCES", ()) or ())
+    if not mainstream:
+        return 0
+
+    conn = connect()
+    try:
+        # Pass one: every title key visible on a mainstream board. Keys only —
+        # holding whole rows here is the "load it all to use a bit of it" shape
+        # that has taken this app down twice.
+        seen = set()
+        cur = conn.execute(
+            "SELECT title FROM posts WHERE is_demand = 1 "
+            "AND COALESCE(title,'') != '' AND source IN (%s)"
+            % ",".join("?" * len(mainstream)), tuple(mainstream))
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            for r in batch:
+                k = classify.title_key(r["title"])
+                if k:
+                    seen.add(k)
+
+        # Pass two: decide each live gig, and keep only what changed.
+        pending, mirror = [], []
+        cur = conn.execute(
+            "SELECT id, source, source_id, title, rare FROM posts "
+            "WHERE is_demand = 1 AND COALESCE(title,'') != ''")
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            for r in batch:
+                k = classify.title_key(r["title"])
+                rare = 1 if (r["source"] not in mainstream and k and k not in seen) else 0
+                if r["rare"] != rare:
+                    pending.append((rare, r["id"]))
+                    mirror.append((rare, r["source"], r["source_id"]))
+        if pending:
+            conn.executemany("UPDATE posts SET rare = ? WHERE id = ?", pending)
+        conn.commit()
+    finally:
+        conn.close()
+
+    if mirror:
+        try:
+            import board_store
+            board_store.push_rare(mirror)
+        except Exception as e:
+            print(f"  ! mark_rare: mirror push failed ({type(e).__name__})",
+                  flush=True)
+    if pending:
+        print(f"  mark_rare: {sum(1 for p in pending if p[0])} newly hard to find, "
+              f"{len(pending)} changed", flush=True)
+    return sum(1 for p in pending if p[0])
 
 
 def all_posts(demand_only: bool = True, owner: str | None = None):

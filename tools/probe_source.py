@@ -76,18 +76,12 @@ def _text(html: str) -> str:
 
 def norm(title: str) -> str:
     """
-    A title reduced to what makes two postings the same posting.
-
-    Boards decorate the same role differently — "Senior Rails Engineer (m/w/d)",
-    "Senior Rails Engineer — Acme GmbH", "senior rails engineer". Matching raw
-    strings would report every source as 100% unique, which is the flattering
-    answer and the wrong one.
+    The board's own definition of "the same posting", imported rather than
+    reimplemented — a second copy here would let the score that justifies a
+    source drift away from the rule the board actually applies.
     """
-    t = (title or "").lower()
-    t = re.sub(r"\((?:[^)]{0,24})\)", " ", t)        # (m/w/d), (remote), (uk)
-    t = re.split(r"\s+[—–|]\s+| at | - ", t)[0]      # trailing company
-    t = re.sub(r"[^a-z0-9 ]", " ", t)
-    return " ".join(t.split())
+    import classify
+    return classify.title_key(title)
 
 
 # ── candidates ──────────────────────────────────────────────────────────────
