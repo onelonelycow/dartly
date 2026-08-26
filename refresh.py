@@ -15,6 +15,7 @@ plan). That's the tradeoff we chose for $0.
 """
 import os
 import threading
+import datetime as _dt
 import time
 
 _INTERVAL_S = 120          # ~2 min between fetches
@@ -419,6 +420,28 @@ def _loop(on_update=None):
                 _state["rare"] = db.mark_rare()
             except Exception as e:
                 print(f"  ! mark_rare failed: {type(e).__name__}: {e}", flush=True)
+        # A HEARTBEAT, BECAUSE "no new gigs" AND "not running" LOOK IDENTICAL
+        # FROM OUTSIDE. This loop's only visible trace was the fetched_at of the
+        # rows it wrote, and a quiet half-hour on the sources produces exactly
+        # the same silence as a loop that died — which cost most of an afternoon
+        # of guessing from timestamps, twice, and got the wrong answer both
+        # times. The board serves a health endpoint that already reports the
+        # sweep this way; ingest is the more important of the two and reported
+        # nothing at all.
+        #
+        # Written every cycle, unconditionally, INCLUDING a cycle that found
+        # nothing. That is the entire point: the value being fresh is the proof
+        # the loop ran, independent of whether the sources had anything to give.
+        try:
+            import store
+            if store.enabled():
+                store.put("_refresh", "heartbeat",
+                          {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                           "runs": _state.get("runs", 0),
+                           "fails": _state.get("fails", 0),
+                           "last_error": _state.get("last_error", "")})
+        except Exception:
+            pass
         time.sleep(_INTERVAL_S)
 
 

@@ -1610,6 +1610,29 @@ def health():
         out["telemetry"] = telemetry.status()
     except Exception:
         out["telemetry"] = "unknown"
+    # WHETHER GIGS ARE STILL ARRIVING, which nothing could answer from outside.
+    # Ingest runs in the other service, and its only visible trace was the
+    # fetched_at of rows it wrote — so a quiet spell on the sources and a dead
+    # loop produced identical evidence, and two attempts to tell them apart from
+    # timestamps reached the wrong answer. refresh now writes a heartbeat every
+    # cycle whether or not it found anything; this reads it. Minutes, because
+    # the loop runs every two: single digits are healthy, an hour is not.
+    try:
+        import store as _store
+        hb = (_store.get("_refresh", "heartbeat") or {}) if _store.enabled() else {}
+        if hb.get("at"):
+            beat = datetime.fromisoformat(hb["at"])
+            out["ingest_age_m"] = round(
+                (datetime.now(timezone.utc) - beat).total_seconds() / 60, 1)
+            out["ingest_runs"] = hb.get("runs", 0)
+            if hb.get("fails"):
+                out["ingest_fails"] = hb["fails"]
+            if hb.get("last_error"):
+                out["ingest_last_error"] = str(hb["last_error"])[:120]
+        else:
+            out["ingest_age_m"] = None
+    except Exception:
+        out["ingest_age_m"] = None
     if _SYNC:
         import sync
         s = sync.state()
