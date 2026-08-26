@@ -77,6 +77,12 @@ SYSTEM = (
 )
 
 
+# Why the last call failed, in words. A background job that fails silently is
+# indistinguishable from one that has nothing to do, and this one spent an
+# afternoon looking like the latter while being the former.
+LAST_REASON = ""
+
+
 def enabled() -> bool:
     """Only when there is a key to spend and a client to spend it with."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -150,21 +156,38 @@ def label(gigs, timeout: float = 60.0):
     `gigs` is a list of dicts with "title" and "body". Never raises: the caller
     is a background loop on a board that must keep serving.
     """
+    global LAST_REASON
     gigs = list(gigs or [])
     if not gigs:
         return []
     if not enabled():
+        LAST_REASON = ("no ANTHROPIC_API_KEY on this service"
+                       if not os.environ.get("ANTHROPIC_API_KEY")
+                       else "anthropic package not importable")
         return None
     try:
         import anthropic
         client = anthropic.Anthropic(timeout=timeout, max_retries=1)
         resp = client.messages.create(
             model=MODEL,
-            max_tokens=1000,
+            # NOT 1000. Thinking tokens are drawn from max_tokens, and the
+            # default model here thinks unless told otherwise, so a batch that
+            # took a little deliberation spent the budget before writing its
+            # answer. The reply came back truncated, _parse rejected it for the
+            # right reason, and the whole batch was dropped — silently, since a
+            # dropped batch marks nothing and simply retries later. Measured on
+            # production: cycles were running every ~3 minutes and placing 20
+            # gigs roughly one cycle in eight. Room to think AND answer.
+            max_tokens=16000,
             system=SYSTEM,
             messages=[{"role": "user", "content": _prompt(gigs)}],
         )
-        if getattr(resp, "stop_reason", "") == "refusal":
+        stop = getattr(resp, "stop_reason", "")
+        if stop == "refusal":
+            LAST_REASON = "model declined the batch"
+            return None
+        if stop == "max_tokens":
+            LAST_REASON = "ran out of max_tokens before finishing the answer"
             return None
         # Text blocks only: on a model that thinks by default the reply also
         # carries thinking blocks, which have no .text to join.
@@ -173,7 +196,14 @@ def label(gigs, timeout: float = 60.0):
         # _parse returns None for an answer whose shape cannot be trusted,
         # which is a failed call by any useful definition: nothing was learned,
         # so nothing should be marked.
-        return _parse(text, len(gigs))
+        got = _parse(text, len(gigs))
+        if got is None:
+            LAST_REASON = (f"unusable answer (stop={stop}, {len(text)} chars): "
+                           f"{text[:120]!r}")
+        else:
+            LAST_REASON = ""
+        return got
     except Exception as e:
-        print(f"  ! llm classify failed ({type(e).__name__}: {e})", flush=True)
+        LAST_REASON = f"{type(e).__name__}: {e}"[:200]
+        print(f"  ! llm classify failed ({LAST_REASON})", flush=True)
         return None

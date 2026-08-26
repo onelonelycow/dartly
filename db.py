@@ -1001,7 +1001,7 @@ def reclassify_all(force: bool = False) -> int:
 # hundred, so the backlog drains in hours and the steady state is idle: once
 # every gig carries llm_checked the SELECT below returns nothing and no request
 # is made at all. The cost of this feature when it has caught up is zero.
-LLM_PER_CYCLE = int(os.environ.get("NABBLY_CLASSIFY_PER_CYCLE") or 20)
+LLM_PER_CYCLE = int(os.environ.get("NABBLY_CLASSIFY_PER_CYCLE") or 200)
 
 
 def classify_unlabelled(limit: int = 0) -> int:
@@ -1040,13 +1040,42 @@ def classify_unlabelled(limit: int = 0) -> int:
         if not rows:
             return 0
 
-        labels = classify_llm.label(rows)
-        # None means the call never produced a usable answer. Marking here would
-        # record these gigs as read when nothing read them, and the mark is what
-        # stops a retry — so one bad key or model name would spend the backlog
-        # without classifying a single gig. Leave them for the next cycle.
-        if labels is None:
+        # CHUNKED PER REQUEST, not one request for the whole cycle's work. The
+        # request carries a page of titles and the reply carries a label per
+        # line, so a cycle limit of 200 in a single call would ask for a 200-line
+        # answer and get a truncated one — which _parse correctly refuses,
+        # throwing away all 200. Chunks also mean a bad batch costs its own 20
+        # gigs rather than the cycle's.
+        done, labels, ok, failed = [], [], 0, 0
+        step = max(1, classify_llm.BATCH)
+        for i in range(0, len(rows), step):
+            chunk = rows[i:i + step]
+            got = classify_llm.label(chunk)
+            if got is None:
+                # No usable answer: leave this chunk unmarked for a later cycle.
+                # Marking would record it as read when nothing read it, and the
+                # mark is what prevents the retry.
+                failed += 1
+                continue
+            ok += 1
+            done.extend(chunk)
+            labels.extend(got)
+
+        reason = getattr(classify_llm, "LAST_REASON", "")
+        try:
+            import store
+            if store.enabled():
+                store.put("_classifier", "llm_stats",
+                          {"read": len(done), "batches_ok": ok,
+                           "batches_failed": failed, "last_reason": reason})
+        except Exception:
+            pass
+        if failed:
+            print(f"  llm classify: {failed} of {ok + failed} batches unusable"
+                  f"{' — ' + reason if reason else ''}", flush=True)
+        if not done:
             return 0
+        rows = done
 
         moved, placed = [], {}
         for r, field in zip(rows, labels):
