@@ -395,7 +395,11 @@ def fetch_freelancer() -> list[dict]:
 # confirmed on a live listing before adding this source.
 # ---------------------------------------------------------------------------
 def fetch_workingnomads() -> list[dict]:
-    r = _get("https://www.workingnomads.co/api/exposed_jobs/")
+    # .com, not .co: Working Nomads moved domains and the old host answers
+    # every call with a 301. requests follows it, so this kept working by
+    # luck rather than by address — one dropped redirect and the source is
+    # silently gone. Measured 2026-08-26: the .com endpoint serves 41 jobs.
+    r = _get("https://www.workingnomads.com/api/exposed_jobs/")
     if r.status_code != 200:
         print(f"  ! workingnomads: HTTP {r.status_code}"); return []
     out = []
