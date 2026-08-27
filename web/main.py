@@ -330,6 +330,57 @@ app.add_middleware(
     same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1",
     **_session_kw)
 
+
+# Crawlers this board has already told to go away, in words they ignored.
+#
+# robots.txt serves "User-agent: *  Disallow: /" whenever the board is not
+# indexable, which is its normal state. Meta's crawler reads that and keeps
+# going: measured 2026-08-27, meta-externalagent was making ~8,500 requests an
+# hour from 57.141.18.*, around the clock, walking /draft/<id>?back=/gigs?<every
+# filter combination> — a URL space that is combinatorial by construction and
+# infinite in practice. It cost 175MB an hour, 4.2GB a day, and 70% of a 25GB
+# monthly allowance on a board with three members. Nobody was reading any of it.
+#
+# The list is deliberately about CRAWLERS, not humans or our own tools. curl and
+# python-requests are not here: the uptime check and the capture scripts use
+# them, and a monitor that gets 403 is a monitor that lies.
+_BOTS = tuple(t.strip().lower() for t in (
+    os.environ.get("NABBLY_BLOCK_UA") or
+    "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
+    "oai-searchbot,chatgpt-user,ccbot,claudebot,anthropic-ai,perplexitybot,"
+    "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
+    "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
+    "seznambot,serpstatbot,barkrowler,zoominfobot"
+).split(",") if t.strip())
+
+# Reachable even to a blocked agent. robots.txt is how a crawler learns to stop
+# on its own, so 403-ing it would remove the only polite exit; /health is how
+# Render decides this instance is alive.
+_BOT_ALLOW = ("/robots.txt", "/health")
+
+
+@app.middleware("http")
+async def _turn_away_crawlers(request: Request, call_next):
+    """
+    Answer a known crawler in ~30 bytes instead of ~75KB.
+
+    Registered LAST so it runs FIRST — see the note above SessionMiddleware for
+    why that reads backwards. It has to be outermost: the point is to answer
+    before a session is loaded or the board is queried, so a crawl costs a
+    string comparison rather than a page render.
+
+    A 403 does not require the crawler to stop, and this one probably will not.
+    That is fine and is the whole design: even if it keeps asking at the same
+    rate, the reply is three orders of magnitude smaller, which turns 4.2GB a
+    day into single-digit megabytes.
+    """
+    if request.url.path not in _BOT_ALLOW:
+        ua = (request.headers.get("user-agent") or "").lower()
+        if ua and any(b in ua for b in _BOTS):
+            return PlainTextResponse("Not available to automated clients.",
+                                     status_code=403)
+    return await call_next(request)
+
 def _safe_next(v: str) -> str:
     """
     A same-site path, or nothing.
