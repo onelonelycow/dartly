@@ -447,6 +447,25 @@ def _boot():
     # "No open ports detected". /health reports unhealthy until rows land, so
     # Render holds traffic on the old instance meanwhile.
     sync.start_background()
+    # INGEST LIVES HERE NOW, not only in the Streamlit app.
+    #
+    # There it starts when Streamlit runs the script, and Streamlit runs the
+    # script when a BROWSER SESSION connects — so after every deploy the board
+    # collected nothing until a person opened the app. This service is a real
+    # always-on server process, so starting it here is the difference between
+    # "every gig the moment it drops" and "every gig the moment somebody looks".
+    #
+    # refresh.start() takes a lease on the durable heartbeat, so the two
+    # services cannot both ingest: whichever is running holds it, and if this
+    # one dies the lease goes stale and the app picks ingest back up. Off with
+    # NABBLY_DISABLE_REFRESH=1 if this ever costs the board its responsiveness,
+    # which is the one risk of moving it onto the service that serves pages.
+    try:
+        import refresh
+        refresh.start()
+    except Exception as e:
+        print(f"  ! could not start ingest on the board: "
+              f"{type(e).__name__}: {e}", flush=True)
     global DB_PATH
     DB_PATH = sync.BOARD_DB
     # Market's first scan costs 4.6-6.1s on this box (measured from the

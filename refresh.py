@@ -27,6 +27,15 @@ _ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
 _RARE_CHECK_S = 86400      # how often to recompute what's hard to find
 _GAP_RECHECK_S = 300       # how often to re-read everyone's alert interval
 _started = False
+
+# Who this process is, in the ingest lease below. Render sets the service name;
+# the pid keeps two instances of one service apart.
+OWNER = f"{os.environ.get('RENDER_SERVICE_NAME') or 'local'}:{os.getpid()}"
+# How stale a heartbeat must be before another process may take ingest over.
+# Comfortably longer than a cycle (which is ~2 min, and longer when the
+# second-pass classifier has a backlog to work through) so a slow cycle is never
+# mistaken for a dead owner.
+_LEASE_S = int(os.environ.get("NABBLY_INGEST_LEASE_S") or 900)
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
 
@@ -437,6 +446,7 @@ def _loop(on_update=None):
             if store.enabled():
                 store.put("_refresh", "heartbeat",
                           {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                           "owner": OWNER,
                            "runs": _state.get("runs", 0),
                            "fails": _state.get("fails", 0),
                            "last_error": _state.get("last_error", "")})
@@ -455,6 +465,28 @@ def start(on_update=None):
     module to start it, so the reverse import would be circular).
     """
     global _started
+    # ONE INGESTER AT A TIME, AND IT HANDS ITSELF OVER.
+    #
+    # This loop used to live only in the Streamlit app, where it starts when the
+    # script runs — and Streamlit runs the script when a BROWSER SESSION
+    # connects, not when the process boots. So after every deploy ingest stayed
+    # dead until a human opened the app. Measured 2026-08-26: immediately after
+    # opening a session the cycle counter read 2, and the heartbeat aged
+    # untouched from 1.5 to 10.2 minutes while nothing was looking at it. A
+    # board whose promise is "the moment it drops" was collecting gigs only
+    # while somebody watched it.
+    #
+    # It now also starts on the board service, which is a real always-on server
+    # process. Both may call this, so the heartbeat doubles as a lease: if
+    # another owner wrote one recently, stand down. The always-on service will
+    # hold it in practice, and if that service dies the lease goes stale and the
+    # next Streamlit session picks ingest back up on its own.
+    #
+    # A race here costs a duplicated cycle, not a duplicated gig: upserts are
+    # keyed on (source, source_id) in both stores.
+    if _lease_taken():
+        _state["note"] = "another process holds the ingest lease"
+        return
     # Local runs (load tests, UI work) otherwise fetch from ~40 live sources and
     # mirror the results, so a developer's laptop writes to the production
     # board. Off by default: production sets nothing and behaves exactly as
@@ -468,6 +500,27 @@ def start(on_update=None):
         _started = True
         threading.Thread(target=_loop, args=(on_update,), daemon=True,
                          name="nabbly-refresh").start()
+
+
+def _lease_taken() -> bool:
+    """True when a DIFFERENT process wrote a heartbeat recently enough."""
+    try:
+        import store
+        if not store.enabled():
+            return False
+        hb = store.get("_refresh", "heartbeat") or {}
+        owner, at = hb.get("owner"), hb.get("at")
+        if not owner or not at or owner == OWNER:
+            return False
+        age = (_dt.datetime.now(_dt.timezone.utc)
+               - _dt.datetime.fromisoformat(at)).total_seconds()
+        return age < _LEASE_S
+    except Exception:
+        # Fail OPEN. A store that cannot be read must not be able to stop the
+        # board collecting gigs — the failure this guards against is two
+        # ingesters, which is wasteful, and the failure it must never cause is
+        # none at all.
+        return False
 
 
 def state() -> dict:
