@@ -15,7 +15,7 @@
     {# Set by db.mark_rare(): this gig's title appears on none of the boards a
        member could check on their own. Deliberately says nothing about WHICH
        boards — FEEL section 7, provenance is plumbing. #}
-    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}{% if g.rare %}<span class="gr-rare" title="You won't find this one on the big boards.">Rare</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a></div>
+    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}{% if g.rare %}<span class="gr-rare" title="You won't find this one on the big boards.">Rare</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer nofollow">{{ g.title }}</a></div>
     {% if me %}
       {% set is_saved = g.id|string in saved_ids %}
       <form method="post" action="/save" class="inline gr-saveform">
@@ -79,7 +79,7 @@
      card about what Nabbly does beyond listing gigs, and hiding it from the
      people who have not signed up yet hides it from exactly the audience it
      would convince. The route sends them to sign-in. #}
-  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  <a class="draftlink" rel="nofollow" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% else %}
   <div class="gr-bodywrap gr-nobody">
@@ -88,7 +88,7 @@
      card about what Nabbly does beyond listing gigs, and hiding it from the
      people who have not signed up yet hides it from exactly the audience it
      would convince. The route sends them to sign-in. #}
-  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  <a class="draftlink" rel="nofollow" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% endif %}
 </div>

@@ -434,8 +434,8 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     {% if hero_why %}<div class="hd-why">Matched on <b>{{ hero_why }}</b></div>{% endif %}
     <div class="hd-body">{{ hero_draft }}</div>
     <div class="hd-go">
-      <a class="draftlink" href="/draft/{{ hero_gig.id }}?back=/">Edit this reply →</a>
-      <a class="draftlink" href="/out/{{ hero_gig.id }}" target="_blank" rel="noopener noreferrer">Open the gig ↗</a>
+      <a class="draftlink" rel="nofollow" href="/draft/{{ hero_gig.id }}?back=/">Edit this reply →</a>
+      <a class="draftlink" href="/out/{{ hero_gig.id }}" target="_blank" rel="noopener noreferrer nofollow">Open the gig ↗</a>
     </div>
   </div>
   {% endif %}

@@ -51,7 +51,7 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
 <a class="back" href="{{ back }}">← Back to the board</a>
 
 <div class="gig">
-  <a class="t" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a>
+  <a class="t" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer nofollow">{{ g.title }}</a>
   <div class="gr-pills">
     {% if g.job_type %}<span class="gr-pill">{{ g.job_type }}</span>{% endif %}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
@@ -85,7 +85,7 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
     {% elif pending and apply_addr %}
       <a class="ghost" id="mailto" hidden href="#">Open in email</a>
     {% endif %}
-    <a class="ghost" href="/draft/{{ g.id }}?regen=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write a new one</a>
+    <a class="ghost" rel="nofollow" href="/draft/{{ g.id }}?regen=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write a new one</a>
     {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
@@ -96,7 +96,7 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
      got a blank browser and no way to tell a slow draft from a dead site.
      Everything above renders instantly now; only the textarea waits. #}
   <noscript>
-    <p class="cap"><a href="/draft/{{ g.id }}?sync=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write my reply</a>
+    <p class="cap"><a rel="nofollow" href="/draft/{{ g.id }}?sync=1{% if back %}&back={{ back|urlencode }}{% endif %}">Write my reply</a>
       — takes a few seconds, and the page will wait.</p>
   </noscript>
   <script>
