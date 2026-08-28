@@ -129,9 +129,46 @@ def probe_ukcontracts():
     return out
 
 
+def probe_lever():
+    """
+    One company's postings straight from its own applicant tracking system.
+
+    THE API IS NOT THE HARD PART, THE COMPANY LIST IS. Lever publishes a free,
+    unauthenticated endpoint per company and no global index of who uses it.
+    Measured 2026-08-27: of thirty well-known company slugs guessed by hand, one
+    answered. A fetcher built on this would be a fetcher plus an ongoing job of
+    discovering and maintaining slugs, which is the actual cost.
+    """
+    d = _json("https://api.lever.co/v0/postings/gopuff?mode=json")
+    out = []
+    for j in d if isinstance(d, list) else []:
+        cats = j.get("categories") or {}
+        out.append({"title": j.get("text") or "",
+                    "body": (j.get("descriptionPlain") or "")[:600],
+                    "url": j.get("hostedUrl") or "",
+                    "where": cats.get("location") or ""})
+    return out
+
+
+def probe_smartrecruiters():
+    """The same shape from the other big ATS, and the same catch."""
+    d = _json("https://api.smartrecruiters.com/v1/companies/averydennison/"
+              "postings?limit=100")
+    out = []
+    for j in d.get("content", []):
+        loc = j.get("location") or {}
+        out.append({"title": j.get("name") or "",
+                    "body": "",
+                    "url": j.get("ref") or "",
+                    "where": ", ".join(x for x in [loc.get("city"), loc.get("country")] if x)})
+    return out
+
+
 PROBES = {"github": probe_github,
           "mastodon": probe_mastodon,
-          "ukcontracts": probe_ukcontracts}
+          "ukcontracts": probe_ukcontracts,
+          "lever": probe_lever,
+          "smartrecruiters": probe_smartrecruiters}
 
 
 def main(names):
