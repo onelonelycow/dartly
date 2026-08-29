@@ -1071,8 +1071,20 @@ def classify_unlabelled(limit: int = 0) -> int:
         # gigs rather than the cycle's.
         done, labels, ok, failed = [], [], 0, 0
         step = max(1, classify_llm.BATCH)
+        capped = ""
         for i in range(0, len(rows), step):
+            # EVERY REQUEST IS COUNTED AND CHECKED, not just the cycle. This
+            # loop ran uncapped and spent the API key: 200 gigs a cycle at 20 a
+            # request, a cycle every two minutes. The cap is the classifier's
+            # own (budget.CLASSIFY_DAILY) so background work can never eat the
+            # drafting budget a member is waiting on.
+            import budget
+            allowed, why = budget.allow_classify()
+            if not allowed:
+                capped = why
+                break
             chunk = rows[i:i + step]
+            budget.record_classify()
             got = classify_llm.label(chunk)
             if got is None:
                 # No usable answer: leave this chunk unmarked for a later cycle.
@@ -1090,12 +1102,18 @@ def classify_unlabelled(limit: int = 0) -> int:
             if store.enabled():
                 store.put("_classifier", "llm_stats",
                           {"read": len(done), "batches_ok": ok,
-                           "batches_failed": failed, "last_reason": reason})
+                           "batches_failed": failed, "last_reason": reason,
+                           "capped": capped})
         except Exception:
             pass
         if failed:
             print(f"  llm classify: {failed} of {ok + failed} batches unusable"
                   f"{' — ' + reason if reason else ''}", flush=True)
+        # Said out loud, because a cap that stops work silently looks exactly
+        # like a feature that quietly died — which is how the uncapped version
+        # went unnoticed in the first place.
+        if capped:
+            print(f"  llm classify: stopped early — {capped}", flush=True)
         if not done:
             return 0
         rows = done

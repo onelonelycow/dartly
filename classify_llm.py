@@ -38,7 +38,14 @@ import re
 
 import config
 
-MODEL = os.environ.get("NABBLY_CLASSIFY_MODEL") or "claude-opus-5"
+# HAIKU, NOT OPUS. This picks one of 24 existing field names for a job title —
+# it is not writing anything, and the blast radius of a wrong answer is a gig
+# filed under the wrong existing field, which the keyword rules already get
+# wrong sometimes. Opus was set here on the day drafting moved to Opus, which
+# was a decision about REPLY QUALITY that should never have been applied to
+# housekeeping: it ran uncapped on the most expensive model in the lineup and
+# turned the API key off.
+MODEL = os.environ.get("NABBLY_CLASSIFY_MODEL") or "claude-haiku-4-5-20251001"
 
 # How many gigs one request carries. Twenty keeps the answer short enough to
 # stay reliable and the prompt small enough that a single failure is cheap.
