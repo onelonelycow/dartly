@@ -71,6 +71,12 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
    this left 2px, which is what made the board read as cramped up top next to
    the real thing. 37px here plus the hero's own 2px margin lands on 39. */
 .wrap{max-width:920px;margin:0 auto;padding:37px 20px 72px}
+/* On a wide desktop 920 leaves ~500px of dead gutter each side. The cap stays
+   for every size at or below a laptop; past 1440 the shell opens up so the
+   feed can lay its cards out two across (board.html). Widening the SINGLE
+   column instead would have been the wrong move: the card description already
+   runs 89 characters a line at 680, and more width only makes that worse. */
+@media (min-width:1440px){.wrap{max-width:1320px}}
 .topbar{display:flex;align-items:center;gap:18px;padding:14px 20px;
   border-bottom:1px solid var(--line);background:var(--bg2);
   position:sticky;top:0;z-index:20}

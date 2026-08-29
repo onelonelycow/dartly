@@ -147,6 +147,21 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
    era; one column centers itself, so the closing line and footer share a
    centerline for free. */
 .dash-solo{max-width:680px;margin:0 auto}
+/* Past 1440 the shell opens (base.html) and the feed goes two across. Width
+   buys MORE GIGS ON SCREEN, not longer lines: at 680 a card description
+   already runs 89 characters, and stretching one column to 1320 would push it
+   past 150. Two columns pull it back to 82 while doubling what is visible
+   above the fold — six gigs instead of three.
+   The reading objects do not follow. The hero, the search and the top-match
+   card stay near their composed width and centred, because they are things
+   you read once, not a set you scan. */
+@media (min-width:1440px){
+  .dash-solo{max-width:none}
+  .gr-hero,.searchrow,.herodraft{max-width:860px;margin-left:auto;margin-right:auto}
+  .cards.dash{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:18px;align-items:start}
+  .cards.dash > *{margin:0}
+}
 .newsince{font-size:13.5px;color:var(--mute);margin:0 0 16px}
 /* THE TOP MATCH CARD — a different object, not a bigger feed row.
    The founder: "differentiate it from the rest of the listings, almost
