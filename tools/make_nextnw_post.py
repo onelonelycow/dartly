@@ -174,6 +174,10 @@ def render(head1, head2, sub, url, out_name):
     for line in (head1, head2):
         if d.textlength(line, font=f_h) > S * 0.90:
             raise SystemExit(f"headline too wide for the frame: {line!r}")
+    # the sub line is the one that grows when terms get spelled out, so it is
+    # guarded too rather than being left to overflow quietly
+    if d.textlength(sub, font=f_sub) > S * 0.90:
+        raise SystemExit(f"sub line too wide for the frame: {sub!r}")
 
     # Sign-off lockup, the same signature the weekly posts carry
     MK, G2 = 34, 11
@@ -209,3 +213,10 @@ render(HEAD1, HEAD2, TAGLINE, "nabbly.co", "nextnw-collab-open.png")
 # but the sub line names the perk and the link goes to the partnership page.
 render(HEAD1, HEAD2, "Every member now gets Nabbly Pro.", "nabbly.co/nextnw",
        "nextnw-collab.png")
+
+# The terms cut, to go with the ask on the deck's closing slide. "Gets Nabbly
+# Pro" leaves a member wondering what it costs and for how long, and the two
+# facts that answer that are the whole reason the offer converts: it is free,
+# and there is no card to hand over. Same square, same link, terms stated.
+render(HEAD1, HEAD2, "Pro free for 90 days. No card, nothing to cancel.",
+       "nabbly.co/nextnw", "nextnw-collab-terms.png")

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="582" viewBox="0 0 1680 582">
+
+  <text x="0" y="26" fill="#AEB4BE" font-family="Archivo" font-size="20">Development / tech</text>
+  <rect x="340" y="10" width="1010.0" height="20" rx="4"
+        fill="#E8933A" fill-opacity="1.0"/>
+  <text x="1680" y="26" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">10,036</text>
+  <text x="0" y="66" fill="#AEB4BE" font-family="Archivo" font-size="20">Sales / outreach</text>
+  <rect x="340" y="50" width="575.2" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.955"/>
+  <text x="1680" y="66" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">5,716</text>
+  <text x="0" y="106" fill="#AEB4BE" font-family="Archivo" font-size="20">Design / creative</text>
+  <rect x="340" y="90" width="406.4" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.91"/>
+  <text x="1680" y="106" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">4,038</text>
+  <text x="0" y="146" fill="#AEB4BE" font-family="Archivo" font-size="20">Marketing / SEO</text>
+  <rect x="340" y="130" width="316.4" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.865"/>
+  <text x="1680" y="146" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">3,144</text>
+  <text x="0" y="186" fill="#AEB4BE" font-family="Archivo" font-size="20">Data / analytics</text>
+  <rect x="340" y="170" width="285.7" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.82"/>
+  <text x="1680" y="186" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">2,839</text>
+  <text x="0" y="226" fill="#AEB4BE" font-family="Archivo" font-size="20">Finance / accounting</text>
+  <rect x="340" y="210" width="247.4" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.775"/>
+  <text x="1680" y="226" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">2,458</text>
+  <text x="0" y="266" fill="#AEB4BE" font-family="Archivo" font-size="20">Healthcare / medical</text>
+  <rect x="340" y="250" width="226.6" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.73"/>
+  <text x="1680" y="266" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">2,252</text>
+  <text x="0" y="306" fill="#AEB4BE" font-family="Archivo" font-size="20">Management / operations</text>
+  <rect x="340" y="290" width="226.1" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.685"/>
+  <text x="1680" y="306" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">2,247</text>
+  <text x="0" y="346" fill="#AEB4BE" font-family="Archivo" font-size="20">Admin / VA</text>
+  <rect x="340" y="330" width="214.7" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.64"/>
+  <text x="1680" y="346" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">2,133</text>
+  <text x="0" y="386" fill="#AEB4BE" font-family="Archivo" font-size="20">Video / animation</text>
+  <rect x="340" y="370" width="199.8" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.595"/>
+  <text x="1680" y="386" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">1,985</text>
+  <text x="0" y="426" fill="#AEB4BE" font-family="Archivo" font-size="20">Product / PM</text>
+  <rect x="340" y="410" width="183.9" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.55"/>
+  <text x="1680" y="426" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">1,827</text>
+  <text x="0" y="466" fill="#AEB4BE" font-family="Archivo" font-size="20">Customer support</text>
+  <rect x="340" y="450" width="183.7" height="20" rx="4"
+        fill="#E8933A" fill-opacity="0.505"/>
+  <text x="1680" y="466" fill="#F6F8FA" font-family="Archivo" font-size="20"
+        font-weight="600" text-anchor="end">1,825</text>
+  <line x1="0" y1="498" x2="1680" y2="498" stroke="#FFFFFF" stroke-opacity="0.09"/>
+  <text x="0" y="530" fill="#868D98" font-family="Archivo" font-size="18">and 12 more fields</text>
+  <text x="1680" y="530" fill="#868D98" font-family="Archivo" font-size="18" text-anchor="end">10,007</text>
+  <text x="0" y="558" fill="#868D98" font-family="Archivo" font-size="18">not yet classified</text>
+  <text x="1680" y="558" fill="#868D98" font-family="Archivo" font-size="18" text-anchor="end">615</text>
+</svg>
