@@ -60,6 +60,32 @@
      have been limited to health and government sites since 2023. If a
      visible FAQ ever returns to this page, the markup can come back with
      it. ─────────────────────────────────────────────────────────── -->
+<script>
+/* SEND A SIGNED-IN MEMBER HOME.
+   The board sets nb_home on .nabbly.co when somebody is signed in — one bit,
+   readable, no identity in it. Without this, closing the tab and coming back
+   to nabbly.co shows a member the pitch for a product they already pay for.
+
+   Deliberately narrow. It fires only on the bare front door, and never when:
+     - there is a query or hash, so /?stay=1 and #plans always render. That is
+       the escape hatch, and it is also every link in our own emails.
+     - the visitor arrived FROM the board or the app. Otherwise Back becomes a
+       trap: leave the board, land here, get thrown straight back.
+   A crawler has no cookies, so it never redirects and the page stays indexable.
+   replace() rather than assign() keeps this out of history for the same
+   back-button reason. Auth is still nb_session, server-side; this bit is only
+   ever allowed to choose which page you see, never what you can do. */
+(function () {
+  try {
+    if (location.search || location.hash) return;
+    var p = location.pathname;
+    if (p !== "/" && p !== "/index.html") return;
+    if (/^https:\/\/(board|app)\.nabbly\.co/.test(document.referrer)) return;
+    if (!/(?:^|;\s*)nb_home=1(?:;|$)/.test(document.cookie)) return;
+    location.replace("https://board.nabbly.co/");
+  } catch (e) { /* never block the page from rendering */ }
+})();
+</script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",

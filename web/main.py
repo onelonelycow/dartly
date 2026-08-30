@@ -324,6 +324,61 @@ async def _remember_campaign(request: Request, call_next):
     return await call_next(request)
 
 
+# ── the "take me to my board" hint ───────────────────────────────────────────
+#
+# nabbly.co is a STATIC site. It already receives nb_session, because that
+# cookie is scoped to .nabbly.co — but the cookie is httponly, so the page has
+# no way to read it, and there is no server there to read it for us. The
+# result is what a signed-in member actually experiences: they close the tab,
+# come back to nabbly.co, and are shown the front door again as though they
+# had never signed up.
+#
+# So the board publishes one bit next to the session: nb_home, readable by
+# script, carrying no identity and granting no access — it says "somebody is
+# signed in on this browser" and nothing else. The marketing page reads it and
+# steps aside. Never trusted for anything: authentication is still nb_session,
+# still httponly, still checked server-side on every request.
+#
+# Kept in sync here rather than at each sign-in point because there are three
+# of those (code, Google, and session restore) and a missed one is a member
+# who is silently never sent home again.
+HOME_HINT_COOKIE = "nb_home"
+
+
+def _home_hint(email: str, sent: str) -> str:
+    """
+    What to do with the hint cookie: "set", "clear", or "" for leave alone.
+
+    Only acts on a MISMATCH, so the common request — signed in, cookie already
+    there — adds no Set-Cookie header at all.
+    """
+    if email and sent != "1":
+        return "set"
+    if not email and sent:
+        return "clear"
+    return ""
+
+
+@app.middleware("http")
+async def _home_hint_mw(request: Request, call_next):
+    resp = await call_next(request)
+    try:
+        action = _home_hint(request.session.get("email", ""),
+                            request.cookies.get(HOME_HINT_COOKIE, ""))
+        if action == "set":
+            resp.set_cookie(
+                HOME_HINT_COOKIE, "1", max_age=webauth.SESSION_MAX_AGE,
+                path="/", samesite="lax", httponly=False,
+                secure=os.environ.get("NABBLY_LOCAL") != "1", **_session_kw)
+        elif action == "clear":
+            resp.delete_cookie(HOME_HINT_COOKIE, path="/", **_session_kw)
+    except Exception:
+        # Never worth failing a render for. Same reasoning as the campaign
+        # middleware directly above.
+        pass
+    return resp
+
+
 app.add_middleware(
     SessionMiddleware, secret_key=webauth._SECRET,
     session_cookie=webauth.SESSION_COOKIE, max_age=webauth.SESSION_MAX_AGE,
