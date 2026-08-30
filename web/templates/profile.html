@@ -126,16 +126,19 @@ button.go:hover{background:var(--amber-l)}
 /* "Saved." CONFIRMS, THEN LEAVES. The founder's call: long enough to know
    the save landed, then gone so the page stays clean and a stale "Saved."
    cannot sit next to fields someone has since edited. Pure CSS: hold 2.5s,
-   fade 0.6s, then stop taking space. Both indicators share the timing. */
+   fade 0.6s, then stop taking space.
+
+   ONE indicator, at the top. There used to be a second beside the Save
+   button, which meant a save said the same word twice on one screen — and the
+   one by the button is the one you are least likely to be looking at, since
+   the eye goes back up to the fields it just changed. */
 @keyframes saved-out{
   0%,100%{opacity:0;visibility:hidden}
   1%,80%{opacity:1;visibility:visible}
 }
-.said{font-size:12.5px;color:var(--amber);
-  animation:saved-out 3.1s ease forwards}
 .savedbar{animation:saved-out 3.1s ease forwards}
 @media (prefers-reduced-motion:reduce){
-  .said,.savedbar{animation:none;opacity:1}
+  .savedbar{animation:none;opacity:1}
 }
 .savedbar{display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:10px 14px;
   border:1px solid var(--amber-d);border-radius:11px;font-size:13.5px;
@@ -263,8 +266,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         </div>
       </div>
       <label class="f" for="portfolio">Portfolio link</label>
-      <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}"
-             placeholder="alexrivera.com">
+      <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}">
       <label class="f" for="bio">One line about you</label>
       <textarea id="bio" name="bio"
         placeholder="Ten years on brand identity, mostly for SaaS and healthcare.">{{ prof.bio }}</textarea>
@@ -549,7 +551,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
   <div class="bar">
     <button class="go" type="submit">Save profile</button>
-    {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
 

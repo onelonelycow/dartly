@@ -97,11 +97,17 @@ def strip(pg):
 #                     form argues the opposite of the point.
 #   any address       a belt-and-braces sweep for anything email-shaped left
 #                     anywhere on the page, in case a field moves later.
+#
+# The number is a FULL, correctly formatted one rather than a stub: a
+# half-number on screen reads as a bug in the product, which is the opposite
+# of what a demo is for. 555-01xx is the range reserved for fiction precisely
+# so it cannot ring anybody, and the area code is Seattle's, which suits the
+# audience. It looks real and can never reach a person.
 REDACT = """
 document.querySelectorAll('.pane-acct').forEach(function (el) { el.remove(); });
 
 var fake = {
-  sms_to: '+1 555 0134',
+  sms_to: '+1 206 555 0134',
   discord_webhook: 'https://hooks.slack.com/services/T000/B000/xxxxxxxx',
   telegram_token: '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
   telegram_chat: '100000000'
