@@ -342,12 +342,18 @@ button.go:hover{background:var(--amber-l)}
     <div class="foot-links">
       <a class="foot-link" href="https://nabbly.co/about.html">About</a>
       <a class="foot-link" href="https://nabbly.co/faq.html">FAQ</a>
-      <a class="foot-link" href="{{ app_url }}/?nav=pricing">Pricing</a>
+      {# Pricing is a QUESTION, not a checkout. It used to point into the old
+         Streamlit app, which is a different shell at a different speed, to
+         read a number that now lives on nabbly.co with the rest of the
+         marketing copy. The Upgrade button above still goes to the app,
+         because that is where the Stripe checkout actually is. #}
+      <a class="foot-link" href="https://nabbly.co/#plans">Pricing</a>
     </div>
     <div class="foot-legal">
       <a href="https://nabbly.co/privacy.html">Privacy</a>
       <a href="https://nabbly.co/terms.html">Terms</a>
-      <span class="meta">OneLonelyCow &middot; &copy; 2026</span>
+      {# The GitHub handle was showing through on the surface customers use. #}
+      <span class="meta">Nabbly &middot; &copy; 2026</span>
     </div>
   </div>
 </div>

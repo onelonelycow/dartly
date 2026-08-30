@@ -5699,5 +5699,5 @@ st.markdown(
     f'<a class="foot-link" href="{ilink("?nav=privacy")}" target="_self">Privacy</a>'
     f'<a class="foot-link" href="{ilink("?nav=terms")}" target="_self">Terms</a>'
     '</div>'
-    '<span class="meta">OneLonelyCow · © 2026</span>'
+    '<span class="meta">Nabbly · © 2026</span>'
     '</div>', unsafe_allow_html=True)

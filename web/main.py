@@ -404,6 +404,27 @@ def _signin_to(path: str) -> str:
     return f"/signin?next={quote_plus(nxt)}" if nxt else "/signin"
 
 
+def _signin_lede(nxt: str) -> str:
+    """
+    The one line under "Sign in to Nabbly", written for where they came from.
+
+    A generic sign-in page after a specific click is a dead end: someone
+    presses "Draft my reply" and the next screen talks about saving picks and
+    getting alerts, which is not what they asked for and reads as a toll booth.
+    The destination is already carried in `next` for the redirect, so the copy
+    is derived from it rather than from a second parameter that could drift.
+    """
+    if nxt.startswith("/draft/"):
+        return ("Your reply is drafted and waiting on the other side of this. "
+                "No password.")
+    if nxt.startswith("/market"):
+        return "See what this kind of work is paying right now. No password."
+    if nxt.startswith("/saved"):
+        return "Keep the gigs you saved, on every device. No password."
+    return ("Save your profile and picks, get alerts, and keep your board "
+            "across visits. No password.")
+
+
 def _landing(request, nxt: str) -> str:
     """
     Where someone lands the moment they finish signing in.
@@ -967,6 +988,7 @@ def signin_page(request: Request, sent: str = Query(""), err: str = Query(""),
     if nxt:
         request.session["_next"] = nxt
     return templates.TemplateResponse(request, "signin.html", {
+        "lede": _signin_lede(nxt),
         "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
         "google_ok": googleauth.enabled(),
         "me": "", "tab": "", "css_v": CSS_V, "indexable": _INDEXABLE,
