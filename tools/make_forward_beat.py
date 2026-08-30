@@ -66,9 +66,32 @@ def wrap(d, text, font, width):
     return lines
 
 
-def render():
+# Beats, in frames. The card lands, the address it was sent to lights, then
+# the gigs peel off it one at a time — the split is the claim, so it gets the
+# time rather than the headline does.
+FADE, ADDR_AT, ROW_STEP, ROW_DUR, TAIL = 18, 26, 22, 16, 40
+
+
+def _a(f, start, dur):
+    """Opacity of something that begins at `start` and takes `dur` frames."""
+    if f <= start:
+        return 0.0
+    t = min(1.0, (f - start) / dur)
+    return t * t * (3 - 2 * t)
+
+
+def render(f=None):
+    """
+    One frame. `f` is the frame index, or None for the finished still.
+
+    Each group is drawn on its own transparent layer and composited at that
+    beat's opacity, rather than fading colours toward the background. Lerping
+    text toward the ground goes muddy halfway through and turns the amber
+    brown; an alpha composite keeps every colour true at every opacity.
+    """
+    LX, LW = 190, 720
+    RX = LX + LW + 150
     img = Image.new("RGB", (W, H), mp.BG)
-    d = ImageDraw.Draw(img)
 
     f_lbl = mp.font(21, "Semibold")
     f_name = mp.font(32, "Semibold")
@@ -78,70 +101,108 @@ def render():
     f_title = mp.font(29, "Semibold")
     f_meta = mp.font(22, "Regular", mp.ARIAL)
 
-    # ---- left: the newsletter, as it lands in a mailbox ---------------------
-    LX, LW = 190, 720
-    card = Image.new("RGBA", ((LW) * 2, 470 * 2), (0, 0, 0, 0))
-    ImageDraw.Draw(card).rounded_rectangle(
-        [0, 0, LW * 2 - 1, 470 * 2 - 1], radius=26 * 2,
-        fill=(21, 24, 29, 255), outline=(47, 52, 61, 255), width=2 * 2)
-    card = card.resize((LW, 470), Image.LANCZOS)
-    img.paste(card, (LX, 300), card)
+    def layer():
+        im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        return im, ImageDraw.Draw(im)
 
-    cd = ImageDraw.Draw(img)
-    av = 60
-    cd.ellipse([LX + 36, 336, LX + 36 + av, 336 + av], fill=(44, 49, 58))
-    cd.text((LX + 36 + av / 2, 336 + av / 2), SENDER_INITIALS,
-            font=mp.font(24, "Semibold"), fill=mp.GREY, anchor="mm")
-    cd.text((LX + 118, 344), SENDER, font=f_name, fill=mp.BODY)
-    cd.text((LX + 118, 382), SUBJECT, font=f_sub, fill=mp.GREY)
+    def put(im, alpha):
+        if alpha <= 0:
+            return
+        if alpha < 1:
+            im.putalpha(im.getchannel("A").point(lambda v: int(v * alpha)))
+        img.alpha_composite(im) if img.mode == "RGBA" else img.paste(im, (0, 0), im)
 
-    y = 448
-    for line in wrap(cd, BODY, f_body, LW - 76)[:5]:
-        cd.text((LX + 38, y), line, font=f_body, fill=mp.DIM)
-        y += 33
+    def panel(w, h, radius):
+        im = Image.new("RGBA", (w * 2, h * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(im).rounded_rectangle(
+            [0, 0, w * 2 - 1, h * 2 - 1], radius=radius * 2,
+            fill=(21, 24, 29, 255), outline=(47, 52, 61, 255), width=4)
+        return im.resize((w, h), Image.LANCZOS)
 
-    cd.line([(LX + 38, 640), (LX + LW - 38, 640)], fill=(47, 52, 61), width=1)
-    cd.text((LX + 38, 664), "FORWARDED TO", font=mp.font(19, "Semibold"),
-            fill=mp.DIM)
-    cd.text((LX + 38, 696), ADDRESS, font=f_addr, fill=mp.HOT)
+    a = (lambda *_: 1.0) if f is None else _a
 
-    # ---- the hinge ----------------------------------------------------------
-    cd.text((LX + LW + 60, 520), "→", font=mp.font(46, "Regular", mp.ARIAL),
-            fill=(90, 96, 106))
-
-    # ---- right: what it became ---------------------------------------------
-    RX = LX + LW + 150
-    cd.text((RX, 300), "NABBLY SPLITS IT INTO", font=f_lbl, fill=mp.DIM)
-
-    y = 356
-    for i, (title, meta) in enumerate(SPLIT):
-        row = Image.new("RGBA", (700 * 2, 116 * 2), (0, 0, 0, 0))
-        ImageDraw.Draw(row).rounded_rectangle(
-            [0, 0, 700 * 2 - 1, 116 * 2 - 1], radius=18 * 2,
-            fill=(21, 24, 29, 255), outline=(47, 52, 61, 255), width=2 * 2)
-        row = row.resize((700, 116), Image.LANCZOS)
-        img.paste(row, (RX, y), row)
-        rd = ImageDraw.Draw(img)
-        rd.text((RX + 30, y + 30), title, font=f_title, fill=mp.BODY)
-        rd.text((RX + 30, y + 70), meta, font=f_meta, fill=mp.GREY)
-        y += 140
-
-    # ---- the claim ----------------------------------------------------------
-    d = ImageDraw.Draw(img)
+    # ---- the claim ---------------------------------------------------------
+    im, d = layer()
     d.text((LX, 170), "The gigs no public board carries.",
            font=mp.font(52, "Semibold"), fill=mp.BODY)
     d.text((LX, 232), "Forward the newsletter once. Every gig inside it lands "
                       "on your board, and nobody else's.",
            font=mp.font(26, "Regular", mp.ARIAL), fill=mp.GREY)
+    put(im, a(f, 0, FADE))
 
-    out = OUT / "forward-beat.png"
-    img.save(out, "PNG", optimize=True)
-    print(f"wrote {out}  {W}x{H}")
+    # ---- the newsletter, as it lands in a mailbox --------------------------
+    im, d = layer()
+    im.paste(panel(LW, 470, 26), (LX, 300), panel(LW, 470, 26))
+    d = ImageDraw.Draw(im)
+    av = 60
+    d.ellipse([LX + 36, 336, LX + 36 + av, 336 + av], fill=(44, 49, 58, 255))
+    d.text((LX + 36 + av / 2, 336 + av / 2), SENDER_INITIALS,
+           font=mp.font(24, "Semibold"), fill=mp.GREY, anchor="mm")
+    d.text((LX + 118, 344), SENDER, font=f_name, fill=mp.BODY)
+    d.text((LX + 118, 382), SUBJECT, font=f_sub, fill=mp.GREY)
+    y = 448
+    for line in wrap(d, BODY, f_body, LW - 76)[:5]:
+        d.text((LX + 38, y), line, font=f_body, fill=mp.DIM)
+        y += 33
+    put(im, a(f, FADE // 2, FADE))
+
+    # ---- the address it was sent to ----------------------------------------
+    im, d = layer()
+    d.line([(LX + 38, 640), (LX + LW - 38, 640)], fill=(47, 52, 61, 255), width=1)
+    d.text((LX + 38, 664), "FORWARDED TO", font=mp.font(19, "Semibold"), fill=mp.DIM)
+    d.text((LX + 38, 696), ADDRESS, font=f_addr, fill=mp.HOT)
+    put(im, a(f, ADDR_AT, FADE))
+
+    # ---- the hinge, and what it became -------------------------------------
+    im, d = layer()
+    d.text((LX + LW + 60, 520), "\u2192", font=mp.font(46, "Regular", mp.ARIAL),
+           fill=(90, 96, 106))
+    d.text((RX, 300), "NABBLY SPLITS IT INTO", font=f_lbl, fill=mp.DIM)
+    put(im, a(f, ADDR_AT + FADE, FADE))
+
+    # ---- the gigs, one at a time -------------------------------------------
+    first_row = ADDR_AT + FADE + 10
+    y = 356
+    for i, (title, meta) in enumerate(SPLIT):
+        im, d = layer()
+        im.paste(panel(700, 116, 18), (RX, y), panel(700, 116, 18))
+        d = ImageDraw.Draw(im)
+        d.text((RX + 30, y + 30), title, font=f_title, fill=mp.BODY)
+        d.text((RX + 30, y + 70), meta, font=f_meta, fill=mp.GREY)
+        put(im, a(f, first_row + i * ROW_STEP, ROW_DUR))
+        y += 140
+
+    return img
+
+
+def total_frames():
+    """How long the whole beat runs, including the hold at the end."""
+    return ADDR_AT + FADE + 10 + (len(SPLIT) - 1) * ROW_STEP + ROW_DUR + TAIL
 
 
 if __name__ == "__main__":
-    size = next((a for a in sys.argv[1:] if "x" in a
+    # make_forward_beat.py [WxH] [--still]
+    argv = sys.argv[1:]
+    still = "--still" in argv
+    if still:
+        argv.remove("--still")
+    size = next((a for a in argv if "x" in a
                  and all(p.isdigit() for p in a.split("x", 1))), None)
     if size:
         W, H = (int(v) for v in size.split("x"))
-    render()
+
+    if still:
+        out = OUT / "forward-beat.png"
+        render().save(out, "PNG", optimize=True)
+        print(f"wrote {out}  {W}x{H}")
+    else:
+        import imageio.v2 as iio
+        import numpy as np
+        out = OUT / "forward-beat.mp4"
+        n = total_frames()
+        w = iio.get_writer(out, fps=30, codec="libx264", quality=9,
+                           macro_block_size=1, ffmpeg_params=["-pix_fmt", "yuv420p"])
+        for f in range(n):
+            w.append_data(np.asarray(render(f)))
+        w.close()
+        print(f"wrote {out}  {W}x{H}  {n} frames  {n / 30:.1f}s")
