@@ -30,6 +30,9 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "brand" / "posts" / "demo"
+# 9:16 by default, the social cut. Pass WxH for the landscape product demo —
+# the reply half is picked to match, since a portrait reply letterboxed into a
+# wide frame would undo the point of rendering one per aspect.
 W, H, FPS = 1080, 1920, 30
 
 # The capture is paced for a machine, not an eye. Every hold is stretched so
@@ -52,13 +55,22 @@ def main(frames_dir: Path):
     # A W:H window around the search bar, with room above and below so the
     # board's own frame still reads and the push-in does not feel like a
     # different screenshot. Sized off the bar's width, since it is wide and short.
-    scy = (sr[1] + sr[3]) / 2
-    # Centred on the PAGE, not on the input: the search row is input + button
-    # and the button is the half that says what is about to happen, so framing
-    # tight on the input alone chopped it off the right edge.
-    zw = min(mW, mW * 0.68)
+    # Centred on the SEARCH ROW the capture measured — input plus its Search
+    # button — not on the page. The board grew a left rail on 2026-08-23 and
+    # the search bar is no longer centred in the viewport, so a page-centred
+    # window framed the sidebar instead of the thing being typed into.
+    scx, scy = (sr[0] + sr[2]) / 2, (sr[1] + sr[3]) / 2
+    zw = min(mW, (sr[2] - sr[0]) * 1.22)
     zh = zw * H / W
-    zx = max(0, min(mW / 2 - zw / 2, mW - zw))
+    # Centred on the row in 9:16, where the window is narrow enough to hold
+    # just the search. A 16:9 window is much wider than the row, so centring it
+    # reaches past the row's left edge and swallows the filter rail — the demo
+    # showed a column of half-cut category labels. Wide frames start at the
+    # row instead, with a small pad, so the rail stays out of shot.
+    if W > H:
+        zx = max(0, min(sr[0] - zw * 0.04, mW - zw))
+    else:
+        zx = max(0, min(scx - zw / 2, mW - zw))
     zy = max(0, min(scy - zh / 2, mH - zh))
     near = (zx, zy, zx + zw, zy + zh)
     far = (0.0, 0.0, float(mW), float(mH))
@@ -70,10 +82,12 @@ def main(frames_dir: Path):
         t = max(0.0, min(1.0, t))
         return t * t * (3 - 2 * t)
 
-    demo = OUT / "draft-my-reply-vertical.mp4"
+    wide = W > H
+    demo = OUT / ("draft-my-reply-wide.mp4" if wide
+                  else "draft-my-reply-vertical.mp4")
     assert demo.exists(), f"missing {demo}; run make_demo_video.py first"
 
-    out = OUT / "walkthrough.mp4"
+    out = OUT / ("walkthrough-wide.mp4" if wide else "walkthrough.mp4")
     w = iio.get_writer(out, fps=FPS, codec="libx264", quality=9,
                        macro_block_size=1, ffmpeg_params=["-pix_fmt", "yuv420p"])
 
@@ -124,4 +138,11 @@ def main(frames_dir: Path):
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1]))
+    # make_walkthrough.py <frames_dir> [WxH]
+    argv = sys.argv[1:]
+    size = next((a for a in argv if "x" in a
+                 and all(p.isdigit() for p in a.split("x", 1))), None)
+    if size:
+        argv.remove(size)
+        W, H = (int(v) for v in size.split("x"))
+    main(Path(argv[0]))
