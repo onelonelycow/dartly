@@ -31,6 +31,12 @@
 #pt-board:focus-visible ~ .tabs label[for=pt-board],
 #pt-acct:focus-visible ~ .tabs label[for=pt-acct]{outline:2px solid var(--amber-d);
   outline-offset:-2px}
+/* THE RULES BELOW ONLY EVER TURNED PANES ON. Nothing turned them off, so a
+   div's default display won and all three tabs rendered stacked, always:
+   clicking a tab did nothing visible, and Account — which carries the private
+   forwarding address — sat on screen permanently instead of behind its tab.
+   One radio is always checked, so exactly one pane shows. */
+.pane{display:none}
 #pt-you:checked ~ .pane-you{display:block}
 #pt-board:checked ~ .pane-board{display:block}
 #pt-acct:checked ~ .pane-acct{display:block}
