@@ -675,6 +675,19 @@ class _Market:
             return value
         return self._build()
 
+    def peek(self):
+        """
+        The cached numbers if we already have them, else None. NEVER builds.
+
+        get() falls through to a blocking _build() when the slot is empty,
+        which is right for a member and wrong for anonymous traffic: it would
+        hand the open internet a lever that runs a multi-second scan on
+        demand. peek() is the read a signed-out visitor gets — a dict lookup
+        or nothing, so the free page cannot cost more than a template render.
+        """
+        with self._lock:
+            return self._value
+
     def warm(self):
         """
         Build once in the background so no member ever pays the first scan.
@@ -822,6 +835,37 @@ def _market_view(m: dict) -> dict:
         "stack_legend": [(t, _BUDGET_COLORS[t]) for t in ("Small", "Medium", "Large")],
     }
 
+
+
+def _market_teaser(m: dict | None) -> dict | None:
+    """
+    The half of Market a signed-out visitor can see: how much work there is.
+
+    DEMAND IS COUNTED, PRICE IS ESTIMATED, so only one of them belongs on a
+    page anyone can open. The totals here are COUNT(*) over the public board
+    and are exact. The rates are not: market.py says so itself — budgets
+    "blend project, hourly, and annual figures across sources", which is
+    honest as a Pro range to price against, sitting next to the caveat that
+    page carries, and indefensible as a headline number shown to a stranger
+    who has no way to know what it blends.
+
+    So the upsell stops asserting that the data is good and starts being the
+    data, with the pricing analysis as the thing behind the wall. Returns
+    None when the cache is cold, and the page falls back to the plain upsell
+    rather than showing a zero.
+    """
+    if not m or not m.get("total"):
+        return None
+    hot = m.get("hot") or []
+    top = max((v for _, v in hot), default=1) or 1
+    return {
+        "cards": [
+            ("Gigs on the board", f"{m['total']:,}", "#E8933A", False),
+            ("Skills tracked", str(m["stats_n"]), "#4C8DFF", False),
+            ("Hottest skill", hot[0][0] if hot else "—", "#35B37E", True),
+        ],
+        "hot_rows": [(l, v, round(v / top * 100, 1)) for l, v in hot[:6]],
+    }
 
 
 def resolve_field(raw: str) -> str:
@@ -1480,15 +1524,20 @@ def market_page(request: Request):
     except Exception:
         is_pro = False
     m = None
+    teaser = None
     if is_pro:
         conn = queries.connect(DB_PATH)
         try:
             m = _market_view(_market.get(conn))
         finally:
             conn.close()
+    else:
+        # peek(), not get(): a free reader reads the cache or gets nothing,
+        # and can never trigger the scan. See _Market.peek.
+        teaser = _market_teaser(_market.peek())
     _ev(request, "market_view", "pro" if is_pro else "free")
     resp = templates.TemplateResponse(request, "market.html", {
-        "m": m, "is_pro": is_pro, "me": me, "tab": "market",
+        "m": m, "teaser": teaser, "is_pro": is_pro, "me": me, "tab": "market",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
     })

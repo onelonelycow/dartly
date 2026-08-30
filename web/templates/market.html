@@ -30,22 +30,48 @@
 
 {% block body %}
 <div class="mkt-head">
-  <h1>What gigs like yours are <span class="gr-accent">paying</span></h1>
+  {# The headline has to match what is actually below it. A free reader sees
+     the demand half and no money at all, so promising "paying" there would be
+     the page contradicting itself before the first figure. #}
   {% if is_pro %}
+    <h1>What gigs like yours are <span class="gr-accent">paying</span></h1>
+  {% else %}
+    <h1>Where the work is <span class="gr-accent">right now</span></h1>
+  {% endif %}
+  {% if is_pro or teaser %}
     {# One lens, said plainly: every figure below counts the whole public
        board, not the reader's filtered view — otherwise someone whose Gigs
        tab shows 12,000 reads these numbers as a contradiction (FEEL §7:
-       numbers must be true at all times). #}
+       numbers must be true at all times). True of the free counts as well,
+       which is why this is no longer inside the Pro branch. #}
     <p>Counted across the whole board, every source at once. This is not
       the slice your filters show.</p>
   {% endif %}
 </div>
 
 {% if not is_pro %}
+  {# The demand half, given away. It used to be a bare paragraph describing
+     numbers nobody could see, which asks a stranger to take the dataset on
+     trust — the one thing a page of statistics should never do. These counts
+     are exact; the rates are the estimated half and stay behind the wall.
+     See _market_teaser in web/main.py for why that line is drawn there. #}
+  {% if teaser %}
+    {{ stat_cards(teaser.cards) }}
+    <div style="margin:26px 0">
+      <div class="mkt-sec">What&#x27;s hot right now</div>
+      {{ hbar(teaser.hot_rows, "#E8933A") }}
+    </div>
+  {% endif %}
   <div class="upsell">
-    <p>This one is a <b>Pro</b> perk. See what work like yours actually pays,
-      what is hot this week, and which posts are lowballing, pulled from every
-      source at once.</p>
+    {% if teaser %}
+      <p>That is the demand. <b>Pro</b> adds the money: typical budget by
+        skill, how the board splits between small and large work, how much of
+        it is urgent, and which posts are lowballing against their own field.</p>
+    {% else %}
+      <p>This one is a <b>Pro</b> perk. See what work like yours actually pays,
+        what is hot this week, and which posts are lowballing, pulled from every
+        source at once.</p>
+    {% endif %}
     <a class="go" href="{{ app_url }}/?nav=pricing">See Pro</a>
   </div>
 {% elif not m.total %}
