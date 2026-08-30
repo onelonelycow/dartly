@@ -42,3 +42,8 @@ nabbly_match_feedback.db
 web/board.db
 web/board.db-wal
 web/board.db-shm
+
+# A live session cookie for whoever ran tools/capture_login.py, so the demo
+# capture can reach signed-in pages. A credential — never commit it, and
+# delete it once the capture is done.
+auth.json

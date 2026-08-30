@@ -19,8 +19,14 @@ import json
 import sys
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+
 from playwright.sync_api import sync_playwright
 
+# The social cuts are 9:16, so that stays the default. A product demo for a
+# site or an email is 16:9, and the board is a different layout at that width
+# — past 1440 the dashboard lays its cards out two across — so the landscape
+# capture is not a crop of this one, it is a different page. Pass WxH to pick.
 W, H = 1080, 1920
 DSF = 2                 # device scale factor: frames land at 2160x3840
 SEARCH = "logo design"
@@ -64,6 +70,119 @@ def strip(pg):
         except Exception:
             pg.wait_for_timeout(400)
     raise RuntimeError("strip pass never applied")
+
+
+# ---------------------------------------------------------------------------
+# REDACTION, BEFORE THE SHUTTER RATHER THAN AFTER.
+#
+# The settings page is the best unfilmed argument the product has — what you
+# do, the words that matter, the budget floor, and the channels an alert can
+# reach you on. It also carries things that must never be on a public video,
+# and blurring them in post is not good enough: the pixels would still have
+# existed, in a file, on a machine, before someone drew a box over them.
+#
+# So the page is edited in the DOM first and photographed second. What goes:
+#
+#   .pane-acct        the whole Account tab, REMOVED rather than hidden. It
+#                     holds the private forwarding address — a live inbox that
+#                     anyone reading it off a frame could post gigs into — plus
+#                     the account email and plan. The tabs are CSS radios, so
+#                     every pane is in the document whether or not it is on
+#                     screen; deleting it means a mis-aimed full-page shot
+#                     cannot catch it either.
+#   alert channels    a real phone number, and Discord/Slack/Telegram
+#                     credentials. Anyone with that webhook can post into the
+#                     channel. Replaced with plausible values so the settings
+#                     still look configured rather than empty, because an empty
+#                     form argues the opposite of the point.
+#   any address       a belt-and-braces sweep for anything email-shaped left
+#                     anywhere on the page, in case a field moves later.
+REDACT = """
+document.querySelectorAll('.pane-acct').forEach(function (el) { el.remove(); });
+
+var fake = {
+  sms_to: '+1 555 0134',
+  discord_webhook: 'https://hooks.slack.com/services/T000/B000/xxxxxxxx',
+  telegram_token: '0000000000:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+  telegram_chat: '100000000'
+};
+Object.keys(fake).forEach(function (id) {
+  var el = document.getElementById(id);
+  if (el) { el.value = fake[id]; el.setAttribute('value', fake[id]); }
+});
+
+// BOTH the property and the attribute. Setting el.value alone leaves the
+// original in the serialised HTML — the input renders redacted while the real
+// address is still sitting in the markup, which fails the whole point of
+// editing before the shutter rather than blurring after.
+var EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/g;
+document.querySelectorAll('input').forEach(function (el) {
+  if (el.value && el.value.match(EMAIL)) {
+    el.value = 'you@example.com';
+    el.setAttribute('value', 'you@example.com');
+  }
+});
+var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+var node;
+while ((node = walk.nextNode())) {
+  if (node.nodeValue && node.nodeValue.match(EMAIL)) {
+    node.nodeValue = node.nodeValue.replace(EMAIL, 'you@example.com');
+  }
+}
+"""
+
+
+def capture_settings(out: Path, auth: Path):
+    """
+    The settings tab, signed in, with everything private taken out first.
+
+    Only ONE tab is ever opened: "Your feed", which is where the feed rules and
+    the alert channels live. Account is never navigated to and is deleted from
+    the page besides.
+
+    READ-ONLY. This navigates, scrolls and photographs. It does not click save,
+    upload, delete or sign out — the session belongs to the owner account and
+    nothing here should be able to change it.
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.png"):
+        old.unlink()
+    holds, n = [], 0
+
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        ctx = b.new_context(viewport={"width": W, "height": H},
+                            device_scale_factor=DSF,
+                            storage_state=str(auth))
+        pg = ctx.new_page()
+        # Straight to the one tab. `tab` is read by web/main.py and only
+        # 'board' and 'acct' are honoured, so this deep-links past Account
+        # rather than clicking through it.
+        pg.goto("https://board.nabbly.co/profile?tab=board",
+                wait_until="networkidle", timeout=45000)
+        pg.wait_for_timeout(400)
+        if pg.locator(".pane-board").count() == 0:
+            b.close()
+            raise SystemExit("not signed in — run tools/capture_login.py first")
+        pg.evaluate(REDACT)
+
+        def shot(hold=1):
+            nonlocal n
+            pg.screenshot(path=out / f"{n:04d}.png")
+            holds.append(hold)
+            n += 1
+
+        shot(30)                                   # the settings, as they sit
+        for _ in range(12):                        # down through the rules
+            pg.mouse.wheel(0, 96)
+            pg.wait_for_timeout(20)
+            shot(1)
+        shot(26)                                   # rest on the alert channels
+
+        b.close()
+
+    (out / "holds.json").write_text(json.dumps(holds))
+    print(f"captured {n} settings shots ({sum(holds)} frames) into {out}")
 
 
 def main(out: Path):
@@ -173,4 +292,21 @@ def main(out: Path):
 
 
 if __name__ == "__main__":
-    main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/frames"))
+    # capture_demo.py <out_dir> [WxH] [--settings]
+    argv = sys.argv[1:]
+    settings = "--settings" in argv
+    if settings:
+        argv.remove("--settings")
+    size = next((a for a in argv if "x" in a
+                 and all(p.isdigit() for p in a.split("x", 1))), None)
+    if size:
+        argv.remove(size)
+        W, H = (int(v) for v in size.split("x"))
+    target = Path(argv[0] if argv else "/tmp/frames")
+    if settings:
+        auth = ROOT / "auth.json"
+        if not auth.exists():
+            raise SystemExit(f"no {auth} — run tools/capture_login.py first")
+        capture_settings(target, auth)
+    else:
+        main(target)
