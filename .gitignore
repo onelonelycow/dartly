@@ -8,6 +8,7 @@ venv/
 demand_radar.db
 alert_prefs.json
 .env
+.env.*
 *.log
 drafts.json
 
