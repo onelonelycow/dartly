@@ -48,16 +48,41 @@ RANGE = re.compile(r"[$£€]\s?([0-9][0-9,]*)\s*(?:-|–|—|to)\s*[$£€]?\s?
 #
 # The specific phrases only. Bare "budget" stays allowed, because on
 # Freelancer.com "Budget $30-250" IS the pay.
-_NOT_PAY = re.compile(
+# Two lists, because these terms are not equally damning.
+#
+# HARD: the number is never the pay, whatever surrounds it. A valuation, a
+# market size, a stipend, an L&D budget.
+#
+# SOFT: the number is often the pay, and the term is merely mentioned in the
+# same breath. "Salary: $120,000 per year plus equity" is a salary. So is
+# "Pays $85/hr. Benefits include 401k matching." Both were being thrown away,
+# which is the mirror of the perk bug: discarding real pay instead of counting
+# fake pay, and it quietly shrank the sample every rate figure is drawn from.
+# A soft term only disqualifies when nothing nearby says this IS pay.
+_NOT_PAY_HARD = re.compile(
     r"\b(ARR|MRR|valuation|valued|raised|funding|funded|backed by|Series\s+[A-J]\b|"
-    r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|401\s?k|"
-    r"match(?:ing|es)?|equity|company\s+match|in\s+sales|portfolio|"
-    r"assets|AUM|budget\s+of\s+the\s+(?:company|department)|"
-    r"stipend|reimbursement|reimbursed|allowance|pension|"
+    r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|"
+    r"in\s+sales|portfolio|assets|AUM|"
+    r"budget\s+of\s+the\s+(?:company|department)|"
+    r"stipend|reimbursement|reimbursed|allowance|"
     r"signing\s+bonus|referral\s+bonus|wellness|well\s?-?being|"
     r"professional\s+development|learning\s*&\s*development|"
     r"(?:L&D|learning|training|education|home\s?-?office|equipment|wellness|"
     r"annual|yearly)\s+budget)\b", re.I)
+
+_NOT_PAY_SOFT = re.compile(
+    r"\b(401\s?k|match(?:ing|es)?|equity|company\s+match|pension)\b", re.I)
+
+# What says "this number is the pay". Read from the text BEFORE the number
+# only: "$120,000 plus equity" needs the salary label in front of it, and
+# looking after would let the perk itself vouch for the number.
+_PAY_SAYS = re.compile(
+    r"\b(salary|salaries|salaried|compensation|remuneration|base\s+pay|"
+    r"pay(?:s|ing)?|paid|rate\s+is|earn(?:s|ing)?)\b", re.I)
+# "we offer" and "offering" are deliberately NOT here. They introduce a
+# benefit at least as often as a wage — "We offer a $5,000 401k match" — and
+# including them handed the soft veto's own examples a free pass.
+_PAY_BEFORE = 40
 
 # "$10 trillion annually" is a market-size statistic, not a salary. _is_pay
 # already refuses the LETTER suffixes on $350M and $2.4B; spelled out, the same
@@ -108,7 +133,13 @@ def _is_pay(text: str, lo: int, hi: int, suffix: str) -> bool:
         return False
     if _BIG_WORD.match(text[hi:hi + 12]):        # "...$10 trillion annually"
         return False
-    return not _NOT_PAY.search(text[max(0, lo - _WINDOW):hi + _WINDOW])
+    window = text[max(0, lo - _WINDOW):hi + _WINDOW]
+    if _NOT_PAY_HARD.search(window):
+        return False
+    if (_NOT_PAY_SOFT.search(window)
+            and not _PAY_SAYS.search(text[max(0, lo - _PAY_BEFORE):lo])):
+        return False
+    return True
 
 
 def gig_pay(gig: dict, allow_range: bool = True):
