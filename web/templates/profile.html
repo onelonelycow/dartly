@@ -120,9 +120,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
   transform:rotate(45deg)}
 .bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 32%);
   padding:16px 0 6px;display:flex;gap:10px;align-items:center}
-button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+/* a.go TOO, not just button.go. "See Pro" is an anchor, so it picked up the
+   .go.small padding and none of the colour, and rendered as default browser
+   link blue on a near-black card — effectively invisible. It is the only
+   upgrade control on this page. */
+button.go,a.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+  text-decoration:none;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
-button.go:hover{background:var(--amber-l)}
+button.go:hover,a.go:hover{background:var(--amber-l)}
 /* "Saved." CONFIRMS, THEN LEAVES. The founder's call: long enough to know
    the save landed, then gone so the page stays clean and a stale "Saved."
    cannot sit next to fields someone has since edited. Pure CSS: hold 2.5s,
@@ -515,8 +520,18 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         <div class="plan-tag">{{ plan.tag }}</div>
       </div>
       {% if not is_pro %}
-        <p class="hint">Pro adds gigs ranked against your profile, replies
-          drafted from the actual posting, market rates, and instant alerts.</p>
+        {# What Pro adds DEPENDS ON WHAT YOU ALREADY HAVE. This listed
+           "instant alerts" unconditionally, which is true for a free reader
+           and plainly false for somebody paying for the alerts tier — the one
+           thing they already bought, sold back to them. #}
+        {% if can_alerts %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, and market rates. Your alerts
+            carry over.</p>
+        {% else %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, market rates, and instant alerts.</p>
+        {% endif %}
         <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
       {% else %}
         <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>

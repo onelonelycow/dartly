@@ -1662,7 +1662,8 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         _resume_chars = 0
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
-        "is_pro": is_pro, "plan": plan, "inbox_address": inbox_address,
+        "is_pro": is_pro, "can_alerts": bool(st_.get("alerts")),
+        "plan": plan, "inbox_address": inbox_address,
         "resume_chars": _resume_chars, "resume_bad": bool(resume_bad),
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
         "tab_open": tab if tab in ("board", "acct") else "you",
