@@ -4359,7 +4359,12 @@ def plan_card():
             else:
                 st.caption("Your 14-day Pro trial has been used. We'll email you "
                            "the moment paid Pro opens.")
-            alerts_offer(ACCESS["email"], "profile", ACCESS.get("alerts", False))
+        # OUTSIDE the if/elif, so it reaches BOTH branches. It used to sit in
+        # the lapsed-trial arm only, which meant somebody who had never started
+        # a trial was shown "Try Pro free" and never learned the cheap tier
+        # existed — the people most likely to want it were the only ones who
+        # could not see it.
+        alerts_offer(ACCESS["email"], "profile", ACCESS.get("alerts", False))
         return
 
     # The way out. Owner accounts are permanently Pro (accounts.status), so
@@ -4623,6 +4628,10 @@ def signup_card(where="dashboard"):
                         st.warning(msg)
             st.markdown('<div class="gr-cta-fine">Or keep browsing on Free — the '
                         'whole board is yours either way</div>', unsafe_allow_html=True)
+            # Under the trial offer, not beside it: the free trial is still the
+            # better first step, and this is the answer for someone who has
+            # already decided they do not want the whole thing.
+            alerts_offer(a["email"], where, a.get("alerts", False))
         return
 
     # Signed in with a lapsed trial → keep-Pro interest. Not signed in → sign in
