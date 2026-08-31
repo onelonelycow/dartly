@@ -181,6 +181,9 @@ details.grp .skills{padding:2px 0 14px}
   font-size:13.5px;font-family:inherit;cursor:pointer;text-decoration:none}
 .ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .go.small,.ghost.small{padding:8px 14px;font-size:12.5px}
+.pro-only{margin-left:7px;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--amber);border:1px solid var(--amber-d);
+  border-radius:100px;padding:1px 7px;vertical-align:middle}
 /* THE FEEDBACK BOX IS NOT A SETTING. It earns a place here because this is
    where people are when something annoys them, but a settings page is about
    settings — so it sits last, in a quieter card, at a smaller size. */
@@ -446,11 +449,22 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
      back with the picker on Text message, and your setup looks GONE. A saved
      value must never be hidden behind a control. Each channel is now its own
      labelled row; a filled one reads as on at a glance. #}
+  {# TEXTS ARE PRO. Every other channel here is free to deliver; Twilio is
+     not, so it sits with Pro. The field must SAY so rather than just quietly
+     not firing — somebody on the alerts tier who types a number into an
+     enabled-looking box and then hears nothing has been told, by the product,
+     that alerts are broken. #}
   <div class="chrow">
-    <label class="f" for="sms_to">Text message</label>
+    <label class="f" for="sms_to">Text message{% if not is_pro %}
+      <span class="pro-only">Pro</span>{% endif %}</label>
     <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
-           placeholder="+15551234567">
-    <p class="hint">Your mobile number, with the country code.</p>
+           placeholder="+15551234567" {% if not is_pro %}disabled{% endif %}>
+    {% if is_pro %}
+      <p class="hint">Your mobile number, with the country code.</p>
+    {% else %}
+      <p class="hint">Texts are a Pro channel. Phone push, Telegram and
+        Slack below are instant too, and they are on your plan.</p>
+    {% endif %}
   </div>
   <div class="chrow">
     <label class="f" for="ntfy_topic">Phone push</label>

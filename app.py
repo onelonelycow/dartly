@@ -4219,7 +4219,7 @@ def view_profile(pro):
 
 def alerts_offer(email: str, where: str, has_alerts: bool = False):
     """
-    The cheap rung, offered exactly where somebody has just declined $12.
+    The cheap rung, offered exactly where somebody has just declined $15.
 
     The ladder was Free or Pro, so everyone who found Pro too much converted
     to nothing. This is shown after the Pro button rather than beside it: it
@@ -4283,7 +4283,7 @@ def plan_card():
         renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
     if ACCESS["plan"] == "pro" and not days and ACCESS.get("paid"):
-        name, price, note = ("Pro", "$12/mo",
+        name, price, note = ("Pro", "$15/mo",
                              "Renews automatically. Cancel anytime.")
     elif ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
@@ -4352,7 +4352,7 @@ def plan_card():
                     success_url=f"{mailer.APP_URL}/?from=profile&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
                     cancel_url=f"{mailer.APP_URL}/?nav=profile&e={EMAIL_TOKEN}")
                 if _url:
-                    st.link_button("Upgrade to Pro — $12/mo", _url,
+                    st.link_button("Upgrade to Pro — $15/mo", _url,
                                    type="primary", width="stretch")
                 else:
                     st.warning("Checkout's briefly unavailable — try again in a moment.")
@@ -4582,7 +4582,7 @@ def signup_card(where="dashboard"):
                     '<span class="gr-cta-mark"></span>'
                     '<div class="gr-cta-h">Quick one while you\'re here</div>'
                     '<div class="gr-cta-s">When your Pro ends, would you pay '
-                    '<b>$12/mo</b> to keep ranked picks, post-aware drafts and '
+                    '<b>$15/mo</b> to keep ranked picks, post-aware drafts and '
                     'instant alerts?</div>', unsafe_allow_html=True)
                 a1, a2, a3 = st.columns(3)
                 for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"),
@@ -4641,7 +4641,7 @@ def signup_card(where="dashboard"):
                         success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
                         cancel_url=f"{mailer.APP_URL}/?nav={where}&e={EMAIL_TOKEN}")
                     if _url:
-                        st.link_button("Upgrade to Pro — $12/mo", _url,
+                        st.link_button("Upgrade to Pro — $15/mo", _url,
                                        type="primary", width="stretch")
                     else:
                         st.caption("Checkout's briefly unavailable — try again "
@@ -4664,7 +4664,7 @@ def signup_card(where="dashboard"):
                         st.session_state["_upgrade_noted"] = True
                         note("click", f"upgrade:{where}")
                         st.rerun()
-                st.markdown('<div class="gr-cta-fine">$12/mo when it launches · '
+                st.markdown('<div class="gr-cta-fine">$15/mo when it launches · '
                             'nothing charged now</div>', unsafe_allow_html=True)
         else:
             st.markdown('<span class="gr-cta-mark"></span>'
@@ -5191,7 +5191,10 @@ def view_admin():
         ("Would pay · yes", f"{_pay.get('yes', 0):,}", "#e5675f"),
     ])
     if _pay:
-        st.caption(f"Would pay $12/month — yes: **{_pay.get('yes', 0)}** · "
+        # $12 STAYS. These are answers to a question that asked about $12,
+        # collected before the price moved to $15. Relabelling them would
+        # quietly restate what people actually said.
+        st.caption(f"Would pay $12/month (asked pre-$15) — yes: **{_pay.get('yes', 0)}** · "
                    f"maybe: **{_pay.get('maybe', 0)}** · no: **{_pay.get('no', 0)}**")
 
     acc = accounts.stats()

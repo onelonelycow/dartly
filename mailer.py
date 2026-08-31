@@ -239,14 +239,14 @@ def lapsed_payer_email(name: str, signin_token: str, unsub_token: str) -> tuple[
   If you'd like Pro back, it's one click below. If not, there's nothing
   else to do.
 </p>
-{_button("Upgrade to Pro — $12/mo", link)}
+{_button("Upgrade to Pro — $15/mo", link)}
 """
     text = ("Sorry to see your trial end.\n\n"
             f"{hi}our 14 days of Pro are up. Everything you've built here, "
             "your profile, your saved gigs, your board, is exactly where you "
             "left it. You're just back on the free plan for now.\n\n"
             "If you'd like Pro back, it's one click below. If not, there's "
-            f"nothing else to do.\n\nUpgrade to Pro — $12/mo: {link}\n")
+            f"nothing else to do.\n\nUpgrade to Pro — $15/mo: {link}\n")
     return subject, _shell("Sorry to see your trial end.", body, unsub_token), text
 
 

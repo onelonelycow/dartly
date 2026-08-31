@@ -556,7 +556,7 @@ def _founding_rank(acc: dict) -> int | None:
 # ---------------------------------------------------------------------------
 # The cheap rung: alerts, and nothing else Pro has.
 #
-# The ladder was Free or $12, so everyone who found $12 too much converted to
+# The ladder was Free or $15, so everyone who found $15 too much converted to
 # nothing at all. Alerts already worked and already had a delivery path, so
 # this tier is a price and a gate rather than a feature.
 #
@@ -601,7 +601,7 @@ def _status(acc: dict | None) -> dict:
             "can_trial": False,
             # A real Stripe subscription behind this account, vs. a manual/
             # founding/partner grant — plan_card uses this to tell a paying
-            # member "you're on the $12/mo plan" instead of "on the house".
+            # member "you're on the $15/mo plan" instead of "on the house".
             "paid": bool(acc.get("stripe_subscription_id"))}
 
     # The founder's own account: Pro for life, not a 60-day clock. Checked

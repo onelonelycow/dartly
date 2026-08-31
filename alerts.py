@@ -495,8 +495,18 @@ def notify_everyone(desktop: bool = False) -> int:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prefs = load_prefs()
-        if not any(prefs.get(k) for k in
-                   ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):
+        # SMS IS THE ONE CHANNEL THAT COSTS MONEY PER MESSAGE. ntfy, Telegram
+        # and the webhooks are free to deliver; Twilio is not, and how much it
+        # costs is decided by how many gigs match, which is not something the
+        # subscriber or we control. On the alerts tier that tail can eat a
+        # third of the subscription. So texts stay with Pro, and the cheap tier
+        # keeps every free channel — it still does the whole job it promises,
+        # which is telling you first.
+        can_sms = bool(accounts.status(acc).get("pro"))
+        channels = ["ntfy_topic", "telegram_chat", "discord_webhook"]
+        if can_sms:
+            channels.append("sms_to")
+        if not any(prefs.get(k) for k in channels):
             # Still advance the marker so they don't bank a backlog that fires
             # the moment they switch a channel on.
             _advance(accounts, acc, newest)
@@ -514,7 +524,8 @@ def notify_everyone(desktop: bool = False) -> int:
             total = len(fresh)
             shown = fresh[:max(1, int(prefs.get("max_per_alert") or 5))]
             send_ntfy(prefs.get("ntfy_topic", ""), shown, total)
-            send_sms(prefs.get("sms_to", ""), shown, total)
+            if can_sms:
+                send_sms(prefs.get("sms_to", ""), shown, total)
             send_telegram(prefs.get("telegram_token", ""),
                           prefs.get("telegram_chat", ""), shown, total)
             send_discord(prefs.get("discord_webhook", ""), shown, total)
