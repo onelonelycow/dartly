@@ -26,6 +26,26 @@ is deliberate: the code could ship before the price did.
 
 ---
 
+## 0. Check which account production is on. FIRST.
+
+Measured 2026-08-31: `dartly` was running a **sk_test_ key for the sandbox
+account**, and had been since at least 5 August. Live checkout could never
+have taken money. Six real upgrade attempts on 5-6 August created sessions in
+the sandbox and died there; the zero subscribers and $0.00 MRR were never a
+pricing or funnel problem.
+
+There are TWO accounts, and every price id embeds which one it belongs to:
+
+    acct_1U182N DulYXC8YrV   sandbox   ...prices look like price_...DulYXC8YrV...
+    acct_1U182C RbjGOdwPvo   live      ...prices look like price_...RbjGOdwPvo...
+
+So the check is one glance: in Render, `STRIPE_SECRET_KEY` must start with
+`sk_live_`, and every price id must carry the LIVE account's suffix. A test
+key with live price ids fails, and so does the reverse.
+
+Do not paste a live secret key into a chat, a commit, or a ticket. Read it
+once in the Stripe dashboard and paste it straight into Render.
+
 ## 1. Test first
 
 Already done — test-mode prices exist and `.env` points at them:
@@ -63,12 +83,14 @@ the wrong universe and nothing will work.
    - A separate product, not another price on Nabbly Pro: the product name is
      what Stripe prints on the checkout page and the receipt, so sharing one
      would show "Nabbly Pro" to somebody paying $5 for less.
-3. **Render → `dartly` → Environment**, set:
+3. **Render → `dartly` → Environment**, set all four. The first two are the
+   ones that were wrong; changing only the price ids leaves you on the
+   sandbox with live price ids, which fails outright:
 
-        STRIPE_SECRET_KEY         sk_live_…
+        STRIPE_SECRET_KEY         sk_live_…   (was sk_test_, sandbox)
         STRIPE_PUBLISHABLE_KEY    pk_live_…
-        STRIPE_PRO_PRICE_ID       the new $15 price
-        STRIPE_ALERTS_PRICE_ID    the new $5 price
+        STRIPE_PRO_PRICE_ID       price_1UAWxFRbjGOdwPvoMHsnoYGH   ($15, live)
+        STRIPE_ALERTS_PRICE_ID    the $5 price on prod_VAhUkXT0IDS2n2
 
    Nothing goes on `nabbly-board`.
 4. **Archive the old $12 price** so it cannot be checked out. Archiving does
