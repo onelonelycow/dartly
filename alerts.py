@@ -432,7 +432,11 @@ def notify_everyone(desktop: bool = False) -> int:
     # used to load the entire board (~10,000 rows, ~45MB) on every pass, all
     # night, which is what ate the instance's memory. Nobody to alert means no
     # query at all.
-    live = [a for a in accounts.all_accounts() if accounts.status(a)["pro"]]
+    # "alerts", not "pro": this is the one line that decides who gets pinged,
+    # and the alerts-only tier exists precisely to be here without being Pro.
+    # Pro, an active trial and the founder's account all report alerts=True,
+    # so nobody who used to be alerted stops being alerted.
+    live = [a for a in accounts.all_accounts() if accounts.status(a)["alerts"]]
     if not live:
         return 0
 

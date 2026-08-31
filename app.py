@@ -4217,6 +4217,42 @@ def view_profile(pro):
                 st.rerun()
 
 
+def alerts_offer(email: str, where: str, has_alerts: bool = False):
+    """
+    The cheap rung, offered exactly where somebody has just declined $12.
+
+    The ladder was Free or Pro, so everyone who found Pro too much converted
+    to nothing. This is shown after the Pro button rather than beside it: it
+    is the fallback for a no, not a competing option, and putting it level
+    with Pro would talk people out of the more valuable plan.
+
+    NO PRICE IN THE LABEL. The amount lives in Stripe. A number typed here
+    would be a second source of truth that disagrees silently the first time
+    the price changes, and this one sits on a button that takes money.
+    Checkout shows the real figure before anyone pays.
+
+    Renders nothing at all when STRIPE_ALERTS_PRICE_ID is unset, which is how
+    this ships before the price exists.
+    """
+    # Already on it. A lapsed trial still reads as "trialed", so without this
+    # an existing alerts subscriber is shown the buy button again and Stripe
+    # will happily sell them a SECOND subscription for the thing they already
+    # pay for. Pro is covered separately: both call sites are unreachable
+    # while pro is true.
+    if has_alerts or not billing.alerts_enabled() or not email:
+        return
+    url = billing.checkout_url(
+        email,
+        success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
+        cancel_url=f"{mailer.APP_URL}/?nav={where}&e={EMAIL_TOKEN}",
+        tier="alerts")
+    if not url:
+        return
+    st.markdown('<div class="gr-cta-fine">Not ready for Pro?</div>',
+                unsafe_allow_html=True)
+    st.link_button("Just the alerts \u2014 a cheaper plan", url, width="stretch")
+
+
 def plan_card():
     """
     What you're on, what it costs, when it renews, and the way out.
@@ -4261,6 +4297,12 @@ def plan_card():
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
+    elif ACCESS.get("alerts"):
+        # Paying, but not for Pro. Falling through to the Free card below told
+        # a subscriber they were on the free plan.
+        name, price, note = ("Alerts", "Instant pings",
+                             "Cancel anytime. Upgrade to Pro whenever you want "
+                             "the rest.")
     else:
         name, price, note = ("Free", "$0 — the whole board",
                              "Every gig, every field, search and browse.")
@@ -4317,6 +4359,7 @@ def plan_card():
             else:
                 st.caption("Your 14-day Pro trial has been used. We'll email you "
                            "the moment paid Pro opens.")
+            alerts_offer(ACCESS["email"], "profile", ACCESS.get("alerts", False))
         return
 
     # The way out. Owner accounts are permanently Pro (accounts.status), so
@@ -4605,6 +4648,7 @@ def signup_card(where="dashboard"):
                                    "in a moment.")
                 st.markdown('<div class="gr-cta-fine">Cancel any time from your '
                             'plan page</div>', unsafe_allow_html=True)
+                alerts_offer(a["email"], where, a.get("alerts", False))
             # Billing not configured (e.g. local dev): fall back to recording
             # interest so the ask still means something.
             elif st.session_state.get("_upgrade_noted"):

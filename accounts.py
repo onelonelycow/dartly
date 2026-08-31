@@ -554,13 +554,37 @@ def _founding_rank(acc: dict) -> int | None:
 # ---------------------------------------------------------------------------
 # Entitlement
 # ---------------------------------------------------------------------------
+# The cheap rung: alerts, and nothing else Pro has.
+#
+# The ladder was Free or $12, so everyone who found $12 too much converted to
+# nothing at all. Alerts already worked and already had a delivery path, so
+# this tier is a price and a gate rather than a feature.
+#
+# IT IS A CAPABILITY, NOT A PLAN NAME. Callers ask status()["alerts"], never
+# `plan == "alerts"` — Pro includes alerts, a trial includes alerts, and the
+# founder's account includes alerts, so a plan-name comparison would be wrong
+# in three ways on day one and wrong again the next time a tier is added.
+ALERTS_PLAN = "alerts"
+
+
 def status(acc: dict | None) -> dict:
     """
     What this person can currently do.
 
     Anonymous visitors get the free view: they can browse the whole board and
     see what Pro adds, which is the point of a shop window.
+
+    Wraps _status so every one of the several exits below picks up the derived
+    capability flags in one place. Adding a flag at each `return` is how one
+    of them gets missed, and a missed one here is somebody paying for alerts
+    that never arrive.
     """
+    out = _status(acc)
+    out["alerts"] = bool(out.get("pro")) or out.get("plan") == ALERTS_PLAN
+    return out
+
+
+def _status(acc: dict | None) -> dict:
     if not acc:
         return {"signed_in": False, "pro": False, "plan": "anon",
                 "days_left": 0, "expired": False, "email": "",

@@ -1636,6 +1636,13 @@ def profile_page(request: Request, saved_ok: int = Query(0),
     elif is_pro:
         plan = {"name": "Pro", "tag": "Active",
                 "what": "Ranking, post-aware drafts, market rates and instant alerts."}
+    elif st_.get("alerts"):
+        # A paying member, just not a Pro one. Without this branch the card
+        # below would tell somebody who pays us every month that they are on
+        # the free plan.
+        plan = {"name": "Alerts", "tag": "Active",
+                "what": "Instant pings the moment a matching gig lands. "
+                        "The rest of the board is the free one."}
     else:
         plan = {"name": "Free", "tag": "The whole board",
                 "what": "Every gig from every source, search and browse, "
