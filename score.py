@@ -36,11 +36,33 @@ RANGE = re.compile(r"[$£€]\s?([0-9][0-9,]*)\s*(?:-|–|—|to)\s*[$£€]?\s?
 #
 # Those are company revenue, market size and a benefits line. They were being
 # averaged into "what work like yours pays" and sold as a Pro feature.
+# BENEFITS ARE NOT PAY. Measured on the live board: 202 of 9,405 priced posts
+# had their winning amount sitting in a perk — "$1,000 annual professional
+# development stipend", "a dedicated annual L&D budget of EUR 2,000", a
+# wellness programme "scaling to EUR 1,000 annually". Those carry a period, so
+# they sailed past every other check and landed in the yearly bucket, which is
+# why Development / tech reported a "typical" salary of $1,000 a year off 67
+# samples. It is not only a statistics problem: gig_amount drives ranking and
+# the lowball flag, so a gig could be ranked on the size of its home-office
+# budget.
+#
+# The specific phrases only. Bare "budget" stays allowed, because on
+# Freelancer.com "Budget $30-250" IS the pay.
 _NOT_PAY = re.compile(
     r"\b(ARR|MRR|valuation|valued|raised|funding|funded|backed by|Series\s+[A-J]\b|"
     r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|401\s?k|"
     r"match(?:ing|es)?|equity|company\s+match|in\s+sales|portfolio|"
-    r"assets|AUM|budget\s+of\s+the\s+(?:company|department))\b", re.I)
+    r"assets|AUM|budget\s+of\s+the\s+(?:company|department)|"
+    r"stipend|reimbursement|reimbursed|allowance|pension|"
+    r"signing\s+bonus|referral\s+bonus|wellness|well\s?-?being|"
+    r"professional\s+development|learning\s*&\s*development|"
+    r"(?:L&D|learning|training|education|home\s?-?office|equipment|wellness|"
+    r"annual|yearly)\s+budget)\b", re.I)
+
+# "$10 trillion annually" is a market-size statistic, not a salary. _is_pay
+# already refuses the LETTER suffixes on $350M and $2.4B; spelled out, the same
+# number walked straight through.
+_BIG_WORD = re.compile(r"\s*(?:million|billion|trillion|quadrillion)\b", re.I)
 
 # The unit is what makes a number comparable. 95.5% of postings state an amount
 # with no unit at all, so it can never be assumed — an unmarked 140 might be an
@@ -83,6 +105,8 @@ def _is_pay(text: str, lo: int, hi: int, suffix: str) -> bool:
     """False when this number is plainly not what the gig pays."""
     # $350M / $2.4B is never a rate for one piece of work. K is, so it stays.
     if suffix and suffix.lower() in ("m", "b"):
+        return False
+    if _BIG_WORD.match(text[hi:hi + 12]):        # "...$10 trillion annually"
         return False
     return not _NOT_PAY.search(text[max(0, lo - _WINDOW):hi + _WINDOW])
 
