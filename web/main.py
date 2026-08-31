@@ -847,12 +847,15 @@ def _market_view(m: dict) -> dict:
     """
     hot = m["hot"]
     hottest = hot[0][0] if hot else "—"
-    top_rate = m["priced"][0][1] if m["priced"] else 0
+    # A skill with too few sources now has no typical at all, so "priced" can
+    # legitimately be short or empty. "$0" would read as free work.
+    top_rate = m["priced"][0][1] if m["priced"] else None
     cards = [
         ("Gigs on the board", f"{m['total']:,}", "#E8933A", False),
         ("Skills tracked", str(m["stats_n"]), "#4C8DFF", False),
         ("Hottest skill", hottest, "#35B37E", True),
-        ("Top typical rate", f"${top_rate:,}", "#B889F0", False),
+        ("Top typical rate",
+         f"${top_rate:,}" if top_rate else "\u2014", "#B889F0", top_rate is None),
     ]
     def bars(pairs):
         top = max((v for _, v in pairs), default=1) or 1

@@ -87,13 +87,22 @@ def _is_pay(text: str, lo: int, hi: int, suffix: str) -> bool:
     return not _NOT_PAY.search(text[max(0, lo - _WINDOW):hi + _WINDOW])
 
 
-def gig_pay(gig: dict):
+def gig_pay(gig: dict, allow_range: bool = True):
     """
     (amount, unit) for what this gig pays, or None.
 
     `unit` is "" when the posting never says — which is the overwhelming
     majority — and callers must not assume one. Aggregations should group by
     unit rather than average across it.
+
+    allow_range=False DROPS a ranged posting entirely rather than re-reading
+    it. The midpoint of a range is fine for ranking one gig against another,
+    and useless for a statistic: Freelancer.com does not let a client type a
+    budget, it offers a dropdown, so ~a quarter of its posts carry the same
+    "$30 - $250" and every one of them lands on exactly $140. Aggregated, that
+    is not a market rate, it is one platform's menu — see market.skill_stats.
+    Note it must SKIP the post, not just skip this branch: the single-figure
+    scan below would otherwise read "$30 - $250" as $250 and be more wrong.
     """
     text = f"{gig.get('title','')} {gig.get('body','')}"
 
@@ -101,6 +110,8 @@ def gig_pay(gig: dict):
     # if it survives the same context test as everything else.
     m = RANGE.search(text)
     if m and _is_pay(text, m.start(), m.end(), ""):
+        if not allow_range:
+            return None
         try:
             lo_v, hi_v = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
             if hi_v >= lo_v:
