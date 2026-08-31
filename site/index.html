@@ -317,8 +317,10 @@
   .nl-gigs .mailrow:first-child{padding-top:6px}
 
   /* plans */
-  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1000px;margin:0 auto}
-  @media(max-width:900px){.plans{grid-template-columns:1fr;max-width:520px}}
+  /* Back to two while the Alerts tier is unbuyable — see the note by the
+     cards below. Restore repeat(3,1fr)/max-width:1000px when it returns. */
+  .plans{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:760px;margin:0 auto}
+  @media(max-width:640px){.plans{grid-template-columns:1fr}}
   .plan{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:28px}
   .plan.pro{border-color:rgba(232,147,58,.4);box-shadow:0 0 0 1px rgba(232,147,58,.12),0 20px 50px rgba(0,0,0,.3)}
   .plan .pname{font-weight:650;font-size:19px;display:flex;align-items:center;gap:9px}
@@ -605,23 +607,36 @@
           <li>✓ Forward newsletters into your private board</li>
         </ul>
       </div>
-      <div class="plan">
-        <div class="pname">Alerts</div>
-        <p class="cost"><b>$5</b> <span class="per">/month</span></p>
-        <ul>
-          <li>✓ Everything in Free</li>
-          <li>✓ Instant alerts the moment a match lands</li>
-          <li>✓ Phone push, Telegram, Slack or Discord</li>
-          <li>✓ Choose your fields, and how often</li>
-        </ul>
-      </div>
+      <!-- THE ALERTS CARD IS PARKED, NOT DELETED.
+           A pricing page must not advertise a plan nobody can buy. The tier
+           is built and gated on STRIPE_ALERTS_PRICE_ID, which is unset, so
+           the purchase button renders nowhere — a visitor reading this card
+           would have found no way to pay for it.
+
+           Put it back when the price EXISTS in all three senses: created in
+           Stripe LIVE mode, STRIPE_ALERTS_PRICE_ID set on the dartly service,
+           and dartly redeployed. Restore the three-column grid above at the
+           same time, and Pro's first bullet below, which read "Everything in
+           Alerts, plus text messages".
+
+             <div class="plan">
+               <div class="pname">Alerts</div>
+               <p class="cost"><b>$5</b> <span class="per">/month</span></p>
+               <ul>
+                 <li>Everything in Free</li>
+                 <li>Instant alerts the moment a match lands</li>
+                 <li>Phone push, Telegram, Slack or Discord</li>
+                 <li>Choose your fields, and how often</li>
+               </ul>
+             </div>
+      -->
       <div class="plan pro">
         <div class="pname">Pro <span class="tag">FIRST 50 GET 2 MONTHS FREE</span></div>
         <p class="cost"><b>$15</b> <span class="per">/month &middot; 14 days free</span></p>
         <ul>
-          <li>✓ Everything in Alerts, plus text messages</li>
           <li>✓ Gigs ranked by how well they fit you</li>
           <li>✓ Drafted replies from the actual post</li>
+          <li>✓ Instant alerts: push, Slack, Telegram, SMS</li>
           <li>✓ Market-rate intelligence, so you price right</li>
         </ul>
       </div>
