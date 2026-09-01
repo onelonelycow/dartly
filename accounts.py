@@ -713,10 +713,24 @@ def downgrade(email: str) -> bool:
     return True
 
 
+# Every plan this may write. ALERTS_PLAN IS IN HERE FOR A REASON: it was not,
+# and the allow-list below rejected it silently, so billing.confirm_session
+# would take a $5 payment, call set_plan(email, "alerts"), have it refused
+# without a word, and leave the customer on Free having just been charged.
+# Nothing logged, nothing raised, Stripe perfectly happy. Add a tier to this
+# tuple or it cannot be granted.
+_SETTABLE_PLANS = ("trial", "pro", "free", ALERTS_PLAN)
+
+
 def set_plan(email: str, plan: str):
-    """Grant Pro, drop to free, or restart a trial. Used from the admin page."""
+    """Grant Pro or Alerts, drop to free, or restart a trial."""
     plan = (plan or "trial").lower()
-    if plan not in ("trial", "pro", "free"):
+    if plan not in _SETTABLE_PLANS:
+        # LOUD, not silent. The quiet `return` here is what let a paid plan go
+        # ungranted; a refusal that says nothing is indistinguishable from
+        # having worked.
+        print(f"  ! set_plan refused unknown plan {plan!r} for {email} — add it "
+              f"to accounts._SETTABLE_PLANS", flush=True)
         return
     init()
     conn = _connect()
