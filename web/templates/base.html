@@ -285,6 +285,11 @@ button.go:hover{background:var(--amber-l)}
        Same product, sibling subdomain, session cookie scoped to .nabbly.co. #}
     <a href="/market" class="{% if tab == 'market' %}on{% endif %}">Market</a>
     {% if me %}<a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>{% endif %}
+    {# PLANS IS A SIGNED-OUT TAB TOO, unlike Dashboard and Saved. What a thing
+       costs is the one question a visitor is most likely to have before they
+       have an account, and until now the only way to answer it from inside the
+       product was to leave for nabbly.co or the old app. #}
+    <a href="/plans" class="{% if tab == 'plans' %}on{% endif %}">Plans</a>
   </nav>
   <span class="who">
     {# The app puts an avatar here, not the word "Sign in" — signed out it is

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Plans · Nabbly{% endblock %}
+
+{% block extra_css %}
+.pl-head{margin:6px 0 26px}
+.pl-head h1{font-size:26px;font-weight:650;letter-spacing:-.02em;margin:0}
+.pl-head p{font-size:13.5px;color:var(--faint);margin:7px 0 0}
+
+.pl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+/* One column below 900. Three plan cards side by side stop being readable long
+   before the viewport stops being wide — the middle one loses to its
+   neighbours and the feature lists wrap to two words a line. */
+@media (max-width:900px){.pl-grid{grid-template-columns:1fr}}
+
+.pl{border:1px solid var(--line);border-radius:14px;padding:22px 20px;
+  background:var(--panel);display:flex;flex-direction:column;height:100%}
+.pl.mine{border-color:rgba(232,147,58,.45);
+  box-shadow:0 0 0 1px rgba(232,147,58,.12)}
+.pl-name{font-size:15px;font-weight:650;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:8px}
+.pl-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:#2a1806;background:var(--amber-l);padding:2px 7px;border-radius:100px}
+.pl-cost{margin:12px 0 0;font-size:13px;color:var(--mute)}
+.pl-cost b{font-size:29px;font-weight:650;color:var(--ink);letter-spacing:-.02em}
+.pl-what{font-size:12.5px;color:var(--faint);margin:8px 0 0;line-height:1.5}
+.pl ul{list-style:none;padding:0;margin:16px 0 0;display:flex;
+  flex-direction:column;gap:9px;flex:1}
+.pl li{font-size:13.5px;color:var(--ink2);display:flex;gap:9px;align-items:flex-start;
+  line-height:1.45}
+.pl li .tick{color:var(--amber);flex:0 0 auto}
+.pl-act{margin-top:18px}
+.pl-act a,.pl-act span{display:block;text-align:center;border-radius:11px;
+  padding:11px 14px;font-size:13.5px;font-weight:650;text-decoration:none}
+.pl-act a.buy{background:var(--amber);color:#1b1205}
+.pl-act a.buy:hover{background:var(--amber-l)}
+.pl-act a.ghost{border:1px solid var(--line2);color:var(--ink2);background:var(--bg)}
+.pl-act a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.pl-act span.current{color:var(--faint);border:1px dashed var(--line2)}
+
+.pl-note{font-size:12.5px;color:var(--faint);margin:24px 0 0;line-height:1.6}
+.pl-ok{border:1px solid rgba(53,179,126,.4);background:rgba(53,179,126,.08);
+  border-radius:12px;padding:13px 15px;font-size:13.5px;color:var(--ink2);
+  margin:0 0 20px}
+{% endblock %}
+
+{% block body %}
+
+{% if paid_ok %}
+  {# Only ever shown on the render Stripe redirects into, and only when Stripe
+     itself confirmed the payment — never from the query string alone. #}
+  <div class="pl-ok">You're all set. Your plan is live on this account now.</div>
+{% endif %}
+
+<div class="pl-head">
+  <h1>Plans</h1>
+  {% if on_paid %}
+    <p>What you are on, and what the others include.</p>
+  {% else %}
+    <p>The whole board is free, forever. The paid plans are about getting there
+      first.</p>
+  {% endif %}
+</div>
+
+<div class="pl-grid">
+
+  {# ---- Free ---------------------------------------------------------- #}
+  <div class="pl{% if st.signed_in and not st.pro and st.plan not in ('alerts',) %} mine{% endif %}">
+    <div class="pl-name">Free</div>
+    <p class="pl-cost"><b>$0</b> forever</p>
+    <p class="pl-what">Everything you need to find the work yourself.</p>
+    <ul>
+      <li><span class="tick">✓</span> The whole board, every source</li>
+      <li><span class="tick">✓</span> Search and browse every field</li>
+      <li><span class="tick">✓</span> A drafted reply on every gig</li>
+      <li><span class="tick">✓</span> Forward newsletters to your board</li>
+    </ul>
+    <div class="pl-act">
+      {% if st.signed_in and not st.pro and st.plan != 'alerts' %}
+        <span class="current">Your plan</span>
+      {% elif not st.signed_in %}
+        <a class="ghost" href="/signin?next=%2Fplans">Sign in — it's free</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---- Alerts -------------------------------------------------------- #}
+  <div class="pl{% if st.plan == 'alerts' %} mine{% endif %}">
+    <div class="pl-name">Alerts</div>
+    <p class="pl-cost"><b>${{ price.alerts }}</b> /month</p>
+    <p class="pl-what">For when the only thing you want is to know first.</p>
+    <ul>
+      <li><span class="tick">✓</span> Everything in Free</li>
+      <li><span class="tick">✓</span> Pinged the moment a match lands</li>
+      <li><span class="tick">✓</span> Phone push, Telegram, Slack or Discord</li>
+      <li><span class="tick">✓</span> Your fields, at your cadence</li>
+    </ul>
+    <div class="pl-act">
+      {% if st.plan == 'alerts' %}
+        <span class="current">Your plan</span>
+      {% elif not st.signed_in %}
+        <a class="ghost" href="/signin?next=%2Fplans">Sign in to choose</a>
+      {% elif on_paid %}
+        {# Already paying for Pro. Nothing to sell, and offering a downgrade
+           button here would be an odd thing to put in front of someone. #}
+      {% elif links.alerts %}
+        <a class="buy" href="{{ links.alerts }}">Choose Alerts</a>
+      {% else %}
+        <a class="ghost" href="{{ app_url }}/?nav=pricing">Choose Alerts</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ---- Pro ----------------------------------------------------------- #}
+  <div class="pl{% if st.pro %} mine{% endif %}">
+    <div class="pl-name">Pro
+      {% if not st.trialed and not st.pro %}<span class="pl-tag">14 days free</span>{% endif %}
+    </div>
+    <p class="pl-cost"><b>${{ price.pro }}</b> /month</p>
+    <p class="pl-what">The whole edge: ranked, drafted, priced and pinged.</p>
+    <ul>
+      <li><span class="tick">✓</span> Everything in Alerts, plus texts</li>
+      <li><span class="tick">✓</span> Gigs ranked against your profile</li>
+      <li><span class="tick">✓</span> Replies drafted from the actual post</li>
+      <li><span class="tick">✓</span> Market rates, so you price right</li>
+    </ul>
+    <div class="pl-act">
+      {% if st.pro and st.days_left %}
+        <span class="current">{{ st.days_left }} day{{ '' if st.days_left == 1 else 's' }} left</span>
+      {% elif st.pro %}
+        <span class="current">Your plan</span>
+      {% elif not st.signed_in %}
+        <a class="ghost" href="/signin?next=%2Fplans">Sign in to choose</a>
+      {% elif links.pro %}
+        <a class="buy" href="{{ links.pro }}">Choose Pro</a>
+      {% else %}
+        <a class="ghost" href="{{ app_url }}/?nav=pricing">Choose Pro</a>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<p class="pl-note">
+  {% if st.pro and st.days_left %}
+    Your Pro is free while it runs and nothing is charged when it ends — you
+    drop back to Free unless you choose a plan.
+  {% else %}
+    Cancel any time. Prices are per month in USD, and Stripe shows you the
+    exact amount before anything is charged.
+  {% endif %}
+</p>
+
+{% endblock %}

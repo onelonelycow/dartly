@@ -42,6 +42,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
+import billing  # noqa: E402
 import analytics  # noqa: E402
 import config  # noqa: E402
 import googleauth  # noqa: E402
@@ -1602,6 +1603,73 @@ def market_page(request: Request):
     resp.headers["Cache-Control"] = "private, no-store"
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
+
+
+# What each tier costs, in one place on this service.
+#
+# HAND-WRITTEN, and STRIPE.md says why that is a liability: nothing reads these
+# back from Stripe, so changing a price there without changing them here makes
+# the page advertise one number while checkout charges another. They are here
+# rather than in the template so there is exactly one line to change.
+PLAN_PRICE = {"alerts": 5, "pro": 15}
+
+
+@app.get("/plans", response_class=HTMLResponse)
+def plans_page(request: Request, stripe_session: str = Query("")):
+    """
+    The plans, on the board — the surface people actually use.
+
+    Pricing lived on nabbly.co and on the Streamlit app, and nowhere on the
+    board, so the only way to see what Pro costs from inside the product was to
+    leave it. That is the same "three front doors" problem the review named:
+    every Upgrade link walked a member backwards into the old app.
+
+    CHECKOUT IS ATTEMPTED HERE FIRST and falls back to the app. Stripe's keys
+    live on the dartly service today, so billing.enabled() is False here until
+    they are added to nabbly-board too; until then the buttons link to the app
+    exactly as before, and the page is still worth having. Add the keys and
+    they become native without another deploy of anything else.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    acc = webauth.account_for(request)
+    try:
+        st_ = accounts.status(acc) or {}
+    except Exception:
+        st_ = {}
+
+    # Coming back from Stripe. Re-asks Stripe whether the session actually paid
+    # before touching anything — see billing.confirm_session.
+    paid_ok = False
+    if stripe_session and me:
+        try:
+            paid_ok, _ = billing.confirm_session(stripe_session)
+            if paid_ok:
+                st_ = accounts.status(webauth.account_for(request)) or st_
+        except Exception:
+            paid_ok = False
+
+    on_paid = bool(st_.get("paid") or st_.get("plan") in ("pro", "alerts"))
+    links = {}
+    if me and not on_paid and billing.enabled():
+        base = str(request.base_url).rstrip("/")
+        for tier in ("alerts", "pro"):
+            if tier == "alerts" and not billing.alerts_enabled():
+                continue
+            try:
+                links[tier] = billing.checkout_url(
+                    me, success_url=f"{base}/plans?stripe_session={{CHECKOUT_SESSION_ID}}",
+                    cancel_url=f"{base}/plans", tier=tier)
+            except Exception:
+                links[tier] = None
+
+    return templates.TemplateResponse(request, "plans.html", {
+        "me": me, "tab": "plans", "st": st_, "price": PLAN_PRICE,
+        "links": links, "on_paid": on_paid, "paid_ok": paid_ok,
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "took_ms": (time.perf_counter() - t0) * 1000,
+    })
 
 
 @app.get("/profile", response_class=HTMLResponse)
