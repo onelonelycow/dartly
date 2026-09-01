@@ -4217,7 +4217,20 @@ def view_profile(pro):
                 st.rerun()
 
 
-def alerts_offer(email: str, where: str, has_alerts: bool = False):
+def _paying(a) -> bool:
+    """
+    On a plan we are actually billing for.
+
+    Not the same as "has Pro". A founding member and somebody on a trial both
+    have Pro and pay nothing, and both should still be offered the cheap tier
+    — their free run ends, and this is the decision waiting for them when it
+    does. Only a live Stripe subscription, or a standing pro/alerts plan,
+    means there is nothing left to sell.
+    """
+    return bool(a.get("paid") or a.get("plan") in ("pro", accounts.ALERTS_PLAN))
+
+
+def alerts_offer(email: str, where: str, already_paying: bool = False):
     """
     The cheap rung, offered exactly where somebody has just declined $15.
 
@@ -4234,12 +4247,12 @@ def alerts_offer(email: str, where: str, has_alerts: bool = False):
     Renders nothing at all when STRIPE_ALERTS_PRICE_ID is unset, which is how
     this ships before the price exists.
     """
-    # Already on it. A lapsed trial still reads as "trialed", so without this
-    # an existing alerts subscriber is shown the buy button again and Stripe
-    # will happily sell them a SECOND subscription for the thing they already
-    # pay for. Pro is covered separately: both call sites are unreachable
-    # while pro is true.
-    if has_alerts or not billing.alerts_enabled() or not email:
+    # ALREADY PAYING, not "has the alerts capability". status()["alerts"] is
+    # True for anyone with Pro, including a founding member on a free grant —
+    # and those are exactly the people who should be able to choose the cheap
+    # plan before their free run ends. The thing to suppress is selling
+    # somebody a plan they are already being billed for.
+    if already_paying or not billing.alerts_enabled() or not email:
         return
     url = billing.checkout_url(
         email,
@@ -4292,22 +4305,14 @@ def plan_card():
         # founding_badge_html) — this card says the same thing in plain
         # text rather than repeating the graphic a second time on the same
         # page load.
-        # NOT "60 days" as a constant. A founding member who buys the Alerts
-        # tier has that window cut to accounts.FOUNDING_DAYS_ALERTS, so the
-        # hardcoded number promised twice what some of them actually have.
-        # days_left is the real remaining figure, already rounded up by
-        # accounts.status.
+        # Real days remaining, not a hardcoded 60 — the number people care
+        # about is how long they have left, and a constant goes stale the
+        # moment any grant is ever a different length.
         _d = ACCESS.get("days_left") or 0
-        if ACCESS.get("plan") == accounts.ALERTS_PLAN:
-            name = "Pro · founding member, on Alerts"
-            price = f"Pro free for {_d} more day{'s' if _d != 1 else ''}"
-            note = ("Your $5 Alerts plan carries on after that. "
-                    "Upgrade any time to keep the rest.")
-        else:
-            name = "Pro · founding member"
-            price = (f"Free for {_d} more day{'s' if _d != 1 else ''}" if _d
-                     else "Free while your founding window runs")
-            note = "Our thank-you to the people who backed it first."
+        name = "Pro · founding member"
+        price = (f"Free for {_d} more day{'s' if _d != 1 else ''}" if _d
+                 else "Free while your founding window runs")
+        note = "Our thank-you to the people who backed it first."
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
@@ -4373,13 +4378,15 @@ def plan_card():
             else:
                 st.caption("Your 14-day Pro trial has been used. We'll email you "
                            "the moment paid Pro opens.")
-        # OUTSIDE the if/elif, so it reaches BOTH branches. It used to sit in
-        # the lapsed-trial arm only, which meant somebody who had never started
-        # a trial was shown "Try Pro free" and never learned the cheap tier
-        # existed — the people most likely to want it were the only ones who
-        # could not see it.
-        alerts_offer(ACCESS["email"], "profile", ACCESS.get("alerts", False))
+        alerts_offer(ACCESS["email"], "profile", _paying(ACCESS))
         return
+
+    # A founding member and somebody mid-trial both land here: Pro today, on a
+    # clock, paying nothing. They are the people best placed to decide they
+    # want the cheap plan when the clock runs out, and until now the offer was
+    # behind a `not pro` guard they could never satisfy. _paying keeps it away
+    # from anyone actually being billed.
+    alerts_offer(ACCESS["email"], "profile", _paying(ACCESS))
 
     # The way out. Owner accounts are permanently Pro (accounts.status), so
     # there's nothing to downgrade and the control would do nothing.
@@ -4618,6 +4625,10 @@ def signup_card(where="dashboard"):
             _lbl = "of founding Pro left" if a.get("founding") else "of Pro left on your trial"
             st.markdown(f'<div class="gr-mini"><b>{d} day{"s" if d != 1 else ""}</b> '
                         f'{_lbl}</div>', unsafe_allow_html=True)
+        # OUTSIDE the if/else. Inside the else it only appeared once the
+        # research question above had been answered, which for a fresh session
+        # is never — the question renders and returns first.
+        alerts_offer(a["email"], where, _paying(a))
         return
 
     # Signed in, on Free, never trialed: offer Pro as a choice, not a default.
@@ -4645,7 +4656,7 @@ def signup_card(where="dashboard"):
             # Under the trial offer, not beside it: the free trial is still the
             # better first step, and this is the answer for someone who has
             # already decided they do not want the whole thing.
-            alerts_offer(a["email"], where, a.get("alerts", False))
+            alerts_offer(a["email"], where, _paying(a))
         return
 
     # Signed in with a lapsed trial → keep-Pro interest. Not signed in → sign in
@@ -4671,7 +4682,7 @@ def signup_card(where="dashboard"):
                                    "in a moment.")
                 st.markdown('<div class="gr-cta-fine">Cancel any time from your '
                             'plan page</div>', unsafe_allow_html=True)
-                alerts_offer(a["email"], where, a.get("alerts", False))
+                alerts_offer(a["email"], where, _paying(a))
             # Billing not configured (e.g. local dev): fall back to recording
             # interest so the ask still means something.
             elif st.session_state.get("_upgrade_noted"):
