@@ -28,8 +28,11 @@ is deliberate: the code could ship before the price did.
 
 ## 0. Check which account production is on. FIRST.
 
-Measured 2026-08-31: `dartly` was running a **sk_test_ key for the sandbox
-account**, and had been since at least 5 August. Live checkout could never
+**Resolved 2026-08-31.** `dartly` now runs the live key, both live prices are
+set, and the old $12 price is archived. Kept here because it is the first
+thing to check whenever checkout behaves strangely, and because of what it
+cost: `dartly` was running a **sk_test_ key for the sandbox account**, and had
+been since at least 5 August. Live checkout could never
 have taken money. Six real upgrade attempts on 5-6 August created sessions in
 the sandbox and died there; the zero subscribers and $0.00 MRR were never a
 pricing or funnel problem.
@@ -69,7 +72,18 @@ What to check, in order of what would hurt most if wrong:
 4. **The checkout page names the right product.** An alerts buyer should see
    "Nabbly Alerts", never "Nabbly Pro".
 
-## 2. Live
+## 2. Live — DONE 2026-08-31
+
+Verified in the dashboard: Nabbly Pro carries a single $15.00/month price,
+Nabbly Alerts a single $5.00/month price, both `txcd_10103001` and Managed
+Payments eligible, the $12 price archived, 0 subscriptions and $0.00 MRR.
+
+    STRIPE_SECRET_KEY         sk_live_…   on dartly
+    STRIPE_PUBLISHABLE_KEY    pk_live_…   on dartly
+    STRIPE_PRO_PRICE_ID       price_1UAWxFRbjGOdwPvoMHsnoYGH   $15
+    STRIPE_ALERTS_PRICE_ID    price_1UAWxARbjGOdwPvoMawtajZF   $5
+
+The steps below are how it was done, kept for the next price change.
 
 In the Stripe dashboard, **switch the Test/Live toggle to Live**. Everything
 below is in live mode; if the toggle is wrong you will create the objects in
@@ -97,12 +111,18 @@ the wrong universe and nothing will work.
    not touch anyone already on it — and today nobody is.
 5. Redeploy `dartly`.
 
-## 3. Verify live
+## 3. Verify live — STILL OUTSTANDING
 
-Buy the $5 tier with a real card, confirm the plan card says Alerts, then
-refund yourself from the dashboard. There are no subscribers, so this is also
-the first proof that live checkout works at all — which has never been
-exercised.
+The only link never exercised. Buy the $5 tier with a real card, confirm the
+plan card says **Alerts** and not Pro, then refund yourself from the dashboard.
+
+It cannot be done from the founder's account: `accounts.is_owner` makes that
+account permanently Pro, and every upgrade control is hidden from anyone who
+already pays. It needs a second, ordinary account.
+
+Until this is done, "checkout works" is an assumption. Everything upstream of
+the payment is confirmed; `billing.confirm_session` granting `alerts` rather
+than `pro` is not.
 
 ---
 
