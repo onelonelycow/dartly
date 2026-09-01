@@ -14,11 +14,13 @@ changed. This is why every price change below is "create, then repoint".
 not exist in live mode. Pasting a test id into production does not error
 loudly — checkout just fails to build and the button quietly does not appear.
 
-**Only one service needs these keys.** `app.py` (the `dartly` service) owns
-checkout and redemption. The board (`web/`) never imports `billing` and reads
-no `STRIPE_*` at all; it learns who is on what by reading the `plan` column
-that `billing.confirm_session` writes. Setting Stripe vars on `nabbly-board`
-does nothing.
+**Both services can own checkout now.** This used to read "only `dartly`
+needs these keys", and that was true until the board grew a `/plans` page.
+`web/main.py` imports `billing` and will run checkout and redemption itself
+the moment `STRIPE_SECRET_KEY` and the two price ids are set on
+`nabbly-board`; until then `billing.enabled()` is False there and the Plans
+buttons link at the app instead. Both behaviours are correct — see
+RETIRE-APP.md, where moving them is phase 1.
 
 **`STRIPE_ALERTS_PRICE_ID` unset is a working state.** The alerts tier is then
 offered nowhere and everything behaves as it did before the tier existed. That
