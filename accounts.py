@@ -40,6 +40,13 @@ from paths import data_file
 DB_PATH = data_file("nabbly_people.db")   # same file as people.py
 TRIAL_DAYS = 14               # the opt-in trial anyone can start
 FOUNDING_DAYS = 60           # ~2 months, the thank-you for the first backers
+# ...but half that once they buy the cheap tier. A founding member who chooses
+# Alerts keeps the badge and the slot — they still found us early, and that is
+# what the gift is for — while the free run of PRO shortens to 30 days, because
+# they have told us plainly that Pro is not the thing they want to pay for.
+# Measured from signup, not from purchase, so buying later never buys more
+# free Pro than buying sooner.
+FOUNDING_DAYS_ALERTS = 30
 FOUNDING_LIMIT = 50          # how many of them get it
 FOUNDING_ALERT_DAYS = 4      # how recent a founding signup has to be before the
                              # admin page treats it as possible partner leakage
@@ -740,9 +747,35 @@ def set_plan(email: str, plan: str):
     else:
         conn.execute("UPDATE accounts SET plan=? WHERE email=?",
                      (plan, email.strip().lower()))
+    if plan == ALERTS_PLAN:
+        _shorten_founding_for_alerts(conn, email)
     conn.commit()
     conn.close()
     _mirror(email)
+
+
+def _shorten_founding_for_alerts(conn, email: str):
+    """
+    Cut a founding member's free Pro run to FOUNDING_DAYS_ALERTS on purchase.
+
+    ONLY EVER SHORTENS. Recomputed from `created`, and written only when it
+    lands earlier than the deadline already stored — otherwise a late purchase,
+    or a second call on an account that has already been shortened, would hand
+    back free Pro instead of taking it. Leaves non-founding accounts and
+    partner grants alone: they are on a different clock for a different reason.
+    """
+    row = conn.execute(
+        "SELECT created, pro_until, founding FROM accounts WHERE email=?",
+        (email.strip().lower(),)).fetchone()
+    if not row or not row["founding"]:
+        return
+    created, have = _parse(row["created"]), _parse(row["pro_until"])
+    if not created or not have:
+        return
+    shorter = created + timedelta(days=FOUNDING_DAYS_ALERTS)
+    if shorter < have:
+        conn.execute("UPDATE accounts SET pro_until=? WHERE email=?",
+                     (shorter.isoformat(timespec="seconds"), email.strip().lower()))
 
 
 def set_stripe_ids(email: str, customer_id: str, subscription_id: str):

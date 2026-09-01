@@ -4292,8 +4292,22 @@ def plan_card():
         # founding_badge_html) — this card says the same thing in plain
         # text rather than repeating the graphic a second time on the same
         # page load.
-        name, price, note = ("Pro · founding member", "Free for 60 days",
-                             "Our thank-you to the people who backed it first.")
+        # NOT "60 days" as a constant. A founding member who buys the Alerts
+        # tier has that window cut to accounts.FOUNDING_DAYS_ALERTS, so the
+        # hardcoded number promised twice what some of them actually have.
+        # days_left is the real remaining figure, already rounded up by
+        # accounts.status.
+        _d = ACCESS.get("days_left") or 0
+        if ACCESS.get("plan") == accounts.ALERTS_PLAN:
+            name = "Pro · founding member, on Alerts"
+            price = f"Pro free for {_d} more day{'s' if _d != 1 else ''}"
+            note = ("Your $5 Alerts plan carries on after that. "
+                    "Upgrade any time to keep the rest.")
+        else:
+            name = "Pro · founding member"
+            price = (f"Free for {_d} more day{'s' if _d != 1 else ''}" if _d
+                     else "Free while your founding window runs")
+            note = "Our thank-you to the people who backed it first."
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
