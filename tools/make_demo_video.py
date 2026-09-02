@@ -10,7 +10,12 @@ them is exact.
 
 Everything on screen is real. The gig, its tags, its age and every word of the
 reply were captured from board.nabbly.co signed in as a Pro account with the
-Draft Voice settings filled in. Nothing is invented copy. What is recreated is
+Draft Voice settings filled in. Nothing is invented copy, with ONE deliberate
+exception: the signature is a generic name. The capture signs off with the
+founder's own name, because it was his account, and a demo that goes out to
+strangers should show what a user's reply looks like rather than whose
+account it was recorded on. The Signature chip names the same generic value,
+so the beat still shows a setting matching its output. What is recreated is
 the typesetting, in the same Pillow code that draws the weekly cards, so the
 demo and the posts look like one piece of work.
 
@@ -51,7 +56,7 @@ REPLY = [
     "Before I put a number against the CAD 65-75 band, is this greenfield or a "
     "re-platform of a motion already running? That decides whether month one is "
     "discovery or migration, and those are very different contracts.",
-    "Benjamin Steinhorn",
+    "Jordan Ellis",
 ]
 
 # --- Beats, in frames -------------------------------------------------------
@@ -106,7 +111,7 @@ WORDMARK = 96            # frames: the mark spells itself, then the domain
 CHIPS = [
     ("Include", "business development, operations, social media marketing"),
     ("Avoid", "rates before scope · availability · client names"),
-    ("Signature", "Benjamin Steinhorn"),
+    ("Signature", "Jordan Ellis"),
 ]
 
 
