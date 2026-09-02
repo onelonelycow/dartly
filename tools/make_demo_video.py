@@ -211,6 +211,34 @@ def sign(img, d, W, y):
     d.text((x0 + mk + gap, y), t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
 
+def gig_font(base_px, avail):
+    """
+    The gig title, sized so it CANNOT run off the frame.
+
+    The title is real, captured text, and real titles are long: "Senior
+    Technical Program Manager, GTM Transformation" needs 955px in the square
+    cut against 888px of column, and 1144px in the vertical. It was drawn at a
+    fixed size straight from the layout, so it simply bled off the right edge.
+    Only the 16:9 cut fitted, which is exactly why nobody caught it — that is
+    the one that gets watched on a desktop.
+
+    Stepping the size down is the smallest fix that keeps the beat intact: the
+    alternative, wrapping to a second line, moves the tags, the rule and the
+    whole reply block underneath it in three layouts. The floor stops a
+    pathological title shrinking the header into nothing; past that it clips
+    with an ellipsis, which is what the board itself does.
+    """
+    size = int(base_px)
+    floor = max(12, int(base_px * 0.62))
+    probe = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    while size > floor:
+        f = mp.font(size, "Semibold")
+        if probe.textlength(GIG, font=f) <= avail:
+            return f
+        size -= 1
+    return mp.font(floor, "Semibold")
+
+
 def draw_master(L, k=2):
     """
     The finished reply, drawn once at k-times resolution, plus a box for every
@@ -220,7 +248,7 @@ def draw_master(L, k=2):
     """
     W, H = L["W"] * k, L["H"] * k
     m = L.get("m", M) * k          # a 16:9 frame needs a narrower text column
-    f_gig = mp.font(L["f"][0] * k, "Semibold")
+    f_gig = gig_font(L["f"][0] * k, W - 2 * m)
     f_tag = mp.font(L["f"][1] * k, "Regular", mp.ARIAL)
     f_body = mp.font(L["f"][2] * k, "Regular", mp.ARIAL)
 
@@ -380,7 +408,7 @@ LAYOUTS = [
 def render(L):
     W, H = L["W"], L["H"]
     m = L.get("m", M)
-    f_gig = mp.font(L["f"][0], "Semibold")
+    f_gig = gig_font(L["f"][0], W - 2 * m)
     f_tag = mp.font(L["f"][1], "Regular", mp.ARIAL)
     f_body = mp.font(L["f"][2], "Regular", mp.ARIAL)
 
