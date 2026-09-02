@@ -30,6 +30,17 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://nabbly.co").rstrip("/")
 # product (the board, the unsubscribe route) needs the app host, not the
 # marketing one. Computed once here rather than repeated at each call site.
 APP_URL = PUBLIC_URL.replace("://nabbly.co", "://app.nabbly.co")
+# The board — where every link that does not have to sign somebody in now
+# goes. app.py is on its way out (RETIRE-APP.md) and these links outlive it:
+# an unsubscribe URL sits in a mailbox forever, so pointing it at the service
+# that is staying is the whole point of moving them.
+#
+# THE TWO ?u= LINKS BELOW STAY ON APP_URL, deliberately. They carry a sign-in
+# token in the URL, and the board has no such route — it signs people in with
+# a code, on purpose. Moving them means building credential-in-URL sign-in on
+# the board, which is a security decision rather than a find-and-replace, so
+# it is not smuggled in here.
+BOARD_URL = PUBLIC_URL.replace("://nabbly.co", "://board.nabbly.co")
 
 INK = "#1a1d23"
 MUTE = "#6b7280"
@@ -95,7 +106,7 @@ def send(to: str, subject: str, html_body: str, text_body: str) -> bool:
 # Outlook's Word rendering engine and Gmail stripping <style> blocks.
 # ---------------------------------------------------------------------------
 def _shell(preheader: str, body_html: str, unsub_token: str) -> str:
-    unsub = f"{APP_URL}/?nav=unsubscribe&t={unsub_token}" if unsub_token else ""
+    unsub = f"{BOARD_URL}/unsubscribe?t={unsub_token}" if unsub_token else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -153,7 +164,7 @@ def _button(label: str, url: str) -> str:
 # each just gets straight to the one thing that's actually news to THEM.
 # ---------------------------------------------------------------------------
 def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
-    board_url = f"{APP_URL}/?nav=dashboard"
+    board_url = f"{BOARD_URL}/"
     hi = f"{name}, y" if name else "Y"
     subject = "You're one of Nabbly's first fifty"
     body = f"""
@@ -179,7 +190,7 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
 
 
 def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
-    board_url = f"{APP_URL}/?nav=dashboard"
+    board_url = f"{BOARD_URL}/"
     hi = f"Hi {name}," if name else "Hi,"
     subject = "Welcome to Nabbly"
     body = f"""
@@ -343,7 +354,7 @@ def _gig_out_url(gig: dict, email_tok: str) -> str:
     gid = gig.get("id")
     if gid is None:
         return gig.get("url", "")
-    return f"{APP_URL}/?nav=out&gid={gid}&e={email_tok}"
+    return f"{BOARD_URL}/out/{gid}?e={email_tok}"
 
 
 def digest_email(name: str, gigs: list[dict], total: int, token: str,
@@ -359,7 +370,7 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
     of someone.
     """
     stats = stats or {}
-    board_url = f"{APP_URL}/?nav=gigs"
+    board_url = f"{BOARD_URL}/gigs"
     hi = f"{name}, " if name else ""
     plural = "s" if total != 1 else ""
     subject = f"{hi}{total} gig{plural} matched your profile this week".strip()

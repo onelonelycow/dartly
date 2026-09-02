@@ -1826,7 +1826,7 @@ async def profile_save(request: Request):
 
 
 @app.get("/out/{gig_id}")
-def out(request: Request, gig_id: int):
+def out(request: Request, gig_id: int, e: str = Query("")):
     """
     Log an apply click, then send the browser to the posting.
 
@@ -1857,13 +1857,62 @@ def out(request: Request, gig_id: int):
     # feeds the outcomes number, and an anonymous click has nobody to
     # attribute it to.
     _ev(request, "gig_click", (rows[0].get("job_type") or "")[:60])
+    # WHO CLICKED, from a session OR from the email token in the link.
+    #
+    # A digest link is opened from a mailbox, often in a browser with no
+    # session, so attributing on session alone drops exactly the clicks the
+    # digest exists to produce. `e` is accounts.email_token: an HMAC of the
+    # sign-in token that identifies without granting anything, so it is safe
+    # to travel in an email and useless to anyone who copies it. It is only
+    # ever read to attribute a click — never to sign anybody in.
+    scope = None
     if webauth.current_email(request):
+        scope = paths.get_scope()
+    elif e:
+        try:
+            acc = accounts.by_email_token(e)
+            if acc:
+                scope = paths.scope_for(acc["email"])
+        except Exception:
+            scope = None
+    if scope:
         try:
             import activity
-            activity.log_apply(paths.get_scope(), gig_id)
+            activity.log_apply(scope, gig_id)
         except Exception:
             pass          # a counter must never stand between someone and a gig
     return RedirectResponse(rows[0]["url"], status_code=302)
+
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_page(request: Request, t: str = Query("")):
+    """
+    One click, no sign-in — the link at the bottom of every email.
+
+    Takes an EMAIL token, never a sign-in token: a link that travels in a
+    mailbox must not be a credential. accounts.unsubscribe does the same,
+    turning off every email for the account rather than only the kind that
+    carried the link.
+
+    THIS ROUTE IS PERMANENT. Every email already delivered carries an
+    unsubscribe URL, those never expire, and a broken opt-out is a legal
+    problem rather than a cosmetic one — so this must keep working long after
+    the Streamlit app it was copied from is gone. See RETIRE-APP.md.
+    """
+    webauth.scope_for_request(request)      # MUST be first
+    ok = False
+    if t:
+        try:
+            ok = bool(accounts.unsubscribe(t))
+        except Exception:
+            ok = False
+    _ev(request, "unsubscribe", "ok" if ok else "bad_token")
+    resp = templates.TemplateResponse(request, "unsubscribe.html", {
+        "ok": ok, "me": webauth.current_email(request), "tab": "",
+        "css_v": CSS_V, "indexable": False, "app_url": APP_URL, "took_ms": 0.0,
+    })
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
 
 
 @app.get("/health")
