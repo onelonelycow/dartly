@@ -117,7 +117,15 @@ async def _render_once() -> tuple[float, int]:
 
     ctx = ssl.create_default_context(cafile=certifi.where())
     msg = BackMsg()
-    msg.rerun_script.query_string = ""
+    # NOT A BARE VISIT ANY MORE. app.nabbly.co forwards a signed-out visitor
+    # with no query string to the board now, so a bare render draws a meta
+    # refresh and one line — two elements — and this check read that as the
+    # app drawing nothing. It failed twice on 2026-09-02 for exactly that.
+    #
+    # ?nav=signin is a page the app still owns and still renders in full, so
+    # the check keeps doing its actual job: proving Streamlit executed app.py
+    # rather than serving a skeleton with a healthy /_stcore/health behind it.
+    msg.rerun_script.query_string = "nav=signin"
     msg.rerun_script.page_script_hash = ""
     t0 = time.monotonic()
     url = APP.replace("https://", "wss://") + "/_stcore/stream"
