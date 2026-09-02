@@ -42,3 +42,9 @@ nabbly_match_feedback.db
 web/board.db
 web/board.db-wal
 web/board.db-shm
+
+# Playwright storage state from tools/capture_login.py, used to drive the demo
+# capture as a signed-in user. It holds a LIVE nb_session cookie for a real
+# account, and this repo is public, so committing it would hand anyone that
+# session. Never tracked.
+auth.json
