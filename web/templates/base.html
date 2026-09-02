@@ -171,6 +171,12 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+/* On a phone the link that starts the whole product measured 31px tall on
+   /gigs. The dashboard already lifts it (board.html: .dash .draftlink); this
+   gives every other card the same floor. Desktop is untouched. */
+@media (max-width:640px){
+  .draftlink{min-height:44px;display:inline-flex;align-items:center;padding:0 14px}
+}
 /* The card head: title and save star as flex siblings, so the star owns real
    space instead of being absolutely positioned over the text — five of eight
    dashboard titles measurably ran underneath it. Shared here because the card

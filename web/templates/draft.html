@@ -46,6 +46,12 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
    only specificity does. */
 @media (max-width:640px){
   .wrap .gig .t{font-size:19px;line-height:1.3}
+  /* 44px hit floor on the one row that finishes the job. Measured at 375px:
+     Copy sat at 38px and the rest at 40, under the floor every other control
+     on the site keeps. min-height rather than taller padding so the label
+     stays centred if a translation ever wraps. */
+  .row button,.row a{min-height:44px;display:inline-flex;align-items:center;
+    padding-top:0;padding-bottom:0}
 }
 {% endblock %}
 
