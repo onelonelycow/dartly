@@ -356,17 +356,33 @@ def fetch_freelancer() -> list[dict]:
         print(f"  ! freelancer: HTTP {r.status_code}"); return []
     projs = r.json().get("result", {}).get("projects", [])
     out = []
+    bad = 0
     for p in projs:
+      # ONE MALFORMED PROJECT IS NOT AN OUTAGE. The bug above was a two-line
+      # fix; that it cost every gig from this source for hours was the loop
+      # having no floor under it. A field this API can leave null should cost
+      # one listing, not a hundred.
+      try:
         cur = (p.get("currency") or {}).get("code", "")
         b = p.get("budget") or {}
         lo, hi = b.get("minimum"), b.get("maximum")
         # Roughly dollar-equivalent currencies -> mark with $ so the budget
         # classifier reads the amount. Others (e.g. INR) are left unparsed.
         dollarish = {"USD", "EUR", "GBP", "CAD", "AUD", "NZD", "SGD", "CHF"}
-        if lo is not None and cur in dollarish:
+        # AN OPEN-ENDED BUDGET HAS NO MAXIMUM. Freelancer returns minimum set
+        # and maximum null for those, and this guarded on `lo` then called
+        # int(hi) anyway — so int(None) raised, the exception escaped the loop,
+        # and the WHOLE fetch returned nothing. Measured 2026-09-02: freelancer
+        # failed 12 cycles in a row and contributed 0 gigs, on the source that
+        # supplies most of the priced board.
+        if lo is not None and hi is not None and cur in dollarish:
             budget = f"${int(lo)} - ${int(hi)} budget"
-        elif lo is not None:
+        elif lo is not None and cur in dollarish:
+            budget = f"${int(lo)}+ budget"
+        elif lo is not None and hi is not None:
             budget = f"{lo} - {hi} {cur} budget"
+        elif lo is not None:
+            budget = f"{lo}+ {cur} budget"
         else:
             budget = ""
         jobs = " ".join(j.get("name", "") for j in (p.get("jobs") or []))
@@ -386,6 +402,13 @@ def fetch_freelancer() -> list[dict]:
             "body": _body(desc, jobs, budget),
             "posted_at": _epoch_to_iso(p.get("time_submitted")),
         })
+      except Exception as e:
+        bad += 1
+        if bad == 1:                      # once per cycle, not once per row
+            print(f"  ! freelancer: skipped a project ({type(e).__name__}: {e})")
+    if bad:
+        print(f"  ! freelancer: {bad} of {len(projs)} projects unusable, "
+              f"kept {len(out)}")
     return out
 
 
