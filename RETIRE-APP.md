@@ -62,7 +62,27 @@ the one link in the chain never exercised.
 
 New emails stop referencing the app. Old ones still need phase 4.
 
-### 3. Decide the admin panel
+### 3. DECIDED 2026-09-01: sign-in and admin stay here
+
+The app is not being retired. It keeps two jobs and forwards everything else,
+which is phase 4 done early and phase 5 dropped.
+
+Sign-in stays because the ?u= magic link in our emails is validated here and
+THE APP CANNOT CREATE A BOARD SESSION: nb_session is set by the board's own
+middleware and Streamlit sets no cookies, so forwarding a freshly signed-in
+visitor to the board would land them signed out. That is the live consequence
+of this decision — a welcome email lands somebody on this host, not on the
+product — and it is the thing to revisit if it starts costing signups.
+
+Moving it means the board accepting the emailed token, and that token is a
+permanent reusable credential (accounts.by_token authenticates every request
+with it), which is why accounts.email_token exists for every link that does
+not need to sign anyone in. Putting it in board URLs would spread a standing
+credential onto the surface being kept, so it is a build, not a redirect.
+
+Admin stays because no board equivalent exists.
+
+### 3b. The old plan for the admin panel
 
 Either port the stats views to the board, or leave the app running and
 unlisted: drop the `app.nabbly.co` custom domain and reach it at
@@ -75,7 +95,7 @@ visitors; porting is the only way to actually stop paying for the service.
 board paths, and keeps serving `unsubscribe` and `out` itself. Not a temporary
 shim — links already sitting in inboxes are permanent, so this is too.
 
-### 5. Retire
+### 5. Retire — NOT HAPPENING, see 3
 
 Only once phase 4 has been live long enough that the logs show nothing but
 redirects. Then the service can be suspended, and the standard-plan cost with

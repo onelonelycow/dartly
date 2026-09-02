@@ -5574,6 +5574,67 @@ if IS_ADMIN and (st.query_params.get("admin") is not None
     view_admin()
     st.stop()
 
+# ── THE APP IS SIGN-IN AND ADMIN NOW ─────────────────────────────────────────
+#
+# Everything a member actually uses moved to board.nabbly.co, which is faster,
+# hides Dashboard and Saved when signed out, and is the surface being kept.
+# This app kept serving all of it too, so a stranger landing here got a second,
+# slower copy of the product that looks like the product. See RETIRE-APP.md.
+#
+# WHAT STAYS HERE, and why each one cannot simply be forwarded:
+#   signin  — the ?u= magic link in our emails is validated here, and the app
+#             CANNOT create a board session (nb_session is set by the board's
+#             own middleware, and Streamlit sets no cookies). Forwarding a
+#             signed-in visitor to the board would land them signed OUT.
+#   admin   — no board equivalent exists yet.
+#   unsubscribe, out — permanent: those links sit in already-delivered email
+#             and must keep working here forever, even though mailer now
+#             writes board URLs for new sends.
+_BOARD = os.environ.get("BOARD_URL", "https://board.nabbly.co").rstrip("/")
+_TO_BOARD = {"dashboard": "/", "gigs": "/gigs", "market": "/market",
+             "saved": "/saved", "profile": "/profile", "pricing": "/plans",
+             "about": "https://nabbly.co/about.html",
+             "faq": "https://nabbly.co/faq.html",
+             "privacy": "https://nabbly.co/privacy.html",
+             "terms": "https://nabbly.co/terms.html"}
+
+
+def _forward(dest: str):
+    """Send the browser to the board, preserving nothing but the destination."""
+    url = dest if dest.startswith("http") else f"{_BOARD}{dest}"
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={html.escape(url, quote=True)}">'
+        f'<p style="font-family:system-ui;padding:24px">Moved to '
+        f'<a href="{html.escape(url, quote=True)}">{html.escape(url)}</a>.</p>',
+        unsafe_allow_html=True)
+    st.stop()
+
+
+# Only for a plain visit — never when a token is riding along. ?u= is the
+# sign-in link and ?t= is unsubscribe; forwarding either would drop the thing
+# that makes the request meaningful.
+if ("nav" in st.query_params
+        and not st.query_params.get("u") and not st.query_params.get("t")):
+    _n = (st.query_params.get("nav", "") or "").lower()
+    if _n == "alerts":
+        _n = "profile"
+    if _n in _TO_BOARD:
+        _forward(_TO_BOARD[_n])
+
+# A BARE VISIT IS THE ONE THE FOUNDER ACTUALLY HIT: no ?nav at all, signed
+# out, and this served the whole old product — Dashboard and Saved tabs
+# included, which the board correctly hides from a stranger. Somebody typing
+# app.nabbly.co gets the board instead.
+#
+# Not while signed in here, and not on the admin page: those are the two
+# reasons left to be on this host, and forwarding a live session away from
+# them would be the same bug pointed the other way.
+if (not st.query_params
+        and not st.session_state.get("_tok")
+        and st.session_state.get("_page") != "admin"
+        and not ACCESS.get("signed_in")):
+    _forward("/")
+
 if "nav" in st.query_params:
     _nav = st.query_params.get("nav", "").lower()
     if _nav == "alerts":
