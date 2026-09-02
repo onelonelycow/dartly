@@ -79,7 +79,17 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
       placeholder="Writing your reply. This takes a few seconds."{% endif %}
   >{{ draft }}</textarea>
   <div class="row">
-    <button class="go" type="submit" {% if pending %}disabled{% endif %}>Save draft</button>
+    {# COPY COMES FIRST because it is what actually happens next. "Open in
+       email" only helps a gig that takes email applications; Upwork,
+       Freelancer and Fiverr are all web forms, and until now the only way to
+       get the reply into one was to select the textarea by hand. The whole
+       product is "we wrote your reply" — making the reader manually harvest
+       it is the wrong last step.
+       type="button" is load-bearing: inside a <form>, a bare <button>
+       submits, so this would save the draft and navigate away mid-copy. #}
+    <button class="go" type="button" id="copy"
+            {% if pending %}disabled{% endif %}>Copy reply</button>
+    <button class="ghost" type="submit" {% if pending %}disabled{% endif %}>Save draft</button>
     {% if mailto %}
       <a class="ghost" id="mailto" href="{{ mailto }}">Open in email</a>
     {% elif pending and apply_addr %}
@@ -89,6 +99,48 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
     {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
+
+<script>
+(function () {
+  var btn = document.getElementById("copy"), box = document.getElementById("d");
+  if (!btn || !box) return;
+  var label = btn.textContent, t = null;
+  // The last-resort hint names the right key. \u2318 on a Mac is Ctrl
+  // everywhere else, and telling a Windows reader to press a key they do
+  // not have is the kind of small wrongness that makes a product feel
+  // unfinished.
+  var mod = /Mac|iPhone|iPad/.test(navigator.platform || "") ? "\u2318C" : "Ctrl+C";
+  function done(msg) {
+    btn.textContent = msg;
+    clearTimeout(t);
+    t = setTimeout(function () { btn.textContent = label; }, 2200);
+  }
+  btn.addEventListener("click", function () {
+    var text = box.value;
+    if (!text.trim()) return;
+    // navigator.clipboard needs a secure context and can be refused outright.
+    // The old execCommand path still works everywhere it does not, and a copy
+    // button that silently does nothing is worse than no copy button — so
+    // there is always a fallback, and the reader is always told which
+    // happened.
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { done("Copied"); },
+                                              function () { legacy(); });
+    } else {
+      legacy();
+    }
+    function legacy() {
+      try {
+        box.focus(); box.select();
+        done(document.execCommand("copy") ? "Copied" : "Press " + mod + " to copy");
+      } catch (e) {
+        box.focus(); box.select();
+        done("Press " + mod + " to copy");
+      }
+    }
+  });
+})();
+</script>
 
 {% if pending %}
   {# The draft is fetched AFTER this page has painted. A model call took 27.5s
