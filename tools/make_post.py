@@ -1,32 +1,22 @@
 """
 make_post.py — the weekly social image for @nabbly.co.
 
-This week is a two card post about the new draft-voice controls, plus one
-spare single that can go up later in the week.
+  brand/posts/week-06-seven-hours-apart.png
+      One real gig posting, then the two people who found it. Maya at 9:06am,
+      four minutes after it went up. Sam at 4:41pm, seven hours after. Same
+      posting, same field, same day; the only variable on the canvas is the
+      hour each of them found out. It closes on the turn that makes the point:
+      Maya was not faster, Maya just knew first.
 
-  brand/posts/week-05-voice-carousel/01-draft.png
-      The hook. A real gig, the reply Nabbly drafted for it, and the four
-      settings that produced it. The clause the writer told Nabbly to always
-      work in is the only thing lit, and it appears a second time beside the
-      Include label, so the amber in the body and the amber in the footer
-      rhyme and the causality reads without an arrow. Self-contained, because
-      most people never swipe.
+Editorial and text-first, in the spirit of week 4 — real times and a real field
+on the canvas rather than a shape standing in for the idea. Structurally it is
+its own piece: a single posting with two readers under it, not the radar sweep
+(week 1), the field of gig cards (week 2), the pack of racing trails (week 3),
+the timestamped rail down the day (week 4) or the dated shipping list (week 5).
 
-  brand/posts/week-05-voice-carousel/02-controls.png
-      The explanation, for the people who do. The same four labels, this time
-      with what each one actually controls, closing on the value from card one
-      so the pair ties back together.
-
-  brand/posts/week-05-shipped.png
-      Spare single: the week as a dated shipping list, newest first, with the
-      draft-voice line lit.
-
-Card one carries a small page number and card two carries the lockup, which is
-how the August carousels in brand/posts/ are signed.
-
-Both cards are editorial and text-first, so they read as different pieces from
-the radar sweep (week 1), the field of gig cards (week 2), the pack of racing
-trails (week 3) and the timestamped rail down the day (week 4).
+Only two things carry amber: the 9:06 am timestamp and the closing half-line.
+Sam's whole entry is dimmed a step, so the contrast between the two entries is
+the composition rather than a second highlight.
 
 Run:  .venv/bin/python tools/make_post.py
 
@@ -40,8 +30,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "brand" / "posts"
-CAR = OUT / "week-05-draft-voice"
-CAR.mkdir(parents=True, exist_ok=True)
+OUT.mkdir(parents=True, exist_ok=True)
 
 S = 1080          # final size
 SS = 3            # supersample factor for the hairlines
@@ -55,6 +44,11 @@ DIM   = (112, 119, 130)
 GREY  = (150, 157, 168)
 BODY  = (219, 223, 229)
 HOT   = (233, 175, 116)          # amber, pulled back so it sits in the text
+
+# The late entry, dimmed a step below its neighbours so the two entries read as
+# near and far without spending a second accent colour on the difference.
+LATE      = (124, 131, 142)
+LATE_NOTE = (90, 96, 106)
 
 M = 96            # side margin, ~9% in from every edge
 
@@ -147,7 +141,7 @@ def signature(img, d):
     """
     The mark beside the domain, centred as one unit at the foot of the frame.
     Small enough to read as a signature rather than a second focal point, and
-    identical every week. Carousels carry it on the last card only.
+    identical every week.
     """
     f_url = font(24, "Semibold", ARIAL_B)
     mk, gap, t = 36, 11, "nabbly.co"
@@ -158,207 +152,71 @@ def signature(img, d):
     d.text((x0 + mk + gap, y), t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
 
-def page_number(d, n, total):
-    """How the August carousels number their inner cards."""
-    d.text((S / 2, S * 0.941), f"{n} / {total}", font=font(24, "Semibold", ARIAL_B),
-           fill=(104, 111, 122), anchor="mm")
-
-
 # ===========================================================================
-# Card 1 — the announcement cover
+# Week 6 — the same gig, seven hours apart
 #
-# Built to the format the August covers already use: the mark glowing at the
-# top, a white line over an amber line, one grey line under, and the lockup.
+# The posting sits at the top the way it would on the board: the title, then
+# the field and the minute it went up. Everything under the rule is just the
+# two people who found it, written as plainly as the posting itself.
 # ===========================================================================
-COVER = [("Introducing", BODY), ("Draft Voice.", (214, 152, 88))]
-COVER_SUB = "Your replies, the way you write them."
-# The tier line lives in the caption, not on the card.
+GIG = "Technical writer, API documentation"
+META = "Writing / content  ·  posted 9:02 am"
 
+# Only the 9:06 carries the accent. The rest of both entries is set in greys so
+# the eye lands on the timestamp and then reads down into the gap underneath.
+EARLY = [("Maya saw it at ", BODY), ("9:06 am", HOT)]
+EARLY_NOTE = "Four minutes after it posted."
 
-def card_cover():
-    img = Image.new("RGB", (S, S), BG)
+LATE_LINE = [("Sam saw it at ", LATE), ("4:41 pm", LATE)]
+LATE_NOTE_TEXT = "Seven hours after it posted."
 
-    # The bloom behind the mark, then the mark itself.
-    cx, cy, r = S // 2, 350, 106
-    glow = Image.new("L", (S, S), 0)
-    ImageDraw.Draw(glow).ellipse([cx - r, cy - r, cx + r, cy + r], fill=150)
-    glow = glow.filter(ImageFilter.GaussianBlur(50))
-    img = Image.composite(Image.new("RGB", (S, S), (146, 84, 26)), img, glow)
-
-    mk = 148
-    mark = nabbly_mark(mk)
-    img.paste(mark, (cx - mk // 2, cy - mk // 2), mark)
-
-    d = ImageDraw.Draw(img)
-    f_h = font(58, "Semibold")
-    f_sub = font(27, "Regular", ARIAL)
-
-    for i, (text, colour) in enumerate(COVER):
-        d.text((S * 0.5, 728 + i * 68), text, font=f_h, fill=colour, anchor="mm")
-    d.text((S * 0.5, 871), COVER_SUB, font=f_sub, fill=(126, 133, 143),
-           anchor="mm")
-
-    signature(img, d)
-    return img, CAR / "01-introducing.png"
-
-
-# ===========================================================================
-# Card 2 — the draft, and the settings behind it
-# ===========================================================================
-GIG = "Brand identity for a healthcare startup"
-META = "Design / creative  ·  posted 4 minutes ago"
-
-DRAFT = [
-    [("Hi Maya, I can take this on.", BODY)],
-    [("I've spent ", BODY), ("ten years on brand identity", HOT), (",", BODY)],
-    [("and healthcare brands are most of it.", BODY)],
-    [("Happy to send two directions this week.", BODY)],
-]
-SIGN = "Alex"
-
-CLAIM = "Alex set four things, once."
-
-# Two columns, because the split between the control and the value Alex typed
-# is what the block is for, and a dim label beside a lighter value shows it
-# without spending any amber. The draft's lit clause stays the only warm thing
-# on the card; an amber value column was tried and read as too much orange.
-SETTINGS = [
-    ("Length", "Standard"),
-    ("Include", "ten years on brand identity"),
-    ("Avoid", "hourly rates"),
-    ("Signature", "Alex"),
+# The turn. The value is not speed, it is the hour you find out, and saying so
+# in two short beats lands it without a claim that needs a number behind it.
+CLOSE = [
+    ("Maya was not faster.", (198, 203, 211)),
+    ("Maya just knew first.", (219, 158, 96)),
 ]
 
 
-def card_draft():
-    img = ground([M - 190, 300, S - M + 60, 580])
-    img = hairlines(img, (240, 678))
+def week_six():
+    # The bloom sits behind Maya's line, low and wide, so the amber timestamp
+    # has warmth under it and the frame still falls away toward Sam.
+    img = ground([M - 210, 310, S - M + 40, 570], strength=104)
+    img = hairlines(img, (312, 768))
     d = ImageDraw.Draw(img)
 
-    f_gig = font(33, "Semibold")
+    # The posting is context, not the headline, so it is set a step smaller and
+    # a step duller than the two entries under it. At full weight it read as
+    # the message of the frame and the point underneath lost the argument.
+    f_gig = font(38, "Semibold")
     f_meta = font(25, "Regular", ARIAL)
-    f_body = font(40, "Regular", ARIAL)
-    f_claim = font(29, "Semibold")
-    f_lbl = font(23, "Semibold")
-    f_val = font(23, "Regular", ARIAL)
-
-    # The gig being replied to, so the draft has something to be a reply to.
-    d.text((M, 152), GIG, font=f_gig, fill=(139, 146, 157), anchor="lm")
-    d.text((M, 196), META, font=f_meta, fill=DIM, anchor="lm")
-
-    # The draft. Runs, so the configured clause carries the accent mid-line.
-    y = 318
-    for line in DRAFT:
-        runs(d, M, y, line, f_body)
-        y += 65
-    d.text((M, y + 27), SIGN, font=f_body, fill=BODY, anchor="lm")
-
-    # Below the rule: what the feature is, then the settings behind the draft.
-    d.text((M, 722), CLAIM, font=f_claim, fill=(198, 203, 211), anchor="lm")
-    ry = 786
-    for label, value in SETTINGS:
-        d.text((M, ry), label, font=f_lbl, fill=(99, 106, 116), anchor="lm")
-        d.text((M + 132, ry), value, font=f_val, fill=GREY, anchor="lm")
-        ry += 40
-
-    signature(img, d)
-    return img, CAR / "02-in-action.png"
-
-
-# ===========================================================================
-# Card 2 — what each of the four settings actually controls
-# ===========================================================================
-CONTROLS_TITLE = "Four settings, set once."
-
-CONTROLS = [
-    ("Length", "Brief, Standard or Detailed"),
-    ("Include", "one line it always works in"),
-    ("Avoid", "what it never brings up"),
-    ("Signature", "how you sign off"),
-]
-
-# Closes on the value from card one, so the pair ties back together.
-TIE = [
-    [("Alex set Include to ", GREY), ("ten years on brand identity", HOT),
-     (".", GREY)],
-    [("Every draft says it.", GREY)],
-]
-
-
-def card_controls():
-    img = ground([M - 190, 320, S - M + 60, 560], strength=100)
-    img = hairlines(img, (272, 790))
-    d = ImageDraw.Draw(img)
-
-    f_ttl = font(44, "Semibold")
-    f_lbl = font(28, "Semibold")
-    f_val = font(35, "Regular", ARIAL)
-    f_tie = font(26, "Regular", ARIAL)
-
-    d.text((M, 206), CONTROLS_TITLE, font=f_ttl, fill=BODY, anchor="lm")
-
-    ry = 375
-    for label, value in CONTROLS:
-        d.text((M, ry), label, font=f_lbl, fill=(103, 110, 121), anchor="lm")
-        d.text((M + 186, ry), value, font=f_val, fill=GREY, anchor="lm")
-        ry += 100
-
-    ty = 848
-    for line in TIE:
-        runs(d, M, ty, line, f_tie)
-        ty += 42
-
-    signature(img, d)
-    return img, CAR / "02-controls.png"
-
-
-# ===========================================================================
-# Spare single — the week as a shipping list
-# ===========================================================================
-SHIPPED_TITLE = "New on Nabbly this week"
-
-# Newest first, so the lit line sits high in the frame. Every one of these is a
-# real dated change; check git before editing the dates.
-SHIPPED = [
-    ("Aug 18", "You set how every draft reads", True),
-    ("Aug 17", "The board works on a phone", False),
-    ("Aug 17", "Alerts back off instead of nagging", False),
-    ("Aug 16", "Sign in with Google", False),
-    ("Aug 14", "Draft my reply, on every gig", False),
-]
-
-SHIPPED_CLOSER = "All of it is live now."
-
-
-def single_shipped():
-    img = ground([M - 190, 300, S - M + 60, 500], strength=100)
-    img = hairlines(img, (272, 848))
-    d = ImageDraw.Draw(img)
-
-    f_ttl = font(44, "Semibold")
-    f_date = font(25, "Semibold")
-    f_item = font(35, "Regular", ARIAL)
+    f_line = font(40, "Regular", ARIAL)
     f_note = font(26, "Regular", ARIAL)
+    f_close = font(38, "Semibold")
 
-    d.text((M, 206), SHIPPED_TITLE, font=f_ttl, fill=BODY, anchor="lm")
+    # The posting.
+    d.text((M, 196), GIG, font=f_gig, fill=(176, 182, 191), anchor="lm")
+    d.text((M, 246), META, font=f_meta, fill=DIM, anchor="lm")
 
-    # The dates stay uniform so the one amber line is the only emphasis.
-    ry = 375
-    for date, item, lit in SHIPPED:
-        d.text((M, ry), date, font=f_date, fill=(99, 106, 116), anchor="lm")
-        d.text((M + 150, ry), item, font=f_item,
-               fill=HOT if lit else GREY, anchor="lm")
-        ry += 100
+    # The two people who found it, near entry first.
+    runs(d, M, 442, EARLY, f_line)
+    d.text((M, 492), EARLY_NOTE, font=f_note, fill=(138, 128, 118), anchor="lm")
 
-    d.text((M, 898), SHIPPED_CLOSER, font=f_note, fill=(130, 137, 148),
-           anchor="lm")
+    runs(d, M, 620, LATE_LINE, f_line)
+    d.text((M, 670), LATE_NOTE_TEXT, font=f_note, fill=LATE_NOTE, anchor="lm")
+
+    # The turn.
+    cy = 846
+    for text, colour in CLOSE:
+        d.text((M, cy), text, font=f_close, fill=colour, anchor="lm")
+        cy += 52
 
     signature(img, d)
-    return img, OUT / "week-05-shipped.png"
+    return img, OUT / "week-06-seven-hours-apart.png"
 
 
 if __name__ == "__main__":
-    for render in (card_cover, card_draft, single_shipped):
+    for render in (week_six,):
         im, path = render()
         im.save(path, "PNG", optimize=True)
         print("wrote", path, im.size)
