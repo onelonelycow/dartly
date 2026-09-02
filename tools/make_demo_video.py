@@ -82,7 +82,14 @@ PARA_DUR = 30            # frames for one paragraph to fade up
 # upscaling 1080 pixels.
 HOLD_A = 26              # rest on the finished reply before the first zoom
 Z_IN = 22                # frames: full frame -> first target
-Z_HOLD = 68              # frames held on each target, chip visible
+Z_HOLD = 120             # frames held on each target, chip visible
+# 68 was 2.3s, which is long enough to notice a chip and not long enough
+# to read one. Each hold has to carry a label, a typed value as long as
+# "rates before scope · availability · client names", AND the sentence
+# underneath that the setting produced — the whole point of the beat. At
+# 120 the chip is fully opaque for 106 frames (3.5s) after the 8-frame
+# fade in and before the 6-frame fade out, which is a read rather than a
+# glimpse. Costs 5.2s across the three holds; the beat is worth it.
 Z_MOVE = 20              # frames gliding between consecutive targets
 Z_OUT = 18               # frames: last target -> full frame
 SEND_SLIDE = 40          # frames: the reply lifts off the top of the frame
