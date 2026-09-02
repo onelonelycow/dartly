@@ -87,14 +87,17 @@ PARA_DUR = 30            # frames for one paragraph to fade up
 # upscaling 1080 pixels.
 HOLD_A = 26              # rest on the finished reply before the first zoom
 Z_IN = 22                # frames: full frame -> first target
-Z_HOLD = 120             # frames held on each target, chip visible
-# 68 was 2.3s, which is long enough to notice a chip and not long enough
-# to read one. Each hold has to carry a label, a typed value as long as
-# "rates before scope · availability · client names", AND the sentence
-# underneath that the setting produced — the whole point of the beat. At
-# 120 the chip is fully opaque for 106 frames (3.5s) after the 8-frame
-# fade in and before the 6-frame fade out, which is a read rather than a
-# glimpse. Costs 5.2s across the three holds; the beat is worth it.
+# Frames held on each target, chip visible — ONE PER CHIP, because the three
+# beats are not the same size to read. 68 everywhere was 2.3s, long enough to
+# notice a chip and not long enough to read one. But Include and Signature are
+# not the same job either: Include and Avoid each carry a typed value as long
+# as "rates before scope · availability · client names" PLUS the sentence
+# underneath that the setting produced, while Signature is two words against a
+# name already sitting in frame. Holding a two-word beat as long as a clause
+# reads as the video stalling. 120 / 120 / 66, so each hold is the length of
+# what is actually in it. Subtract the 8-frame fade in and 6-frame fade out for
+# the time each chip is fully opaque: 3.5s, 3.5s, 1.7s.
+Z_HOLDS = (120, 120, 66)
 Z_MOVE = 20              # frames gliding between consecutive targets
 Z_OUT = 18               # frames: last target -> full frame
 SEND_SLIDE = 40          # frames: the reply lifts off the top of the frame
@@ -467,8 +470,9 @@ def render(L):
             t = ease(0, steps, f + 1)
             w.append_data(np.asarray(crop_frame(lerp_rect(prev, rect, t))))
         content = union((hot, avoid, sig)[bi])
-        for f in range(Z_HOLD):
-            a = ease(0, 8, f) * (1 - ease(Z_HOLD - 6, Z_HOLD, f))
+        hold = Z_HOLDS[bi]
+        for f in range(hold):
+            a = ease(0, 8, f) * (1 - ease(hold - 6, hold, f))
             w.append_data(np.asarray(crop_frame(rect, chip, a, content)))
     for f in range(Z_OUT):
         t = ease(0, Z_OUT, f + 1)
@@ -570,7 +574,7 @@ def render(L):
         w.append_data(np.asarray(img))
 
     w.close()
-    total = (end + Z_IN + 2 * Z_MOVE + 3 * Z_HOLD + Z_OUT
+    total = (end + Z_IN + 2 * Z_MOVE + sum(Z_HOLDS) + Z_OUT
              + SEND_SLIDE + SENT_HOLD + WORDMARK)
     print(f"wrote {OUT / L['name']}  {W}x{H}  {total / FPS:.1f}s  "
           f"cascade {(reveal_out - TYPE_IN) / FPS:.1f}s + 3 zooms + send + wordmark")
