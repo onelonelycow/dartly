@@ -20,6 +20,9 @@ textarea{width:100%;min-height:270px;background:var(--panel);
 textarea:focus{outline:2px solid var(--amber-d);outline-offset:1px;
   border-color:transparent}
 .row{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px;align-items:center}
+/* Apply reads as the outbound step: amber edge, same weight as Copy. */
+a.ghost.apply{border-color:var(--amber-d);color:var(--amber-l)}
+a.ghost.apply:hover{background:rgba(232,147,58,.08)}
 button.go,a.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
   padding:11px 20px;font-weight:650;font-size:13.5px;cursor:pointer;
   font-family:inherit;text-decoration:none;display:inline-block}
@@ -89,6 +92,17 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
        submits, so this would save the draft and navigate away mid-copy. #}
     <button class="go" type="button" id="copy"
             {% if pending %}disabled{% endif %}>Copy reply</button>
+    {# THE NEXT STEP, NAMED. Copy put the reply on the clipboard; this is
+       where it goes. The only route to the posting used to be the title at
+       the top of the page, styled as a heading with nothing to say it was a
+       link — so the flow ended with the reader scrolling up and guessing.
+       Email gigs get the mailto button instead, which already exists and is
+       the better destination for them; everything else is a web form on the
+       source site, and that is what this opens. #}
+    {% if not apply_by_email %}
+      <a class="ghost apply" href="/out/{{ g.id }}" target="_blank"
+         rel="noopener noreferrer nofollow">Apply on {{ source_label or "the posting" }} →</a>
+    {% endif %}
     <button class="ghost" type="submit" {% if pending %}disabled{% endif %}>Save draft</button>
     {% if mailto %}
       <a class="ghost" id="mailto" href="{{ mailto }}">Open in email</a>

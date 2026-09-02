@@ -1505,6 +1505,11 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
 
     resp = templates.TemplateResponse(request, "draft.html", {
         "g": g, "draft": text, "pro": pro, "me": me, "back": back,
+        # Where this gig actually lives, as a name a person recognises —
+        # "Freelancer.com", not "freelancer". The Apply button below the draft
+        # is labelled with it so the last step reads as a destination.
+        "source_label": config.source_label(g.get("source") or ""),
+        "apply_by_email": bool((g.get("apply_email") or "").strip()),
         "mailto": mailto, "saved_ok": bool(saved_ok),
         "pending": pending, "apply_addr": addr,
         "text_url": f"/draft/{gig_id}/text" + ("?regen=1" if regen else ""),
