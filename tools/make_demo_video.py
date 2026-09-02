@@ -97,7 +97,7 @@ Z_IN = 22                # frames: full frame -> first target
 # reads as the video stalling. 120 / 120 / 66, so each hold is the length of
 # what is actually in it. Subtract the 8-frame fade in and 6-frame fade out for
 # the time each chip is fully opaque: 3.5s, 3.5s, 1.7s.
-Z_HOLDS = (120, 120, 66)
+Z_HOLDS = (120, 120, 44)
 Z_MOVE = 20              # frames gliding between consecutive targets
 Z_OUT = 18               # frames: last target -> full frame
 SEND_SLIDE = 40          # frames: the reply lifts off the top of the frame
