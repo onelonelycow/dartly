@@ -485,7 +485,20 @@ def start(on_update=None):
     # A race here costs a duplicated cycle, not a duplicated gig: upserts are
     # keyed on (source, source_id) in both stores.
     if _lease_taken():
-        _state["note"] = "another process holds the ingest lease"
+        # STAND DOWN, BUT KEEP WATCHING. This used to return and never ask
+        # again, and start() runs exactly once per process — so on every
+        # zero-downtime deploy the new instance booted while the old one was
+        # still writing heartbeats, declined the lease, and then had no way to
+        # notice the old instance dying thirty seconds later. Measured
+        # 2026-09-02: ingest_age climbed to 31 minutes on a healthy board with
+        # a healthy store, and nothing logged, because this branch was silent.
+        # The Streamlit fallback that once picked it up is deliberately off.
+        # So the board now waits for the lease itself.
+        _state["note"] = "another process holds the ingest lease; waiting"
+        print("  ingest: another process holds the lease — will take it when "
+              "it goes stale", flush=True)
+        threading.Thread(target=_wait_for_lease, args=(on_update,),
+                         daemon=True, name="nabbly-lease-wait").start()
         return
     # Local runs (load tests, UI work) otherwise fetch from ~40 live sources and
     # mirror the results, so a developer's laptop writes to the production
@@ -500,6 +513,17 @@ def start(on_update=None):
         _started = True
         threading.Thread(target=_loop, args=(on_update,), daemon=True,
                          name="nabbly-refresh").start()
+
+
+_LEASE_POLL_S = 60
+
+
+def _wait_for_lease(on_update=None):
+    """Poll until the other owner's heartbeat is stale, then start for real."""
+    while _lease_taken():
+        time.sleep(_LEASE_POLL_S)
+    print("  ingest: lease is stale — taking it", flush=True)
+    start(on_update)
 
 
 def _lease_taken() -> bool:

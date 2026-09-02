@@ -82,6 +82,15 @@ credential onto the surface being kept, so it is a build, not a redirect.
 
 Admin stays because no board equivalent exists.
 
+**The ingest fallback is gone, and it bit once already.** `dartly` runs with
+`NABBLY_DISABLE_REFRESH=1`, so the board is the only ingester. On 2026-09-02
+a zero-downtime deploy started the new board process while the old one was
+still writing heartbeats; the new one declined the lease, the old one died
+thirty seconds later, and nothing collected gigs for 31 minutes — silently.
+`refresh.start()` now keeps polling for a stale lease instead of giving up,
+so the board recovers on its own within `NABBLY_INGEST_LEASE_S` (15 min) of
+any owner dying. Watch `ingest_age_m` on /health after every deploy.
+
 ### 3b. The old plan for the admin panel
 
 Either port the stats views to the board, or leave the app running and
