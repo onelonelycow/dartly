@@ -2642,7 +2642,18 @@ def _dash_picks(version, scope, prof_key, skills, srcs):
     return out.head(DASH_CACHE_ROWS), len(out)
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+# max_entries IS LOAD-BEARING, and its absence is what killed this service.
+# Streamlit's default is unbounded, so this cache only ever released an entry
+# when its 30-minute TTL expired — never because it got too big. One entry per
+# gig, PAGE_SIZE=25 added per dashboard render, against a 50,000-gig board and
+# bot traffic that never repeats a card: memory climbed ~1.9MB/min until the
+# 512MB instance was OOM-killed, roughly every two and a half hours. Every
+# other cache in this file is capped; this one was missed.
+#
+# 512 is ~20 pages of cards, which is the reuse the cache exists for, and
+# bounds it to single-digit MB. Bodies are small (median 207B, p90 2.9KB), so
+# the cost here was never entry size — it was that there were unboundedly many.
+@st.cache_data(ttl=1800, show_spinner=False, max_entries=512)
 def _cached_free_draft(gid, title, body, size_tier, urgency, job_type,
                         name, headline, bio, portfolio):
     """
