@@ -86,6 +86,50 @@ def _page_icon():
 st.set_page_config(page_title="Nabbly", page_icon=_page_icon(), layout="wide",
                    initial_sidebar_state="collapsed")
 
+# ── CRAWLERS GET NOTHING, AND THIS IS THE FIRST THING THAT RUNS ──────────────
+#
+# meta-externalagent has been walking this host since the board started
+# blocking it on 2026-08-27 — the board got web/main.py's _turn_away_crawlers,
+# app.py got nothing, so the crawler simply moved next door. Measured
+# 2026-09-03 from 57.141.0.*: invented paths (/companies/…, /listing_ads/13/
+# click?…, /post-a-remote-job?nav=gigs) and, the part that actually hurt,
+# repeated GETs of /_stcore/stream. Every one of those opens a Streamlit
+# session, sessions accumulate, and memory climbed ~4MB a minute until the
+# 512MB instance was OOM-killed roughly hourly.
+#
+# THIS IS A STOPGAP, NOT THE FIX. By the time this line runs Streamlit has
+# already accepted the websocket and built the AppSession; stopping the script
+# only stops the work, not the allocation. The real fix is a Cloudflare rule
+# on app.nabbly.co so the request never reaches Render. Keep both: the edge
+# rule can be changed by someone who does not know this file exists.
+#
+# Same list as the board, same env override, so the two cannot drift. curl and
+# python-requests are deliberately absent — the uptime check uses them, and a
+# monitor that gets turned away is a monitor that lies.
+_BOTS = tuple(t.strip().lower() for t in (
+    os.environ.get("NABBLY_BLOCK_UA") or
+    "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
+    "oai-searchbot,chatgpt-user,ccbot,claudebot,anthropic-ai,perplexitybot,"
+    "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
+    "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
+    "seznambot,serpstatbot,barkrowler,zoominfobot"
+).split(",") if t.strip())
+
+
+def _is_crawler() -> bool:
+    """True for a known crawler. Never raises — a header read must not 500."""
+    try:
+        ua = (st.context.headers.get("User-Agent") or "").lower()
+    except Exception:
+        return False
+    return any(b in ua for b in _BOTS)
+
+
+if _is_crawler():
+    # No markup, no redirect, no session work. Just stop.
+    st.stop()
+
+
 # ── THE APP IS SIGN-IN AND ADMIN NOW ─────────────────────────────────────────
 #
 # Everything a member uses lives on board.nabbly.co. This app forwards the rest
