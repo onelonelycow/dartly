@@ -1073,25 +1073,36 @@ def classify_unlabelled(limit: int = 0) -> int:
         step = max(1, classify_llm.BATCH)
         capped = ""
         for i in range(0, len(rows), step):
-            # EVERY REQUEST IS COUNTED AND CHECKED, not just the cycle. This
-            # loop ran uncapped and spent the API key: 200 gigs a cycle at 20 a
-            # request, a cycle every two minutes. The cap is the classifier's
-            # own (budget.CLASSIFY_DAILY) so background work can never eat the
-            # drafting budget a member is waiting on.
+            # EVERY BILLED REQUEST IS COUNTED AND CHECKED, not just the cycle.
+            # This loop ran uncapped and spent the API key: 200 gigs a cycle at
+            # 20 a request, a cycle every two minutes. The cap is the
+            # classifier's own (budget.CLASSIFY_DAILY) so background work can
+            # never eat the drafting budget a member is waiting on.
             import budget
             allowed, why = budget.allow_classify()
             if not allowed:
                 capped = why
                 break
             chunk = rows[i:i + step]
-            budget.record_classify()
             got = classify_llm.label(chunk)
+            # CHARGED AFTER THE CALL, AND ONLY IF IT WAS BILLED -- an unusable
+            # answer still costs money and still counts; a 400 for no credit
+            # never reached the API and must not. Charging first meant a day
+            # with no credit spent all 60 on 400s inside ten minutes and then
+            # said "cap reached" for twenty-three hours: the classifier read as
+            # throttled when it was simply unpaid.
+            if getattr(classify_llm, "LAST_BILLED", True):
+                budget.record_classify()
             if got is None:
                 # No usable answer: leave this chunk unmarked for a later cycle.
                 # Marking would record it as read when nothing read it, and the
                 # mark is what prevents the retry.
                 failed += 1
-                continue
+                # AND STOP THE CYCLE. Every later chunk would fail the same way
+                # -- the causes are all per-service, not per-batch: no key, no
+                # credit, a timeout. Trying the other nine proves nothing, and
+                # when the failures are billed it pays to prove it.
+                break
             ok += 1
             done.extend(chunk)
             labels.extend(got)

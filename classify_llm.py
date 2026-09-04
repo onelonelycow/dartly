@@ -89,6 +89,12 @@ SYSTEM = (
 # afternoon looking like the latter while being the former.
 LAST_REASON = ""
 
+# Whether the last call actually reached the API, and was therefore billed.
+# The two failures above cost different things: a 400 for no credit never
+# bills, an unusable answer already has. The daily cap is a spend guard, so
+# only a billed call may be charged against it.
+LAST_BILLED = False
+
 
 def enabled() -> bool:
     """Only when there is a key to spend and a client to spend it with."""
@@ -163,7 +169,8 @@ def label(gigs, timeout: float = 60.0):
     `gigs` is a list of dicts with "title" and "body". Never raises: the caller
     is a background loop on a board that must keep serving.
     """
-    global LAST_REASON
+    global LAST_REASON, LAST_BILLED
+    LAST_BILLED = False
     gigs = list(gigs or [])
     if not gigs:
         return []
@@ -189,6 +196,9 @@ def label(gigs, timeout: float = 60.0):
             system=SYSTEM,
             messages=[{"role": "user", "content": _prompt(gigs)}],
         )
+        # The response exists, so the request was made and is on the bill,
+        # whatever the answer turns out to be worth.
+        LAST_BILLED = True
         stop = getattr(resp, "stop_reason", "")
         if stop == "refusal":
             LAST_REASON = "model declined the batch"
