@@ -189,6 +189,12 @@ def decorate(rows, ranked=False):
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
             r["apply_note"], r["apply_cls"] = "Paid subscription to apply", "urgent"
+        elif src in getattr(config, "VIEW_REQUIRES_ACCOUNT_SOURCES", ()):
+            # Before the apply-gated branch on purpose: these sources sit in
+            # both sets, and the wall a reader meets first is the one worth
+            # naming. "read and apply", not "apply", because they are stopped
+            # before the post.
+            r["apply_note"], r["apply_cls"] = "Free account needed to read and apply", "locoff"
         elif src in getattr(config, "ACCOUNT_REQUIRED_SOURCES", ()):
             r["apply_note"], r["apply_cls"] = "Free account needed to apply", "locoff"
         else:

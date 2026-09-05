@@ -732,6 +732,19 @@ REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer",
                             "bubble", "blenderartists"}
 
+# SHARPER THAN THE ABOVE, AND CHECKED THE SAME WAY. On these the wall is not at
+# applying, it is at reading: We Work Remotely's "Apply now" goes to
+# /job-seekers/account/register?alert=Create+an+account+to+view+full+job+details
+# (verified 2026-09-05 on a live listing). Someone who clicks expecting to read
+# the post and is asked to register instead learns to distrust the badge, which
+# is the exact failure the note above warns about.
+#
+# Himalayas is deliberately NOT here: the same day, a live listing served its
+# full 7,500-character description with no gate and only "Apply now" pointing
+# at /signup/talent. Apply-gated, not read-gated. Anything else joins this set
+# only after the same check on a real listing.
+VIEW_REQUIRES_ACCOUNT_SOURCES = {"weworkremotely"}
+
 # Distinct from the above on purpose: this isn't "make a free account," it's
 # "pay money before you can even see the apply link." Nodesk was the one board
 # that hit this (checked two real listings — the actual external application
