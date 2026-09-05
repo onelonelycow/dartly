@@ -97,11 +97,21 @@ st.set_page_config(page_title="Nabbly", page_icon=_page_icon(), layout="wide",
 # session, sessions accumulate, and memory climbed ~4MB a minute until the
 # 512MB instance was OOM-killed roughly hourly.
 #
-# THIS IS A STOPGAP, NOT THE FIX. By the time this line runs Streamlit has
-# already accepted the websocket and built the AppSession; stopping the script
-# only stops the work, not the allocation. The real fix is a Cloudflare rule
-# on app.nabbly.co so the request never reaches Render. Keep both: the edge
-# rule can be changed by someone who does not know this file exists.
+# THIS STOPS THE WORK, NOT THE ALLOCATION. By the time this line runs Streamlit
+# has already accepted the websocket and built the AppSession. An edge rule that
+# refused the request before it reached Render would be strictly better.
+#
+# THAT EDGE RULE IS NOT AVAILABLE, AND THE EARLIER NOTE HERE SENT TWO PEOPLE
+# LOOKING FOR IT. nabbly.co is registered with Cloudflare but its nameservers
+# are Namecheap's, so there is no zone to hold a WAF rule and the dashboard
+# returns a 404 for the firewall pages. The `server: cloudflare` header on our
+# responses is RENDER's Cloudflare, in front of their origin, not ours. Buying
+# the rule means moving DNS off Namecheap and re-creating every record.
+#
+# Measured 2026-09-04, that trade is not worth taking: with this block in place
+# the whole workspace uses 5.2GB of a 25GB monthly allowance, and the block cut
+# board bandwidth ~95% on its own. Revisit only if bandwidth approaches the cap,
+# and then as a planned DNS migration rather than as a fix for this file.
 #
 # Same list as the board, same env override, so the two cannot drift. curl and
 # python-requests are deliberately absent — the uptime check uses them, and a
