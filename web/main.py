@@ -571,6 +571,20 @@ DB_PATH = os.environ.get("NABBLY_DB") or None
 _SYNC = not DB_PATH and os.environ.get("NABBLY_NO_SYNC") != "1"
 
 
+def _warm_market():
+    """Rebuild the market snapshot on the ingest thread. Never raises."""
+    try:
+        conn = queries.connect(DB_PATH)
+        try:
+            _market.get(conn)
+        finally:
+            conn.close()
+    except Exception as e:
+        # One line, ours to see. A blank teaser is a worse page, not an error,
+        # and it must never be able to stop an ingest cycle.
+        print(f"  market warm failed: {e!r}", flush=True)
+
+
 @app.on_event("startup")
 def _boot():
     if not _SYNC:
@@ -596,7 +610,14 @@ def _boot():
     # which is the one risk of moving it onto the service that serves pages.
     try:
         import refresh
-        refresh.start()
+        # WARM THE MARKET SNAPSHOT FROM THE INGEST, not from a page load.
+        # _Market.peek() hands a signed-out reader the cache or nothing, and
+        # only a Pro visit to /market ever filled it -- so after every deploy
+        # the free teaser was blank until a member happened to look, which on a
+        # service that redeploys often is most of the time. The hook already
+        # exists, fires only on a cycle that found something, and is wrapped in
+        # refresh.py's own except; this is the work it was built for.
+        refresh.start(_warm_market)
     except Exception as e:
         print(f"  ! could not start ingest on the board: "
               f"{type(e).__name__}: {e}", flush=True)
@@ -1076,8 +1097,14 @@ def robots():
                "Disallow: /profile\n"
                "Disallow: /saved\n"
                "Disallow: /draft/\n"
-               "Disallow: /market\n"
                "Disallow: /signin\n")
+    # /market IS crawlable, deliberately. It was closed here with the private
+    # pages, but it is not one: signed out it renders a teaser -- board-wide
+    # counts, no rates -- which is the answer to "what does this pay" that the
+    # field pages are trying to rank for. And it cannot be used as a lever: a
+    # signed-out reader gets _Market.peek(), a dict lookup that never builds,
+    # so a crawler costs a template render whatever it does. The /gigs?* rule
+    # above closes the query space that actually hurt.
     body = ("User-agent: *\nAllow: /\n" + private if _INDEXABLE
             else "User-agent: *\nDisallow: /\n")
     return PlainTextResponse(body)
