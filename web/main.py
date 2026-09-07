@@ -862,9 +862,23 @@ class _Suggest:
 _suggest = _Suggest()
 
 
-# Sequential amber ramp for budget size — the same three hex values the app
-# uses, light = small, deep = large.
-_BUDGET_COLORS = {"Small": "#F3C07A", "Medium": "#E8933A", "Large": "#A85D1B"}
+# Sequential amber ramp for budget size: one hue, light = small, deep = large.
+# Ordered data, so it stays a ramp — three unrelated hues would say these bands
+# are different KINDS of thing rather than more and less of one.
+#
+# RE-STEPPED because the old ramp failed on separation, not on taste. The
+# founder: "it just seems kind of hard to read because of the orange". Measured
+# on #F3C07A/#E8933A/#A85D1B, the worst adjacent pair was Small↔Medium at ΔE
+# 11.2 for NORMAL colour vision — under the 15 floor, i.e. hard to tell apart
+# for everyone, before considering colour blindness. Not the pair either of us
+# would have picked by eye; Medium↔Large looked like the problem and was not.
+#
+# Now 16.5, with the brand amber kept exactly as the middle step so the chart
+# still belongs to this page. All three clear 3:1 against the #121418 surface
+# (13.0 / 7.6 / 3.2) and lightness stays monotonic, which is what a sequential
+# ramp has to promise. The 2px surface gaps between segments do the rest — see
+# .gr-stack-bar in base.html.
+_BUDGET_COLORS = {"Small": "#F7D49B", "Medium": "#E8933A", "Large": "#9A5316"}
 
 
 def _market_view(m: dict) -> dict:

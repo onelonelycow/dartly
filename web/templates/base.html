@@ -205,6 +205,13 @@ button.go:hover{background:var(--amber-l)}
    as better set, not as restyled. */
 .sec-h{font-size:26px;font-weight:660;letter-spacing:-.022em;margin:26px 0 14px}
 .sec-h .accent{color:var(--amber)}
+/* SEGMENT SEPARATION, the other half of the readability fix. Abutting fills of
+   one hue read as a single smear no matter how well the steps are chosen; a
+   2px gap in the surface colour gives every boundary an edge. Overridden here
+   rather than in nabbly.css, which is generated from app.py and overwritten.
+   The widths are percentages summing to 100, so the gaps cost the last segment
+   ~4px of a ~1350px bar — under a third of a percent, and invisible. */
+.gr-stack-bar{gap:2px;background:var(--bg)}
 /* The feed heading and its update pill share a baseline. flex-wrap, because
    at 375px "1,364 new since your last visit" will not sit beside a 21px
    heading and belongs on its own line rather than squeezed against it. The
