@@ -212,6 +212,23 @@ button.go:hover{background:var(--amber-l)}
    The widths are percentages summing to 100, so the gaps cost the last segment
    ~4px of a ~1350px bar — under a third of a percent, and invisible. */
 .gr-stack-bar{gap:2px;background:var(--bg)}
+/* A third column for the direct label. The row grid is generated into
+   nabbly.css as two columns; overridden rather than edited, since that file is
+   rebuilt from app.py. tabular-nums so the percentages line up as a column of
+   figures rather than drifting with digit width — this is the number the rows
+   are sorted by, so it has to read as a ranking. */
+.gr-stack-row{grid-template-columns:min(38%,190px) 1fr auto}
+.gr-stack-val{font-size:12.5px;font-weight:650;color:var(--ink2);
+  font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.gr-stack-val span{font-weight:500;color:var(--faint);margin-left:5px}
+/* At phone width the label column costs the bar too much, and the bars are the
+   chart. The share still reaches a reader who cannot hover: it moves under the
+   skill name, which is where the eye already is. */
+@media (max-width:560px){
+  .gr-stack-row{grid-template-columns:min(44%,160px) 1fr;row-gap:2px}
+  .gr-stack-val{grid-column:1;grid-row:2;text-align:left;font-size:11.5px}
+  .gr-stack-bar{grid-column:2;grid-row:1/3}
+}
 /* The feed heading and its update pill share a baseline. flex-wrap, because
    at 375px "1,364 new since your last visit" will not sit beside a 21px
    heading and belongs on its own line rather than squeezed against it. The

@@ -914,13 +914,28 @@ def _market_view(m: dict) -> dict:
     urg_pairs = [(t, m["urgency_mix"].get(t, 0))
                  for t in ("Standard", "Urgent") if m["urgency_mix"].get(t)]
     urg_colors = {"Standard": "#4C8DFF", "Urgent": "#E96250"}
+    # SORTED BY THE THING THE HEADING ASKS ABOUT. This read "by skill and
+    # budget" and was ordered by total volume, which is the question the chart
+    # directly above it already answers — so the skill with the largest share
+    # of big budgets (Marketing / SEO, 29%) sat fifth and the smallest (Other /
+    # general, 6.4%) sat third. Someone scanning for where the money is got a
+    # ranking of where the work is.
+    #
+    # It also repairs what a stacked bar is worst at. Large is the last segment,
+    # so it begins at a different x in every row and the eye cannot compare
+    # widths that start in different places — 29% does not LOOK bigger than
+    # 23%. Ordering the rows by that share moves the comparison into the row
+    # order, where it is read rather than measured, and the direct label makes
+    # it a number instead of a hover.
     stack_rows = []
     for jt in m["top_skills"]:
         cells = [(t, m["cross"].get((jt, t), 0)) for t in ("Small", "Medium", "Large")]
         row_total = sum(v for _, v in cells) or 1
+        large_pct = round(dict(cells).get("Large", 0) / row_total * 100)
         stack_rows.append((jt, [(t, v, _BUDGET_COLORS[t],
                                  round(v / row_total * 100, 1))
-                                for t, v in cells if v]))
+                                for t, v in cells if v], large_pct))
+    stack_rows.sort(key=lambda r: r[2], reverse=True)
     return {
         "total": m["total"],
         "cards": cards,
