@@ -162,7 +162,6 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
     gap:18px;align-items:start}
   .cards.dash > *{margin:0}
 }
-.newsince{font-size:13.5px;color:var(--mute);margin:0 0 16px}
 /* THE TOP MATCH CARD — a different object, not a bigger feed row.
    The founder: "differentiate it from the rest of the listings, almost
    gamify it". The feed under this card is a flat list of everything that
@@ -428,13 +427,6 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
      path behind "Edit this reply", and claiming otherwise here would oversell
      a template (FEEL §7). Plain markup, no interactivity, nothing new to
      style beyond one block. #}
-  {# Only when there IS a previous visit and something landed since. No stamp
-     means a first visit and renders nothing; a zero renders nothing, because
-     a line that says zero is a line that says do not bother. Text, no chip,
-     no colour — this page's amber is already spent. #}
-  {% if new_since %}
-  <p class="newsince">{{ "{:,}".format(new_since) }} new since you were last here.</p>
-  {% endif %}
   {% if hero_draft %}
   <div class="herodraft">
     {# "Today" is the whole scarcity beat: it says one of these arrives per
@@ -454,7 +446,21 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     </div>
   </div>
   {% endif %}
-  <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>{% endif %}
+  {# THE COUNT MOVED HERE, from a line above the picked card to a pill on the
+     feed's own heading. Above the card it was the first thing read and
+     answered a question nobody had yet; on the feed it annotates the thing it
+     is actually about — these rows, and how many of them are new. The founder:
+     "an update pill at the top of the feed below the picked for you card".
+
+     Still only with a previous visit and a non-zero count: no stamp means a
+     first visit, and a pill that says zero is a pill that says do not bother.
+     Muted, not amber — the amber on this page is spent on the tack above and
+     on the word "boards" in this very heading. One 6px dot carries "new"
+     without competing with either. #}
+  <div class="sec-row">
+    <h2 class="sec-h">Fresh off the <span class="accent">boards</span></h2>
+    {% if new_since %}<span class="newpill">{{ "{:,}".format(new_since) }} new since your last visit</span>{% endif %}
+  </div>{% endif %}
 
 {% if not landing %}
 {# /GIGS, CONSOLIDATED — the founder, looking at the old head: "way too much
