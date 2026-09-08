@@ -171,6 +171,28 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+/* THE WHOLE CARD IS THE DRAFT LINK. The founder: "all the cards need to be
+   clickable anywhere, not just the title of the card" — and the destination is
+   his call too: the draft page, not /out. A card click that left for
+   Freelancer would skip the one thing Nabbly does, and the draft page carries
+   "Apply on <source> →" anyway, so nothing is lost by going through it.
+
+   Done with a stretched pseudo-element rather than a handler: this service has
+   no JavaScript and does not start now. .gr-cardwrap already carries
+   position:relative (board.html, saved.html) so inset:0 resolves to the card.
+
+   Everything else on the card is lifted ABOVE the overlay and keeps working:
+   the title still opens the source in a new tab, the save star still posts,
+   and "See more" still expands. The checkbox is raised too — it is visually
+   hidden but must stay reachable by keyboard for the label to toggle it. */
+.draftlink::after{content:"";position:absolute;inset:0;z-index:1;border-radius:14px}
+.gr-cardwrap{cursor:pointer}
+a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl,.draftlink{
+  position:relative;z-index:2}
+/* The body text sits UNDER the overlay, so it is no longer selectable by drag.
+   Accepted: this is a scannable listing, not a document, and "Draft my reply"
+   is what the card is for. The full text is one click away on the draft page,
+   where it is selectable normally. */
 /* On a phone the link that starts the whole product measured 31px tall on
    /gigs. The dashboard already lifts it (board.html: .dash .draftlink); this
    gives every other card the same floor. Desktop is untouched. */
