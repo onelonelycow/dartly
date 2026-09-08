@@ -187,8 +187,14 @@ button.go:hover{background:var(--amber-l)}
    hidden but must stay reachable by keyboard for the label to toggle it. */
 .draftlink::after{content:"";position:absolute;inset:0;z-index:1;border-radius:14px}
 .gr-cardwrap{cursor:pointer}
-a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl,.draftlink{
+a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl{
   position:relative;z-index:2}
+/* .draftlink MUST NOT be positioned. Its ::after anchors to the nearest
+   positioned ancestor, so giving the link position:relative made the overlay
+   cover the LINK instead of the card -- shipped that way once, and a hit test
+   at the card's top-right corner returned .gr-cardtitle rather than the draft
+   link. The link's own text still activates it: the pseudo-element belongs to
+   the same anchor, so a click anywhere in it follows the same href. */
 /* The body text sits UNDER the overlay, so it is no longer selectable by drag.
    Accepted: this is a scannable listing, not a document, and "Draft my reply"
    is what the card is for. The full text is one click away on the draft page,
