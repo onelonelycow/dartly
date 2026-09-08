@@ -1982,6 +1982,16 @@ def unsubscribe_page(request: Request, t: str = Query("")):
     return resp
 
 
+# When this process started. Only the health check uses it, to tell "still
+# filling itself" from "has been empty for a while", which need opposite
+# answers from the same fact.
+_BOOT_AT = time.monotonic()
+
+# How long an empty board may ask Render to hold traffic. Comfortably over the
+# ~50s first pull, and far under the 15 minutes after which Render cancels a
+# deploy outright.
+_FILL_GRACE_S = 300
+
 @app.get("/health")
 def health():
     """
@@ -2062,6 +2072,26 @@ def health():
         # Two missed refreshes is a real problem, not a blip.
         if s["drift_s"] is not None and s["drift_s"] > sync.REFRESH_S * 3:
             out["ok"] = False
+    # AND SAY IT IN THE STATUS CODE, not only in the body. Render decides a
+    # health check on the HTTP status alone and never reads the JSON, so this
+    # route answered 200 while reporting ok:false and status:"starting" — the
+    # comment in _boot claims Render "holds traffic on the old instance" during
+    # the first pull, and it never did. Measured 2026-09-05: every deploy cut
+    # traffic to the new instance immediately and served an EMPTY BOARD for
+    # about a minute while the mirror filled.
+    #
+    # STRICTLY TIME-BOXED, because the same signal restarts a running instance
+    # after 60s of failures. An unbounded 503 on an empty board would turn a
+    # broken mirror into a restart loop that never serves anything. After the
+    # grace window an empty board goes back to 200 and stays visible as
+    # ok:false to whatever is reading the body — a bad board that is up beats a
+    # bad board that is cycling.
+    #
+    # Drift deliberately does NOT reach this: stale gigs are worth serving, and
+    # failing the check for them would restart a service that is working.
+    if out.get("status") == "starting" and time.monotonic() - _BOOT_AT < _FILL_GRACE_S:
+        out["holding"] = "503 while the board fills — Render keeps the old instance"
+        return JSONResponse(out, status_code=503)
     return out
 
 
