@@ -30,6 +30,52 @@ _RESTRICT = [
     ("Australia", r"australia[\s\-]?(?:only|based)|\banz\b\s+only"),
 ]
 
+# EVERY OTHER COUNTRY, in the same shape as the six above.
+#
+# Those six WERE the whole list, so a Himalayas listing badged "Colombia only"
+# reached the board as a plain "Remote" pill and somebody could draft a reply
+# for a job they are not eligible for. Measured 2026-09-08 against the live
+# tagger: "Colombia only", "Germany only", "Brazil only" and "Japan only" all
+# returned restrict=None. Germany bites hardest -- Arbeitnow is a German board,
+# so those are already on the feed wearing the wrong pill.
+#
+# ANCHORED TO RESTRICTION WORDS, never to a bare country name. Job text is full
+# of countries that restrict nothing -- "clients across Germany", "our Tokyo
+# office" -- so a name only counts beside "only", "-based", "residents", or an
+# explicit "must be based in". That is precisely what the six hand-written
+# patterns do; this generalises them rather than inventing a looser rule.
+#
+# Georgia is deliberately absent: in this corpus it is a US state far more often
+# than a country, and "Georgia based" on a US posting would restrict a gig to
+# the wrong continent. The six above are excluded so one country cannot come
+# back under two different codes.
+_MORE_COUNTRIES = (
+    "Colombia", "Brazil", "Argentina", "Chile", "Peru", "Mexico", "Costa Rica",
+    "Germany", "France", "Spain", "Portugal", "Italy", "Netherlands", "Belgium",
+    "Austria", "Switzerland", "Sweden", "Norway", "Denmark", "Finland",
+    "Iceland", "Ireland", "Poland", "Czechia", "Slovakia", "Hungary", "Romania",
+    "Bulgaria", "Croatia", "Slovenia", "Serbia", "Ukraine", "Lithuania",
+    "Latvia", "Estonia", "Greece",
+    "Japan", "South Korea", "Singapore", "Malaysia", "Indonesia", "Thailand",
+    "Vietnam", "Philippines", "Taiwan", "Hong Kong", "New Zealand",
+    "Pakistan", "Bangladesh", "Sri Lanka", "Nepal",
+    "South Africa", "Nigeria", "Kenya", "Ghana", "Egypt", "Morocco",
+    "Israel", "Turkey", "United Arab Emirates", "Saudi Arabia", "Qatar",
+)
+
+
+def _country_pattern(name: str) -> str:
+    """The six patterns above, generated for one country name."""
+    n = name.lower().replace(" ", r"\s+")
+    return (r"\b" + n + r"[\s\-]?(?:only|based|residents?|citizens?)\b"
+            r"|(?:must be|only)\s+(?:in|located in|based in|resident in)\s+" + n + r"\b"
+            r"|residents?\s+of\s+" + n + r"\b")
+
+
+# Appended, not prepended: the six above know their own spellings ("us-based",
+# "anz only") and keep first refusal.
+_RESTRICT += [(c, _country_pattern(c)) for c in _MORE_COUNTRIES]
+
 _ONSITE    = re.compile(r"on[\s\-]?site|in[\s\-]person|on location|on-location"
                         r"|must be (?:physically )?(?:present|on[\s\-]?site|local)"
                         r"|\bhybrid\b|local to |based in your area|no remote", re.I)
