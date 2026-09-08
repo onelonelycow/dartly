@@ -163,3 +163,182 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     accounts.set_stripe_ids(email, getattr(session, "customer", ""), sub_id)
     accounts.mark_session_used(email, session_id)
     return True, email
+
+
+# ---------------------------------------------------------------------------
+# Changing an EXISTING subscription. Never checkout.
+#
+# checkout_url() is for someone who is not paying yet. Pointing a current
+# subscriber at it creates a SECOND subscription and bills them twice — $15
+# and $5 at the same time — which is the whole reason these exist.
+#
+# Everything here works on the subscription id recorded by set_stripe_ids at
+# checkout, and every one of them re-reads Stripe rather than trusting what
+# this app believes about the account.
+# ---------------------------------------------------------------------------
+def plan_for_subscription(sub_id: str) -> tuple[str, str]:
+    """
+    What Stripe says this subscription currently is: (plan, status).
+
+    plan is "pro" / "alerts" / "" and comes from the price actually on the
+    subscription, through the same _plan_for_price map checkout redemption
+    uses — so there is one place a price becomes a plan, not two.
+    """
+    if not SECRET_KEY or not sub_id:
+        return "", ""
+    try:
+        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+    except Exception as e:
+        print(f"  ! stripe sub read: {type(e).__name__}: {e}", flush=True)
+        return "", ""
+    status = getattr(sub, "status", "") or ""
+    plan = ""
+    try:
+        for item in sub["items"]["data"]:
+            got = _plan_for_price(item["price"]["id"])
+            if got == "pro":            # Pro wins if both are somehow present
+                plan = got
+                break
+            if got:
+                plan = got
+    except Exception:
+        return "", status
+    return plan, status
+
+
+def _single_item(sub):
+    """The one subscription item, or None if this is not the shape we sell.
+
+    Every subscription this app creates has exactly one line. Anything else
+    was made by hand in the dashboard, and guessing which line to re-price is
+    how somebody's billing gets quietly rewritten.
+    """
+    try:
+        items = sub["items"]["data"]
+    except Exception:
+        return None
+    return items[0] if len(items) == 1 else None
+
+
+def switch_plan(sub_id: str, tier: str) -> tuple[bool, str]:
+    """
+    Move an existing subscription onto another price. (ok, error).
+
+    Swaps the price ON the current subscription item, so there is one
+    subscription before and one after. Stripe prorates: a downgrade leaves a
+    credit against the next invoice, an upgrade bills the difference.
+    """
+    price = price_for_tier(tier)
+    if not SECRET_KEY or not price or not sub_id:
+        return False, "billing is not configured"
+    try:
+        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+    except Exception as e:
+        return False, f"could not read the subscription ({type(e).__name__})"
+    if getattr(sub, "status", "") not in ("active", "trialing"):
+        return False, "that subscription is not active"
+
+    item = _single_item(sub)
+    if item is None:
+        return False, "this subscription has an unexpected shape"
+    if item["price"]["id"] == price:
+        return True, ""            # already there; nothing to do, not an error
+
+    try:
+        stripe.Subscription.modify(
+            sub_id,
+            items=[{"id": item["id"], "price": price}],
+            proration_behavior="create_prorations",
+            # A switch is a deliberate change of plan, not a renewal, and
+            # should never be blocked behind a payment that needs a card
+            # challenge. Stripe bills the difference on the next invoice.
+            payment_behavior="allow_incomplete",
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"  ! stripe switch: {type(e).__name__}: {e}", flush=True)
+        return False, f"Stripe refused the change ({type(e).__name__})"
+    return True, ""
+
+
+def cancel_at_period_end(sub_id: str) -> tuple[bool, str]:
+    """
+    Stop the subscription renewing, keeping access to the end of the period.
+
+    NOT stripe.Subscription.delete(). They have paid for this month; taking it
+    away the moment they click is a refund problem dressed as a feature. The
+    account keeps its plan until the period ends and reconcile_plan() moves it
+    to free once Stripe reports the subscription gone.
+    """
+    if not SECRET_KEY or not sub_id:
+        return False, "billing is not configured"
+    try:
+        sub = stripe.Subscription.modify(
+            sub_id, cancel_at_period_end=True, timeout=15)
+    except Exception as e:
+        print(f"  ! stripe cancel: {type(e).__name__}: {e}", flush=True)
+        return False, f"Stripe refused the cancellation ({type(e).__name__})"
+    return True, ""
+
+
+def period_end(sub_id: str) -> int:
+    """Unix time this subscription's paid period runs out, or 0."""
+    if not SECRET_KEY or not sub_id:
+        return 0
+    try:
+        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        return int(getattr(sub, "current_period_end", 0) or 0)
+    except Exception:
+        return 0
+
+
+def cancelling(sub_id: str) -> bool:
+    """Whether this subscription is set to stop at the end of the period."""
+    if not SECRET_KEY or not sub_id:
+        return False
+    try:
+        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        return bool(getattr(sub, "cancel_at_period_end", False))
+    except Exception:
+        return False
+
+
+# Statuses that mean the money has stopped. "past_due" is NOT here on purpose:
+# Stripe is still retrying the card, and pulling the plan mid-retry punishes
+# someone whose bank declined once.
+_DEAD = ("canceled", "unpaid", "incomplete_expired")
+
+
+def reconcile_plan(email: str, sub_id: str) -> str:
+    """
+    Make this account's plan match what Stripe actually says. Returns the plan
+    it settled on, or "" if nothing was checked or changed.
+
+    THIS IS THE PASS THE MODULE DOCSTRING SAYS DOES NOT EXIST, for one account
+    at a time. It is what makes cancel_at_period_end honest: the subscription
+    keeps running until the period ends, Stripe flips it to canceled, and the
+    next time this runs the account drops to free. It also catches the case
+    nobody chooses — a card that quietly expires.
+
+    Still not a sweep. Someone who cancels and never comes back keeps a plan
+    they are not paying for until they visit a page that calls this.
+    """
+    if not SECRET_KEY or not email or not sub_id:
+        return ""
+    plan, status = plan_for_subscription(sub_id)
+    if not status:
+        return ""                      # could not ask Stripe; change nothing
+    import accounts
+    if status in _DEAD:
+        accounts.set_plan(email, "free")
+        print(f"  billing: {email} -> free (stripe says {status})", flush=True)
+        return "free"
+    if status not in ("active", "trialing") or not plan:
+        return ""
+    acc = accounts.by_email(email)
+    now = (accounts.status(acc) or {}).get("plan") or ""
+    if now != plan:
+        accounts.set_plan(email, plan)
+        print(f"  billing: {email} {now or 'none'} -> {plan} (stripe)", flush=True)
+        return plan
+    return plan
