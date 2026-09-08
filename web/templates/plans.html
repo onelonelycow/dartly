@@ -58,6 +58,18 @@
 /* Not a control. Reads as a state so nobody clicks it expecting checkout. */
 .pl-act span.soon{color:var(--faint);border:1px dashed var(--line2);
   font-weight:600}
+/* A form, styled as the buttons beside it: same box, same block, no browser
+   chrome leaking in. .pl-act's own rule targets a and span, so button needs
+   the shape spelled out. */
+.pl-switch{margin:0}
+.pl-act button{display:block;width:100%;text-align:center;border-radius:11px;
+  padding:11px 14px;font-size:13.5px;font-weight:650;cursor:pointer;
+  font-family:inherit}
+.pl-act button.ghost{border:1px solid var(--line2);color:var(--ink2);
+  background:var(--bg)}
+.pl-act button.ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
+.pl-act button.buy{background:var(--amber);color:#1b1205;border:0}
+.pl-act button.buy:hover{background:var(--amber-l)}
 
 .pl-note{font-size:12.5px;color:var(--faint);margin:24px 0 0;line-height:1.6}
 .pl-ok{border:1px solid rgba(53,179,126,.4);background:rgba(53,179,126,.08);
@@ -66,6 +78,15 @@
 {% endblock %}
 
 {% block body %}
+
+{# One POST per switch. GET would let a link in an email -- or a crawler
+   following hrefs -- change what somebody is charged. #}
+{% macro switch(tier, label, cls="ghost") -%}
+<form method="post" action="/plan/switch" class="pl-switch">
+  <input type="hidden" name="tier" value="{{ tier }}">
+  <button class="{{ cls }}" type="submit">{{ label }}</button>
+</form>
+{%- endmacro %}
 
 {% if paid_ok %}
   {# Only ever shown on the render Stripe redirects into, and only when Stripe
@@ -98,9 +119,19 @@
     </ul>
     <div class="pl-act">
       {% if st.signed_in and not st.pro and st.plan != 'alerts' %}
-        <span class="current">Your plan</span>
+        <span class="current">Current plan</span>
       {% elif not st.signed_in %}
-        <a class="ghost" href="/signin?next=%2Fplans">Sign in — it's free</a>
+        <a class="ghost" href="/signin?next=%2Fplans">Get started — it's free</a>
+      {% elif ends_at %}
+        {# The same date as the paid card, said from this side. "Cancels" here
+           would be the second copy of one sentence and would read as though
+           Free were the thing ending. #}
+        <span class="soon">From {{ ends_at }}</span>
+      {% elif can_switch %}
+        {# CALLED WHAT IT IS. "Switch to Free" reads like a plan change and
+           this ends a subscription -- the reader deserves the real word before
+           they click, not after. #}
+        {{ switch('free', 'Cancel subscription') }}
       {% endif %}
     </div>
   </div>
@@ -118,12 +149,23 @@
     </ul>
     <div class="pl-act">
       {% if st.plan == 'alerts' %}
-        <span class="current">Your plan</span>
+        {% if ends_at %}<span class="soon">Cancels {{ ends_at }}</span>
+        {% else %}<span class="current">Current plan</span>{% endif %}
       {% elif not st.signed_in %}
-        <a class="ghost" href="/signin?next=%2Fplans">Sign in to choose</a>
+        <a class="ghost" href="/signin?next=%2Fplans">Choose Alerts</a>
+      {% elif on_paid and can_switch %}
+        {# THE DOWNGRADE, OFFERED RATHER THAN HIDDEN. This branch used to be
+           empty, on the reasoning that putting one in front of a Pro member
+           was odd. Making someone hunt for it is worse: they either write in or
+           they cancel outright, and a $5 subscriber beats neither. Named
+           neutrally -- "Switch", not "Downgrade" -- because they have already
+           decided and the button is not the place to argue.
+
+           It re-prices the subscription they have. Sending them to checkout
+           would open a second one and bill them for both. #}
+        {{ switch('alerts', 'Switch to Alerts') }}
       {% elif on_paid %}
-        {# Already paying for Pro. Nothing to sell, and offering a downgrade
-           button here would be an odd thing to put in front of someone. #}
+        {# Paying already: no checkout link here either, for the same reason. #}
       {% elif links.alerts %}
         <a class="buy" href="{{ links.alerts }}">Choose Alerts</a>
       {% else %}
@@ -156,14 +198,28 @@
       <li><span class="tick">✓</span> Market rates, so you price right</li>
     </ul>
     <div class="pl-act">
-      {% if st.pro and st.days_left %}
+      {% if st.pro and ends_at %}
+        <span class="soon">Cancels {{ ends_at }}</span>
+      {% elif st.pro and st.days_left %}
         <span class="current">{{ st.days_left }} day{{ '' if st.days_left == 1 else 's' }} left</span>
       {% elif st.pro %}
-        <span class="current">Your plan</span>
+        <span class="current">Current plan</span>
       {% elif not st.signed_in %}
-        <a class="ghost" href="/signin?next=%2Fplans">Sign in to choose</a>
+        {# "Start free trial" while the trial is still on offer: naming the
+           small commitment converts better than naming the price, and it is
+           what the 14-days-free tag beside the heading already promises. #}
+        <a class="ghost" href="/signin?next=%2Fplans">{{ 'Start free trial' if not st.trialed else 'Choose Pro' }}</a>
+      {% elif on_paid and not can_switch %}
+        {# Paying, but on the way out. No offer belongs here: switching would
+           re-price a subscription already set to stop, and the checkout branch
+           below would open a SECOND one beside it. #}
+      {% elif st.plan == 'alerts' and can_switch %}
+        {# The upgrade, and it IS an upgrade, so say so. Same mechanism as the
+           downgrade above: the subscription they have is re-priced, and Stripe
+           bills the difference. #}
+        {{ switch('pro', 'Upgrade to Pro', 'buy') }}
       {% elif links.pro %}
-        <a class="buy" href="{{ links.pro }}">Choose Pro</a>
+        <a class="buy" href="{{ links.pro }}">{{ 'Start free trial' if not st.trialed else 'Choose Pro' }}</a>
       {% else %}
         {# Same loop as the Alerts card above, same reason. #}
         <span class="soon">Checkout is being set up</span>

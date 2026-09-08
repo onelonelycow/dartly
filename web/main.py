@@ -1742,12 +1742,85 @@ def plans_page(request: Request, stripe_session: str = Query("")):
             except Exception:
                 links[tier] = None
 
+    # WHAT STRIPE SAYS, not what this database last heard. There is no webhook,
+    # so a subscription that ended -- because it was cancelled at period end, or
+    # because a card expired -- would otherwise keep serving a plan nobody is
+    # paying for. This is the one page where the answer matters and the reader
+    # is already waiting on a render, so it is the natural place to ask.
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    ends_at = ""
+    if me and sub_id and billing.enabled():
+        try:
+            settled = billing.reconcile_plan(me, sub_id)
+            if settled:
+                st_ = accounts.status(webauth.account_for(request)) or st_
+                on_paid = bool(st_.get("paid") or st_.get("plan") in ("pro", "alerts"))
+            # A subscription set to stop still runs to the end of the period, so
+            # the card must say when rather than pretend nothing changed.
+            if billing.cancelling(sub_id):
+                ts = billing.period_end(sub_id)
+                if ts:
+                    ends_at = datetime.fromtimestamp(
+                        ts, tz=timezone.utc).strftime("%-d %B %Y")
+        except Exception:
+            pass
+
     return templates.TemplateResponse(request, "plans.html", {
         "me": me, "tab": "plans", "st": st_, "price": PLAN_PRICE,
         "links": links, "on_paid": on_paid, "paid_ok": paid_ok,
+        # NOT WHILE A CANCELLATION IS PENDING. switch_plan re-prices the
+        # subscription but leaves cancel_at_period_end set, so an "Upgrade
+        # to Pro" offered here would charge more for something already on
+        # its way out. The pending state is shown instead.
+        "ends_at": ends_at,
+        "can_switch": bool(sub_id and billing.enabled() and not ends_at),
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
     })
+
+
+@app.post("/plan/switch")
+def plan_switch(request: Request, tier: str = Form("")):
+    """
+    Move an existing subscriber between plans, including off them.
+
+    NEVER CHECKOUT. checkout_url() is for someone who is not paying; sending a
+    current subscriber there opens a second subscription and bills them for
+    both. Everything here goes through the subscription they already have --
+    see billing.switch_plan and billing.cancel_at_period_end.
+
+    POST because it changes what someone is charged. A GET would let a link in
+    an email, or a crawler following hrefs, downgrade an account.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+
+    acc = webauth.account_for(request)
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    tier = (tier or "").strip().lower()
+    if tier not in ("free", "alerts", "pro") or not sub_id or not billing.enabled():
+        return RedirectResponse("/plans", status_code=303)
+
+    if tier == "free":
+        # Not a delete. They have paid for this period and keep it; Stripe
+        # stops the renewal, and reconcile_plan on the next /plans load moves
+        # the account to free once the subscription actually ends.
+        ok, err = billing.cancel_at_period_end(sub_id)
+        if ok:
+            print(f"  plan: {me} cancels at period end", flush=True)
+    else:
+        ok, err = billing.switch_plan(sub_id, tier)
+        if ok:
+            # Locally too, and now: there is no webhook to tell us later, and a
+            # member who just paid for a different plan should not have to wait
+            # for a reconciliation pass to receive it.
+            accounts.set_plan(me, tier)
+            print(f"  plan: {me} -> {tier}", flush=True)
+    if not ok:
+        print(f"  ! plan switch failed for {me} -> {tier}: {err}", flush=True)
+    return RedirectResponse("/plans", status_code=303)
 
 
 @app.get("/profile", response_class=HTMLResponse)
