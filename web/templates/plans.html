@@ -42,13 +42,19 @@
    --panel: the border came out at 1.42:1, effectively invisible, and the text
    at 4.77:1, over the AA line but only just.
 
-   Now the success green this page already uses for .pl-ok, so "active" looks
-   the same in both places, and solid rather than dashed. Border 3.48:1, over
-   the 3:1 that non-text UI needs; text 7.23:1. Deliberately NOT amber: amber
-   on this page means "the thing to click", and this is the card you are
-   already on. Also covers the trial's "N days left", which is the same fact. */
-.pl-act span.current{color:var(--ink2);border:1px solid rgba(53,179,126,.65);
-  background:rgba(53,179,126,.10)}
+   Amber, and solid rather than dashed. Shipped green first, on the argument
+   that amber on this page means "the thing to click" and this badge marks the
+   card you are already on -- the founder asked for amber and he is right that
+   an OUTLINE plus a 10% tint reads as a different object from the solid amber
+   fill of the buy buttons, so the two do not compete the way a filled amber
+   badge would have. It also ties the badge to the amber border the current
+   plan's card already carries.
+
+   Border 3.77:1, over the 3:1 that non-text UI needs and up from 1.42; text
+   --amber-l on the tint, 8.35:1, up from 4.77. Also covers the trial's "N days
+   left", which states the same fact about the same card. */
+.pl-act span.current{color:var(--amber-l);border:1px solid rgba(232,147,58,.65);
+  background:rgba(232,147,58,.10)}
 
 .pl-note{font-size:12.5px;color:var(--faint);margin:24px 0 0;line-height:1.6}
 .pl-ok{border:1px solid rgba(53,179,126,.4);background:rgba(53,179,126,.08);
