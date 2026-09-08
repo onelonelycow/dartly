@@ -320,7 +320,17 @@ def _sign_in_locked(email: str, source: str, campaign: str) -> tuple[dict | None
         # a gift. Everyone after that lands on Free and can start the opt-in
         # trial when they choose. (The count is a snapshot; a rare simultaneous
         # signup could put us a hair over 50, which is fine — erring generous.)
-        existing = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        #
+        # COUNTS GRANTS, NOT ROWS. This was SELECT COUNT(*) FROM accounts, which
+        # is a different number and disagreed with the founding_left the admin
+        # page shows (that one counts founding=1). Two consequences, both live:
+        # a partner-grant signup takes the branch above, is written founding=0,
+        # and still consumed one of the fifty — so the nextnw link was quietly
+        # spending the launch gift on people who were never given it. And a
+        # founding flag cleared afterwards, by downgrade() or by the partner
+        # release above, freed nothing, because the row remained.
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM accounts WHERE founding=1").fetchone()[0]
         founding = 1 if existing < FOUNDING_LIMIT else 0
         pro_until = (datetime.now(timezone.utc)
                      + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
