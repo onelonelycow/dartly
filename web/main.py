@@ -2022,6 +2022,19 @@ def health():
         out["telemetry"] = telemetry.status()
     except Exception:
         out["telemetry"] = "unknown"
+    # WHETHER THIS SERVICE CAN TAKE MONEY, on the same terms as telemetry
+    # above: a state, never a key. Stripe's keys lived only on the dartly
+    # service, so /plans quietly offered no checkout and fell back to a link
+    # that bounced straight back here — a page that could not sell anything and
+    # looked identical to one that could. Now it is one curl away.
+    #   pro / alerts: sellable | no-price | off
+    try:
+        out["billing"] = ("off" if not billing.SECRET_KEY else
+                          "pro" if (billing.enabled() and not billing.alerts_enabled())
+                          else "pro+alerts" if billing.enabled()
+                          else "key-but-no-price")
+    except Exception:
+        out["billing"] = "unknown"
     # WHETHER GIGS ARE STILL ARRIVING, which nothing could answer from outside.
     # Ingest runs in the other service, and its only visible trace was the
     # fetched_at of rows it wrote — so a quiet spell on the sources and a dead
