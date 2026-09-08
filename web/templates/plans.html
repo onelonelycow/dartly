@@ -55,6 +55,9 @@
    left", which states the same fact about the same card. */
 .pl-act span.current{color:var(--amber-l);border:1px solid rgba(232,147,58,.65);
   background:rgba(232,147,58,.10)}
+/* Not a control. Reads as a state so nobody clicks it expecting checkout. */
+.pl-act span.soon{color:var(--faint);border:1px dashed var(--line2);
+  font-weight:600}
 
 .pl-note{font-size:12.5px;color:var(--faint);margin:24px 0 0;line-height:1.6}
 .pl-ok{border:1px solid rgba(53,179,126,.4);background:rgba(53,179,126,.08);
@@ -124,7 +127,17 @@
       {% elif links.alerts %}
         <a class="buy" href="{{ links.alerts }}">Choose Alerts</a>
       {% else %}
-        <a class="ghost" href="{{ app_url }}/?nav=pricing">Choose Alerts</a>
+        {# NO FALLBACK LINK. This pointed at {{ app_url }}/?nav=pricing, and
+           app.py's _TO_BOARD maps "pricing" straight back to /plans -- so the
+           button returned the reader to the page they clicked it on. The
+           founder: "clicking the choose alerts button does nothing and just
+           loops back right to the plan page".
+
+           It renders at all only when billing.enabled() is False on THIS
+           service, which is an ops fact (Stripe keys not set on nabbly-board),
+           not a state the reader is in. Saying so plainly beats a button that
+           lies, and /plans logs it so it cannot go unnoticed again. #}
+        <span class="soon">Checkout is being set up</span>
       {% endif %}
     </div>
   </div>
@@ -152,7 +165,8 @@
       {% elif links.pro %}
         <a class="buy" href="{{ links.pro }}">Choose Pro</a>
       {% else %}
-        <a class="ghost" href="{{ app_url }}/?nav=pricing">Choose Pro</a>
+        {# Same loop as the Alerts card above, same reason. #}
+        <span class="soon">Checkout is being set up</span>
       {% endif %}
     </div>
   </div>

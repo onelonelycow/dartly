@@ -1719,6 +1719,17 @@ def plans_page(request: Request, stripe_session: str = Query("")):
 
     on_paid = bool(st_.get("paid") or st_.get("plan") in ("pro", "alerts"))
     links = {}
+    # SAY IT WHEN NOTHING CAN BE SOLD. A signed-in visitor who is not paying and
+    # gets no checkout link is looking at a page that cannot take their money,
+    # and until now that looked identical to a page working correctly -- the
+    # button quietly fell back to the old app, which forwards /?nav=pricing
+    # straight back here, so it read as a click that did nothing.
+    if me and not on_paid and not billing.enabled():
+        print("  ! plans: billing not configured on this service — no checkout "
+              "offered (STRIPE_SECRET_KEY / STRIPE_PRO_PRICE_ID)", flush=True)
+    elif me and not on_paid and not billing.alerts_enabled():
+        print("  ! plans: alerts tier not sellable here "
+              "(STRIPE_ALERTS_PRICE_ID unset)", flush=True)
     if me and not on_paid and billing.enabled():
         base = str(request.base_url).rstrip("/")
         for tier in ("alerts", "pro"):
