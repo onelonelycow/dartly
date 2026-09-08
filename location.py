@@ -81,8 +81,24 @@ _ONSITE    = re.compile(r"on[\s\-]?site|in[\s\-]person|on location|on-location"
                         r"|\bhybrid\b|local to |based in your area|no remote", re.I)
 _REMOTE    = re.compile(r"\bremote\b|work from home|\bwfh\b|fully remote|100% remote"
                         r"|remote[\s\-]?(?:friendly|first|ok)", re.I)
-_WORLDWIDE = re.compile(r"worldwide|anywhere in the world|any (?:location|country|timezone)"
-                        r"|global(?:ly)?|remote\s*[\-–]\s*anywhere|open to all", re.I)
+# "GLOBAL" ALONE IS NOT A PLACE YOU CAN WORK. This matched global(?:ly)?, which
+# is boilerplate on a large share of postings -- "a fast-growing global
+# company", "the global leader in" -- and it was read as a statement about
+# where the READER may be. Measured on the live board 2026-09-08: searching
+# "global" returned 25 cards, 21 badged Worldwide, and 17 of those never used
+# the word. Among them "Pricing Analyst - REMOTE (Houston Tx, US)" and
+# "Freelance Market Research Analyst - Singapore", both told they were open
+# worldwide. An absent pill costs a reader nothing; one that says the opposite
+# of the truth costs them an application.
+#
+# What survives has to say something about the ROLE, not the employer: the
+# adjective now only counts attached to distribution or hiring.
+_WORLDWIDE = re.compile(r"worldwide|anywhere in the world|work from anywhere"
+                        r"|any (?:location|country|timezone)"
+                        r"|glob(?:al|ally)\s+(?:distributed|remote)"
+                        r"|(?:hiring|hire|work|remote)\s+globally"
+                        r"|fully distributed"
+                        r"|remote\s*[\-–]\s*anywhere|open to all", re.I)
 
 # What the profile's country dropdown offers, and how each maps to a region code.
 COUNTRIES = ["United States", "United Kingdom", "European Union", "Canada",
