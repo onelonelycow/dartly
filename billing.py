@@ -95,6 +95,7 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     paid before touching the account.
     """
     if not enabled() or not session_id:
+        print(f"  ! confirm: billing disabled or no session id", flush=True)
         return False, ""
     try:
         session = stripe.checkout.Session.retrieve(
@@ -102,7 +103,11 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     except Exception as e:
         print(f"  ! stripe confirm: {type(e).__name__}: {e}")
         return False, ""
-    if getattr(session, "payment_status", "") != "paid":
+    ps = getattr(session, "payment_status", "")
+    if ps != "paid":
+        # no_payment_required is what a 100%-off or zero-amount checkout
+        # returns. It is a real purchase and is handled below, not here.
+        print(f"  ! confirm: payment_status={ps!r} (wanted paid)", flush=True)
         return False, ""
 
     # A paid session stays retrievable from Stripe forever, so "payment_status
@@ -115,6 +120,8 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     #    this Stripe account. Without this, any future one-off purchase could
     #    be replayed here as a Pro grant.
     if getattr(session, "mode", "") != "subscription":
+        print(f"  ! confirm: mode={getattr(session, 'mode', '')!r} "
+              f"(wanted subscription)", flush=True)
         return False, ""
     #    WHICH price also decides which plan is granted. Reading it back from
     #    the session rather than trusting anything the caller passed is what
@@ -130,13 +137,19 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
             if got:
                 plan = got
         if not plan:
+            print(f"  ! confirm: prices {sorted(bought)} match no plan — check "
+                  f"STRIPE_PRO_PRICE_ID / STRIPE_ALERTS_PRICE_ID on THIS "
+                  f"service", flush=True)
             return False, ""
-    except Exception:
+    except Exception as e:
+        print(f"  ! confirm: could not read line items: {e!r}", flush=True)
         return False, ""      # can't prove what was bought -> don't grant
 
     email = (getattr(session, "client_reference_id", "") or
              getattr(session, "customer_email", "") or "").strip().lower()
     if not email:
+        print("  ! confirm: no client_reference_id or customer_email on the "
+              "session — nothing to grant to", flush=True)
         return False, ""
 
     # 2. The subscription behind it has to still be live. This is what a
@@ -144,10 +157,13 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     #    answer without needing an endpoint Streamlit can't host.
     sub_id = getattr(session, "subscription", "") or ""
     if not sub_id:
+        print(f"  ! confirm: no subscription on session for {email}", flush=True)
         return False, ""
     try:
         sub = stripe.Subscription.retrieve(sub_id, timeout=15)
-        if getattr(sub, "status", "") not in ("active", "trialing"):
+        sst = getattr(sub, "status", "")
+        if sst not in ("active", "trialing"):
+            print(f"  ! confirm: subscription {sub_id} is {sst!r}", flush=True)
             return False, ""
     except Exception as e:
         print(f"  ! stripe sub check: {type(e).__name__}: {e}")
@@ -162,6 +178,10 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
     accounts.set_plan(email, plan)
     accounts.set_stripe_ids(email, getattr(session, "customer", ""), sub_id)
     accounts.mark_session_used(email, session_id)
+    # THE ONE EVENT THAT MATTERS, written down. This route took a real payment
+    # and granted nothing, and every rejection above returned silently -- so
+    # there was no way to tell a working checkout from a broken one.
+    print(f"  billing: granted {plan} to {email} (sub {sub_id})", flush=True)
     return True, email
 
 
