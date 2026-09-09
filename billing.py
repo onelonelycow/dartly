@@ -302,17 +302,21 @@ def cancel_at_period_end(sub_id: str) -> tuple[bool, str]:
 
 def period_end(sub_id: str) -> int:
     """
-    Unix time this subscription's paid period runs out, or 0.
+    Unix time this subscription's access actually runs out, or 0.
 
-    READ FROM THE ITEM FIRST. Stripe's Basil release (2025-03-31) removed
-    current_period_end from the Subscription object and moved it onto each
-    subscription item, so the old top-level read returned nothing at all --
-    and an empty date is indistinguishable from "not cancelling", which is
-    exactly how it looked: the cancel went through at Stripe, the page showed
-    no change, and the button read as broken.
+    READS cancel_at FIRST. On a subscription set to stop, Stripe puts the
+    stopping time there, and that is the date a member needs -- it is when
+    they lose the thing they paid for. Confirmed off the live object:
+    cancel_at=1791501730, cancel_at_period_end=True, and NO current_period_end
+    anywhere on the subscription or its items.
 
-    The top-level field is still tried afterwards, for an account pinned to an
-    older API version where it remains.
+    Then the item periods, then the old top-level field, for a renewing
+    subscription and for accounts pinned to an older API version.
+
+    STRIPE OBJECTS ARE NOT DICTS. item.get() and sub.keys() both raise
+    AttributeError -- "'keys' is a dict method, but a SubscriptionItem is not
+    a dict" -- which is why the previous item-level read found nothing even
+    where the field existed. to_dict() first, every time.
     """
     if not SECRET_KEY or not sub_id:
         return 0
@@ -321,35 +325,36 @@ def period_end(sub_id: str) -> int:
     except Exception as e:
         print(f"  ! stripe period_end: {type(e).__name__}: {e}", flush=True)
         return 0
+
+    at = int(getattr(sub, "cancel_at", 0) or 0)
+    if at:
+        return at
+
     ends = []
     try:
         for item in sub["items"]["data"]:
-            ts = item.get("current_period_end") if hasattr(item, "get") else None
+            d = item.to_dict() if hasattr(item, "to_dict") else dict(item)
+            ts = d.get("current_period_end")
             if ts:
                 ends.append(int(ts))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  ! stripe period_end: items unreadable: {e!r}", flush=True)
     if ends:
         # The furthest out, so a mixed-interval subscription reports when
         # access actually stops rather than when its shortest line renews.
         return max(ends)
+
     top = int(getattr(sub, "current_period_end", 0) or 0)
     if top:
         return top
-    # AND SAY WHAT IT DID SEE. Returning 0 here is indistinguishable from "not
-    # cancelling" by the time it reaches the page, which is how this card has
-    # now failed three times in a row on three different missing fields. The
-    # keys are dumped rather than guessed at: whatever holds the date, it is
-    # in one of these.
+
     try:
-        item_keys = sorted(sub["items"]["data"][0].keys()) if sub["items"]["data"] else []
+        sd = sub.to_dict() if hasattr(sub, "to_dict") else {}
+        item_keys = sorted((sd.get("items") or {}).get("data", [{}])[0].keys())
+        sub_keys = sorted(sd.keys())
     except Exception as e:
-        item_keys = [f"<unreadable: {e!r}>"]
-    try:
-        sub_keys = sorted(sub.keys())
-    except Exception:
-        sub_keys = []
-    print(f"  ! stripe period_end: {sub_id} has no period end anywhere — "
+        item_keys, sub_keys = [f"<{e!r}>"], []
+    print(f"  ! stripe period_end: {sub_id} has no date anywhere — "
           f"cancel_at={getattr(sub, 'cancel_at', None)!r} "
           f"cancel_at_period_end={getattr(sub, 'cancel_at_period_end', None)!r} "
           f"item_keys={item_keys} sub_keys={sub_keys}", flush=True)
