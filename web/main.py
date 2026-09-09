@@ -1909,6 +1909,28 @@ def plan_switch(request: Request, tier: str = Form(""),
             # large fraction of what is known about why anyone leaves, and it
             # is unrecoverable after the fact. Keyed by email so a second
             # cancellation replaces the first rather than accumulating.
+            # THE RECEIPT. A page can be closed, misread or never returned to,
+            # and the fact that outlives all of that is a date: when access
+            # stops. That belongs in their inbox, not only on a card they may
+            # never load again. Never blocks the cancellation -- a mail that
+            # fails to send must not make someone think they are still being
+            # charged.
+            try:
+                import mailer
+                ends_txt = ""
+                ts = billing.period_end(sub_id)
+                if ts:
+                    ends_txt = datetime.fromtimestamp(
+                        ts, tz=timezone.utc).strftime("%-d %B %Y")
+                if ends_txt and mailer.enabled():
+                    subject, html_body, text_body = mailer.cancelled_email(
+                        (acc or {}).get("name") or "",
+                        "Pro" if st_.get("pro") else "Alerts",
+                        ends_txt, accounts.email_token((acc or {}).get("token") or ""))
+                    mailer.send(me, subject, html_body, text_body)
+                    print(f"  plan: cancellation receipt sent to {me}", flush=True)
+            except Exception as e:
+                print(f"  ! cancellation receipt failed for {me}: {e!r}", flush=True)
             if why:
                 try:
                     import store

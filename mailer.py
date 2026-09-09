@@ -357,6 +357,48 @@ def _gig_out_url(gig: dict, email_tok: str) -> str:
     return f"{BOARD_URL}/out/{gid}?e={email_tok}"
 
 
+# ---------------------------------------------------------------------------
+# cancellation receipt — the one email someone gets for ENDING something. It
+# exists because a page can be closed, mis-read or never revisited, and the
+# one fact that matters afterwards is a date: when access stops. That belongs
+# somewhere they can find it later, which is their inbox.
+#
+# Deliberately not a win-back. Someone who just cancelled has decided, and an
+# offer stapled to their receipt reads as not listening. The door back is a
+# plain link, no discount, no countdown.
+# ---------------------------------------------------------------------------
+def cancelled_email(name: str, plan_name: str, ends_at: str,
+                    unsub_token: str) -> tuple[str, str, str]:
+    hi = f"{name}, y" if name else "Y"
+    link = f"{BOARD_URL}/plans"
+    subject = f"Your Nabbly {plan_name} plan ends {ends_at}"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  Your subscription is cancelled.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  {hi}ou keep {plan_name} until <b>{ends_at}</b>. Nothing is charged after
+  that, and nothing is charged today.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  Your account, your saved gigs and your profile all stay exactly as they
+  are. You drop to the free plan, not out of Nabbly, and the whole board
+  is still yours to search.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 4px;">
+  <a href="{link}" style="color:{AMBER};font-weight:600;">Start again any time</a>
+  — same account, nothing to set up twice.
+</p>
+"""
+    text = (f"Your subscription is cancelled.\n\n"
+            f"{hi}ou keep {plan_name} until {ends_at}. Nothing is charged "
+            f"after that, and nothing is charged today.\n\n"
+            f"Your account, saved gigs and profile stay exactly as they are. "
+            f"You drop to the free plan, not out of Nabbly.\n\n"
+            f"Start again any time: {link}\n")
+    return subject, _shell(f"{plan_name} ends {ends_at}", body, unsub_token), text
+
+
 def digest_email(name: str, gigs: list[dict], total: int, token: str,
                  stats: dict | None = None) -> tuple[str, str, str]:
     """
