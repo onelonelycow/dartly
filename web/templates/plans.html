@@ -75,6 +75,17 @@
 .pl-ok{border:1px solid rgba(53,179,126,.4);background:rgba(53,179,126,.08);
   border-radius:12px;padding:13px 15px;font-size:13.5px;color:var(--ink2);
   margin:0 0 20px}
+.pl-ok b{color:var(--ink);font-weight:650}
+/* NOT the success green. Cancelling is not a failure and not a win -- it is a
+   thing that happened, and it needs the date more than it needs a colour.
+   Amber ties it to the card it refers to. */
+.pl-bye{border:1px solid rgba(232,147,58,.45);background:rgba(232,147,58,.08);
+  border-radius:12px;padding:13px 15px;font-size:13.5px;color:var(--ink2);
+  line-height:1.6;margin:0 0 20px}
+.pl-bye b{color:var(--amber-l);font-weight:650}
+.pl-bad{border:1px solid rgba(233,98,80,.45);background:rgba(233,98,80,.08);
+  border-radius:12px;padding:13px 15px;font-size:13.5px;color:var(--ink2);
+  line-height:1.6;margin:0 0 20px}
 {% endblock %}
 
 {% block body %}
@@ -92,6 +103,28 @@
   {# Only ever shown on the render Stripe redirects into, and only when Stripe
      itself confirmed the payment — never from the query string alone. #}
   <div class="pl-ok">You're all set. Your plan is live on this account now.</div>
+{% endif %}
+
+{# THE ACKNOWLEDGEMENT. A card changing from "Current plan" to "Cancels 8
+   October" is not confirmation: the founder pressed cancel five times because
+   a quietly different label reads exactly like nothing happening. Set by the
+   route, and only after the state was checked — see `did`. #}
+{% if did == 'cancelled' %}
+  <div class="pl-bye">
+    <b>Your subscription is cancelled.</b>
+    You keep {{ plan_label }} until <b>{{ ends_at }}</b>, and nothing is
+    charged after that. You can start again any time.
+  </div>
+{% elif did == 'alerts' %}
+  <div class="pl-ok">You're on <b>Alerts</b> now. The difference is prorated —
+    Stripe credits what you had left.</div>
+{% elif did == 'pro' %}
+  <div class="pl-ok">You're on <b>Pro</b> now. Ranking, market rates and texts
+    are on from this moment.</div>
+{% elif did == 'failed' %}
+  <div class="pl-bad">That didn't go through, and nothing was changed. Try
+    again in a moment — if it keeps failing, reply to any Nabbly email and it
+    gets sorted by hand.</div>
 {% endif %}
 
 <div class="pl-head">

@@ -1682,7 +1682,8 @@ PLAN_PRICE = {"alerts": 5, "pro": 15}
 
 
 @app.get("/plans", response_class=HTMLResponse)
-def plans_page(request: Request, stripe_session: str = Query("")):
+def plans_page(request: Request, stripe_session: str = Query(""),
+                done: str = Query("", max_length=12)):
     """
     The plans, on the board — the surface people actually use.
 
@@ -1792,9 +1793,23 @@ def plans_page(request: Request, stripe_session: str = Query("")):
         except Exception:
             pass
 
+    # WHAT TO ACKNOWLEDGE, and only when the state agrees with the claim. The
+    # query string is a hint from our own redirect, never the evidence: a
+    # cancellation banner is shown because Stripe reports a stopping date, and
+    # a plan banner because the account is actually on that plan now. Someone
+    # editing the URL gets nothing.
+    did = ""
+    if done == "free" and ends_at:
+        did = "cancelled"
+    elif done in ("pro", "alerts") and (st_.get("plan") or "") == done:
+        did = done
+    elif done == "failed":
+        did = "failed"
+
     return templates.TemplateResponse(request, "plans.html", {
         "me": me, "tab": "plans", "st": st_, "price": PLAN_PRICE,
-        "links": links, "on_paid": on_paid, "paid_ok": paid_ok,
+        "links": links, "on_paid": on_paid, "paid_ok": paid_ok, "did": did,
+        "plan_label": "Pro" if st_.get("pro") else "Alerts",
         # NOT WHILE A CANCELLATION IS PENDING. switch_plan re-prices the
         # subscription but leaves cancel_at_period_end set, so an "Upgrade
         # to Pro" offered here would charge more for something already on
@@ -1915,7 +1930,13 @@ def plan_switch(request: Request, tier: str = Form(""),
             print(f"  plan: {me} -> {tier}", flush=True)
     if not ok:
         print(f"  ! plan switch failed for {me} -> {tier}: {err}", flush=True)
-    return RedirectResponse("/plans", status_code=303)
+        return RedirectResponse("/plans?done=failed", status_code=303)
+    # SAYS WHAT JUST HAPPENED, so /plans can acknowledge it. The card changing
+    # from "Current plan" to "Cancels 8 October" is not confirmation -- the
+    # founder pressed cancel five times because a quietly different label is
+    # indistinguishable from nothing happening. The param is a HINT only: the
+    # banner still refuses to render unless the state below actually agrees.
+    return RedirectResponse(f"/plans?done={tier}", status_code=303)
 
 
 @app.get("/profile", response_class=HTMLResponse)
