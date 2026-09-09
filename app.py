@@ -170,12 +170,36 @@ _TO_BOARD = {"dashboard": "/", "gigs": "/gigs", "market": "/market",
 
 
 def _forward(dest: str):
-    """Send the browser to the board, and stop the script before it costs."""
+    """
+    Send the browser to the board, and stop the script before it costs.
+
+    THE FALLBACK IS HIDDEN FOR THE FIRST FEW SECONDS. The founder: "for a split
+    second when i load app.nabbly.com it shows this, and i dont want this to be
+    seen by the actual user". He is right -- someone who lands here is
+    mid-navigation, and "Moved to https://board.nabbly.co/." flashing past reads
+    like a broken site rather than a redirect that worked.
+
+    It cannot simply be deleted: the meta refresh is the whole mechanism, and if
+    it ever fails to fire (a browser with it disabled, a proxy stripping it) a
+    blank page strands them with no way forward. So the link stays in the
+    markup, invisible, and fades in after three seconds -- long past when a
+    working redirect has already left. Nobody sees it unless they need it.
+
+    No JavaScript: Streamlit strips <script> from st.markdown even with
+    unsafe_allow_html, so window.location.replace is not available here. The
+    meta refresh is what actually moves the browser.
+    """
     url = dest if dest.startswith("http") else f"{_BOARD}{dest}"
+    esc = html.escape(url, quote=True)
     st.markdown(
-        f'<meta http-equiv="refresh" content="0; url={html.escape(url, quote=True)}">'
-        f'<p style="font-family:system-ui;padding:24px">Moved to '
-        f'<a href="{html.escape(url, quote=True)}">{html.escape(url)}</a>.</p>',
+        f'<meta http-equiv="refresh" content="0; url={esc}">'
+        '<style>'
+        '.nb-fwd{opacity:0;animation:nbfwd 240ms ease-in 3s forwards}'
+        '@keyframes nbfwd{to{opacity:1}}'
+        '</style>'
+        f'<p class="nb-fwd" style="font-family:system-ui;padding:24px">'
+        f'Taking you to <a href="{esc}">{html.escape(url)}</a> — '
+        f'tap the link if nothing happens.</p>',
         unsafe_allow_html=True)
     st.stop()
 

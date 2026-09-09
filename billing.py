@@ -333,7 +333,27 @@ def period_end(sub_id: str) -> int:
         # The furthest out, so a mixed-interval subscription reports when
         # access actually stops rather than when its shortest line renews.
         return max(ends)
-    return int(getattr(sub, "current_period_end", 0) or 0)
+    top = int(getattr(sub, "current_period_end", 0) or 0)
+    if top:
+        return top
+    # AND SAY WHAT IT DID SEE. Returning 0 here is indistinguishable from "not
+    # cancelling" by the time it reaches the page, which is how this card has
+    # now failed three times in a row on three different missing fields. The
+    # keys are dumped rather than guessed at: whatever holds the date, it is
+    # in one of these.
+    try:
+        item_keys = sorted(sub["items"]["data"][0].keys()) if sub["items"]["data"] else []
+    except Exception as e:
+        item_keys = [f"<unreadable: {e!r}>"]
+    try:
+        sub_keys = sorted(sub.keys())
+    except Exception:
+        sub_keys = []
+    print(f"  ! stripe period_end: {sub_id} has no period end anywhere — "
+          f"cancel_at={getattr(sub, 'cancel_at', None)!r} "
+          f"cancel_at_period_end={getattr(sub, 'cancel_at_period_end', None)!r} "
+          f"item_keys={item_keys} sub_keys={sub_keys}", flush=True)
+    return 0
 
 
 def cancelling(sub_id: str) -> bool:
