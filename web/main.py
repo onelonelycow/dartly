@@ -1865,7 +1865,21 @@ def plan_switch(request: Request, tier: str = Form(""),
     acc = webauth.account_for(request)
     sub_id = (acc or {}).get("stripe_subscription_id") or ""
     tier = (tier or "").strip().lower()
-    if tier not in ("free", "alerts", "pro") or not sub_id or not billing.enabled():
+    # AND SAY WHICH ONE. This returned a bare 303 -- the same status a success
+    # returns -- so a refused switch and a completed one were indistinguishable
+    # from the browser AND from the logs. That is the fourth silent return to
+    # cost an hour today, and it is in code written while fixing the other
+    # three. A guard that refuses correctly and says nothing is still a bug.
+    if tier not in ("free", "alerts", "pro"):
+        print(f"  ! plan switch: bad tier {tier!r} for {me}", flush=True)
+        return RedirectResponse("/plans", status_code=303)
+    if not sub_id:
+        print(f"  ! plan switch: {me} has no stripe_subscription_id on file — "
+              f"nothing to change", flush=True)
+        return RedirectResponse("/plans", status_code=303)
+    if not billing.enabled():
+        print("  ! plan switch: billing not configured on this service",
+              flush=True)
         return RedirectResponse("/plans", status_code=303)
 
     if tier == "free":
