@@ -1749,6 +1749,33 @@ def plans_page(request: Request, stripe_session: str = Query("")):
     # is already waiting on a render, so it is the natural place to ask.
     sub_id = (acc or {}).get("stripe_subscription_id") or ""
     ends_at = ""
+
+    # SELF-HEAL A PAYMENT THAT NEVER LANDED. A checkout became a plan in
+    # exactly one way -- the browser returning here with the session id on the
+    # URL -- so a closed tab, a dropped connection or a stripped query string
+    # meant the money was taken and nothing granted, for good. That is not
+    # hypothetical: it happened on the first real purchase, on 2026-09-08.
+    #
+    # Asking Stripe what this ADDRESS pays for needs no session and no
+    # redirect, so it also recovers an account whose confirm_session refused
+    # for a reason nobody has thought of yet. Only for a signed-in member who
+    # appears unpaid and has no subscription on file, so it is one extra call
+    # on a page that is not hot, and never for anyone already served.
+    if me and not on_paid and not sub_id and billing.enabled():
+        try:
+            found_sub, found_plan = billing.subscription_for_email(me)
+            if found_sub and found_plan:
+                accounts.set_plan(me, found_plan)
+                accounts.set_stripe_ids(me, "", found_sub)
+                print(f"  billing: recovered {found_plan} for {me} from Stripe "
+                      f"(sub {found_sub}) — the checkout redirect never landed",
+                      flush=True)
+                st_ = accounts.status(webauth.account_for(request)) or st_
+                on_paid = True
+                sub_id = found_sub
+                links = {}
+        except Exception as e:
+            print(f"  ! billing recover: {type(e).__name__}: {e}", flush=True)
     if me and sub_id and billing.enabled():
         try:
             settled = billing.reconcile_plan(me, sub_id)

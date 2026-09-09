@@ -362,3 +362,58 @@ def reconcile_plan(email: str, sub_id: str) -> str:
         print(f"  billing: {email} {now or 'none'} -> {plan} (stripe)", flush=True)
         return plan
     return plan
+
+
+def subscription_for_email(email: str) -> tuple[str, str]:
+    """
+    What Stripe says this ADDRESS is paying for: (subscription_id, plan).
+
+    THE RECOVERY PATH, and the reason it exists: until now a payment became a
+    plan in exactly one way -- the browser getting back to /plans with the
+    Checkout session id on the URL. Close the tab, lose the query string, drop
+    the connection, and the money was taken and nothing was granted, with no
+    way back. That happened on the first real purchase.
+
+    So this asks the question the other way round. It needs no session, no
+    redirect and no stored id, which means it also heals an account whose
+    confirm_session failed for a reason we have not thought of yet.
+
+    Reads only. Grant decisions stay with the caller.
+    """
+    if not SECRET_KEY or not email:
+        return "", ""
+    try:
+        customers = stripe.Customer.list(email=email.strip().lower(),
+                                         limit=10, timeout=15)
+    except Exception as e:
+        print(f"  ! stripe customer lookup: {type(e).__name__}: {e}", flush=True)
+        return "", ""
+    best = ("", "")
+    for cust in getattr(customers, "data", []) or []:
+        try:
+            subs = stripe.Subscription.list(customer=cust.id, status="all",
+                                            limit=10, timeout=15)
+        except Exception:
+            continue
+        for sub in getattr(subs, "data", []) or []:
+            if getattr(sub, "status", "") not in ("active", "trialing"):
+                continue
+            plan = ""
+            try:
+                for item in sub["items"]["data"]:
+                    got = _plan_for_price(item["price"]["id"])
+                    if got == "pro":
+                        plan = got
+                        break
+                    if got:
+                        plan = got
+            except Exception:
+                continue
+            if not plan:
+                continue
+            # Pro beats alerts if somebody somehow holds both, matching the
+            # precedence confirm_session already applies within one session.
+            if plan == "pro":
+                return sub.id, plan
+            best = (sub.id, plan)
+    return best
