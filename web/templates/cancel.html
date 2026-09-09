@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Cancel your plan · Nabbly{% endblock %}
+
+{% block extra_css %}
+/* Reached by someone who has decided, or nearly. No upsell, no guilt, no
+   countdown -- state what happens, take the reason if they will give it, and
+   get out of the way. The one thing this page owes them is the date. */
+.cx{max-width:520px;margin:44px auto}
+.cx h1{font-size:25px;font-weight:650;letter-spacing:-.02em;margin:0 0 10px}
+.cx p{font-size:14.5px;color:var(--ink2);line-height:1.6;margin:0 0 14px}
+.cx .keep{border:1px solid rgba(232,147,58,.4);background:rgba(232,147,58,.07);
+  border-radius:12px;padding:13px 15px;font-size:13.5px;color:var(--ink2);
+  margin:0 0 22px}
+.cx .keep b{color:var(--amber-l);font-weight:650}
+.cx label{display:block;font-size:13px;color:var(--mute);margin:0 0 7px}
+.cx select{width:100%;padding:11px 12px;border-radius:11px;font-size:14px;
+  background:var(--bg2);color:var(--ink);border:1px solid var(--line2);
+  font-family:inherit}
+.cx select:focus{outline:none;border-color:var(--amber-d)}
+.cx .acts{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.cx .acts a,.cx .acts button{flex:1 1 190px;text-align:center;border-radius:11px;
+  padding:12px 14px;font-size:13.5px;font-weight:650;text-decoration:none;
+  cursor:pointer;font-family:inherit}
+/* KEEPING IS THE SOLID ONE. Not to nudge -- the destructive action is the
+   rarer intent, and a filled button is where the eye lands first. */
+.cx .stay{background:var(--amber);color:#1b1205;border:0}
+.cx .stay:hover{background:var(--amber-l)}
+.cx .go{background:var(--bg);color:var(--ink2);border:1px solid var(--line2)}
+.cx .go:hover{border-color:#8c3a3a;color:#e08b8b}
+{% endblock %}
+
+{% block body %}
+<div class="cx">
+  <h1>Cancel your <span class="gr-accent">{{ plan_name }}</span> plan?</h1>
+
+  {% if ends_at %}
+  <div class="keep">You keep {{ plan_name }} until <b>{{ ends_at }}</b>. Nothing
+    is charged after that, and nothing is charged today.</div>
+  {% else %}
+  <div class="keep">You keep {{ plan_name }} until the end of the period you have
+    already paid for. Nothing is charged after that, and nothing today.</div>
+  {% endif %}
+
+  <p>Your account, your saved gigs and your profile all stay exactly as they
+    are — you drop to Free, not out.</p>
+
+  <form method="post" action="/plan/switch">
+    <input type="hidden" name="tier" value="free">
+    {# Optional on purpose. They have decided; a required field here is a toll
+       booth on the way out, and the answer it extracts is the least honest
+       one. #}
+    <label for="why">If you want to say why — it genuinely helps</label>
+    <select id="why" name="why">
+      <option value="">Rather not say</option>
+      <option value="price">Too expensive</option>
+      <option value="not_enough_gigs">Not enough gigs I'd actually take</option>
+      <option value="found_work">I found work, don't need it right now</option>
+      <option value="alerts_noisy">Too many alerts, or the wrong ones</option>
+      <option value="alerts_quiet">Not enough alerts</option>
+      <option value="drafts">The drafted replies weren't useful</option>
+      <option value="broken">Something didn't work</option>
+      <option value="other">Something else</option>
+    </select>
+    <div class="acts">
+      <a class="stay" href="/plans">Keep my plan</a>
+      <button class="go" type="submit">Cancel subscription</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

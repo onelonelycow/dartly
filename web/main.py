@@ -1806,8 +1806,46 @@ def plans_page(request: Request, stripe_session: str = Query("")):
     })
 
 
+@app.get("/plan/cancel", response_class=HTMLResponse)
+def plan_cancel_page(request: Request):
+    """
+    Ask before ending a subscription, and say what ending it means.
+
+    Cancel was a single click that changed what somebody is charged, with no
+    step in between and -- while period_end was broken -- no visible result
+    either. The founder clicked it three times in a row because nothing
+    appeared to happen. A confirmation would have shown him where he stood on
+    the first click, and it is the right shape for a billing action regardless.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    acc = webauth.account_for(request)
+    st_ = accounts.status(acc) or {}
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    # Nothing to cancel: a comped or founding plan has no Stripe subscription
+    # behind it, and offering to end one would be a lie.
+    if not sub_id or not billing.enabled():
+        return RedirectResponse("/plans", status_code=303)
+    ends_at = ""
+    try:
+        ts = billing.period_end(sub_id)
+        if ts:
+            ends_at = datetime.fromtimestamp(
+                ts, tz=timezone.utc).strftime("%-d %B %Y")
+    except Exception:
+        pass
+    return templates.TemplateResponse(request, "cancel.html", {
+        "me": me, "tab": "plans", "st": st_, "ends_at": ends_at,
+        "plan_name": "Pro" if st_.get("pro") else "Alerts",
+        "css_v": CSS_V, "indexable": False, "app_url": APP_URL,
+    })
+
+
 @app.post("/plan/switch")
-def plan_switch(request: Request, tier: str = Form("")):
+def plan_switch(request: Request, tier: str = Form(""),
+                why: str = Form("")):
     """
     Move an existing subscriber between plans, including off them.
 
@@ -1836,7 +1874,23 @@ def plan_switch(request: Request, tier: str = Form("")):
         # the account to free once the subscription actually ends.
         ok, err = billing.cancel_at_period_end(sub_id)
         if ok:
-            print(f"  plan: {me} cancels at period end", flush=True)
+            print(f"  plan: {me} cancels at period end"
+                  f"{' (' + why + ')' if why else ''}", flush=True)
+            # WHY, WHEN THEY OFFER IT. At this size a single churn reason is a
+            # large fraction of what is known about why anyone leaves, and it
+            # is unrecoverable after the fact. Keyed by email so a second
+            # cancellation replaces the first rather than accumulating.
+            if why:
+                try:
+                    import store
+                    if store.enabled():
+                        store.put("_churn", me, {
+                            "email": me, "reason": why,
+                            "plan": st_.get("plan") or "",
+                            "at": datetime.now(timezone.utc).isoformat(
+                                timespec="seconds")})
+                except Exception:
+                    pass
     else:
         ok, err = billing.switch_plan(sub_id, tier)
         if ok:

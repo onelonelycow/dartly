@@ -130,8 +130,13 @@
       {% elif can_switch %}
         {# CALLED WHAT IT IS. "Switch to Free" reads like a plan change and
            this ends a subscription -- the reader deserves the real word before
-           they click, not after. #}
-        {{ switch('free', 'Cancel subscription') }}
+           they click, not after.
+
+           A LINK, not the switch form: it goes to /plan/cancel to confirm.
+           Ending a subscription in one click, with no step in between, is how
+           the founder cancelled three times in a row without knowing whether
+           any of them had worked. #}
+        <a class="ghost" href="/plan/cancel">Cancel subscription</a>
       {% endif %}
     </div>
   </div>
