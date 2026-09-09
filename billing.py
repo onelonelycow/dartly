@@ -104,10 +104,17 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
         print(f"  ! stripe confirm: {type(e).__name__}: {e}", flush=True)
         return False, ""
     ps = getattr(session, "payment_status", "")
-    if ps != "paid":
-        # no_payment_required is what a 100%-off or zero-amount checkout
-        # returns. It is a real purchase and is handled below, not here.
-        print(f"  ! confirm: payment_status={ps!r} (wanted paid)", flush=True)
+    # "no_payment_required" IS A COMPLETED CHECKOUT. Stripe returns it when the
+    # total came to zero -- a 100%-off promotion code, or a trial that collects
+    # nothing today. Rejecting it meant any promotion would take the signup,
+    # create a real subscription, and grant NOTHING: charged nothing and given
+    # nothing, silently, which is the same shape as the alerts tier that
+    # set_plan used to refuse. Every check below still runs, so a free checkout
+    # earns a plan on exactly the same evidence a paid one does -- the right
+    # price, a real subscription, and that subscription live.
+    if ps not in ("paid", "no_payment_required"):
+        print(f"  ! confirm: payment_status={ps!r} "
+              f"(wanted paid or no_payment_required)", flush=True)
         return False, ""
 
     # A paid session stays retrievable from Stripe forever, so "payment_status
