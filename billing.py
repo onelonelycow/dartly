@@ -301,14 +301,39 @@ def cancel_at_period_end(sub_id: str) -> tuple[bool, str]:
 
 
 def period_end(sub_id: str) -> int:
-    """Unix time this subscription's paid period runs out, or 0."""
+    """
+    Unix time this subscription's paid period runs out, or 0.
+
+    READ FROM THE ITEM FIRST. Stripe's Basil release (2025-03-31) removed
+    current_period_end from the Subscription object and moved it onto each
+    subscription item, so the old top-level read returned nothing at all --
+    and an empty date is indistinguishable from "not cancelling", which is
+    exactly how it looked: the cancel went through at Stripe, the page showed
+    no change, and the button read as broken.
+
+    The top-level field is still tried afterwards, for an account pinned to an
+    older API version where it remains.
+    """
     if not SECRET_KEY or not sub_id:
         return 0
     try:
         sub = stripe.Subscription.retrieve(sub_id)
-        return int(getattr(sub, "current_period_end", 0) or 0)
-    except Exception:
+    except Exception as e:
+        print(f"  ! stripe period_end: {type(e).__name__}: {e}", flush=True)
         return 0
+    ends = []
+    try:
+        for item in sub["items"]["data"]:
+            ts = item.get("current_period_end") if hasattr(item, "get") else None
+            if ts:
+                ends.append(int(ts))
+    except Exception:
+        pass
+    if ends:
+        # The furthest out, so a mixed-interval subscription reports when
+        # access actually stops rather than when its shortest line renews.
+        return max(ends)
+    return int(getattr(sub, "current_period_end", 0) or 0)
 
 
 def cancelling(sub_id: str) -> bool:
