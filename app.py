@@ -978,6 +978,14 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-doc ul{margin:0 0 16px;padding-left:20px}
 .gr-doc li{font-size:15.5px;color:#b8bfc9;margin:7px 0;padding-left:2px}
 .gr-doc li::marker{color:#E8933A}
+/* The Stripe jump links on the admin page. Chips rather than a list: they are
+   five destinations of equal weight, and a bulleted list of five links reads
+   as reading material instead of a control strip. */
+.gr-striperow{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
+.gr-striperow a{display:inline-block;padding:7px 12px;border-radius:9px;
+  border:1px solid #2f343d;background:#15181d;color:#AEB4BE !important;
+  font-size:12.5px;font-weight:600;text-decoration:none !important}
+.gr-striperow a:hover{border-color:#CB6F16;color:#F7B569 !important}
 .gr-doc a{color:#eaa662!important;text-decoration:none;
   border-bottom:1px solid rgba(232,147,58,.35)}
 .gr-doc a:hover{border-bottom-color:#E8933A}
@@ -5202,6 +5210,53 @@ def view_admin():
         ("Last 24 hours", f"{s['sessions_24h']:,}", "#5b9dff"),
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
     ])
+
+    # --- Billing: the Stripe pages, and who is actually on them ------------
+    #
+    # Refunding a charge, reading an invoice and cancelling from the other side
+    # all live in Stripe -- this app never touches money, it only tells Stripe
+    # what to charge. So the useful thing is not to rebuild any of that here,
+    # it is to remove the hunt: land on the right Stripe page in one click, and
+    # go from a Nabbly account straight to ITS subscription rather than
+    # searching the dashboard by email.
+    #
+    # Live-mode URLs. Stripe puts test mode behind a /test/ prefix, and these
+    # deliberately point at the real one, because the reason to open this
+    # section is almost always a real customer's money.
+    st.markdown("#### Billing")
+    _sub_rows = [r for r in accounts.all_accounts()
+                 if (r.get("stripe_subscription_id") or "").strip()]
+    st.caption(f"{len(_sub_rows)} account"
+               f"{'' if len(_sub_rows) == 1 else 's'} with a Stripe "
+               f"subscription on file. Everything below opens Stripe in a new "
+               f"tab — refunds, invoices and card details all live there.")
+    st.markdown(
+        '<div class="gr-striperow">'
+        '<a href="https://dashboard.stripe.com/payments" target="_blank" '
+        'rel="noopener">Payments</a>'
+        '<a href="https://dashboard.stripe.com/subscriptions" target="_blank" '
+        'rel="noopener">Subscriptions</a>'
+        '<a href="https://dashboard.stripe.com/customers" target="_blank" '
+        'rel="noopener">Customers</a>'
+        '<a href="https://dashboard.stripe.com/products" target="_blank" '
+        'rel="noopener">Products &amp; prices</a>'
+        '<a href="https://dashboard.stripe.com/billing" target="_blank" '
+        'rel="noopener">Billing overview</a>'
+        '</div>', unsafe_allow_html=True)
+
+    if _sub_rows:
+        _sd = pd.DataFrame([{
+            "Email": r.get("email", ""),
+            "Plan": (r.get("plan") or "") or "—",
+            # The id is the thing you paste into Stripe's search when a link
+            # is not to hand, so it is shown rather than hidden behind one.
+            "Subscription": r.get("stripe_subscription_id") or "",
+            "Open in Stripe": "https://dashboard.stripe.com/subscriptions/"
+                              + (r.get("stripe_subscription_id") or ""),
+        } for r in _sub_rows])
+        st.dataframe(_sd, width="stretch", hide_index=True,
+                     column_config={"Open in Stripe": st.column_config.LinkColumn(
+                         "Open in Stripe", display_text="Open →")})
 
     # --- Partner links: did the collaboration actually work? ----------------
     _camp = analytics.campaign_funnel(30)
