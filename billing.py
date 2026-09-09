@@ -99,9 +99,9 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
         return False, ""
     try:
         session = stripe.checkout.Session.retrieve(
-            session_id, expand=["line_items"], timeout=15)
+            session_id, expand=["line_items"])
     except Exception as e:
-        print(f"  ! stripe confirm: {type(e).__name__}: {e}")
+        print(f"  ! stripe confirm: {type(e).__name__}: {e}", flush=True)
         return False, ""
     ps = getattr(session, "payment_status", "")
     if ps != "paid":
@@ -160,7 +160,7 @@ def confirm_session(session_id: str) -> tuple[bool, str]:
         print(f"  ! confirm: no subscription on session for {email}", flush=True)
         return False, ""
     try:
-        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        sub = stripe.Subscription.retrieve(sub_id)
         sst = getattr(sub, "status", "")
         if sst not in ("active", "trialing"):
             print(f"  ! confirm: subscription {sub_id} is {sst!r}", flush=True)
@@ -207,7 +207,7 @@ def plan_for_subscription(sub_id: str) -> tuple[str, str]:
     if not SECRET_KEY or not sub_id:
         return "", ""
     try:
-        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        sub = stripe.Subscription.retrieve(sub_id)
     except Exception as e:
         print(f"  ! stripe sub read: {type(e).__name__}: {e}", flush=True)
         return "", ""
@@ -252,7 +252,7 @@ def switch_plan(sub_id: str, tier: str) -> tuple[bool, str]:
     if not SECRET_KEY or not price or not sub_id:
         return False, "billing is not configured"
     try:
-        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        sub = stripe.Subscription.retrieve(sub_id)
     except Exception as e:
         return False, f"could not read the subscription ({type(e).__name__})"
     if getattr(sub, "status", "") not in ("active", "trialing"):
@@ -273,7 +273,6 @@ def switch_plan(sub_id: str, tier: str) -> tuple[bool, str]:
             # should never be blocked behind a payment that needs a card
             # challenge. Stripe bills the difference on the next invoice.
             payment_behavior="allow_incomplete",
-            timeout=15,
         )
     except Exception as e:
         print(f"  ! stripe switch: {type(e).__name__}: {e}", flush=True)
@@ -294,7 +293,7 @@ def cancel_at_period_end(sub_id: str) -> tuple[bool, str]:
         return False, "billing is not configured"
     try:
         sub = stripe.Subscription.modify(
-            sub_id, cancel_at_period_end=True, timeout=15)
+            sub_id, cancel_at_period_end=True)
     except Exception as e:
         print(f"  ! stripe cancel: {type(e).__name__}: {e}", flush=True)
         return False, f"Stripe refused the cancellation ({type(e).__name__})"
@@ -306,7 +305,7 @@ def period_end(sub_id: str) -> int:
     if not SECRET_KEY or not sub_id:
         return 0
     try:
-        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        sub = stripe.Subscription.retrieve(sub_id)
         return int(getattr(sub, "current_period_end", 0) or 0)
     except Exception:
         return 0
@@ -317,7 +316,7 @@ def cancelling(sub_id: str) -> bool:
     if not SECRET_KEY or not sub_id:
         return False
     try:
-        sub = stripe.Subscription.retrieve(sub_id, timeout=15)
+        sub = stripe.Subscription.retrieve(sub_id)
         return bool(getattr(sub, "cancel_at_period_end", False))
     except Exception:
         return False
@@ -383,8 +382,12 @@ def subscription_for_email(email: str) -> tuple[str, str]:
     if not SECRET_KEY or not email:
         return "", ""
     try:
-        customers = stripe.Customer.list(email=email.strip().lower(),
-                                         limit=10, timeout=15)
+        # NO timeout= HERE. Stripe's LIST endpoints treat unrecognised keyword
+        # arguments as query filters and reject them outright --
+        # "Received unknown parameter: timeout" -- so the whole lookup failed
+        # before it asked anything. retrieve() tolerates it, which is why the
+        # calls above have carried it for months without complaint.
+        customers = stripe.Customer.list(email=email.strip().lower(), limit=10)
     except Exception as e:
         print(f"  ! stripe customer lookup: {type(e).__name__}: {e}", flush=True)
         return "", ""
@@ -392,7 +395,7 @@ def subscription_for_email(email: str) -> tuple[str, str]:
     for cust in getattr(customers, "data", []) or []:
         try:
             subs = stripe.Subscription.list(customer=cust.id, status="all",
-                                            limit=10, timeout=15)
+                                            limit=10)
         except Exception:
             continue
         for sub in getattr(subs, "data", []) or []:
