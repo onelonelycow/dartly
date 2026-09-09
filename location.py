@@ -98,7 +98,13 @@ _WORLDWIDE = re.compile(r"worldwide|anywhere in the world|work from anywhere"
                         r"|glob(?:al|ally)\s+(?:distributed|remote)"
                         r"|(?:hiring|hire|work|remote)\s+globally"
                         r"|fully distributed"
-                        r"|remote\s*[\-–]\s*anywhere|open to all", re.I)
+                        r"|remote\s*[\-–]\s*anywhere"
+                        # "open to all" ALONE IS ABOUT PEOPLE, NOT PLACE.
+                        # It matched "open to all experience levels" and
+                        # "open to all backgrounds" -- inclusion
+                        # statements, read as permission to work from
+                        # anywhere. It only counts where a place follows.
+                        r"|open to all\s+(?:countries|locations|timezones|time zones|regions|nationalities)", re.I)
 
 # What the profile's country dropdown offers, and how each maps to a region code.
 COUNTRIES = ["United States", "United Kingdom", "European Union", "Canada",
