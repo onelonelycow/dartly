@@ -522,3 +522,84 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
             f"The best fits from the last 7 days, ranked the same way the dashboard "
             f"ranks them.\n\n{text_rows}\n\nSee the whole board: {board_url}\n")
     return subject, _shell(f"{total} gigs matched your profile this week.", body, token), text
+
+
+# ---------------------------------------------------------------------------
+# instant alert — the Alerts tier's actual product
+# ---------------------------------------------------------------------------
+def alert_email(name: str, gigs: list[dict], total: int,
+                token: str) -> tuple[str, str, str]:
+    """
+    "These just landed" — the same job send_ntfy does, for the channel every
+    subscriber already has.
+
+    Deliberately NOT digest_email with a different heading. A digest is a
+    weekly retrospective with stats and fit scores; this is a nudge about
+    something that went up minutes ago and will be gone in a day. It leads
+    with the gigs, carries no stats block, and says when each one posted,
+    because on this tier "how fresh" is the only number that matters.
+
+    Every gig title routes through _gig_out_url, so a click from a phone's
+    mail app lands on the posting AND counts toward the same applied number
+    the weekly digest reports — see web/main.py's /out route for why the
+    email token is safe to put in a link.
+    """
+    import config
+
+    plural = "s" if total != 1 else ""
+    if total == 1:
+        subject = gigs[0]["title"][:120]
+    else:
+        subject = f"{total} new gig{plural} matched your alerts"
+
+    rows = []
+    for g in gigs:
+        src = config.source_label(g.get("source", ""))
+        urgent = ('<span style="color:%s;font-weight:650;">Urgent</span> &middot; ' % AMBER
+                  if g.get("urgency") == "Urgent" else "")
+        rows.append(f"""
+<tr><td style="padding:14px 0;border-top:1px solid {LINE};">
+  <a href="{_gig_out_url(g, token)}" style="font-size:14.5px;font-weight:650;color:{INK};text-decoration:none;">
+    {g['title']}
+  </a>
+  <div style="font-size:12.5px;color:{MUTE};margin-top:4px;">
+    {urgent}{g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
+  </div>
+</td></tr>""")
+
+    if total > len(gigs):
+        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
+                     f'<a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;'
+                     f'text-decoration:none;">and {total - len(gigs)} more that just landed '
+                     f'&rarr;</a></p>')
+    else:
+        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
+                     f'<a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;'
+                     f'text-decoration:none;">See everything new on the board &rarr;</a></p>')
+
+    hi = f"{name}, these" if name else "These"
+    body = f"""
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 6px;">
+  {hi} just landed
+</h1>
+<p style="font-size:13.5px;color:{MUTE};margin:0 0 4px;">
+  {total} new gig{plural} matching your alerts.
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{''.join(rows)}
+</table>
+{more_line}
+<p style="font-size:12.5px;color:{FAINT};margin:22px 0 0;">
+  Too many of these? <a href="{BOARD_URL}/profile#alerts" style="color:{MUTE};">
+  Change how often you hear from us</a>.
+</p>
+"""
+    text_rows = "\n\n".join(
+        f"{g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget - "
+        f"{config.source_label(g.get('source',''))}\n  {_gig_out_url(g, token)}"
+        for g in gigs)
+    text = (f"{total} new gig{plural} matching your alerts.\n\n{text_rows}\n\n"
+            f"See everything new: {BOARD_URL}/gigs?qf=recent\n"
+            f"Change how often you hear from us: {BOARD_URL}/profile#alerts\n")
+    return subject, _shell(f"{total} new gig{plural} matching your alerts.",
+                           body, token), text

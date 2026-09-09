@@ -2119,6 +2119,9 @@ async def profile_save(request: Request):
         if v in allowed:
             prefs[field] = v
     prefs["urgent_only"] = bool(form.get("urgent_only"))
+    # An unchecked box submits nothing, so presence IS the value — which also
+    # means this is the one place someone can turn the email channel off.
+    prefs["email_alerts"] = bool(form.get("email_alerts"))
     alerts_mod.save_prefs(prefs)
     # Back to the tab they were on. Saving from "Preferences" and landing on
     # "About you" reads as the page having thrown the edit away.

@@ -454,6 +454,18 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
      not firing — somebody on the alerts tier who types a number into an
      enabled-looking box and then hears nothing has been told, by the product,
      that alerts are broken. #}
+  {# EMAIL FIRST, AND ON BY DEFAULT. It is the only channel on this card that
+     needs nothing installed and nothing pasted, so it is the only one that
+     can work for somebody who subscribes and then closes the tab — which is
+     what every subscriber did, receiving nothing, until this existed. #}
+  <div class="chrow">
+    <label class="check"><input type="checkbox" name="email_alerts" value="1"
+      {% if prefs.email_alerts %}checked{% endif %}>
+      <span>Email me at <strong>{{ me }}</strong></span></label>
+    <p class="hint">On by default, and never more than one an hour however
+      often you set the gap below. Nothing to install.</p>
+  </div>
+
   <div class="chrow">
     <label class="f" for="sms_to">Text message{% if not is_pro %}
       <span class="pro-only">Pro</span>{% endif %}</label>
