@@ -1922,11 +1922,31 @@ def plan_switch(request: Request, tier: str = Form(""),
                 if ts:
                     ends_txt = datetime.fromtimestamp(
                         ts, tz=timezone.utc).strftime("%-d %B %Y")
+                # THE SAME NUMBER THEIR DIGEST REPORTS, not a new one invented
+                # for this email: gigs from the last seven days through their
+                # own skills, which is exactly weekly_digest's `matched`. A
+                # figure they have seen before is one they can trust; a figure
+                # only this email produces is one they cannot check.
+                week_n = 0
+                try:
+                    import profile as profile_mod
+                    prof = profile_mod.load() or {}
+                    since = (datetime.now(timezone.utc)
+                             - timedelta(days=7)).isoformat(timespec="seconds")
+                    c = queries.connect(DB_PATH)
+                    try:
+                        week_n = queries.count_since(
+                            since, conn=c, job_types=prof.get("skills") or [])
+                    finally:
+                        c.close()
+                except Exception:
+                    week_n = 0        # a missing number just prints nothing
                 if ends_txt and mailer.enabled():
                     subject, html_body, text_body = mailer.cancelled_email(
                         (acc or {}).get("name") or "",
                         "Pro" if st_.get("pro") else "Alerts",
-                        ends_txt, accounts.email_token((acc or {}).get("token") or ""))
+                        ends_txt, accounts.email_token((acc or {}).get("token") or ""),
+                        week_matches=week_n)
                     mailer.send(me, subject, html_body, text_body)
                     print(f"  plan: cancellation receipt sent to {me}", flush=True)
             except Exception as e:

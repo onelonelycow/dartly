@@ -368,9 +368,29 @@ def _gig_out_url(gig: dict, email_tok: str) -> str:
 # plain link, no discount, no countdown.
 # ---------------------------------------------------------------------------
 def cancelled_email(name: str, plan_name: str, ends_at: str,
-                    unsub_token: str) -> tuple[str, str, str]:
+                    unsub_token: str, week_matches: int = 0) -> tuple[str, str, str]:
+    """
+    week_matches: gigs that matched their skills in the last seven days -- the
+    same count, on the same definition, the weekly digest reports. Stated and
+    left alone: no "don't miss out", no offer. Someone deciding whether to come
+    back is better served by the number than by being sold it, and a number
+    they have already seen in their own digest is one they trust. Zero, or a
+    failure to work it out, prints nothing rather than "0 matches".
+    """
     hi = f"{name}, y" if name else "Y"
     link = f"{BOARD_URL}/plans"
+    matches_html = matches_text = ""
+    if week_matches > 0:
+        gigs = f"{week_matches:,} gig" + ("" if week_matches == 1 else "s")
+        matches_html = (
+            f'<p style="font-size:14.5px;color:{INK};line-height:1.6;'
+            f'margin:0 0 16px;">For what it is worth: <b>{gigs}</b> matched '
+            f'your skills on the board in the last seven days. The board '
+            f'itself stays free, so you can keep watching it either way.</p>')
+        matches_text = (f"For what it is worth: {gigs} matched your skills on "
+                        f"the board in the last seven days. The board itself "
+                        f"stays free, so you can keep watching it either "
+                        f"way.\n\n")
     subject = f"Your Nabbly {plan_name} plan ends {ends_at}"
     body = f"""
 <h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
@@ -385,6 +405,7 @@ def cancelled_email(name: str, plan_name: str, ends_at: str,
   are. You drop to the free plan, not out of Nabbly, and the whole board
   is still yours to search.
 </p>
+{matches_html}
 <p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 4px;">
   <a href="{link}" style="color:{AMBER};font-weight:600;">Start again any time</a>
   — same account, nothing to set up twice.
@@ -395,6 +416,7 @@ def cancelled_email(name: str, plan_name: str, ends_at: str,
             f"after that, and nothing is charged today.\n\n"
             f"Your account, saved gigs and profile stay exactly as they are. "
             f"You drop to the free plan, not out of Nabbly.\n\n"
+            + matches_text +
             f"Start again any time: {link}\n")
     return subject, _shell(f"{plan_name} ends {ends_at}", body, unsub_token), text
 
