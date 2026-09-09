@@ -337,14 +337,42 @@ def period_end(sub_id: str) -> int:
 
 
 def cancelling(sub_id: str) -> bool:
-    """Whether this subscription is set to stop at the end of the period."""
+    """
+    Whether this subscription is set to stop at the end of the period.
+
+    Reads cancel_at as well as cancel_at_period_end: Basil added enum values
+    to cancel_at, and a subscription scheduled to stop by that route carries a
+    timestamp rather than the boolean.
+
+    Logs what Stripe actually returned when it says "no". Twice now the card
+    has failed to show a cancellation that had definitely happened, and both
+    times the reason was a field that had moved -- which is unfalsifiable
+    without seeing the object.
+    """
     if not SECRET_KEY or not sub_id:
         return False
     try:
         sub = stripe.Subscription.retrieve(sub_id)
-        return bool(getattr(sub, "cancel_at_period_end", False))
-    except Exception:
+    except Exception as e:
+        print(f"  ! stripe cancelling: {type(e).__name__}: {e}", flush=True)
         return False
+    flag = bool(getattr(sub, "cancel_at_period_end", False))
+    at = getattr(sub, "cancel_at", None)
+    if flag or at:
+        return True
+    ends = []
+    try:
+        for item in sub["items"]["data"]:
+            ends.append(item.get("current_period_end"))
+    except Exception:
+        pass
+    print(f"  ! stripe cancelling: {sub_id} reports no cancellation — "
+          f"status={getattr(sub, 'status', None)!r} "
+          f"cancel_at_period_end={flag!r} cancel_at={at!r} "
+          f"item_period_ends={ends!r} "
+          f"top_period_end={getattr(sub, 'current_period_end', None)!r}",
+          flush=True)
+    return False
 
 
 # Statuses that mean the money has stopped. "past_due" is NOT here on purpose:
