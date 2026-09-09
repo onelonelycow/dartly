@@ -160,6 +160,9 @@
            still wrong: one date on two cards reads as two separate facts, and
            the founder had to work out they were the same one. The plan that is
            ending owns the sentence; Free is just where they land. #}
+      {% elif on_paid %}
+        {# Same: nothing to cancel, because nothing is being charged. #}
+        <span class="soon">Nothing to cancel</span>
       {% elif can_switch %}
         {# CALLED WHAT IT IS. "Switch to Free" reads like a plan change and
            this ends a subscription -- the reader deserves the real word before
@@ -203,7 +206,12 @@
            would open a second one and bill them for both. #}
         {{ switch('alerts', 'Switch to Alerts') }}
       {% elif on_paid %}
-        {# Paying already: no checkout link here either, for the same reason. #}
+        {# Paying, but nothing to switch: a comped or founding plan has no
+           Stripe subscription behind it, so there is no price to re-point and
+           no checkout to offer (that would open a SECOND subscription beside
+           a plan they already hold for free). It said nothing at all, which
+           left the founder looking at two empty cards and no idea why. #}
+        <span class="soon">Included with {{ plan_label }}</span>
       {% elif links.alerts %}
         <a class="buy" href="{{ links.alerts }}">Choose Alerts</a>
       {% else %}
@@ -248,9 +256,11 @@
            what the 14-days-free tag beside the heading already promises. #}
         <a class="ghost" href="/signin?next=%2Fplans">{{ 'Start free trial' if not st.trialed else 'Choose Pro' }}</a>
       {% elif on_paid and not can_switch %}
-        {# Paying, but on the way out. No offer belongs here: switching would
-           re-price a subscription already set to stop, and the checkout branch
-           below would open a SECOND one beside it. #}
+        {# Paying, but nothing to offer: either on the way out -- switching
+           would re-price a subscription already set to stop -- or on a comped
+           plan with no subscription to switch at all. The checkout branch
+           below would open a SECOND subscription in both cases. #}
+        {% if not ends_at %}<span class="soon">Included with {{ plan_label }}</span>{% endif %}
       {% elif st.plan == 'alerts' and can_switch %}
         {# The upgrade, and it IS an upgrade, so say so. Same mechanism as the
            downgrade above: the subscription they have is re-priced, and Stripe
