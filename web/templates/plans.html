@@ -105,6 +105,17 @@
    control anywhere on this page. POST, because it changes what they are
    charged. No confirmation step, deliberately -- the destructive direction is
    the one that earns a confirm; keeping what you already have does not. #}
+{# THE TRIAL GRANTS PRO. It does not sell it. This used to point at Stripe
+   checkout, so "Start free trial" under a "14 days free" badge opened a page
+   reading "Total due today $15.00" -- verified against the live checkout.
+   POST, because a GET would let a prefetcher spend somebody's one free
+   trial. accounts.start_trial owns every guard. #}
+{% macro trial_btn() -%}
+<form method="post" action="/plan/trial" class="pl-switch">
+  <button class="buy" type="submit">Start free trial</button>
+</form>
+{%- endmacro %}
+
 {% macro resume_btn() -%}
 <form method="post" action="/plan/resume" class="pl-switch">
   <button class="ghost" type="submit">Keep my plan</button>
@@ -127,6 +138,13 @@
     You keep {{ plan_label }} until <b>{{ ends_at }}</b>, and nothing is
     charged after that. You can start again any time.
   </div>
+{% elif did == 'trial' %}
+  <div class="pl-ok">You're on <b>Pro</b> for the next 14 days — ranking,
+    market rates and replies drafted from the actual post. No card, and nothing
+    happens when it ends unless you choose it.</div>
+{% elif did == 'notrial' %}
+  <div class="pl-bad">We couldn't start a trial on this account — it looks like
+    it has already had its free Pro. Nothing has changed.</div>
 {% elif did == 'resumed' %}
   <div class="pl-ok">Your <b>{{ plan_label }}</b> plan is staying. It renews as
     normal and nothing was charged for changing your mind.</div>
@@ -300,8 +318,11 @@
            downgrade above: the subscription they have is re-priced, and Stripe
            bills the difference. #}
         {{ switch('pro', 'Upgrade to Pro', 'buy') }}
+      {% elif not st.trialed %}
+        {# Never had their free Pro: give it to them, do not charge for it. #}
+        {{ trial_btn() }}
       {% elif links.pro %}
-        <a class="buy" href="{{ links.pro }}">{{ 'Start free trial' if not st.trialed else 'Choose Pro' }}</a>
+        <a class="buy" href="{{ links.pro }}">Choose Pro</a>
       {% else %}
         {# Same loop as the Alerts card above, same reason. #}
         <span class="soon">Checkout is being set up</span>

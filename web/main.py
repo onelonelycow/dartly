@@ -1810,6 +1810,12 @@ def plans_page(request: Request, stripe_session: str = Query(""),
     # says the cancellation is off only when Stripe has stopped reporting a
     # stopping date. ends_at is recomputed from Stripe above, so a resume that
     # did not take cannot show a success.
+    elif done == "trial" and st_.get("pro"):
+        # The state is the evidence: only says the trial started if the account
+        # really is on Pro now.
+        did = "trial"
+    elif done in ("trial", "notrial"):
+        did = "notrial"
     elif done == "resumed" and not ends_at:
         did = "resumed"
     elif done in ("resumed", "noresume"):
@@ -1869,6 +1875,42 @@ def plan_cancel_page(request: Request):
         "plan_name": "Pro" if st_.get("pro") else "Alerts",
         "css_v": CSS_V, "indexable": False, "app_url": APP_URL,
     })
+
+
+@app.post("/plan/trial")
+def plan_trial(request: Request):
+    """
+    Start the 14-day Pro trial — the one that grants Pro, not the one that
+    charges for it.
+
+    THIS ROUTE DID NOT EXIST, and that was the bug. accounts.start_trial has
+    always been the opt-in trial ("Pro is opt-in", TRIAL_DAYS = 14), but only
+    app.py ever called it. On the board the "Start free trial" button, sitting
+    under a "14 days free" badge, pointed at billing.checkout_url instead --
+    so somebody taking the offer landed on a Stripe page reading "Total due
+    today $15.00". Verified against the live checkout on 2026-09-10. A promise
+    on the button and a charge on the next screen is the worst thing this site
+    could do to somebody, and it was on the path a new member is most likely
+    to take.
+
+    POST, like every other route here that changes what somebody has: a GET
+    would let a crawler or a link prefetcher spend a person's one free trial
+    for them.
+
+    start_trial owns the guards -- already Pro, mid-grant, or a grant already
+    spent are all refused there, so this route does not second-guess them and
+    cannot drift from them.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    ok, msg = accounts.start_trial(me)
+    if not ok:
+        print(f"  ! plan trial: {me} refused — {msg}", flush=True)
+        return RedirectResponse("/plans?done=notrial", status_code=303)
+    print(f"  plan: {me} started the {accounts.TRIAL_DAYS}-day trial", flush=True)
+    return RedirectResponse("/plans?done=trial", status_code=303)
 
 
 @app.post("/plan/resume")

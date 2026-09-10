@@ -949,7 +949,18 @@ def backfill_last_digest() -> int:
 #     and it dies quickly.
 #   * Issuing is rate-limited per address, so nobody can be mailbombed by
 #     someone pounding "send me a code" with their address in the box.
-CODE_TTL_MIN = 10          # how long a code stays good
+CODE_TTL_MIN = 30          # how long a code stays good
+# THIRTY, NOT TEN. Ten assumes somebody is sitting on the tab when the mail
+# lands. Testing the live sign-in on 2026-09-10 it expired twice in a row on
+# ordinary delays -- read the mail, come back, code dead -- and the founder was
+# sending the link to someone that afternoon. Two failed sign-ins is a poor
+# first five minutes for anybody judging whether the product is solid.
+#
+# The security here was never the clock: the code is single-use, dies after
+# CODE_MAX_ATTEMPTS wrong guesses, and CODE_MAX_PER_HOUR caps how many can be
+# requested for one inbox. Widening the window costs a longer period in which a
+# single-use six-digit code sits in somebody's own mailbox, which is the same
+# risk profile as the magic links this replaced.
 CODE_MAX_ATTEMPTS = 5      # wrong guesses before a code is burned
 CODE_MAX_PER_HOUR = 5      # codes we'll send one INBOX in an hour
 # A ceiling across everyone, not per address. The per-address limit stops one
