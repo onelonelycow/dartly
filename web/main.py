@@ -1599,7 +1599,7 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
 
 
 @app.get("/suggest")
-def suggest(request: Request, q: str = Query("", max_length=40)):
+def suggest(request: Request, q: str = Query("")):
     """
     Search suggestions, drawn from what is actually on the board.
 
@@ -1612,7 +1612,11 @@ def suggest(request: Request, q: str = Query("", max_length=40)):
     ranked by how many live gigs carry the term. Cheap by construction: a
     scan of ~400 short strings against a cached list, no database.
     """
-    term = (q or "").strip().lower()
+    # Truncated, not rejected — same reasoning as the board's own q. This is
+    # called on every keystroke, so a 422 here is a suggestion panel that dies
+    # the moment somebody pastes instead of types. Nothing on the board is a
+    # 40-character term anyway, so the slice costs no match that could hit.
+    term = (q or "").strip().lower()[:40]
     if len(term) < 2:
         return JSONResponse([])
     try:
@@ -2356,7 +2360,16 @@ def health():
 @app.get("/", response_class=HTMLResponse)
 @app.get("/gigs", response_class=HTMLResponse)
 def board(request: Request,
-          q: str = Query("", max_length=120),
+          # NO max_length HERE, DELIBERATELY. This is the search box, and a
+          # Query cap turns anything longer into a 422 error page: paste a job
+          # title and a company into the box, press Search, and the board
+          # answers "That address has a setting the board doesn't use" — which
+          # is not even true, nothing was wrong with the sort or the filter.
+          # Reproduced in a browser on 2026-09-09 with a single pasted
+          # sentence. A search box's contract is to search for what it can and
+          # show what it finds; it is never the place to refuse the request.
+          # Truncated to 120 below, which is what the cap was protecting.
+          q: str = Query(""),
           field: str = Query(""),
           size: str = Query(""),
           source: str = Query(""),
@@ -2367,6 +2380,7 @@ def board(request: Request,
           qf: str = Query("", pattern="^(recent|mine|urgent|)$"),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
+    q = q[:120]
     # MUST be first: sets the thread-local scope the per-user helpers read.
     webauth.scope_for_request(request)
     me = webauth.current_email(request)
