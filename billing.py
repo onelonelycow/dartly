@@ -307,6 +307,53 @@ def cancel_at_period_end(sub_id: str) -> tuple[bool, str]:
     return True, ""
 
 
+def resume_subscription(sub_id: str) -> tuple[bool, str]:
+    """
+    Undo a pending cancellation, on the SAME subscription.
+
+    Cancelling was one-way. There was no path back anywhere in this codebase --
+    no route, no button, no call clearing the flag -- so somebody who cancelled
+    and changed their mind inside the period they had already paid for could
+    only wait for it to lapse and buy again, which bills them afresh and loses
+    the founding rank. Found on 2026-09-10 on a live subscriber's own /plans:
+    the page offered them nothing at all.
+
+    NOT a new checkout, for the same reason switch_plan is not: the
+    subscription still exists and is still paid up, so clearing the flag is
+    the whole job. Opening a second one would bill twice.
+
+    Clears cancel_at as well as the boolean. Basil lets a subscription be
+    scheduled to stop by either route, and cancelling() already reads both --
+    clearing only the flag would leave a timestamp behind that still reads as
+    cancelling, which is exactly the silent half-fix this function exists to
+    avoid. Verified against Stripe afterwards rather than assumed: the return
+    says whether the subscription is REALLY renewing again.
+    """
+    if not SECRET_KEY or not sub_id:
+        return False, "billing is not configured"
+    try:
+        stripe.Subscription.modify(sub_id, cancel_at_period_end=False,
+                                   cancel_at="")
+    except Exception as e:
+        # Some subscriptions refuse a cancel_at clear when none was set by that
+        # route; the flag alone is then the whole fix. Try it before giving up.
+        print(f"  ! stripe resume (both fields): {type(e).__name__}: {e}",
+              flush=True)
+        try:
+            stripe.Subscription.modify(sub_id, cancel_at_period_end=False)
+        except Exception as e2:
+            print(f"  ! stripe resume: {type(e2).__name__}: {e2}", flush=True)
+            return False, f"Stripe refused that ({type(e2).__name__})"
+    # DO NOT TRUST THE MODIFY. Three separate cancellation bugs this week were
+    # a field that had moved, so the only honest confirmation is asking Stripe
+    # what the subscription says now.
+    if cancelling(sub_id):
+        print(f"  ! stripe resume: {sub_id} still reports a pending "
+              f"cancellation after the clear", flush=True)
+        return False, "Stripe still has that set to stop. Try again in a moment."
+    return True, ""
+
+
 def period_end(sub_id: str) -> int:
     """
     Unix time this subscription's access actually runs out, or 0.

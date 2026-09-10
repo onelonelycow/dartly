@@ -1687,7 +1687,7 @@ PLAN_PRICE = {"alerts": 5, "pro": 15}
 
 @app.get("/plans", response_class=HTMLResponse)
 def plans_page(request: Request, stripe_session: str = Query(""),
-                done: str = Query("", max_length=12)):
+                done: str = Query("")):
     """
     The plans, on the board — the surface people actually use.
 
@@ -1802,9 +1802,18 @@ def plans_page(request: Request, stripe_session: str = Query(""),
     # cancellation banner is shown because Stripe reports a stopping date, and
     # a plan banner because the account is actually on that plan now. Someone
     # editing the URL gets nothing.
+    done = done[:12]
     did = ""
     if done == "free" and ends_at:
         did = "cancelled"
+    # THE STATE IS THE EVIDENCE, same rule as every branch here: the banner
+    # says the cancellation is off only when Stripe has stopped reporting a
+    # stopping date. ends_at is recomputed from Stripe above, so a resume that
+    # did not take cannot show a success.
+    elif done == "resumed" and not ends_at:
+        did = "resumed"
+    elif done in ("resumed", "noresume"):
+        did = "noresume"
     elif done in ("pro", "alerts") and (st_.get("plan") or "") == done:
         did = done
     elif done == "failed":
@@ -1860,6 +1869,37 @@ def plan_cancel_page(request: Request):
         "plan_name": "Pro" if st_.get("pro") else "Alerts",
         "css_v": CSS_V, "indexable": False, "app_url": APP_URL,
     })
+
+
+@app.post("/plan/resume")
+def plan_resume(request: Request):
+    """
+    Change your mind about cancelling, before the period runs out.
+
+    POST for the same reason /plan/switch is: it changes what somebody is
+    charged, and a GET would let a link in an email or a crawler following
+    hrefs restart a subscription nobody asked to restart.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    acc = webauth.account_for(request)
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    if not sub_id:
+        print(f"  ! plan resume: {me} has no stripe_subscription_id on file",
+              flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    if not billing.enabled():
+        print("  ! plan resume: billing not configured on this service",
+              flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    ok, err = billing.resume_subscription(sub_id)
+    if not ok:
+        print(f"  ! plan resume: {me} refused — {err}", flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    print(f"  plan: {me} resumed — the cancellation is off", flush=True)
+    return RedirectResponse("/plans?done=resumed", status_code=303)
 
 
 @app.post("/plan/switch")

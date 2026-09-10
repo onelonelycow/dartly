@@ -99,6 +99,18 @@
 </form>
 {%- endmacro %}
 
+{# UNDO. Cancelling used to be one-way: every branch on all three cards
+   resolved to a static label once a stopping date existed, so a subscriber
+   who changed their mind inside the period they had already paid for had no
+   control anywhere on this page. POST, because it changes what they are
+   charged. No confirmation step, deliberately -- the destructive direction is
+   the one that earns a confirm; keeping what you already have does not. #}
+{% macro resume_btn() -%}
+<form method="post" action="/plan/resume" class="pl-switch">
+  <button class="ghost" type="submit">Keep my plan</button>
+</form>
+{%- endmacro %}
+
 {% if paid_ok %}
   {# Only ever shown on the render Stripe redirects into, and only when Stripe
      itself confirmed the payment — never from the query string alone. #}
@@ -115,6 +127,12 @@
     You keep {{ plan_label }} until <b>{{ ends_at }}</b>, and nothing is
     charged after that. You can start again any time.
   </div>
+{% elif did == 'resumed' %}
+  <div class="pl-ok">Your <b>{{ plan_label }}</b> plan is staying. It renews as
+    normal and nothing was charged for changing your mind.</div>
+{% elif did == 'noresume' %}
+  <div class="pl-bad">We couldn't restart that. Nothing has changed and you
+    keep your plan until the date below — try again in a moment.</div>
 {% elif did == 'alerts' %}
   <div class="pl-ok">You're on <b>Alerts</b> now. The difference is prorated —
     Stripe credits what you had left.</div>
@@ -194,6 +212,7 @@
     <div class="pl-act">
       {% if st.plan == 'alerts' %}
         {% if ends_at %}<span class="soon">Ends {{ ends_at }}</span>
+          {{ resume_btn() }}
         {% else %}<span class="current">Current plan</span>{% endif %}
       {% elif not st.signed_in %}
         <a class="ghost" href="/signin?next=%2Fplans">Choose Alerts</a>
@@ -247,8 +266,18 @@
       <li><span class="tick">✓</span> Market rates, so you price right</li>
     </ul>
     <div class="pl-act">
-      {% if st.pro and ends_at %}
+      {# ONE DATE, ON ONE CARD. st.pro is true for an Alerts subscriber who
+         also holds a founding grant or a trial, so this branch used to put
+         "Ends 8 October 2026" on the Pro card as well as the Alerts one --
+         the same fact twice, reading as two. The plan they are actually on
+         owns the sentence, and now the undo beneath it too. The empty branch
+         below is load-bearing: without it an alerts-plan holder falls into
+         "N days left" and the Pro card starts narrating their founding grant
+         next to a subscription that is ending. #}
+      {% if st.pro and ends_at and st.plan != 'alerts' %}
         <span class="soon">Ends {{ ends_at }}</span>
+        {{ resume_btn() }}
+      {% elif ends_at and st.plan == 'alerts' %}
       {% elif st.pro and st.days_left %}
         <span class="current">{{ st.days_left }} day{{ '' if st.days_left == 1 else 's' }} left</span>
       {% elif st.pro %}

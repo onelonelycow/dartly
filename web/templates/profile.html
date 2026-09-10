@@ -375,7 +375,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
   <!-- ── TAB: Your board ─────────────────────────────────────────────── -->
   <div class="pane pane-board">
-    <div class="card">
+    <div class="card" id="skills">
       <div class="ttl">What you do</div>
       <span class="sub">This is what Best match sorts by. Pick nothing and the board stays newest-first.</span>
       {# ONE ROW PER VERTICAL, FOLDED SHUT. Twenty-two pills open at once was
@@ -449,8 +449,9 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
     <div class="card" id="alerts">
       <div class="ttl">Alerts</div>
       <span class="sub">Nabbly can ping you the moment a matching gig lands.
-        Email is on and needs nothing. For any other channel, fill in that one
-        field and save — clearing the field turns it off again.</span>
+        {% if prof.skills %}Email is on and needs nothing.{% endif %} For any
+        other channel, fill in that one field and save — clearing the field
+        turns it off again.</span>
 
       {# EVERY CHANNEL VISIBLE, ALWAYS. This was a picker showing one channel at
      a time, and the founder called the failure: save a Telegram token, come
@@ -478,10 +479,11 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         on your profile, and never more than one an hour however often you set
         the gap below. Nothing to install.</p>
     {% else %}
-      <p class="hint">Waiting on your skills. Alerts match what you picked
-        under <label for="pt-you" class="aslink">About you</label> — until
-        something is picked there, every gig on the board matches and an hourly
-        email would be noise. The weekly roundup still reaches you.</p>
+      <p class="hint">Waiting on your skills. Alerts match
+        <a href="#skills" class="aslink">What you do</a>, at the top of this
+        tab — until something is picked there every gig on the board matches,
+        and an hourly email of five gigs out of four thousand would be noise.
+        The weekly roundup still reaches you either way.</p>
     {% endif %}
   </div>
 
