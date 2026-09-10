@@ -462,8 +462,19 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
     <label class="check"><input type="checkbox" name="email_alerts" value="1"
       {% if prefs.email_alerts %}checked{% endif %}>
       <span>Email me at <strong>{{ me }}</strong></span></label>
-    <p class="hint">On by default, and never more than one an hour however
-      often you set the gap below. Nothing to install.</p>
+    {# SAYS WHEN IT WILL NOT FIRE, AND WHY. A checked box that quietly sends
+       nothing is the same failure as an unchecked one that does. #}
+    {% if prof.skills %}
+      <p class="hint">On by default, matching the
+        {{ prof.skills|length }} skill{{ '' if prof.skills|length == 1 else 's' }}
+        on your profile, and never more than one an hour however often you set
+        the gap below. Nothing to install.</p>
+    {% else %}
+      <p class="hint">Waiting on your skills. Alerts match what you picked
+        under <label for="pt-you" class="aslink">About you</label> — until
+        something is picked there, every gig on the board matches and an hourly
+        email would be noise. The weekly roundup still reaches you.</p>
+    {% endif %}
   </div>
 
   <div class="chrow">

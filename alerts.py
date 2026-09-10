@@ -341,6 +341,27 @@ def send_email(gigs: list[dict]) -> bool:
 _EMAIL_MIN_GAP_S = 3600
 
 
+def narrowed(prefs: dict) -> bool:
+    """
+    Has this person told us what they actually want?
+
+    THE EMAIL CHANNEL TURNS ON BY DEFAULT, so it has to answer for itself when
+    there is nothing to be alert about. Empty skills, empty budgets, no
+    keyword, no sources and no urgent-only means matches() passes every gig on
+    the board -- and the board takes ~4,000 a day. An hourly email of five
+    arbitrary gigs out of four thousand is not an alert, it is noise wearing an
+    alert's clothes, and the founder's own inbox said so within the hour.
+
+    A push is different: somebody who installs ntfy and pastes a topic has
+    opted in to a buzzing phone and can mute it in one tap. An email has to
+    earn each send. So the free-by-default channel waits until the filter
+    means something; until then the weekly digest is the right cadence for
+    somebody who has not said what they do.
+    """
+    return any(prefs.get(k) for k in ("skills", "budgets", "keyword",
+                                      "sources")) or bool(prefs.get("urgent_only"))
+
+
 def send_alert_email(acc: dict, gigs: list[dict], total: int | None = None) -> bool:
     """
     Mail one person the gigs that just landed.
@@ -556,6 +577,25 @@ def notify_everyone(desktop: bool = False) -> int:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prefs = load_prefs()
+        # ALERTS FOLLOW THE PROFILE WHEN NOTHING SPECIFIC IS SET.
+        #
+        # alert_prefs' own skills/budgets/sources can only be edited in the
+        # Streamlit app; web/main.py's profile form writes five channel fields,
+        # every_min, max_per_alert and two checkboxes, and nothing else. So on
+        # the board -- the surface people actually use -- alert matching had NO
+        # filter at all and matches() passed every gig on a 4,000-a-day board.
+        #
+        # The skills picker on that same page writes profile.skills, which is
+        # what weekly_digest already matches on. Reading it here means the
+        # answer to "what do you want to hear about" is asked once, in the
+        # place people already fill in, instead of twice in two different
+        # stores. An explicit alert-specific list still wins if one exists.
+        if not prefs.get("skills"):
+            try:
+                import profile as _profile
+                prefs["skills"] = (_profile.load() or {}).get("skills") or []
+            except Exception:
+                pass
         # SMS IS THE ONE CHANNEL THAT COSTS MONEY PER MESSAGE. ntfy, Telegram
         # and the webhooks are free to deliver; Twilio is not, and how much it
         # costs is decided by how many gigs match, which is not something the
@@ -570,7 +610,9 @@ def notify_everyone(desktop: bool = False) -> int:
         # Email needs no setup, so it counts as a configured channel on its
         # own — that is the whole point of it being here.
         has_push = any(prefs.get(k) for k in channels)
-        want_email = bool(prefs.get("email_alerts")) and not acc.get("email_opt_out")
+        want_email = (bool(prefs.get("email_alerts"))
+                      and not acc.get("email_opt_out")
+                      and narrowed(prefs))
         if not (want_email or has_push):
             # Still advance the marker so they don't bank a backlog that fires
             # the moment they switch a channel on.

@@ -590,7 +590,7 @@ def alert_email(name: str, gigs: list[dict], total: int,
 </table>
 {more_line}
 <p style="font-size:12.5px;color:{FAINT};margin:22px 0 0;">
-  Too many of these? <a href="{BOARD_URL}/profile#alerts" style="color:{MUTE};">
+  Too many of these? <a href="{BOARD_URL}/profile?tab=board#alerts" style="color:{MUTE};">
   Change how often you hear from us</a>.
 </p>
 """
@@ -600,6 +600,6 @@ def alert_email(name: str, gigs: list[dict], total: int,
         for g in gigs)
     text = (f"{total} new gig{plural} matching your alerts.\n\n{text_rows}\n\n"
             f"See everything new: {BOARD_URL}/gigs?qf=recent\n"
-            f"Change how often you hear from us: {BOARD_URL}/profile#alerts\n")
+            f"Change how often you hear from us: {BOARD_URL}/profile?tab=board#alerts\n")
     return subject, _shell(f"{total} new gig{plural} matching your alerts.",
                            body, token), text
