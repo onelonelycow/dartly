@@ -424,10 +424,17 @@ def free_draft_note(gig: dict) -> str:
     existing setup) proves the "not a template" claim instead of just
     asserting it.
 
-    Lives in the upgrade popup, not as a caption under every card — real
-    HTML (a literal <b>, not markdown's **) since that's the only place
-    this renders now, via raw unsafe_allow_html rather than st.caption's
-    markdown pass.
+    PLAIN TEXT, NO MARKUP. This used to wrap "Pro" in literal bold tags, which
+    was right when the Streamlit upgrade dialog was the only thing rendering it
+    -- that goes through st.markdown with unsafe_allow_html=True. The board
+    renders the same string through Jinja, which autoescapes, so every Free and
+    Alerts member reading a draft saw the tags spelled out around the word.
+    Seen on a live signed-in account on 2026-09-10.
+
+    Emphasis is the surface's job, not this function's: a caller that wants a
+    word bold knows its own markup, and a string carrying HTML is one an
+    escaping template can only get wrong. Streamlit loses a bold word, which is
+    a fair trade against showing markup to every non-paying reader.
     """
     g = _gaps(gig)
     skipped = []
@@ -436,11 +443,11 @@ def free_draft_note(gig: dict) -> str:
     if g["setup_relevant"] and g["setup_stated"]:
         skipped.append("whether there's an existing setup")
     if not skipped:
-        return ("On <b>Pro</b>, this reads the actual post and writes a reply "
+        return ("On Pro, this reads the actual post and writes a reply "
                 "tailored to it — not a template.")
     what = skipped[0] if len(skipped) == 1 else " and ".join(skipped)
     return (f"This post already told us {what}, so we skipped asking that. "
-            f"On <b>Pro</b>, the reply reads the whole post, not just what "
+            f"On Pro, the reply reads the whole post, not just what "
             f"this template checks for.")
 
 
