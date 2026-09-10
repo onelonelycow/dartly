@@ -36,6 +36,26 @@ OWNER = f"{os.environ.get('RENDER_SERVICE_NAME') or 'local'}:{os.getpid()}"
 # second-pass classifier has a backlog to work through) so a slow cycle is never
 # mistaken for a dead owner.
 _LEASE_S = int(os.environ.get("NABBLY_INGEST_LEASE_S") or 900)
+# A LEASE HELD BY OUR OWN DEAD PREDECESSOR GOES STALE SOONER.
+#
+# OWNER carries the pid, so after every redeploy the new instance sees the old
+# instance's heartbeat under a different owner and waits the full 900s for it.
+# Measured on 2026-09-10, minutes after a deploy: lease holder
+# "nabbly-board:39" -- a pid killed by that very deploy -- heartbeat 795s old,
+# and /health reporting ingest_age_m 12.8 with nothing fetching. Every deploy
+# was costing up to fifteen minutes of board freshness on a product whose one
+# promise is "minutes after they post", and four deploys in an evening is most
+# of an hour.
+#
+# Render runs numInstances: 1, so a heartbeat under OUR OWN service name and a
+# different pid can only be a process that is already gone. Two missed cycles
+# (a cycle is ~150s) is proof enough. It stays conservative during the deploy
+# overlap, because a live old instance keeps its heartbeat fresh every cycle --
+# this only fires once it has actually stopped writing.
+#
+# A DIFFERENT service keeps the full 900s: that is the app-vs-board case, where
+# both are genuinely alive and the only question is which one ingests.
+_LEASE_SAME_SERVICE_S = int(os.environ.get("NABBLY_INGEST_LEASE_SELF_S") or 300)
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
 
@@ -538,7 +558,10 @@ def _lease_taken() -> bool:
             return False
         age = (_dt.datetime.now(_dt.timezone.utc)
                - _dt.datetime.fromisoformat(at)).total_seconds()
-        return age < _LEASE_S
+        # Our own service, a different pid: our predecessor, and Render only
+        # runs one of us. See _LEASE_SAME_SERVICE_S.
+        same_service = owner.rsplit(":", 1)[0] == OWNER.rsplit(":", 1)[0]
+        return age < (_LEASE_SAME_SERVICE_S if same_service else _LEASE_S)
     except Exception:
         # Fail OPEN. A store that cannot be read must not be able to stop the
         # board collecting gigs — the failure this guards against is two
