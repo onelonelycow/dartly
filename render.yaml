@@ -171,6 +171,25 @@ services:
       # with it.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Apply-from-Nabbly. Absent, freelancer.enabled() is False and the
+      # Connected accounts card does not render at all — no dead button.
+      #
+      # SANDBOX UNLESS FREELANCER_LIVE=1. Bids are scarce (six a month on a
+      # free Freelancer account) and placed publicly under the member's own
+      # name, so the default has to be the environment where a mistake costs
+      # nothing. Register the sandbox app at
+      # accounts.freelancer-sandbox.com/settings/develop with redirect URI
+      # https://board.nabbly.co/connect/freelancer/callback
+      - key: FREELANCER_CLIENT_ID
+        sync: false
+      - key: FREELANCER_CLIENT_SECRET
+        sync: false
+      - key: FREELANCER_LIVE
+        sync: false
+      # Encrypts the stored OAuth tokens. Falls back to AUTH_COOKIE_SECRET,
+      # which is why that one must also be set on this service.
+      - key: AUTH_COOKIE_SECRET
+        sync: false
     domains:
       - board.nabbly.co
 

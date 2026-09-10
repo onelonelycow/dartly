@@ -1988,7 +1988,8 @@ def plan_switch(request: Request, tier: str = Form(""),
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request, saved_ok: int = Query(0),
                  welcome: int = Query(0), tab: str = Query(""),
-                 resume_bad: int = Query(0)):
+                 resume_bad: int = Query(0), err: str = Query(""),
+                 connected: str = Query(""), disconnected: str = Query("")):
     """
     What ranks the board and what drafts are written from.
 
@@ -2043,6 +2044,9 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         _resume_chars = 0
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
+        "fl": _freelancer_state(),
+        "fl_err": err[:200], "fl_connected": connected == "freelancer",
+        "fl_disconnected": disconnected == "freelancer",
         "is_pro": is_pro, "can_alerts": bool(st_.get("alerts")),
         "plan": plan, "inbox_address": inbox_address,
         "resume_chars": _resume_chars, "resume_bad": bool(resume_bad),
@@ -2139,6 +2143,107 @@ async def profile_save(request: Request):
     _ptab = (form.get("ptab") or "").strip()
     _tab = _ptab if _ptab in ("board", "acct") else "you"
     return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
+
+
+def _freelancer_state() -> dict:
+    """
+    What the Connected-accounts row renders from.
+
+    Deliberately does NOT decrypt or refresh anything: this runs on every
+    profile view, and a token refresh is a network round trip that a page load
+    should never pay for. connected() reads the two plaintext display fields
+    beside the ciphertext; the token itself is only touched when a bid is
+    actually placed.
+    """
+    try:
+        import freelancer
+        if not freelancer.enabled():
+            return {"available": False}
+        acc = freelancer.connected()
+        return {"available": True, "account": acc,
+                "sandbox": bool(acc and acc.get("sandbox"))}
+    except Exception:
+        return {"available": False}
+
+
+@app.get("/connect/freelancer")
+def freelancer_start(request: Request):
+    """
+    Begin the Freelancer handshake.
+
+    Signed-in only, and the in-flight marker goes in the session BEFORE the
+    redirect — the callback refuses anything that cannot show one.
+    """
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    import freelancer
+    if not freelancer.enabled():
+        return _back("/profile", tab="board",
+                     err="Freelancer connect isn't switched on yet.")
+    state = freelancer.new_state()
+    request.session[freelancer.STATE_KEY] = state
+    return RedirectResponse(freelancer.authorize_url(state), status_code=303)
+
+
+@app.get("/connect/freelancer/callback")
+def freelancer_callback(request: Request, code: str = Query(""),
+                        state: str = Query(""), error: str = Query("")):
+    """
+    Where Freelancer sends the browser back.
+
+    FREELANCER DOES NOT DOCUMENT A `state` PARAMETER. Its authorize endpoint
+    lists response_type, client_id, redirect_uri, scope, advanced_scopes and
+    prompt, and nothing else (read 2026-09-10). We send state regardless and
+    check it when it comes back, but the guard that actually holds is the
+    in-flight marker: this route refuses any callback for a session that did
+    not just start a handshake, which is the login-CSRF that would otherwise
+    bind an attacker's Freelancer account to somebody else's Nabbly account.
+    The marker is popped whatever the outcome, so a code cannot be replayed.
+    """
+    webauth.scope_for_request(request)
+    import freelancer
+    want = request.session.pop(freelancer.STATE_KEY, "")
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    if error:
+        return _back("/profile", tab="board",
+                     err="" if error == "access_denied"
+                     else "Freelancer couldn't complete that connection.")
+    if not want:
+        return _back("/profile", tab="board",
+                     err="That connection link expired. Start again from here.")
+    if state and state != want:
+        return _back("/profile", tab="board",
+                     err="That connection link didn't check out. Try again.")
+    if not code:
+        return _back("/profile", tab="board",
+                     err="Freelancer didn't send a code back.")
+    tok, err = freelancer.exchange_code(code)
+    if err:
+        return _back("/profile", tab="board", err=err)
+    # Name the account before storing it, so the profile row can say WHICH
+    # Freelancer account is connected. A row that just says "connected" is
+    # useless to somebody who has two.
+    who, werr = freelancer.me(tok["access_token"])
+    if werr:
+        return _back("/profile", tab="board", err=werr)
+    tok["user_id"] = who.get("id")
+    tok["username"] = who.get("username") or who.get("display_name") or ""
+    if not freelancer.save_tokens(tok):
+        return _back("/profile", tab="board",
+                     err="Couldn't store that connection securely.")
+    return _back("/profile", tab="board", connected="freelancer")
+
+
+@app.post("/connect/freelancer/disconnect")
+def freelancer_disconnect(request: Request):
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    import freelancer
+    freelancer.disconnect()
+    return _back("/profile", tab="board", disconnected="freelancer")
 
 
 @app.get("/out/{gig_id}")

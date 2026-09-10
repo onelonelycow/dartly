@@ -23,6 +23,11 @@ praw>=7.7,<9             # 8.x today
 python-dotenv>=1.0,<2
 anthropic>=0.40,<1       # pre-1.0 SDK: minor bumps can break, watch this one
 Authlib>=1.3.2,<2        # OIDC handshake behind st.login
+# Fernet, for the Freelancer OAuth tokens at rest. Authlib already pulls this
+# in, and relying on that transitive is exactly what the note at the top warns
+# about: the day Authlib drops it, freelancer.py stops being able to store a
+# token and the failure shows up as a connect button that quietly does nothing.
+cryptography>=42.0,<50   # 49.x today
 psycopg[binary]>=3.1,<4  # Supabase (Postgres) durable store
 pypdf>=4.0,<8            # 6.x today; reads an uploaded resume in memory only
 python-docx>=1.1,<2      # same, for .docx — a Word resume, not stored either

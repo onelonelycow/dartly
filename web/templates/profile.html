@@ -217,6 +217,14 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   .bar .go{padding:14px 22px}
   .skills label{padding:10px 14px}
 }
+.conn{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 0;border-top:1px solid var(--line);margin-top:10px}
+.conn-n{font-weight:650;font-size:14.5px}
+.conn-s{font-size:12.5px;color:var(--mute);margin-top:3px}
+.fl-note{font-size:13px;margin:8px 0 0;padding:8px 11px;border-radius:9px;
+  background:rgba(255,255,255,.04)}
+.fl-ok{color:#7fd88f}
+.fl-bad{color:#f0907f}
 {% endblock %}
 
 {% block body %}
@@ -542,6 +550,42 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         {% if prefs.urgent_only %}checked{% endif %}>
         <span>Only ping me for gigs marked urgent.</span></label>
     </div>
+
+{% if fl.available %}
+    {# CONNECTED ACCOUNTS. Only rendered when the credentials exist, so an
+       unconfigured deploy shows nothing rather than a button that dead-ends. #}
+    <div class="card" id="connections">
+      <div class="ttl">Connected accounts</div>
+      <span class="sub">Freelancer is the one board on Nabbly where applying
+        needs an account there and there is an API to get past it. Connect it
+        and you can place a bid from the gig itself.</span>
+
+      {% if fl_err %}<p class="fl-note fl-bad">{{ fl_err }}</p>{% endif %}
+      {% if fl_connected %}<p class="fl-note fl-ok">Freelancer connected.</p>{% endif %}
+      {% if fl_disconnected %}<p class="fl-note">Freelancer disconnected.</p>{% endif %}
+
+      <div class="conn">
+        <div class="conn-l">
+          <div class="conn-n">Freelancer.com</div>
+          {% if fl.account and fl.account.username %}
+            <div class="conn-s">Connected as <strong>{{ fl.account.username }}</strong>{% if fl.sandbox %} · sandbox{% endif %}</div>
+          {% elif fl.account %}
+            <div class="conn-s">Connected{% if fl.sandbox %} · sandbox{% endif %}</div>
+          {% else %}
+            <div class="conn-s">Not connected. Nabbly can bid for you once it is.</div>
+          {% endif %}
+        </div>
+        {% if fl.account %}
+          <button class="btn-out" type="submit" form="fl-off">Disconnect</button>
+        {% else %}
+          <a class="btn-out" href="/connect/freelancer">Connect</a>
+        {% endif %}
+      </div>
+      <p class="hint">Nabbly asks Freelancer for one permission — managing your
+        bids — and never posts one without you pressing send on it. Your
+        access is stored encrypted and you can cut it here at any time.</p>
+    </div>
+{% endif %}
   </div>
 
   <!-- ── TAB: Account ────────────────────────────────────────────────── -->
@@ -613,6 +657,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 <form id="so" method="post" action="/signout"></form>
 <form id="cv" method="post" action="/resume" enctype="multipart/form-data"></form>
 <form id="cv-clear" method="post" action="/resume/clear"></form>
+<form id="fl-off" method="post" action="/connect/freelancer/disconnect"></form>
 <form id="fb" method="post" action="/feedback">
   <input type="hidden" name="page" value="profile">
 </form>
