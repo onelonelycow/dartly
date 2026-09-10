@@ -1422,6 +1422,32 @@ def posts_recent(days: int, demand_only: bool = True):
     return [dict(r) for r in rows]
 
 
+def count_between(days_ago_from: int, days_ago_to: int,
+                  demand_only: bool = True) -> int:
+    """
+    How many gigs landed in a window, WITHOUT loading them.
+
+    The weekly email wants last week's total to say whether the board moved.
+    posts_recent(14) would answer it and cost ~60,000 rows in Python to
+    produce one integer, on the service that has been OOM-killed before -- the
+    exact pattern posts_recent's own docstring warns about. COUNT(*) does it
+    in the database.
+    """
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    lo = (now - timedelta(days=days_ago_from)).isoformat()
+    hi = (now - timedelta(days=days_ago_to)).isoformat()
+    conn = connect()
+    try:
+        col = "COALESCE(NULLIF(posted_at, ''), fetched_at)"
+        where = f"WHERE {col} >= ? AND {col} < ?" + \
+                (" AND is_demand = 1" if demand_only else "")
+        return conn.execute(f"SELECT COUNT(*) FROM posts {where}",
+                            (lo, hi)).fetchone()[0]
+    finally:
+        conn.close()
+
+
 def post_by_id(gig_id) -> dict | None:
     """One post, for the outbound-click redirect route (app.py's ?nav=out) —
     it only knows a gig id from the URL, not the row itself."""

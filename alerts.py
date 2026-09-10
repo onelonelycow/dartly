@@ -31,22 +31,16 @@ DEFAULT_PREFS = {
     "skills": [], "budgets": [], "keyword": "",
     "discord_webhook": "", "ntfy_topic": "", "telegram_token": "",
     "telegram_chat": "", "sms_to": "",
-    # THE ONLY CHANNEL THAT NEEDS NO SETUP, so it is the only one that can be
-    # on by default. Every other channel here asks somebody to go install an
-    # app, mint a bot token or paste a webhook URL first — which meant a
-    # subscriber who paid for alerts and then did none of that received
-    # nothing at all, forever, with no error anywhere. Their address is the
-    # one handle we already have.
-    "email_alerts": True,
-    # "weekly" or "twice" — see _EMAIL_CADENCE_S. Never minutes: email is the
-    # roundup channel, the instant ones are push/Telegram/Discord/SMS.
-    "email_every": "weekly",
+    # NO EMAIL CHANNEL HERE, deliberately. Email cannot do instant: a
+    # Freelancer bid period is 7 days and the median project still listed as
+    # active is about an hour old, so anything mailed on a schedule is already
+    # closed. Email is weekly_digest's job, once a week, for everybody. The
+    # four above are the instant ones, and they are what the Alerts tier sells.
     # Epoch seconds of the last alert actually sent to this person. Lives in
     # prefs rather than the accounts table because prefs are already mirrored
     # durably per scope, and this has to survive a redeploy or every restart
     # resets everyone's clock to "never".
     "last_sent_at": 0.0,
-    "last_email_at": 0.0,
     # --- how often, from where, how many -------------------------------
     # The three levers that decide whether alerts feel like an edge or like
     # spam. Defaults are deliberately calm: a quarter-hour digest of at most
@@ -335,85 +329,6 @@ def send_email(gigs: list[dict]) -> bool:
         return False
 
 
-# HOW OFTEN AN ALERT EMAIL MAY GO OUT, and it is measured in days.
-#
-# This was one an hour, which was wrong, and wrong in a way worth writing down:
-# I took the cadence from the tier's promise ("pinged the moment a match
-# lands") and applied it to the one medium that cannot deliver on it. A push is
-# glanceable and mutable in a tap; an inbox is neither. The founder's own inbox
-# said so twice in one evening, which is one time more than it should have
-# taken.
-#
-# Instant belongs to push, Telegram, Discord and SMS. Email is the roundup, and
-# the ceiling is twice a week. Anyone who actually wants to know first sets up
-# one of the instant channels -- the Alerts page now says so in as many words.
-_EMAIL_CADENCE_S = {
-    "weekly": 7 * 86400,
-    "twice": 3 * 86400 + 43200,      # every three and a half days
-}
-_EMAIL_DEFAULT_CADENCE = "weekly"
-
-# A WEEK OF MATCHES IS NOT FIVE GIGS. max_per_alert sizes a push, where a long
-# message is a worse notification; an email covering seven days that showed
-# five of forty would be hiding the thing it was sent to show. Its own cap.
-_EMAIL_MAX_GIGS = 15
-
-
-def email_gap_s(prefs: dict) -> int:
-    """Seconds between alert emails for this person."""
-    key = (prefs.get("email_every") or _EMAIL_DEFAULT_CADENCE).strip().lower()
-    return _EMAIL_CADENCE_S.get(key, _EMAIL_CADENCE_S[_EMAIL_DEFAULT_CADENCE])
-
-
-def narrowed(prefs: dict) -> bool:
-    """
-    Has this person told us what they actually want?
-
-    THE EMAIL CHANNEL TURNS ON BY DEFAULT, so it has to answer for itself when
-    there is nothing to be alert about. Empty skills, empty budgets, no
-    keyword, no sources and no urgent-only means matches() passes every gig on
-    the board -- and the board takes ~4,000 a day. An hourly email of five
-    arbitrary gigs out of four thousand is not an alert, it is noise wearing an
-    alert's clothes, and the founder's own inbox said so within the hour.
-
-    A push is different: somebody who installs ntfy and pastes a topic has
-    opted in to a buzzing phone and can mute it in one tap. An email has to
-    earn each send. So the free-by-default channel waits until the filter
-    means something; until then the weekly digest is the right cadence for
-    somebody who has not said what they do.
-    """
-    return any(prefs.get(k) for k in ("skills", "budgets", "keyword",
-                                      "sources")) or bool(prefs.get("urgent_only"))
-
-
-def send_alert_email(acc: dict, gigs: list[dict], total: int | None = None) -> bool:
-    """
-    Mail one person the gigs that just landed.
-
-    Takes the whole account rather than an address because it needs the
-    sign-in token to derive the email token — the thing that makes a click
-    from a mailbox countable and an unsubscribe link work — and it needs
-    email_opt_out, which is the only unsubscribe honoured anywhere.
-    """
-    import accounts as _accounts
-    import mailer
-    import profile as _profile
-
-    if not (gigs and acc and acc.get("email")) or not mailer.enabled():
-        return False
-    if acc.get("email_opt_out"):
-        return False
-    if total is None:
-        total = len(gigs)
-    try:
-        name = (_profile.load() or {}).get("name", "")
-    except Exception:
-        name = ""
-    tok = _accounts.email_token(acc.get("token", ""))
-    subject, html_body, text_body = mailer.alert_email(name, gigs, total, tok)
-    return mailer.send(acc["email"], subject, html_body, text_body)
-
-
 def send_test(prefs: dict | None = None) -> dict:
     """
     Fire a sample alert at every configured channel and report what worked.
@@ -634,10 +549,7 @@ def notify_everyone(desktop: bool = False) -> int:
         # Email needs no setup, so it counts as a configured channel on its
         # own — that is the whole point of it being here.
         has_push = any(prefs.get(k) for k in channels)
-        want_email = (bool(prefs.get("email_alerts"))
-                      and not acc.get("email_opt_out")
-                      and narrowed(prefs))
-        if not (want_email or has_push):
+        if not has_push:
             # Still advance the marker so they don't bank a backlog that fires
             # the moment they switch a channel on.
             _advance(accounts, acc, newest)
@@ -657,13 +569,11 @@ def notify_everyone(desktop: bool = False) -> int:
         # the push keeps resetting the clock the email is waiting on.
         now = time.time()
         gap_s = max(1, int(prefs.get("every_min") or 15)) * 60
-        push_due = has_push and (now - float(prefs.get("last_sent_at") or 0)) >= gap_s
-        email_due = want_email and (
-            now - float(prefs.get("last_email_at") or 0)) >= email_gap_s(prefs)
+        push_due = (now - float(prefs.get("last_sent_at") or 0)) >= gap_s
         # Nothing is due yet. Return WITHOUT advancing the marker, so the gigs
         # stay queued and arrive in one message when their gap is up — which is
         # what asking for a gap means.
-        if not (push_due or email_due):
+        if not push_due:
             continue
 
         # Their own forwarded gigs count as theirs to be alerted about, and are
@@ -678,18 +588,13 @@ def notify_everyone(desktop: bool = False) -> int:
         if fresh:
             total = len(fresh)
             shown = fresh[:max(1, int(prefs.get("max_per_alert") or 5))]
-            if push_due:
-                send_ntfy(prefs.get("ntfy_topic", ""), shown, total)
-                if can_sms:
-                    send_sms(prefs.get("sms_to", ""), shown, total)
-                send_telegram(prefs.get("telegram_token", ""),
-                              prefs.get("telegram_chat", ""), shown, total)
-                send_discord(prefs.get("discord_webhook", ""), shown, total)
-                prefs["last_sent_at"] = now
-            if email_due:
-                # Not `shown`: that is sized for a push. See _EMAIL_MAX_GIGS.
-                send_alert_email(acc, fresh[:_EMAIL_MAX_GIGS], total)
-                prefs["last_email_at"] = now
+            send_ntfy(prefs.get("ntfy_topic", ""), shown, total)
+            if can_sms:
+                send_sms(prefs.get("sms_to", ""), shown, total)
+            send_telegram(prefs.get("telegram_token", ""),
+                          prefs.get("telegram_chat", ""), shown, total)
+            send_discord(prefs.get("discord_webhook", ""), shown, total)
+            prefs["last_sent_at"] = now
             # One write, and only when something actually went out.
             save_prefs(prefs)
             pinged += 1

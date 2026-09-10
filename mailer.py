@@ -525,81 +525,152 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
 
 
 # ---------------------------------------------------------------------------
-# instant alert — the Alerts tier's actual product
+# the weekly email — one email, market first
 # ---------------------------------------------------------------------------
-def alert_email(name: str, gigs: list[dict], total: int,
-                token: str) -> tuple[str, str, str]:
+def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
+                 is_pro: bool = False) -> tuple[str, str, str]:
     """
-    "These just landed" — the same job send_ntfy does, for the channel every
-    subscriber already has.
+    The single standing email: what the market did this week, then what landed
+    for this person in the last day or two.
 
-    Deliberately NOT digest_email with a different heading. A digest is a
-    weekly retrospective with stats and fit scores; this is a nudge about
-    something that went up minutes ago and will be gone in a day. It leads
-    with the gigs, carries no stats block, and says when each one posted,
-    because on this tier "how fresh" is the only number that matters.
+    MARKET FIRST, AND THAT IS THE WHOLE POINT. Measured on 2026-09-10 against
+    100 live Freelancer projects: the bid period is 7 days on 99 of them, the
+    median age of a project still listed as active is 1.1 hours, and a project
+    under two hours old already carries about thirty bids. A weekly email
+    cannot deliver a gig somebody can still win -- anything posted early in the
+    week is closed by the time it is read. What IS still true a week later is
+    the shape of the market: how much work there was, which fields moved, what
+    it paid. So the email leads with the thing that survives the delay, and the
+    listings are the freshest few at the moment of sending, not a week's
+    backlog dressed up as leads.
 
-    Every gig title routes through _gig_out_url, so a click from a phone's
-    mail app lands on the posting AND counts toward the same applied number
-    the weekly digest reports — see web/main.py's /out route for why the
-    email token is safe to put in a link.
+    RATES ARE PRO. market.skill_stats computes them and /market gates them, so
+    mailing them to everybody would give away the one number the paid tier
+    sells. Volume and movement go to everyone; the figures do not.
     """
     import config
 
-    plural = "s" if total != 1 else ""
-    if total == 1:
-        subject = gigs[0]["title"][:120]
-    else:
-        subject = f"{total} new gig{plural} matched your alerts"
+    total = int(market.get("total") or 0)
+    prev = int(market.get("prev_total") or 0)
+    hot = market.get("hot") or []            # [(field, count, typical|None)]
+    urgent = int(market.get("urgent") or 0)
+    applied = int(market.get("applied") or 0)
 
-    rows = []
+    plural = "s" if total != 1 else ""
+    hi = f"{name}, " if name else ""
+    subject = f"{hi}{total:,} gig{plural} on the board this week".strip()
+    if not hi:
+        subject = subject[0].upper() + subject[1:]
+
+    # The movement line, only when there is a real previous week to compare to.
+    move = ""
+    if prev:
+        pct = (total - prev) / prev * 100
+        if abs(pct) >= 3:
+            move = (f'<span style="color:{AMBER};font-weight:650;">'
+                    f'{"up" if pct > 0 else "down"} {abs(pct):.0f}%</span> on last week')
+        else:
+            move = "about level with last week"
+
+    stat_cells = [(f"{total:,}", f"gig{plural} this week")]
+    if urgent:
+        stat_cells.append((f"{urgent:,}", "marked urgent"))
+    if applied:
+        stat_cells.append((f"{applied}", "you applied to"))
+    _w = f"{100 / len(stat_cells):.3f}%"
+    stats_html = "".join(
+        f'<td width="{_w}" style="width:{_w};text-align:center;padding:12px 6px;">'
+        f'<div style="font-size:20px;font-weight:700;color:{AMBER};letter-spacing:-.02em;">{n}</div>'
+        f'<div style="font-size:11.5px;color:{MUTE};margin-top:2px;">{label}</div></td>'
+        for n, label in stat_cells)
+
+    hot_rows = []
+    for field, count, typical in hot:
+        rate = ""
+        if is_pro and typical:
+            rate = (f'<span style="color:{MUTE};">typically '
+                    f'<b style="color:{INK};">${typical:,}</b></span>')
+        hot_rows.append(
+            f'<tr><td style="padding:7px 0;border-top:1px solid {LINE};'
+            f'font-size:13.5px;color:{INK};">{field}</td>'
+            f'<td style="padding:7px 0;border-top:1px solid {LINE};'
+            f'font-size:13.5px;color:{MUTE};text-align:right;white-space:nowrap;">'
+            f'{count:,} gigs{"  &middot;  " + rate if rate else ""}</td></tr>')
+
+    rate_note = ""
+    if not is_pro and any(t for _, _, t in hot):
+        rate_note = (f'<p style="font-size:12.5px;color:{FAINT};margin:10px 0 0;">'
+                     f'<a href="{BOARD_URL}/plans" style="color:{MUTE};">Pro adds '
+                     f'what each field typically pays</a>.</p>')
+
+    # The listings, and there are few of them on purpose — see the docstring.
+    gig_rows = []
     for g in gigs:
         src = config.source_label(g.get("source", ""))
-        urgent = ('<span style="color:%s;font-weight:650;">Urgent</span> &middot; ' % AMBER
-                  if g.get("urgency") == "Urgent" else "")
-        rows.append(f"""
-<tr><td style="padding:14px 0;border-top:1px solid {LINE};">
+        gig_rows.append(f"""
+<tr><td style="padding:12px 0;border-top:1px solid {LINE};">
   <a href="{_gig_out_url(g, token)}" style="font-size:14.5px;font-weight:650;color:{INK};text-decoration:none;">
     {g['title']}
   </a>
-  <div style="font-size:12.5px;color:{MUTE};margin-top:4px;">
-    {urgent}{g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
+  <div style="font-size:12.5px;color:{MUTE};margin-top:3px;">
+    {g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
   </div>
 </td></tr>""")
 
-    if total > len(gigs):
-        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
-                     f'<a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;'
-                     f'text-decoration:none;">and {total - len(gigs)} more that just landed '
-                     f'&rarr;</a></p>')
-    else:
-        more_line = (f'<p style="font-size:13.5px;margin:16px 0 0;">'
-                     f'<a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;'
-                     f'text-decoration:none;">See everything new on the board &rarr;</a></p>')
-
-    hi = f"{name}, these" if name else "These"
-    body = f"""
-<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 6px;">
-  {hi} just landed
-</h1>
-<p style="font-size:13.5px;color:{MUTE};margin:0 0 4px;">
-  {total} new gig{plural} matching your alerts.
+    listings = ""
+    if gig_rows:
+        listings = f"""
+<h2 style="font-size:15px;font-weight:700;color:{INK};margin:26px 0 2px;">
+  Just landed
+</h2>
+<p style="font-size:12.5px;color:{MUTE};margin:0 0 4px;">
+  The newest matches for your skills, as of this morning.
 </p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-{''.join(rows)}
+{''.join(gig_rows)}
+</table>"""
+
+    body = f"""
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 4px;">
+  The week on Nabbly
+</h1>
+<p style="font-size:13.5px;color:{MUTE};margin:0 0 14px;">
+  {move or "Across every source on the board."}
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+  style="background:{AMBER_BG};border-radius:12px;margin:0 0 20px;">
+<tr>{stats_html}</tr>
 </table>
-{more_line}
-<p style="font-size:12.5px;color:{FAINT};margin:22px 0 0;">
-  Too many of these? <a href="{BOARD_URL}/profile?tab=board#alerts" style="color:{MUTE};">
-  Change how often you hear from us</a>.
+
+<h2 style="font-size:15px;font-weight:700;color:{INK};margin:0 0 2px;">
+  Where the work was
+</h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{''.join(hot_rows)}
+</table>
+{rate_note}
+{listings}
+
+<p style="font-size:13.5px;margin:22px 0 0;">
+  <a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;
+  text-decoration:none;">See what is on the board right now &rarr;</a>
+</p>
+<p style="font-size:12.5px;color:{FAINT};margin:16px 0 0;">
+  Want to hear the moment a gig lands instead of once a week?
+  <a href="{BOARD_URL}/profile?tab=board#alerts" style="color:{MUTE};">Set up an
+  instant alert</a>.
 </p>
 """
-    text_rows = "\n\n".join(
-        f"{g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget - "
-        f"{config.source_label(g.get('source',''))}\n  {_gig_out_url(g, token)}"
-        for g in gigs)
-    text = (f"{total} new gig{plural} matching your alerts.\n\n{text_rows}\n\n"
-            f"See everything new: {BOARD_URL}/gigs?qf=recent\n"
-            f"Change how often you hear from us: {BOARD_URL}/profile?tab=board#alerts\n")
-    return subject, _shell(f"{total} new gig{plural} matching your alerts.",
+    text_hot = "\n".join(
+        f"  {f} — {c:,} gigs" + (f", typically ${t:,}" if (is_pro and t) else "")
+        for f, c, t in hot)
+    text_gigs = "\n\n".join(
+        f"{g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget\n"
+        f"  {_gig_out_url(g, token)}" for g in gigs)
+    text = (f"The week on Nabbly\n\n{total:,} gig{plural} on the board"
+            + (f", {urgent:,} marked urgent" if urgent else "") + ".\n\n"
+            f"Where the work was:\n{text_hot}\n"
+            + (f"\nJust landed:\n\n{text_gigs}\n" if text_gigs else "")
+            + f"\nSee the board: {BOARD_URL}/gigs?qf=recent\n")
+    return subject, _shell(f"{total:,} gigs on the board this week.",
                            body, token), text

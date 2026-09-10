@@ -2169,12 +2169,9 @@ async def profile_save(request: Request):
     prefs["urgent_only"] = bool(form.get("urgent_only"))
     # An unchecked box submits nothing, so presence IS the value — which also
     # means this is the one place someone can turn the email channel off.
-    prefs["email_alerts"] = bool(form.get("email_alerts"))
-    # Days, not minutes, and only the two the page offers — anything else falls
-    # back to weekly in alerts.email_gap_s rather than being trusted here.
-    _ev = (form.get("email_every") or "").strip().lower()
-    if _ev in ("weekly", "twice"):
-        prefs["email_every"] = _ev
+    # No email fields here: email is weekly_digest's, not an alert channel,
+    # and the only switch for it is accounts.email_opt_out via the unsubscribe
+    # link that every one of those emails carries.
     alerts_mod.save_prefs(prefs)
     # Back to the tab they were on. Saving from "Preferences" and landing on
     # "About you" reads as the page having thrown the edit away.

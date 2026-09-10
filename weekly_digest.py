@@ -88,75 +88,150 @@ def _due(acc: dict) -> bool:
     return datetime.now(timezone.utc) - d >= timedelta(days=DIGEST_EVERY_DAYS)
 
 
+def _market(week: list[dict]) -> dict:
+    """
+    The part of the email that is still true a week after it is written.
+
+    Computed ONCE per pass and shared by every recipient: it is the same board
+    for all of them, and skill_stats over a week of posts is the expensive
+    thing in here.
+    """
+    import db
+    import market as market_mod
+
+    stats = market_mod.skill_stats(week)
+    hot = []
+    for field, count in market_mod.hot_skills(stats, top=6):
+        hot.append((field, count, (stats.get(field) or {}).get("typical")))
+    return {
+        "total": len(week),
+        # COUNT(*), not a second week of rows in memory — see db.count_between.
+        "prev_total": db.count_between(14, 7),
+        "hot": hot,
+        "urgent": sum(1 for p in week if p.get("urgency") == "Urgent"),
+    }
+
+
+# What "just landed" means. Anything older than this is very likely closed --
+# a Freelancer bid period is 7 days and the median active project is ~1 hour
+# old -- so the listings in a weekly email are the ones that arrived just
+# before it was sent, never a week's backlog.
+_FRESH_HOURS = 48
+_SHOW = 5
+
+
+def _fresh_for(week: list[dict], skills: list[str], prof: dict) -> list[dict]:
+    """The newest matches for this person, ranked the way the board ranks."""
+    import score
+    from datetime import datetime, timedelta, timezone as _tz
+    from email.utils import parsedate_to_datetime
+
+    cut = datetime.now(_tz.utc) - timedelta(hours=_FRESH_HOURS)
+
+    def landed(p):
+        """
+        When this gig arrived, as a datetime.
+
+        PARSED, NOT STRING-COMPARED. The first cut of this compared the raw
+        column against an ISO cutoff, which silently means nothing the moment a
+        row is not ISO -- and rows are not all ISO: the bundled seed carries
+        RFC-2822 ("Tue, 16 Jun 2026 10:51:37 +0000"), which sorts before every
+        ISO string and would have quietly excluded every such gig from "just
+        landed" forever. Production is all ISO today (150,736 rows checked on
+        2026-09-10, none unparseable), so this was invisible there -- exactly
+        the kind of thing that stays invisible until a source changes format.
+        Unparseable counts as old, never as fresh.
+        """
+        raw = str(p.get("posted_at") or p.get("fetched_at") or "").strip()
+        if not raw:
+            return None
+        try:
+            d = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            try:
+                d = parsedate_to_datetime(raw)
+            except Exception:
+                return None
+        return d.replace(tzinfo=_tz.utc) if d.tzinfo is None else d
+
+    matched = [p for p in week if not skills or p.get("job_type") in skills]
+    fresh = [p for p in matched if (landed(p) or cut - timedelta(days=1)) >= cut]
+    # A niche skill can go two days without a single match; widening beats
+    # sending a section with nothing in it. Still ranked, still capped.
+    pool = fresh if len(fresh) >= 3 else matched
+    scored = []
+    for p in pool:
+        sc, _ = score.fit_score(p, prof)
+        scored.append((sc, p))
+    scored.sort(key=lambda t: t[0], reverse=True)
+    return _diverse_top(scored, _SHOW)
+
+
 def run_all() -> int:
-    """Send the weekly digest to every account it's due for. Returns how many
-    were sent. Mirrors alerts.notify_everyone()'s shape: fetch the shared
-    window of posts ONCE, filter per-account in Python, never re-query per
-    person."""
+    """
+    Send the weekly email to every account it is due for. Returns how many.
+
+    ONE EMAIL, MARKET FIRST. This used to be a ranked list of the week's best
+    matches, and alerts.py separately mailed a roundup of what had landed --
+    two similar emails a week from one product. The founder's inbox called it,
+    twice. Measured against 100 live Freelancer projects on 2026-09-10: the
+    bid period is 7 days on 99 of them, the median age of a project still
+    listed as active is 1.1 hours, and one under two hours old already carries
+    ~30 bids. No weekly email can hand somebody a gig they can still win. What
+    it CAN do is tell them what the market did, which is true whenever they
+    read it -- so that leads, and the listings are only the freshest few at
+    the moment of sending.
+
+    Same cadence machinery as before: per-account and durable, so a restart
+    can neither skip a week nor double-send.
+    """
     import accounts
     import activity
     import db
     import mailer
     import paths
     import profile
-    import score
 
     if not mailer.enabled():
         return 0
 
     due = [a for a in accounts.all_accounts()
-          if not a.get("email_opt_out") and _due(a)]
+           if not a.get("email_opt_out") and _due(a)]
     if not due:
         return 0
 
     week = db.posts_recent(DIGEST_EVERY_DAYS, demand_only=True)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if not week:
-        # Nobody's overdue for an email that would say "0 gigs this week" —
-        # advance the marker anyway so a quiet data week doesn't queue up a
-        # pile of digests that all fire the moment fresh gigs land.
-        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        # A quiet data week is not a reason to bank seven digests that all
+        # fire at once when gigs come back.
         for acc in due:
             accounts.set_last_digest(acc["email"], now)
         return 0
 
+    market = _market(week)
+
     sent = 0
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     for acc in due[:_MAX_PER_RUN]:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
-        prof = profile.load()
-        skills = prof.get("skills") or []
-        matched = [p for p in week if not skills or p.get("job_type") in skills]
-        if matched:
-            # Same fit_score() the dashboard's "Picked for you" ranks by,
-            # score AND reasons both attached to the row — the email should
-            # never claim a match or a "why" the app itself wouldn't also show.
-            scored = []
-            for p in matched:
-                s, why = score.fit_score(p, prof)
-                scored.append((s, {**p, "_score": s, "_reasons": why}))
-            scored.sort(key=lambda t: t[0], reverse=True)
-            top = _diverse_top(scored, _TOP_N)
-            # Off the full matched set, not just the ten shown — the point is
-            # to signal there's more time-sensitive stuff on the board than
-            # what fit in this email, the same way `total` does for matches.
-            urgent = sum(1 for p in matched if p.get("urgency") == "Urgent")
-            stats = {"applied": activity.applied_count(scope, days=DIGEST_EVERY_DAYS),
-                     "urgent": urgent}
-            subject, html_body, text_body = mailer.digest_email(
-                prof.get("name", ""), top, len(matched),
-                accounts.email_token(acc["token"]), stats=stats)
-            if mailer.send(acc["email"], subject, html_body, text_body):
-                sent += 1
-            else:
-                # Do NOT stamp on a failed send. A rate limit or a transient
-                # provider error would otherwise cost this person their digest
-                # for a full week, silently — the marker says "sent" and the
-                # next pass skips them. Leaving it unset means they're still
-                # due on the next hourly check, which is self-healing.
-                continue
-        # Stamp on a real send, and on "nothing matched this week" — a quiet
-        # week for one person's skills shouldn't bank a backlog that fires as
-        # one big email the moment something finally matches.
+        prof = profile.load() or {}
+        gigs = _fresh_for(week, prof.get("skills") or [], prof)
+        try:
+            is_pro = bool(accounts.status(acc).get("pro"))
+        except Exception:
+            is_pro = False
+        mine = dict(market)
+        mine["applied"] = activity.applied_count(scope, days=DIGEST_EVERY_DAYS)
+        subject, html_body, text_body = mailer.weekly_email(
+            prof.get("name", ""), mine, gigs,
+            accounts.email_token(acc["token"]), is_pro=is_pro)
+        if mailer.send(acc["email"], subject, html_body, text_body):
+            sent += 1
+        else:
+            # Do NOT stamp on a failed send: a rate limit would otherwise cost
+            # this person their email for a full week, silently. Unstamped
+            # means still due on the next hourly check, which self-heals.
+            continue
         accounts.set_last_digest(acc["email"], now)
     return sent
