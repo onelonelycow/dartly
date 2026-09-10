@@ -448,10 +448,10 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
     <div class="card" id="alerts">
       <div class="ttl">Alerts</div>
-      <span class="sub">Nabbly can ping you the moment a matching gig lands.
-        {% if prof.skills %}Email is on and needs nothing.{% endif %} For any
-        other channel, fill in that one field and save — clearing the field
-        turns it off again.</span>
+      <span class="sub">Phone push, Telegram, Slack and Discord ping you the
+        moment a matching gig lands — fill in that one field and save, and
+        clearing it turns the channel off again. Email is the roundup, at most
+        twice a week, and needs nothing set up.</span>
 
       {# EVERY CHANNEL VISIBLE, ALWAYS. This was a picker showing one channel at
      a time, and the founder called the failure: save a Telegram token, come
@@ -470,14 +470,19 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   <div class="chrow">
     <label class="check"><input type="checkbox" name="email_alerts" value="1"
       {% if prefs.email_alerts %}checked{% endif %}>
-      <span>Email me at <strong>{{ me }}</strong></span></label>
+      <span>Email me a roundup at <strong>{{ me }}</strong></span></label>
     {# SAYS WHEN IT WILL NOT FIRE, AND WHY. A checked box that quietly sends
        nothing is the same failure as an unchecked one that does. #}
     {% if prof.skills %}
-      <p class="hint">On by default, matching the
+      <p class="hint">A roundup of what matched the
         {{ prof.skills|length }} skill{{ '' if prof.skills|length == 1 else 's' }}
-        on your profile, and never more than one an hour however often you set
-        the gap below. Nothing to install.</p>
+        on your profile. Nothing to install — for the moment a gig lands, set up
+        one of the instant channels below.</p>
+      <select id="email_every" name="email_every" aria-label="How often to email">
+        {% for v, label in [('weekly', 'Once a week'), ('twice', 'Twice a week')] %}
+          <option value="{{ v }}" {% if (prefs.email_every or 'weekly') == v %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
     {% else %}
       <p class="hint">Waiting on your skills. Alerts match
         <a href="#skills" class="aslink">What you do</a>, at the top of this

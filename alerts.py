@@ -38,6 +38,9 @@ DEFAULT_PREFS = {
     # nothing at all, forever, with no error anywhere. Their address is the
     # one handle we already have.
     "email_alerts": True,
+    # "weekly" or "twice" — see _EMAIL_CADENCE_S. Never minutes: email is the
+    # roundup channel, the instant ones are push/Telegram/Discord/SMS.
+    "email_every": "weekly",
     # Epoch seconds of the last alert actually sent to this person. Lives in
     # prefs rather than the accounts table because prefs are already mirrored
     # durably per scope, and this has to survive a redeploy or every restart
@@ -332,13 +335,34 @@ def send_email(gigs: list[dict]) -> bool:
         return False
 
 
-# An alert email is a real email to a real inbox, and unlike a push it costs
-# the reader attention they cannot silence per-app. So it gets a floor of its
-# own on top of whatever gap they picked: at most one an hour, even if they
-# asked for pings every five minutes. Five-minute pushes are a feature; a
-# five-minute email is how you get marked as spam and lose the channel for
-# every other message this product sends, sign-in codes included.
-_EMAIL_MIN_GAP_S = 3600
+# HOW OFTEN AN ALERT EMAIL MAY GO OUT, and it is measured in days.
+#
+# This was one an hour, which was wrong, and wrong in a way worth writing down:
+# I took the cadence from the tier's promise ("pinged the moment a match
+# lands") and applied it to the one medium that cannot deliver on it. A push is
+# glanceable and mutable in a tap; an inbox is neither. The founder's own inbox
+# said so twice in one evening, which is one time more than it should have
+# taken.
+#
+# Instant belongs to push, Telegram, Discord and SMS. Email is the roundup, and
+# the ceiling is twice a week. Anyone who actually wants to know first sets up
+# one of the instant channels -- the Alerts page now says so in as many words.
+_EMAIL_CADENCE_S = {
+    "weekly": 7 * 86400,
+    "twice": 3 * 86400 + 43200,      # every three and a half days
+}
+_EMAIL_DEFAULT_CADENCE = "weekly"
+
+# A WEEK OF MATCHES IS NOT FIVE GIGS. max_per_alert sizes a push, where a long
+# message is a worse notification; an email covering seven days that showed
+# five of forty would be hiding the thing it was sent to show. Its own cap.
+_EMAIL_MAX_GIGS = 15
+
+
+def email_gap_s(prefs: dict) -> int:
+    """Seconds between alert emails for this person."""
+    key = (prefs.get("email_every") or _EMAIL_DEFAULT_CADENCE).strip().lower()
+    return _EMAIL_CADENCE_S.get(key, _EMAIL_CADENCE_S[_EMAIL_DEFAULT_CADENCE])
 
 
 def narrowed(prefs: dict) -> bool:
@@ -635,7 +659,7 @@ def notify_everyone(desktop: bool = False) -> int:
         gap_s = max(1, int(prefs.get("every_min") or 15)) * 60
         push_due = has_push and (now - float(prefs.get("last_sent_at") or 0)) >= gap_s
         email_due = want_email and (
-            now - float(prefs.get("last_email_at") or 0)) >= max(gap_s, _EMAIL_MIN_GAP_S)
+            now - float(prefs.get("last_email_at") or 0)) >= email_gap_s(prefs)
         # Nothing is due yet. Return WITHOUT advancing the marker, so the gigs
         # stay queued and arrive in one message when their gap is up — which is
         # what asking for a gap means.
@@ -663,7 +687,8 @@ def notify_everyone(desktop: bool = False) -> int:
                 send_discord(prefs.get("discord_webhook", ""), shown, total)
                 prefs["last_sent_at"] = now
             if email_due:
-                send_alert_email(acc, shown, total)
+                # Not `shown`: that is sized for a push. See _EMAIL_MAX_GIGS.
+                send_alert_email(acc, fresh[:_EMAIL_MAX_GIGS], total)
                 prefs["last_email_at"] = now
             # One write, and only when something actually went out.
             save_prefs(prefs)
