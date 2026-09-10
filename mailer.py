@@ -528,7 +528,8 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
 # the weekly email — one email, market first
 # ---------------------------------------------------------------------------
 def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
-                 is_pro: bool = False) -> tuple[str, str, str]:
+                 is_pro: bool = False, personalised: bool = False
+                 ) -> tuple[str, str, str]:
     """
     The single standing email: what the market did this week, then what landed
     for this person in the last day or two.
@@ -558,7 +559,11 @@ def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
 
     plural = "s" if total != 1 else ""
     hi = f"{name}, " if name else ""
-    subject = f"{hi}{total:,} gig{plural} on the board this week".strip()
+    # "LANDED", NOT "ON THE BOARD". This counts what arrived in seven days;
+    # "on the board" reads as current inventory, which is a different number --
+    # /market publishes that one, and two of our own numbers disagreeing in
+    # public is worse than either being wrong.
+    subject = f"{hi}{total:,} gig{plural} landed this week".strip()
     if not hi:
         subject = subject[0].upper() + subject[1:]
 
@@ -617,6 +622,17 @@ def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
   </div>
 </td></tr>""")
 
+    # NEVER CLAIM A MATCH WE DID NOT MAKE. Rendered for a real recipient with
+    # an empty profile on 2026-09-10, this section said "the newest matches for
+    # your skills" above a florist vacancy, a Spotify engineering director and
+    # a transaction manager -- because with no skills set, matching passes
+    # everything. Somebody with no skills gets the newest on the board, said
+    # plainly, and a link to make it theirs.
+    sub_line = ("The newest matches for your skills, as of this morning."
+                if personalised else
+                f'The newest on the board. <a href="{BOARD_URL}/profile?tab=board#skills" '
+                f'style="color:{AMBER};">Tell us what you do</a> and this becomes '
+                f'your matches instead.')
     listings = ""
     if gig_rows:
         listings = f"""
@@ -624,7 +640,7 @@ def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
   Just landed
 </h2>
 <p style="font-size:12.5px;color:{MUTE};margin:0 0 4px;">
-  The newest matches for your skills, as of this morning.
+  {sub_line}
 </p>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 {''.join(gig_rows)}
@@ -667,10 +683,13 @@ def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
     text_gigs = "\n\n".join(
         f"{g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget\n"
         f"  {_gig_out_url(g, token)}" for g in gigs)
-    text = (f"The week on Nabbly\n\n{total:,} gig{plural} on the board"
+    text = (f"The week on Nabbly\n\n{total:,} gig{plural} landed"
             + (f", {urgent:,} marked urgent" if urgent else "") + ".\n\n"
             f"Where the work was:\n{text_hot}\n"
-            + (f"\nJust landed:\n\n{text_gigs}\n" if text_gigs else "")
+            + (f"\nJust landed"
+               + ("" if personalised else " (the newest on the board — set your "
+                  "skills to make these your matches)")
+               + f":\n\n{text_gigs}\n" if text_gigs else "")
             + f"\nSee the board: {BOARD_URL}/gigs?qf=recent\n")
-    return subject, _shell(f"{total:,} gigs on the board this week.",
+    return subject, _shell(f"{total:,} gigs landed on Nabbly this week.",
                            body, token), text

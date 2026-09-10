@@ -225,7 +225,11 @@ def run_all() -> int:
         mine["applied"] = activity.applied_count(scope, days=DIGEST_EVERY_DAYS)
         subject, html_body, text_body = mailer.weekly_email(
             prof.get("name", ""), mine, gigs,
-            accounts.email_token(acc["token"]), is_pro=is_pro)
+            accounts.email_token(acc["token"]), is_pro=is_pro,
+            # Only true when they actually told us something to match on. With
+            # an empty profile _fresh_for returns the newest of everything, and
+            # calling that "your matches" is a claim we cannot back.
+            personalised=bool(prof.get("skills")))
         if mailer.send(acc["email"], subject, html_body, text_body):
             sent += 1
         else:
