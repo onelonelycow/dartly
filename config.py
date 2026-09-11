@@ -27,6 +27,7 @@ ENABLE_SOURCES = [
     # without those puts the same 54-second hole straight back.
     # "reddit",        # r/forhire & friends — freelance [Hiring] gigs
     "freelancer",      # Freelancer.com — many small fixed-price projects
+    "peopleperhour",   # PeoplePerHour — UK-rooted marketplace, fixed & hourly projects
     "remoteok",        # RemoteOK — remote jobs/contracts
     "remotive",        # Remotive — remote jobs
     "arbeitnow",       # Arbeitnow — remote/EU jobs
@@ -114,7 +115,7 @@ ENABLE_SOURCES = [
 # 43,154 of 49,395 live gigs, and the 6,241 outside them contain 4,151 whose
 # titles appear nowhere in this set.
 MAINSTREAM_SOURCES = {
-    "himalayas", "freelancer", "remoteok", "weworkremotely", "remotive",
+    "himalayas", "freelancer", "peopleperhour", "remoteok", "weworkremotely", "remotive",
     "jobicy", "jobicy_dev", "workingnomads", "jobspresso", "wwr_sales",
     "wwr_management", "realworkfromanywhere",
 }
@@ -730,6 +731,7 @@ REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 # someone a surprise wall anyway, but a wrong "account needed" claim on a board
 # that doesn't require one trains people to ignore the badge.
 ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer",
+                            "peopleperhour",   # login gate on "send proposal", checked 2026-09-10
                             "bubble", "blenderartists"}
 
 # SHARPER THAN THE ABOVE, AND CHECKED THE SAME WAY. On these the wall is not at
@@ -764,6 +766,7 @@ SOURCE_LABELS = {
     "arbeitnow": "Arbeitnow",
     "jobicy": "Jobicy",
     "freelancer": "Freelancer.com",
+    "peopleperhour": "PeoplePerHour",
     "reddit": "Reddit",
     "soundlister": "Soundlister",
     "inbox": "Forwarded",     # a gig this person emailed in themselves

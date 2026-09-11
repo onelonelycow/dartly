@@ -7,6 +7,7 @@ Every source returns a list of plain dicts in the same shape:
 All sources here are public APIs/feeds that need no login or API key.
 Turn sources on/off in config.ENABLE_SOURCES.
 """
+import json
 import re
 import time
 import html as _html
@@ -413,6 +414,108 @@ def fetch_freelancer() -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# PeoplePerHour — a marketplace: a client posts a project, freelancers bid.
+#
+# THE SECOND REAL MARKETPLACE ON THE BOARD. Measured on 2026-09-10: 72% of a
+# week's intake was job-board content, and 99% of the project work was one
+# source. Eleven marketplaces were probed that day; this was the only one that
+# is both public and structured. Guru, Workana, Malt and Truelancer block every
+# scripted request; Twine and Contra keep their listings behind sign-in; Behance
+# lists salaried roles. See MARKETPLACES.md.
+#
+# WHAT WAS CHECKED, NOT ASSUMED:
+#   - Serves the honest User-Agent above: three consecutive hits, all 200, no
+#     throttling. No pretending to be a browser.
+#   - The page is server-rendered React and carries its data in
+#     window.PPHReact.initialState as JSON:API -- entities.projects keyed by
+#     id, each with an `attributes` dict. Parsed as JSON, not regexed.
+#   - posted_dt is UTC with no marker. Proven, not guessed: the site's own
+#     detail page rendered a listing as "1 hour ago" when posted_dt was 74
+#     minutes old; UK time would have shown "2 hours ago". A wrong zone here
+#     shifts every card's age by an hour.
+#   - budget_converted is USD: ratio 1.000 on USD-priced projects, 1.342 on
+#     GBP, 1.149 on EUR. The budget hint is written in dollars so the size
+#     classifier can read it, with the original currency kept beside it.
+#   - Applying needs an account there (a login gate on the "send proposal"
+#     button), so this is in config.ACCOUNT_REQUIRED_SOURCES.
+#   - ~35-70 new projects a day; 20 per page, 37 pages of open projects. One
+#     page per two-minute cycle sees everything.
+#   - proj_desc on the list page is a ~100-char preview and the detail page
+#     holds ~190: the whole description, on a marketplace where the median
+#     budget is $75. Not worth twenty extra requests a cycle to one host.
+#
+# location_type is a STRUCTURED remote flag ('remote' / 'remote_country'),
+# the field LOCATION.md says the board lacks. It rides in the body hints for
+# now; when posts grows a location column this is the first source to fill it.
+# ---------------------------------------------------------------------------
+_PPH_STATE = re.compile(
+    r"window\.PPHReact\.initialState\s*=\s*(\{.*?\});\s*(?:window\.|</script>)", re.S)
+
+
+def fetch_peopleperhour() -> list[dict]:
+    r = _get("https://www.peopleperhour.com/freelance-jobs")
+    if r.status_code != 200:
+        print(f"  ! peopleperhour: HTTP {r.status_code}"); return []
+    m = _PPH_STATE.search(r.text)
+    if not m:
+        print("  ! peopleperhour: no initialState on the page — layout changed?")
+        return []
+    try:
+        state = json.loads(m.group(1))
+        projects = state["entities"]["projects"]
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"  ! peopleperhour: state unreadable ({type(e).__name__}: {e})")
+        return []
+    out, bad = [], 0
+    for pid, proj in projects.items():
+      # ONE MALFORMED PROJECT IS NOT AN OUTAGE -- same floor as freelancer.
+      try:
+        a = proj.get("attributes") or {}
+        if (a.get("item_state") or "open") != "open":
+            continue
+        title = _clean_title(a.get("title") or "")
+        url = (a.get("url") or "").strip()
+        if not title or not url.startswith("http"):
+            continue
+        usd = a.get("budget_converted")
+        cur = (a.get("currency") or "").upper()
+        raw = a.get("budget")
+        if usd:
+            budget = f"${int(float(usd))} budget"
+            if cur and cur != "USD" and raw:
+                budget += f" ({raw} {cur})"
+        else:
+            budget = ""
+        kind = {"fixed_price": "fixed price", "hourly": "hourly"}.get(
+            a.get("project_type") or "", "")
+        where = {"remote": "remote", "remote_country": "remote"}.get(
+            a.get("location_type") or "", "")
+        cat = (a.get("category") or {}).get("cate_name") or ""
+        sub = (a.get("sub_category") or {}).get("subcate_name") or ""
+        bids = a.get("proposalCount")
+        out.append({
+            "source": "peopleperhour",
+            "source_id": str(a.get("proj_id") or pid),
+            "url": url,
+            "title": title,
+            "body": _body(a.get("proj_desc") or "", cat, sub, budget, kind, where,
+                          f"{bids} proposals" if bids not in (None, "") else "",
+                          "urgent" if a.get("isUrgent") else ""),
+            # UTC with no marker -- see the header. to_iso keeps naive input
+            # naive, so the zone is pinned here, once, deliberately.
+            "posted_at": to_iso((a.get("posted_dt") or "").replace(" ", "T") + "+00:00"),
+        })
+      except Exception as e:
+        bad += 1
+        if bad == 1:
+            print(f"  ! peopleperhour: skipped a project ({type(e).__name__}: {e})")
+    if bad:
+        print(f"  ! peopleperhour: {bad} of {len(projects)} projects unusable, "
+              f"kept {len(out)}")
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Working Nomads — JSON API. Its own apply link (/job/go/{id}/) 302s straight
 # to the employer's real application page — no Working Nomads account needed,
 # confirmed on a live listing before adding this source.
@@ -553,6 +656,7 @@ def fetch_rss(key: str) -> list[dict]:
 _FETCHERS = {
     "reddit": fetch_reddit,
     "freelancer": fetch_freelancer,
+    "peopleperhour": fetch_peopleperhour,
     "remoteok": fetch_remoteok,
     "remotive": fetch_remotive,
     "arbeitnow": fetch_arbeitnow,
