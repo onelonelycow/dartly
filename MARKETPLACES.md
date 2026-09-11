@@ -11,7 +11,7 @@
 | Malt | 403 Cloudflare | — | — | — | — | blocked, no API |
 | Truelancer | 429 Vercel checkpoint, persists | — | — | — | — | blocked |
 | Behance | 200 | listings under /joblist/fulltime/ | — | 9 | — | wrong kind — salaried creative jobs |
-| Hubstaff Talent | 200, 76KB | JS-loaded, nothing in HTML | ? | ? | ? | needs a browser-based look (1h) |
+| Hubstaff Talent | 200 shell only | Cloudflare JS challenge; listings only after it, 584 jobs at $7.50-20/hr VA and staffing work | — | hourly rates | — | not viable — bot-gated, and low-rate staffing behind it (checked in a browser 2026-09-11) |
 | Outsourcely | 000 | connection failed | — | — | — | retry later |
 
 ## Conclusion
