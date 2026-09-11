@@ -104,7 +104,7 @@ ABOUT = [
     ("What it actually does",
      "Nabbly watches those places continuously and puts every new posting in "
      "one place, usually within minutes. Each one is tagged by field, budget "
-     "and urgency, so a board of tens of thousands becomes a short list of the "
+     "and urgency, so a wall of postings becomes a short list of the "
      "work that fits you. Tell it what you do and it ranks around that; it can "
      "also ping you the moment something lands, and draft an opening reply "
      "from the posting itself."),
