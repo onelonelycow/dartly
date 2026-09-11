@@ -28,6 +28,12 @@ Authlib>=1.3.2,<2        # OIDC handshake behind st.login
 # about: the day Authlib drops it, freelancer.py stops being able to store a
 # token and the failure shows up as a connect button that quietly does nothing.
 cryptography>=42.0,<50   # 49.x today
+# The IANA zone database, for the weekly email's send window. Python's
+# zoneinfo reads the system's /usr/share/zoneinfo when there is one and this
+# package when there is not; a slim container may have neither, and the
+# failure is ZoneInfoNotFoundError on the first digest pass -- after which
+# the email would quietly never send again. Pure Python, no dependencies.
+tzdata>=2024.1
 psycopg[binary]>=3.1,<4  # Supabase (Postgres) durable store
 pypdf>=4.0,<8            # 6.x today; reads an uploaded resume in memory only
 python-docx>=1.1,<2      # same, for .docx — a Word resume, not stored either

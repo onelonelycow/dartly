@@ -18,6 +18,20 @@ it left off.
 from datetime import datetime, timedelta, timezone
 
 DIGEST_EVERY_DAYS = 7
+
+# WHEN IT ACTUALLY GOES OUT. "Seven days since the last one" is the trigger;
+# it is not a time of day, and without a window the hour was whatever hour the
+# very first send happened to land on, drifting by up to an hour a week. The
+# founder's own was scheduled for 4:51 AM. A jobs email that arrives before
+# anyone is at a desk is buried by the time they are. So an account that comes
+# due overnight is HELD, and sent by the first hourly pass inside the window;
+# after that its clock sits inside the window for good.
+#
+# 7-9 AM Pacific, the founder's call on 2026-09-11: morning for the US, early
+# afternoon for Europe, evening for India. Two hours wide because the check
+# runs hourly and _MAX_PER_RUN caps a single pass.
+SEND_TZ = "America/Los_Angeles"
+SEND_HOURS = (7, 9)          # local hours, [start, end)
 _TOP_N = 10
 # Ceiling on one pass, not on the day. Every existing account is "due" the
 # first time this runs (last_digest starts empty), so without a cap the very
@@ -73,6 +87,23 @@ def _diverse_top(scored: list, n: int) -> list:
             return out
     out.extend(skipped[:n - len(out)])
     return out
+
+
+def _send_window_open(now=None) -> bool:
+    """True inside SEND_HOURS local time. Loud, not silent, if the zone is missing."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        from zoneinfo import ZoneInfo
+        local = now.astimezone(ZoneInfo(SEND_TZ))
+    except Exception as e:
+        # No zone database at all. Fall back to Pacific standard time as a
+        # fixed offset -- an hour off for a third of the year, but the email
+        # still lands in the morning rather than never. Printed every pass
+        # on purpose: this is a misconfigured container, and it should nag.
+        print(f"  weekly: no zone database ({type(e).__name__}); using UTC-8 "
+              f"for the send window -- add tzdata", flush=True)
+        local = now.astimezone(timezone(timedelta(hours=-8)))
+    return SEND_HOURS[0] <= local.hour < SEND_HOURS[1]
 
 
 def _due(acc: dict) -> bool:
@@ -206,6 +237,10 @@ def run_all() -> int:
     import profile
 
     if not mailer.enabled():
+        return 0
+    # Held, not stamped: whoever is due stays due, and the first pass inside
+    # the window picks them up. Nothing about the account changes here.
+    if not _send_window_open():
         return 0
 
     due = [a for a in accounts.all_accounts()
