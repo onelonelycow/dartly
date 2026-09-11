@@ -1,4 +1,14 @@
-# Location on the board: what is wrong and what to do
+# Location on the board
+
+> **Done, 2026-09-11.** `posts` now carries `remote`, `location` and
+> `work_type`, populated at ingest by every fetcher from the source's own
+> field, mirrored, and read by `location.tag()` ahead of the prose. Rows
+> stored before that date carry NULL and keep the text inference below
+> until they age out of the 21-day window. Option 1 as written; option 2 is
+> now possible on real data. The measurements below are kept as the record
+> of why.
+
+# What was wrong and what to do (as of 2026-09-05)
 
 Measured 2026-09-05 against the live API and the live board. Every number
 below was read, not estimated; where something is a judgement it says so.

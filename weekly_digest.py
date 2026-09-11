@@ -118,6 +118,11 @@ def _market(week: list[dict]) -> dict:
 # before it was sent, never a week's backlog.
 _FRESH_HOURS = 48
 _SHOW = 5
+# Added to fit_score (0-100) before ranking the picks. Large enough that a
+# project beats a salaried role of similar fit, small enough that a poor-fit
+# project does not beat a strong-fit contract. Unknown ('') is neutral: the
+# ~55k rows stored before work_type existed must not be punished for it.
+_WORK_TYPE_BOOST = {"project": 25, "contract": 15, "": 0, "fulltime": -25}
 
 
 def _fresh_for(week: list[dict], skills: list[str], prof: dict) -> list[dict]:
@@ -162,7 +167,15 @@ def _fresh_for(week: list[dict], skills: list[str], prof: dict) -> list[dict]:
     scored = []
     for p in pool:
         sc, _ = score.fit_score(p, prof)
-        scored.append((sc, p))
+        # PROJECT WORK OUTRANKS A SALARIED VACANCY, at equal fit. Rendered for
+        # the founder's own profile on 2026-09-11, all five picks were
+        # full-time roles -- a Director of Sales, two "(m/w/d)" German
+        # postings -- in a weekly email from a product that sells freelance
+        # and contract work. work_type is the structured field for exactly
+        # this, and it arrives on every row since the same day; rows from
+        # before carry '' and sit in the middle, so the ranking degrades to
+        # fit-only on old data and sharpens as the board turns over.
+        scored.append((sc + _WORK_TYPE_BOOST.get(p.get("work_type") or "", 0), p))
     scored.sort(key=lambda t: t[0], reverse=True)
     return _diverse_top(scored, _SHOW)
 
