@@ -105,6 +105,27 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN rare INTEGER")
     except sqlite3.OperationalError:
         pass
+    # WHERE THE WORK IS, AS THE SOURCE SAID IT -- not as a regex guessed it.
+    # Every fetcher receives a structured location and until 2026-09-11 threw
+    # it away; location.tag() then inferred remote/on-site from prose, and the
+    # inference was measurably worse than the field (see location.tag).
+    #   remote     1 = can be done remotely, 0 = must be on site, NULL = the
+    #              source did not say (the ~55k rows stored before this column
+    #              existed). NULL is load-bearing: 0 is an answer.
+    #   location   the country / region / city the source supplied, verbatim.
+    #              '' when it supplied nothing. Read by location.tag() for the
+    #              restriction ("United States" -> US-only), never displayed
+    #              raw.
+    #   work_type  'project' (a client posts, you bid), 'contract',
+    #              'fulltime', or '' -- the axis that separates project work
+    #              from a salaried vacancy, and the one thing the board could
+    #              not tell about a gig before now.
+    for col, decl in (("remote", "INTEGER"), ("location", "TEXT"),
+                      ("work_type", "TEXT")):
+        try:
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
 
@@ -131,13 +152,17 @@ def upsert_post(post: dict) -> bool:
             """
             INSERT INTO posts
                 (source, source_id, url, title, body, posted_at, fetched_at,
-                 is_demand, job_type, size_tier, urgency, is_new, alerted, owner)
+                 is_demand, job_type, size_tier, urgency, is_new, alerted, owner,
+                 remote, location, work_type)
             VALUES
                 (:source, :source_id, :url, :title, :body, :posted_at, :fetched_at,
-                 :is_demand, :job_type, :size_tier, :urgency, 1, 0, :owner)
+                 :is_demand, :job_type, :size_tier, :urgency, 1, 0, :owner,
+                 :remote, :location, :work_type)
             """,
             # Everything except the inbox arrives without an owner, i.e. public.
-            {"owner": "",
+            # remote defaults to None, not 0: a fetcher that has not learned
+            # the field yet must land as "unknown", not as "on-site".
+            {"owner": "", "remote": None, "location": "", "work_type": "",
              "fetched_at": datetime.now(timezone.utc).isoformat(),
              **post},
         )

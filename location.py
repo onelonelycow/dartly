@@ -17,7 +17,14 @@ import re
 # Regions a gig may be *restricted* to. Match the "…only / …based / must be in…"
 # shapes, not a bare country mention (a company HQ isn't an eligibility rule).
 _RESTRICT = [
+    # "united states" is here because it is what a STRUCTURED field says.
+    # Himalayas' locationrestriction reads "United States" on 6 of 20 live
+    # entries (2026-09-11) and the pattern below did not match it in any
+    # form, so the biggest source's most common restriction would have
+    # reached the board as "worldwide". Free text rarely writes it out in
+    # full, which is why it was missing.
     ("US",     r"u\.?s\.?a?[\s\-]?(?:only|based|residents?|citizens?)"
+               r"|united\s+states(?:\s+of\s+america)?(?:[\s\-]?only)?"
                r"|(?:must be|only)\s+(?:in|located in|based in|authorized to work in)\s+the\s+u\.?s"
                r"|us\s+candidates?\s+only|america[ns]?\s+only|\bus[\-\s]based\b"),
     ("EU",     r"\b(?:eu|eea)[\s\-]?(?:only|based|residents?)"
@@ -121,20 +128,78 @@ def country_region(country: str):
 
 
 def tag(gig: dict) -> dict:
-    """Read a gig's text into location signals. Cheap enough to call per-render."""
+    """
+    A gig's location signals. Cheap enough to call per-render.
+
+    STRUCTURED FIRST, TEXT AS THE FALLBACK. Every source on the board hands
+    over a real location field -- Freelancer's `local` flag, Arbeitnow's
+    `remote` boolean and city, Himalayas' locationrestriction, WWR's region,
+    Jobicy's jobGeo, PeoplePerHour's location_type -- and until 2026-09-11 all
+    of it was discarded at ingest and this function guessed from prose. The
+    guess was measurably worse than the field: filtering the live board to
+    "remote" made the first page MORE job-board (68% vs 48%), because job
+    boards write the word "remote" more than a client posting a project does.
+
+    So when the row carries `remote` (1/0) it decides remote-vs-onsite
+    outright, and when it carries `location` that string is scanned for a
+    restriction BEFORE the prose is. Both are optional: the ~55,000 rows
+    stored before the columns existed carry neither, and for them this is
+    exactly the text inference it always was.
+
+    Two deliberate readings of the structured pair:
+      - remote=1 with an empty location means "anywhere". That is what every
+        remote-first source means by an empty restriction (Himalayas: 9 of 20
+        live entries), and it is the honest reading of Freelancer's
+        local=False with no country.
+      - a location that names a city ("Berlin") but no country restriction
+        pattern is not a restriction; the `remote` flag already says whether
+        you must be there. A restriction is a place you must be IN, not a
+        place the client is.
+    """
     text = f"{gig.get('title','')} {gig.get('body','')}"
     tl = text.lower()
+    loc = (gig.get("location") or "").strip()
+    known_remote = gig.get("remote")
+    if known_remote not in (0, 1, True, False):
+        known_remote = None
+
     restrict = None
-    for code, pat in _RESTRICT:
-        if re.search(pat, tl):
-            restrict = code
-            break
-    onsite = bool(_ONSITE.search(tl))
-    remote = bool(_REMOTE.search(tl))
+    # The field, phrased the way the patterns expect: a bare "Portugal" says
+    # nothing to a regex built for "Portugal only". Tried segment by segment
+    # as well as whole, because sources compose the field -- Arbeitnow writes
+    # "Hybrid - Germany - Berlin", and "…Berlin only" never lets the Germany
+    # pattern see "Germany only".
+    if loc:
+        parts = [loc] + [x.strip() for x in re.split(r"[\-|,/;()]+", loc) if x.strip()]
+        for part in parts:
+            ll = f"{part} only".lower()
+            for code, pat in _RESTRICT:
+                if re.search(pat, ll):
+                    restrict = code
+                    break
+            if restrict:
+                break
+    if restrict is None:
+        for code, pat in _RESTRICT:
+            if re.search(pat, tl):
+                restrict = code
+                break
+
+    worldwide = bool(_WORLDWIDE.search(tl)) or bool(loc and _WORLDWIDE.search(loc.lower()))
+    if known_remote is not None:
+        remote = bool(known_remote)
+        onsite = not remote
+        # An explicit remote flag with no restriction anywhere is "anywhere".
+        if remote and not loc and restrict is None:
+            worldwide = True
+    else:
+        onsite = bool(_ONSITE.search(tl))
+        remote = bool(_REMOTE.search(tl)) or worldwide
+        onsite = onsite and not remote            # "hybrid" leans remote-capable
     return {
-        "remote": remote or bool(_WORLDWIDE.search(tl)),
-        "onsite": onsite and not remote,          # "hybrid" leans remote-capable
-        "worldwide": bool(_WORLDWIDE.search(tl)),
+        "remote": remote,
+        "onsite": onsite,
+        "worldwide": worldwide,
         "restrict": restrict,
     }
 

@@ -53,13 +53,16 @@ CAP = 40000
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
          "apply_email", "page_checked", "link_checked", "llm_checked",
-         "archived_at", "rare")
+         "archived_at", "rare", "remote", "location", "work_type")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
 # Postgres — taking the whole executemany, and the batch, down with it.
 _DEFAULTS = {"is_demand": 1, "owner": "",
              "page_checked": None, "link_checked": None, "llm_checked": None,
+             # None, never 0: 0 is "on-site". Same integer-column reasoning as
+             # page_checked above -- "" would fail against Postgres outright.
+             "remote": None, "location": "", "work_type": "",
              "archived_at": None, "rare": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
@@ -106,6 +109,10 @@ _ADDED = (("apply_email", "text"),
           ("link_checked", "integer"),
           ("llm_checked", "integer"),
           ("archived_at", "text"),
+          # 2026-09-11: structured location. See db.init_db for the contract.
+          ("remote", "integer"),
+          ("location", "text"),
+          ("work_type", "text"),
           ("rare", "integer"))
 
 

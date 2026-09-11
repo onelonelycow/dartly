@@ -62,7 +62,12 @@ def _dup_key(title: str) -> str:
 def _derive(rec: dict) -> tuple:
     title = (rec.get("title") or "")
     body = (rec.get("body") or "")
-    t = _location.tag({"title": title, "body": body})
+    # remote/location ride along so the tagger can prefer the field over the
+    # prose. They are absent (None/'') on rows stored before 2026-09-11, and
+    # for those this is exactly the text inference it always was.
+    t = _location.tag({"title": title, "body": body,
+                       "remote": rec.get("remote"),
+                       "location": rec.get("location")})
     return (1 if t["remote"] else 0,
             1 if t["onsite"] else 0,
             t["restrict"] or "",
@@ -118,7 +123,7 @@ def _connect_rw():
 def _ensure_schema(conn):
     cols = ", ".join(
         f"{c} INTEGER" if c in ("is_demand", "page_checked", "link_checked",
-                                "llm_checked", "rare")
+                                "llm_checked", "rare", "remote")
         else f"{c} TEXT" for c in _COLS)
     conn.execute(f"""CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
