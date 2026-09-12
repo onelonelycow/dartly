@@ -120,8 +120,11 @@ def init_db():
     #              'fulltime', or '' -- the axis that separates project work
     #              from a salaried vacancy, and the one thing the board could
     #              not tell about a gig before now.
+    #   lang       the two-letter language the SOURCE states for the posting
+    #              ('' when it states none). Read through lang.of(), which
+    #              falls back to the text detector; never displayed raw.
     for col, decl in (("remote", "INTEGER"), ("location", "TEXT"),
-                      ("work_type", "TEXT")):
+                      ("work_type", "TEXT"), ("lang", "TEXT")):
         try:
             conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
         except sqlite3.OperationalError:
@@ -153,16 +156,17 @@ def upsert_post(post: dict) -> bool:
             INSERT INTO posts
                 (source, source_id, url, title, body, posted_at, fetched_at,
                  is_demand, job_type, size_tier, urgency, is_new, alerted, owner,
-                 remote, location, work_type)
+                 remote, location, work_type, lang)
             VALUES
                 (:source, :source_id, :url, :title, :body, :posted_at, :fetched_at,
                  :is_demand, :job_type, :size_tier, :urgency, 1, 0, :owner,
-                 :remote, :location, :work_type)
+                 :remote, :location, :work_type, :lang)
             """,
             # Everything except the inbox arrives without an owner, i.e. public.
             # remote defaults to None, not 0: a fetcher that has not learned
             # the field yet must land as "unknown", not as "on-site".
             {"owner": "", "remote": None, "location": "", "work_type": "",
+             "lang": "",
              "fetched_at": datetime.now(timezone.utc).isoformat(),
              **post},
         )

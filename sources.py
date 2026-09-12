@@ -20,6 +20,7 @@ import functools
 import feedparser
 
 import config
+import lang as _lang
 
 HEADERS = {"User-Agent": "nabbly/0.1 (public job & gig aggregator)"}
 TIMEOUT = 25
@@ -454,6 +455,10 @@ def fetch_freelancer() -> list[dict]:
             "location": (((p.get("location") or {}).get("country") or {}).get("name")
                          or (p.get("location") or {}).get("city") or ""),
             "work_type": "project",     # config.PROJECT_SOURCES
+            # Freelancer's own per-project language ("en", "id", "tr"...).
+            # 11 of 100 live projects were not English on 2026-09-12 and the
+            # text detector could only see 8 of them; see lang.of().
+            "lang": _lang.normalize(p.get("language")),
         })
       except Exception as e:
         bad += 1

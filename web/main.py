@@ -550,20 +550,13 @@ def _reading_languages(prof) -> list[str]:
 
     An explicit ?langs= still wins: this only supplies the default.
     """
-    prof = prof or {}
-    if prof.get("show_all_languages"):
-        return []                      # they asked for everything
-    codes = {"en"}
     try:
         import lang as _lang
-        implied = _lang.COUNTRY_LANG.get((prof.get("country") or "").strip())
-        if implied:
-            codes.add(implied)
+        return _lang.reading_languages(prof)
     except Exception:
-        # A missing table must not silently widen the board back out to every
+        # A failure here must not silently widen the board back out to every
         # language; English alone is the safe answer.
-        pass
-    return sorted(codes)
+        return ["en"]
 
 
 def _campaign(request) -> str:

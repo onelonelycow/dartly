@@ -258,13 +258,25 @@ def run_all() -> int:
         return 0
 
     market = _market(week)
+    # A gig's language is a property of the gig, so it is worked out once for
+    # the week, not once per account.
+    import lang
+    for p in week:
+        p["_lang"] = lang.of(p)
 
     sent = 0
     for acc in due[:_MAX_PER_RUN]:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prof = profile.load() or {}
-        gigs = _fresh_for(week, prof.get("skills") or [], prof)
+        # ONLY WHAT THIS PERSON CAN READ -- the board's own rule, applied to
+        # the email for the first time. The founder's own weekly render on
+        # 2026-09-11 carried two German "(m/w/d)" postings; the board would
+        # have hidden both. The market section above stays whole: the market
+        # is the market whatever language it is written in.
+        codes = lang.reading_languages(prof)
+        mine_week = [p for p in week if not codes or p["_lang"] in codes]
+        gigs = _fresh_for(mine_week, prof.get("skills") or [], prof)
         try:
             is_pro = bool(accounts.status(acc).get("pro"))
         except Exception:

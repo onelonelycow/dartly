@@ -2177,8 +2177,11 @@ def _build_feed(posts):
     df["_city"] = [location.city_lock({"title": t}) for t in df["title"].fillna("")]
     # Same reasoning as _city: a gig's language is a property of the POST, so
     # it's computed once here rather than per render.
-    df["_lang"] = [lang.detect(t, b) for t, b in
-                   zip(df["title"].fillna(""), df["body"].fillna(""))]
+    # lang.of(): the source's stated language when the row carries one, else
+    # the text detector. The column is absent from a seed older than 2026-09-12.
+    _src_lang = df["lang"].fillna("") if "lang" in df.columns else [""] * len(df)
+    df["_lang"] = [lang.of({"lang": l, "title": t, "body": b}) for l, t, b in
+                   zip(_src_lang, df["title"].fillna(""), df["body"].fillna(""))]
     # Whether a gig is remote, on-site, or region-restricted is ALSO a property
     # of the post — location.tag() only ever reads the gig's own title and body.
     # It used to be called per row, per render, by both location_counts() and

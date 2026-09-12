@@ -58,7 +58,10 @@ _SIGNALS = {
 _COMPILED = {k: re.compile(v, re.I) for k, v in _SIGNALS.items()}
 
 NAMES = {"de": "German", "nl": "Dutch", "es": "Spanish", "fr": "French",
-         "pt": "Portuguese", "it": "Italian", "en": "English"}
+         "pt": "Portuguese", "it": "Italian", "en": "English",
+         # Seen in Freelancer's own language field (below); the stopword lists
+         # above cannot detect these, so they only ever arrive from a source.
+         "id": "Indonesian", "tr": "Turkish", "uk": "Ukrainian", "sw": "Swahili"}
 
 # Which language a profile country implies, so someone in Germany keeps their
 # German gigs without having to find a setting.
@@ -66,7 +69,9 @@ COUNTRY_LANG = {
     "Germany": "de", "Austria": "de", "Switzerland": "de",
     "Netherlands": "nl", "Belgium": "nl",
     "Spain": "es", "Mexico": "es", "Argentina": "es",
+    "Colombia": "es", "Chile": "es", "Peru": "es", "Costa Rica": "es",
     "France": "fr", "Portugal": "pt", "Brazil": "pt", "Italy": "it",
+    "Indonesia": "id", "Turkey": "tr", "Ukraine": "uk",
 }
 
 _MIN_HITS = 3
@@ -102,3 +107,47 @@ def detect(title: str, body: str = "") -> str:
 
 def label(code: str) -> str:
     return NAMES.get(code, code.upper())
+
+
+def normalize(code) -> str:
+    """A source's language value as a two-letter code, or '' if it isn't one."""
+    c = str(code or "").strip().lower()[:2]
+    return c if len(c) == 2 and c.isalpha() else ""
+
+
+def of(post: dict) -> str:
+    """
+    The language of a stored gig: what the source said, else what the text
+    looks like.
+
+    THE FIELD FIRST. Freelancer states each project's language, and measured
+    against 100 live projects on 2026-09-12 it was right on every row a person
+    could check: 11 were not English, the stopword lists above caught 8, and
+    the three they missed (Turkish, Arabic script, a Portuguese post scored as
+    Spanish) all sat on an English reader's board. In the other direction the
+    field never said "en" where the text disagreed, so trusting it cannot hide
+    an English gig — the one mistake that costs somebody work. Rows from
+    before the field existed (2026-09-12) carry '' and fall through to detect().
+    """
+    return (normalize(post.get("lang"))
+            or detect(post.get("title") or "", post.get("body") or ""))
+
+
+def reading_languages(prof: dict | None) -> list[str]:
+    """
+    Which languages this reader's board — and their email — should include.
+
+    English always, plus whatever their country implies, so somebody in
+    Germany keeps their German gigs without having to find a setting. Empty
+    means "everything": they asked for it (Profile → show all languages).
+    One rule, read by the board (web/main.py) and the weekly email, so the
+    two cannot disagree about what a person can read.
+    """
+    prof = prof or {}
+    if prof.get("show_all_languages"):
+        return []
+    codes = {"en"}
+    implied = COUNTRY_LANG.get((prof.get("country") or "").strip())
+    if implied:
+        codes.add(implied)
+    return sorted(codes)

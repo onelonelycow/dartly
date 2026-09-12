@@ -72,7 +72,10 @@ def _derive(rec: dict) -> tuple:
     return (1 if t["remote"] else 0,
             1 if t["onsite"] else 0,
             t["restrict"] or "",
-            _lang.detect(title, body) or "en",
+            # The source's stated language when it gave one (Freelancer
+            # does), else the text detector -- lang.of() is the one rule.
+            _lang.of({"lang": rec.get("lang"), "title": title, "body": body})
+            or "en",
             _location.city_lock({"title": title}) or "",
             _dup_key(title),
             # Stored separately from is_remote even though is_remote already

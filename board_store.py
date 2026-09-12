@@ -53,7 +53,7 @@ CAP = 40000
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
          "apply_email", "page_checked", "link_checked", "llm_checked",
-         "archived_at", "rare", "remote", "location", "work_type")
+         "archived_at", "rare", "remote", "location", "work_type", "lang")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
@@ -62,7 +62,7 @@ _DEFAULTS = {"is_demand": 1, "owner": "",
              "page_checked": None, "link_checked": None, "llm_checked": None,
              # None, never 0: 0 is "on-site". Same integer-column reasoning as
              # page_checked above -- "" would fail against Postgres outright.
-             "remote": None, "location": "", "work_type": "",
+             "remote": None, "location": "", "work_type": "", "lang": "",
              "archived_at": None, "rare": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
@@ -113,7 +113,9 @@ _ADDED = (("apply_email", "text"),
           ("remote", "integer"),
           ("location", "text"),
           ("work_type", "text"),
-          ("rare", "integer"))
+          ("rare", "integer"),
+          # 2026-09-12: the source's own language for the posting. lang.of().
+          ("lang", "text"))
 
 
 def _migrate(conn):
