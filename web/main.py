@@ -126,6 +126,11 @@ SKILL_GROUPS = _skill_groups()
 APP_URL = (os.environ.get("NABBLY_APP_URL")
            or "https://app.nabbly.co").rstrip("/")
 
+# The card's word for each work_type the sources emit (sources._work_type and
+# the two marketplaces' literal "project"). Anything else renders no pill.
+_WORK_NOTE = {"project": "Project", "contract": "Contract",
+              "fulltime": "Full-time"}
+
 
 def decorate(rows, ranked=False):
     """
@@ -185,6 +190,10 @@ def decorate(rows, ranked=False):
             r["loc_note"] = ""
         for k in ("is_remote", "is_onsite", "restrict_cc", "is_worldwide"):
             r.pop(k, None)
+        # Project or job, in the source's own words (see queries._filters).
+        # Empty for rows from before the field existed, so no pill rather
+        # than a guessed one.
+        r["work_note"] = _WORK_NOTE.get(r.pop("work_type", None) or "", "")
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
@@ -2564,6 +2573,7 @@ def board(request: Request,
           source: str = Query(""),
           urgent: int = Query(0),
           where: str = Query("", pattern="^(remote|onsite|)$"),
+          work: str = Query("", pattern="^(project|)$"),
           langs: str = Query(""),
           sort: str = Query("", pattern="^(fit|new|)$"),
           qf: str = Query("", pattern="^(recent|mine|urgent|)$"),
@@ -2581,7 +2591,8 @@ def board(request: Request,
                   if raw_field.strip() and not field else "")
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
-           "urgent_only": bool(urgent), "where_work": where, "since_hours": 0}
+           "urgent_only": bool(urgent), "where_work": where, "since_hours": 0,
+           "work_type": work}
     # Fit ranking is a Pro feature AND needs a profile with something in it.
     # score.fit_score gives every gig a flat +30 when there are no skills, so
     # an empty profile would produce the same number on every card and present
@@ -2716,8 +2727,8 @@ def board(request: Request,
 
     def link(**over):
         cur = {"q": q, "field": field, "size": size, "source": source,
-               "urgent": urgent or "", "where": where, "langs": langs,
-               "sort": sort, "qf": qf, "page": ""}
+               "urgent": urgent or "", "where": where, "work": work,
+               "langs": langs, "sort": sort, "qf": qf, "page": ""}
         cur.update(over)
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
         return f"{base}?" + "&".join(parts) if parts else base
@@ -2835,7 +2846,7 @@ def board(request: Request,
         key=lambda x: -x["n"])
     carry = {k: v for k, v in
              {"field": field, "size": size, "source": source, "langs": langs,
-              "where": where, "sort": sort, "qf": qf,
+              "where": where, "work": work, "sort": sort, "qf": qf,
               "urgent": urgent or ""}.items() if v}
 
     # AN EMPTY BOARD MID-DEPLOY IS NOT AN EMPTY BOARD. Render wipes the disk on
@@ -2868,7 +2879,7 @@ def board(request: Request,
         # than suggesting nothing.
         "search_terms": sorted(config.FIELD_ALIASES.keys()),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
-        "urgent": bool(urgent), "where": where, "link": link,
+        "urgent": bool(urgent), "where": where, "work": work, "link": link,
         "sort": sort, "ranked": ranked, "can_rank": can_rank,
         "qf": qf, "qf_label": QF_LABEL.get(qf, ""), "qf_note": qf_note,
         # Relative, not str(request.url): the absolute form would carry the

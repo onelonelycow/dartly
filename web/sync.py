@@ -33,6 +33,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import board_store  # noqa: E402
+import config as _config  # noqa: E402
 import lang as _lang  # noqa: E402
 import location as _location  # noqa: E402
 import migrate as _migrate_mod  # noqa: E402  (web/migrate.py)
@@ -97,6 +98,7 @@ RECONCILE_S = int(os.environ.get("NABBLY_RECONCILE_S") or 900)
 SWEEP_S = int(os.environ.get("NABBLY_SWEEP_S") or 86400)
 
 _COLS = board_store.COLS
+_PROJECT_SOURCES = frozenset(getattr(_config, "PROJECT_SOURCES", ()))
 _state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0,
           "watermark": "", "adds": 0, "archived": 0, "errors": 0,
           "hidden_dupes": 0, "note": "",
@@ -120,11 +122,13 @@ def _connect_rw():
     return conn
 
 
+_INT_COLS = ("is_demand", "page_checked", "link_checked", "llm_checked",
+             "rare", "remote")
+
+
 def _ensure_schema(conn):
     cols = ", ".join(
-        f"{c} INTEGER" if c in ("is_demand", "page_checked", "link_checked",
-                                "llm_checked", "rare", "remote")
-        else f"{c} TEXT" for c in _COLS)
+        f"{c} INTEGER" if c in _INT_COLS else f"{c} TEXT" for c in _COLS)
     conn.execute(f"""CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             {cols}, sort_at TEXT,
@@ -132,13 +136,15 @@ def _ensure_schema(conn):
             lang_code TEXT, city_lock TEXT, dup_key TEXT, is_primary INTEGER,
             is_worldwide INTEGER,
             UNIQUE (source, source_id))""")
-    # An older board.db predates the derived columns; add them rather than
-    # forcing a full re-pull.
+    # An older board.db predates some columns — the derived ones, or a mirror
+    # column added later (work_type, 2026-09-11); add them rather than forcing
+    # a full re-pull. Only the derived set was checked before, so a file from
+    # before a mirror column existed failed on the first upsert instead.
     have = {r[1] for r in conn.execute("PRAGMA table_info(posts)")}
-    for c in _DERIVED + ("is_primary",):
+    for c in _COLS + _DERIVED + ("is_primary",):
         if c not in have:
-            conn.execute(f"ALTER TABLE posts ADD COLUMN {c} "
-                         f"{'INTEGER' if c.startswith('is_') else 'TEXT'}")
+            kind = "INTEGER" if (c in _INT_COLS or c.startswith("is_")) else "TEXT"
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {c} {kind}")
     conn.commit()
 
 
@@ -154,6 +160,13 @@ def _upsert(conn, rows) -> int:
            f"ON CONFLICT (source, source_id) DO UPDATE SET {sets}")
     payload = []
     for r in rows:
+        # A marketplace row from before work_type existed carries None. The
+        # value is a fact about the source, not the row (config.PROJECT_SOURCES),
+        # so fill it here rather than leave 14,000 Freelancer projects out of
+        # "Projects only" until they age off the board. Measured 2026-09-12:
+        # 13,944 of the board's 14,788 marketplace rows had no value.
+        if not r.get("work_type") and (r.get("source") or "") in _PROJECT_SOURCES:
+            r["work_type"] = "project"
         vals = [r.get(c) for c in _COLS]
         posted = (r.get("posted_at") or "").strip()
         payload.append(tuple(vals)

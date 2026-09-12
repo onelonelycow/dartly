@@ -524,6 +524,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <a href="{{ link(where='') }}" class="{% if not where %}on{% endif %}">Everywhere</a>
   <a href="{{ link(where='remote') }}" class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
   <a href="{{ link(where='onsite') }}" class="{% if where == 'onsite' %}on pick{% endif %}">On-site / local</a>
+  <span class="lbl mt">Kind of work</span>
+  <a href="{{ link(work='') }}" class="{% if not work %}on{% endif %}">Anything</a>
+  <a href="{{ link(work='project') }}" class="{% if work == 'project' %}on pick{% endif %}">Projects only</a>
   <span class="lbl mt">Budget</span>
   {% for sz in ["Small", "Medium", "Large"] %}
     <a href="{{ link(size='' if sz in sel_size else sz) }}"

@@ -453,7 +453,7 @@ def fetch_freelancer() -> list[dict]:
             "remote": 0 if p.get("local") else 1,
             "location": (((p.get("location") or {}).get("country") or {}).get("name")
                          or (p.get("location") or {}).get("city") or ""),
-            "work_type": "project",
+            "work_type": "project",     # config.PROJECT_SOURCES
         })
       except Exception as e:
         bad += 1
@@ -578,7 +578,7 @@ def fetch_peopleperhour() -> list[dict]:
             # restriction. Plain 'remote' with no country is anywhere.
             "remote": 1,
             "location": _pph_country(proj, countries),
-            "work_type": "project",
+            "work_type": "project",     # config.PROJECT_SOURCES
         })
       except Exception as e:
         bad += 1

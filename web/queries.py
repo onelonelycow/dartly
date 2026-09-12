@@ -46,7 +46,8 @@ def _stale_cutoff() -> str:
 # 40KB; the whole column is 40MB.
 CARD_COLS = ("id", "title", "url", "source", "sort_at", "posted_at",
              "job_type", "size_tier", "urgency", "body", "apply_email",
-             "is_remote", "is_onsite", "restrict_cc", "is_worldwide", "rare")
+             "is_remote", "is_onsite", "restrict_cc", "is_worldwide", "rare",
+             "work_type")
 
 PAGE_SIZE = 25
 MAX_LIMIT = 100          # a caller cannot ask for the whole board
@@ -192,7 +193,7 @@ def _city_clause(conn, city: str, relocate: bool) -> tuple[str, list]:
 
 def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
              where_work, languages, since_hours=0, city="", relocate=False,
-             since_ts=""):
+             since_ts="", work_type=""):
     """
     The WHERE clause, its parameters, and the FROM, for every board query.
 
@@ -283,6 +284,15 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     elif where_work == "onsite" and _has_col(conn, "is_onsite"):
         where += " AND p.is_onsite = 1"
 
+    # A project someone can bid on, as opposed to a job someone can be hired
+    # into. The value is a fact from the source, not read out of the prose:
+    # Freelancer and PeoplePerHour list nothing but projects, and the job
+    # boards say "Full-time" / "Contract" in a field of their own. A row that
+    # has no value is a job-board row from before the field existed
+    # (2026-09-11), and a project filter is right to leave it out.
+    if work_type == "project" and _has_col(conn, "work_type"):
+        where += " AND p.work_type = 'project'"
+
     clause, ps = _in_clause("p.lang_code",
                             languages if _has_col(conn, "lang_code") else None)
     where += clause
@@ -307,6 +317,7 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
 def board(keyword: str = "", job_types=None, sizes=None, sources=None,
           urgent_only: bool = False, where_work: str = "", languages=None,
           since_hours: int = 0, city: str = "", relocate: bool = False,
+          work_type: str = "",
           page: int = 0, page_size: int = PAGE_SIZE,
           conn: sqlite3.Connection | None = None) -> dict:
     """
@@ -323,7 +334,8 @@ def board(keyword: str = "", job_types=None, sizes=None, sources=None,
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
                                       urgent_only, where_work, languages,
-                                      since_hours, city, relocate)
+                                      since_hours, city, relocate,
+                                      work_type=work_type)
         total = conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         cols = ", ".join(f"p.{c}" for c in CARD_COLS)
         depth = SPREAD_PAGES * page_size
@@ -424,6 +436,7 @@ def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
                sources=None, urgent_only: bool = False, where_work: str = "",
                languages=None, since_hours: int = 0,
                city: str = "", relocate: bool = False,
+               work_type: str = "",
                page: int = 0, page_size: int = PAGE_SIZE,
                resume_text: str = "",
                conn: sqlite3.Connection | None = None) -> dict:
@@ -443,7 +456,8 @@ def fit_ranked(profile: dict, keyword: str = "", job_types=None, sizes=None,
         page = max(0, int(page or 0))
         where, params, frm = _filters(conn, keyword, job_types, sizes, sources,
                                       urgent_only, where_work, languages,
-                                      since_hours, city, relocate)
+                                      since_hours, city, relocate,
+                                      work_type=work_type)
         # The TRUE number matching the filters, not the size of the window we
         # ranked. Reporting the window here would put "500 gigs" in the header
         # of a board with twelve thousand matches — the same kind of number
@@ -534,7 +548,8 @@ def facets(conn: sqlite3.Connection | None = None, ctx: dict | None = None) -> d
                 conn, "", sel["job_types"], sel["sizes"], sel["sources"],
                 ctx.get("urgent_only"), ctx.get("where_work") or "",
                 sel["languages"], 0,
-                ctx.get("city") or "", bool(ctx.get("relocate")))
+                ctx.get("city") or "", bool(ctx.get("relocate")),
+                work_type=ctx.get("work_type") or "")
             return {r[0]: r[1] for r in conn.execute(
                 f"SELECT p.{col}, COUNT(*) {frm} {where} "
                 f"AND p.{col} IS NOT NULL AND p.{col} != '' GROUP BY p.{col} "
@@ -574,7 +589,8 @@ def location_counts(conn: sqlite3.Connection | None = None,
             conn, "", ctx.get("job_types"), ctx.get("sizes"),
             ctx.get("sources"), ctx.get("urgent_only"), "",
             ctx.get("languages"), 0,
-            ctx.get("city") or "", bool(ctx.get("relocate")))
+            ctx.get("city") or "", bool(ctx.get("relocate")),
+            work_type=ctx.get("work_type") or "")
         total = conn.execute(
             f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
         if not _has_col(conn, "is_remote"):
@@ -724,7 +740,8 @@ def count_since(since_ts: str, conn=None, **ctx) -> int:
             conn, ctx.get("keyword", ""), ctx.get("job_types"), ctx.get("sizes"),
             ctx.get("sources"), ctx.get("urgent_only"), ctx.get("where_work", ""),
             ctx.get("languages"), 0, ctx.get("city", ""),
-            ctx.get("relocate", False), since_ts=since_ts)
+            ctx.get("relocate", False), since_ts=since_ts,
+            work_type=ctx.get("work_type", ""))
         return conn.execute(f"SELECT COUNT(*) {frm} {where}", params).fetchone()[0]
     finally:
         if own:

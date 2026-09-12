@@ -717,6 +717,12 @@ URGENT_SIGNALS = ["asap", "urgent", "immediately", "today", "right away", "start
 # "Remote" pill next to a source called RemoteOK is the same fact twice.
 REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 
+# Marketplaces where every listing is a project to bid on, never a job to be
+# hired into. The fetchers stamp work_type="project" from this; the board
+# applies the same fact to rows mirrored before the field existed
+# (2026-09-11), so "Projects only" is not a filter that starts empty.
+PROJECT_SOURCES = {"freelancer", "peopleperhour"}
+
 # Boards where applying means creating a FREE account on THEIR site first —
 # a real interruption to "reply first" that's worse if it's a surprise.
 # Deliberately a short, confirmed list rather than a guess at every source:
