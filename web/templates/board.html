@@ -359,6 +359,11 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
     border:1px solid var(--line);border-radius:12px;background:var(--panel);
     color:var(--mute);font-size:13.5px;cursor:pointer;margin:0 0 12px}
   .filt-t:checked ~ .filt-lbl{color:var(--ink)}
+  /* The caret says which way the panel is, same swap the categories
+     expander uses; a "▸" that stays put over an open panel reads as closed. */
+  .filt-lbl .wo{display:none}
+  .filt-t:checked ~ .filt-lbl .wc{display:none}
+  .filt-t:checked ~ .filt-lbl .wo{display:inline}
   .filt-t:checked ~ .rail{display:flex;position:static;max-height:none;
     padding:10px;margin:0 0 14px;background:var(--panel);
     border:1px solid var(--line);border-radius:12px}
@@ -499,7 +504,7 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    mechanism as the card's See more and the settings tabs. <details> cannot be
    forced open per-breakpoint from CSS, which is why it is not one. #}
 <input type="checkbox" class="filt-t" id="filt">
-<label class="filt-lbl" for="filt">▸ Filters</label>
+<label class="filt-lbl" for="filt"><span class="wc">▸ Filters</span><span class="wo">▾ Filters</span></label>
 <nav class="rail" aria-label="Filters">
   <span class="lbl">Categories</span>
   <a href="{{ link(field='') }}" class="{% if not carry.field %}on{% endif %}">Everything</a>
