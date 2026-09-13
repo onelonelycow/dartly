@@ -415,10 +415,19 @@ app.add_middleware(
 # The list is deliberately about CRAWLERS, not humans or our own tools. curl and
 # python-requests are not here: the uptime check and the capture scripts use
 # them, and a monitor that gets 403 is a monitor that lies.
+#
+# NOT ON THE LIST ANY MORE: oai-searchbot and chatgpt-user. The first builds
+# ChatGPT's search index, the second fetches a page when a person asks
+# ChatGPT about it -- both are how someone looking for exactly this board
+# gets sent here, and on 2026-09-12 a real visitor arrived from chatgpt.com
+# while both were still blocked. Measured over the week to 2026-09-13: every
+# blocked agent together drew ~17 requests a day, the OpenAI two about a
+# dozen for the week, and robots.txt already keeps an indexer off /gigs?*,
+# /draft/ and /out/. gptbot stays: that one is training-data collection.
 _BOTS = tuple(t.strip().lower() for t in (
     os.environ.get("NABBLY_BLOCK_UA") or
     "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
-    "oai-searchbot,chatgpt-user,ccbot,claudebot,anthropic-ai,perplexitybot,"
+    "ccbot,claudebot,anthropic-ai,perplexitybot,"
     "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
     "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
     "seznambot,serpstatbot,barkrowler,zoominfobot"
