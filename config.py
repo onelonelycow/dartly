@@ -402,6 +402,16 @@ NOT_AN_OPENING = {
 # same slice lang.py detects and can hide). Same discipline as the English
 # list and lang.py's own function-word lists: compounds and full role nouns
 # only, nothing short/generic enough to collide with an unrelated category.
+# Last-resort words: scored at a fraction of a real keyword, so they only ever
+# decide a posting nothing more specific matched. "engineer" alone was a full
+# Development keyword and filed every network, controls, sales and QA engineer
+# as a developer (CLASSIFIER.md); removed outright, 430 dev postings with a
+# bare "X Engineer" title fell to Other / general. On this board an engineer
+# nobody else claims is a software engineer far more often than not.
+JOB_TYPE_FALLBACKS = {
+    "Development / tech": ["engineer"],
+}
+
 JOB_TYPES = {
     "Video / animation": [
         "video edit", "video editor", "video editing", "animation",
@@ -414,7 +424,7 @@ JOB_TYPES = {
         "montaggio video", "editor video"
     ],
     "Design / creative": [
-        "logo", "brand", "branding", "head of design",
+        "logo", "branding", "head of design",
         "graphic design", "graphic designer", "designer", "illustrator",
         "illustration", "figma", "ui/ux", "ui design",
         "ux design", "ux/ui", "photoshop", "packaging",
@@ -424,7 +434,7 @@ JOB_TYPES = {
         "productontwerper", "diseñador gráfico", "diseño gráfico", "diseñador ux",
         "diseñador de producto", "designer graphique", "graphiste", "designer produit",
         "directeur artistique", "designer gráfico", "design gráfico", "designer de produto",
-        "grafico", "designer grafico", "progettazione grafica"
+        "grafico", "designer grafico", "progettazione grafica", "brand identity", "brand design", "brand designer",
     ],
     # Sits AFTER Design/Video on purpose: the classifier scans the body as a
     # fallback and takes the first category that matches, so a design or video
@@ -449,12 +459,11 @@ JOB_TYPES = {
         "testautomatisering", "control de calidad", "probador de software", "pruebas de software",
         "assurance qualité", "testeur logiciel", "test logiciel", "controle de qualidade",
         "testador de software", "testes de software", "controllo qualità", "tester software",
-        "collaudatore"
+        "collaudatore", "quality engineer", "engineer in test", "sdet", "qa automation",
     ],
     "Data / analytics": [
         "data analyst", "data analytics", "data science", "data scientist",
-        "data engineer", "sql", "machine learning", "ml engineer",
-        "ai engineer", "business intelligence", "power bi", "tableau",
+        "data engineer", "sql", "machine learning", "business intelligence", "power bi", "tableau",
         "analytics", "big data", "analista", "risk analyst",
         "quantitative", "datenanalyst", "datenanalytik", "datenwissenschaftler",
         "data-analist", "data-analyse", "datawetenschapper", "analista de datos",
@@ -479,7 +488,7 @@ JOB_TYPES = {
         "ingeniero eléctrico", "ingeniero civil", "electricista", "ingénieur mécanique",
         "ingénieur électrique", "ingénieur civil", "électricien", "engenheiro mecânico",
         "engenheiro elétrico", "engenheiro civil", "eletricista", "ingegnere meccanico",
-        "ingegnere elettrico", "ingegnere civile", "elettricista"
+        "ingegnere elettrico", "ingegnere civile", "elettricista", "controls engineer", "controls engineering", "automation engineer",
     ],
     "Development / tech": [
         "developer", "software engineer", "programmer", "coding",
@@ -488,7 +497,7 @@ JOB_TYPES = {
         "full stack", "full-stack", "backend", "back end",
         "frontend", "front end", "devops", "api",
         "sdk", "software developer", "mobile app", "ios developer",
-        "android developer", "engineer", "programming", "web developer",
+        "android developer", "programming", "web developer",
         "bot", "softwareentwickler", "entwickler", "programmierer",
         "anwendungsentwickler", "cloud engineer", "platform engineer", "site reliability",
         "sre", "aws", "azure", "kubernetes",
@@ -496,7 +505,7 @@ JOB_TYPES = {
         "desarrollador", "ingeniero de software", "programador", "développeur",
         "ingénieur logiciel", "desenvolvedor", "engenheiro de software", "sviluppatore",
         "ingegnere software", "programmatore", "secops", "solutions architect",
-        "software development", "integration engineer"
+        "software development", "integration engineer", "app development", "web development", "website development", "software architect", "database architect", "cloud architect", "data architect", "ai engineer", "ml engineer", "machine learning engineer", "senior engineer", "staff engineer", "principal engineer", "lead engineer", "solution engineer", "solutions engineer", "technical lead", "tech lead", "fullstack",
     ],
     "Writing / content": [
         "writer", "copywriter", "copywriting", "content writer",
@@ -517,7 +526,7 @@ JOB_TYPES = {
         "social-media-manager", "online marketing", "social media manager", "marketing digital",
         "gestor de marketing", "especialista en marketing", "responsable marketing", "chargé de marketing",
         "especialista em marketing", "marketing digitale", "responsabile marketing", "specialista marketing",
-        "paid media", "demand generation", "lifecycle marketing", "paid social"
+        "paid media", "demand generation", "lifecycle marketing", "paid social", "marketing manager", "brand marketing", "growth manager", "media coordinator", "marketing coordinator", "technical seo",
     ],
     "Sales / outreach": [
         "sales", "salesperson", "sales rep", "sales manager",
@@ -528,7 +537,7 @@ JOB_TYPES = {
         "vertriebsmitarbeiter", "kundenberater", "außendienst", "verkoper",
         "accountmanager", "salesmedewerker", "representante de ventas", "ejecutivo de cuentas",
         "commercial", "représentant commercial", "chargé de clientèle", "representante de vendas",
-        "executivo de contas", "rappresentante commerciale"
+        "executivo de contas", "rappresentante commerciale", "sales engineer",
     ],
     "Customer support": [
         "customer support", "customer success", "support agent", "help desk",
@@ -550,13 +559,12 @@ JOB_TYPES = {
     ],
     "Admin / VA": [
         "virtual assistant", "va", "administrative", "admin assistant",
-        "data entry", "assistant", "scheduling", "office manager",
-        "coordinator", "procurement", "operations manager", "receptionist",
+        "data entry", "assistant", "scheduling", "office manager", "procurement", "receptionist",
         "back office", "sachbearbeiter", "verwaltungsfachkraft", "disposition",
         "büro", "sekretariat", "administratief medewerker", "receptioniste",
         "asistente virtual", "asistente administrativo", "auxiliar administrativo", "assistant administratif",
         "secrétaire", "assistant virtuel", "assistente virtual", "assistente administrativo",
-        "assistente amministrativo", "segretaria"
+        "assistente amministrativo", "segretaria", "project coordinator", "office coordinator", "administrative coordinator", "admin coordinator",
     ],
     "Audio / music": [
         "voice over", "voiceover", "audio edit", "podcast",
@@ -615,7 +623,7 @@ JOB_TYPES = {
         "medico", "operatore sanitario", "mental health", "behavioral health",
         "registered nurse", "lpn", "lvn", "lcsw",
         "lmft", "clinician", "patient care", "provider enrollment",
-        "utilization review", "home health", "claims adjuster", "medical claims"
+        "utilization review", "home health", "claims adjuster", "medical claims", "care coordinator", "patient coordinator", "patient access", "patient support", "telehealth",
     ],
     "Architecture / 3D": [
         "architect", "interior design", "floor plan", "furniture design",
@@ -637,7 +645,7 @@ JOB_TYPES = {
         "administrador de red", "administrateur systèmes", "support informatique", "administrateur réseau",
         "suporte técnico", "administrador de rede", "amministratore di sistema", "supporto tecnico",
         "amministratore di rete", "systems administrator", "security operations", "service desk",
-        "field service technician", "identity management"
+        "field service technician", "identity management", "network engineer", "systems engineer", "it engineer", "support engineer", "network manager",
     ],
     "Consulting / strategy": [
         "consultant", "strategy", "advisor", "founders associate",
@@ -661,7 +669,7 @@ JOB_TYPES = {
     # ("Engineering Manager", "Manager Field Safety", "Head of Operations").
     # Those were the single biggest remaining lump in Other / general.
     "Management / operations": [
-        "head of", "director", "vp of", "vice president",
+        "director", "vice president",
         "chief", "general manager", "operations manager", "operations lead",
         "managing director", "office manager", "branch manager", "chief of staff",
         "geschäftsführer", "betriebsleiter", "abteilungsleiter", "teamleitung",

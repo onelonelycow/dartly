@@ -73,6 +73,74 @@ def _matches_skill(text: str, keywords) -> bool:
     return any(_skill_re(k).search(text) for k in keywords)
 
 
+# A title match is worth this many body matches. 3 measured best on the
+# 2026-09-13 fixture (1:1 and 5:1 were both worse); the body is where a
+# posting mentions every tool it touches, the title is where it names the job.
+_TITLE_WEIGHT = 3
+
+
+@functools.lru_cache(maxsize=64)
+def _category_re(skill: str):
+    """
+    One compiled alternation for a whole category's keyword list.
+
+    Scoring every category over the body meant ~850 keyword regexes per
+    posting; the first-match code it replaced stopped at the first title hit
+    and rarely read the body at all. Measured on 38,840 rows: 65s before,
+    612s scored keyword-by-keyword -- and reclassify_all() runs at boot on the
+    process that serves pages. One regex per category brings it back to 24
+    scans per text. Longest alternative first, so "software engineer" is
+    matched as itself and not as "engineer" inside it.
+    """
+    kws = sorted((k.strip() for k in config.JOB_TYPES.get(skill, ()) if k.strip()),
+                 key=len, reverse=True)
+    return re.compile(r"(?<!\w)(?:" + "|".join(re.escape(k) for k in kws) + r")s?(?!\w)")
+
+
+def _found(rx, text: str) -> set:
+    """Distinct keywords matched, with the plural s the pattern allows stripped."""
+    out = set()
+    for m in rx.finditer(text):
+        w = m.group(0)
+        out.add(w[:-1] if w.endswith("s") and not w[:-1].endswith("s") else w)
+    return out
+
+
+def _job_type(title_l: str, body_l: str) -> str:
+    """
+    The category with the strongest claim, not the first one that matched.
+
+    This used to be "first category in config.JOB_TYPES with any keyword in
+    the title, else the first with any keyword in the body". Measured on 300
+    judged rows (CLASSIFIER.md, 2026-09-13): Design / creative sits second in
+    that dict and Development / tech seventh, so "Makhana E-commerce Website
+    Development" was Design because its body said "web design" -- 32 of 111
+    misses were the right category matching and losing on dict order.
+
+    Now every category is scored: each matched keyword counts its word count
+    (so "website development" outweighs "brand"), title matches count
+    _TITLE_WEIGHT times, and the highest total wins. Dict order is only the
+    tie-break it always was. A keyword found in both places counts once, as a
+    title match.
+    """
+    best, best_score = "Other / general", 0
+    for skill in config.JOB_TYPES:
+        rx = _category_re(skill)
+        in_title = _found(rx, title_l)
+        in_body = _found(rx, body_l) - in_title if body_l else set()
+        score = (_TITLE_WEIGHT * sum(len(k.split()) for k in in_title)
+                 + sum(len(k.split()) for k in in_body))
+        if score > best_score:
+            best, best_score = skill, score
+    if best_score == 0:
+        # config.JOB_TYPE_FALLBACKS: a word too generic to outrank anything,
+        # allowed to decide only when nothing did.
+        for skill, kws in getattr(config, "JOB_TYPE_FALLBACKS", {}).items():
+            if any(_skill_re(k).search(title_l) for k in kws):
+                return skill
+    return best
+
+
 def _budget_amounts(text):
     out = []
     for m in _MONEY.findall(text):
@@ -128,18 +196,7 @@ def classify(title: str, body: str, source: str) -> dict:
     if is_demand and _is_not_an_opening(title_l):
         is_demand = False
 
-    # --- Skill: prefer a match in the TITLE (names the real role); the body
-    # often mentions other skills in passing, so only fall back to it. ---
-    job_type = "Other / general"
-    for skill, keywords in config.JOB_TYPES.items():
-        if _matches_skill(title_l, keywords):
-            job_type = skill
-            break
-    else:
-        for skill, keywords in config.JOB_TYPES.items():
-            if _matches_skill(text, keywords):
-                job_type = skill
-                break
+    job_type = _job_type(title_l, (body or "").lower())
 
     # --- Budget tier ---
     amounts = _budget_amounts(text)

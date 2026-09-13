@@ -69,3 +69,39 @@ not, and that is where most of the leakage goes.
 3. Re-run the 300 and read the disagreements again. The target is not 100%;
    the judge itself is "medium" or "low" on 124 of 300. 85% exact is a
    reasonable bar for a keyword classifier.
+
+## Fix, same day — scored tie-break + keyword edits
+
+`classify._job_type()` now scores every category (keyword word-count, title
+matches ×3, one regex per category) instead of taking the first match in
+dict order. Keyword edits, each tied to a fixture row: bare `engineer`,
+`brand`, `coordinator`, `head of`, `vp of` removed as full keywords
+(`engineer` kept as a last-resort word in `JOB_TYPE_FALLBACKS`); role names
+added where a specialist was losing to a generic word — `network engineer`,
+`sales engineer`, `quality engineer`, `care coordinator`, `marketing
+manager`, `app development`, `website development`, `software architect`,
+`fullstack` …; `ai engineer` / `ml engineer` moved from Data to Development.
+
+Measured old code vs new on the same rows (`tools/classifier_compare.py`):
+
+| set | rows | old exact | new exact | old group | new group | fixes / regressions |
+|---|---|---|---|---|---|---|
+| fixture (edits were made looking at it) | 300 | 58% | **71%** | 71% | **79%** | 46 / 6 |
+| validation (never looked at, judged after the edits) | 200 | 62% | **68%** | 74% | **77%** | 18 / 6 |
+
+The validation number is the honest one: +6 exact, +3 by group. The
+fixture gain is larger because the edits were chosen against it.
+
+Whole English board (38,840 rows): 17.6% change label. Design / creative
+loses a third (3,905 → 2,609 — mostly to Development and Marketing, which
+is where the judge said they belonged); IT / support more than doubles
+(299 → 702); Other / general +8% (3,993 → 4,313, the coordinators and
+bare-engineer titles nothing specific claims). Speed: 37s for the board,
+against 65s for the old first-match code — the one-regex-per-category
+scan is faster than the keyword loop it replaced.
+
+Not done, and worth a second pass later: `Video / animation → Design`
+(217 rows, mostly "3D poker chip design"-type listings the old order gave
+Video because `3d` sits in its list) and the judge's own uncertainty —
+"medium" or "low" on 124 of 300, so ~85% is the ceiling for a keyword
+classifier against this judge, not 100%.
