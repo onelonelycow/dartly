@@ -1322,6 +1322,11 @@ async def resume_upload(request: Request):
 @app.post("/resume/clear")
 async def resume_clear(request: Request):
     webauth.scope_for_request(request)
+    # Same gate as /resume. Without it a signed-out POST wrote an empty
+    # resume.json into the anonymous scope and bounced to "saved" -- nothing
+    # lost, but a route that says it saved for someone it never identified.
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
     try:
         import paths
         paths.write_user_json("resume.json", {})
@@ -2088,12 +2093,16 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import alerts as alerts_mod
     import profile as profile_mod
-    st_ = {}
+    st_, acc = {}, None
     try:
-        st_ = accounts.status(webauth.account_for(request)) or {}
+        acc = webauth.account_for(request)
+        st_ = accounts.status(acc) or {}
     except Exception:
         st_ = {}
     is_pro = bool(st_.get("pro"))
+    # Someone who clicked an unsubscribe link. The page must say so and offer
+    # the way back, because the unsubscribe page promises exactly that.
+    email_off = bool((acc or {}).get("email_opt_out"))
     # What the Account tab says you are on. Read from accounts.status rather
     # than inferred from is_pro, so a trial with days left reads as a trial.
     if is_pro and st_.get("plan") == "trial":
@@ -2132,6 +2141,7 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         "fl_err": err[:200], "fl_connected": connected == "freelancer",
         "fl_disconnected": disconnected == "freelancer",
         "is_pro": is_pro, "can_alerts": bool(st_.get("alerts")),
+        "email_off": email_off,
         "plan": plan, "inbox_address": inbox_address,
         "resume_chars": _resume_chars, "resume_bad": bool(resume_bad),
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
@@ -2250,6 +2260,20 @@ def _freelancer_state() -> dict:
                 "sandbox": bool(acc and acc.get("sandbox"))}
     except Exception:
         return {"available": False}
+
+
+@app.post("/profile/email")
+def profile_email_on(request: Request):
+    """Turn email back on -- the way back from the unsubscribe link."""
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    try:
+        accounts.resubscribe(me)
+    except Exception as e:
+        print(f"  ! resubscribe {me}: {type(e).__name__}: {e}", flush=True)
+    return RedirectResponse("/profile?tab=board&saved_ok=1", status_code=303)
 
 
 @app.get("/connect/freelancer")

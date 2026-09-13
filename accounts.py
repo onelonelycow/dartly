@@ -1158,6 +1158,32 @@ def unsubscribe(tok: str) -> bool:
     return True
 
 
+def resubscribe(email: str) -> bool:
+    """
+    Turn email back on for a signed-in member who unsubscribed.
+
+    The unsubscribe page has promised "email is switched back on from your
+    profile" since it shipped, and the profile had no such switch -- the
+    opt-out was one-way. Takes an address, not a token: the only caller is
+    the profile page, which already knows who is signed in.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    init()
+    conn = _connect()
+    try:
+        cur = conn.execute("UPDATE accounts SET email_opt_out=0 WHERE email=?",
+                           (email,))
+        conn.commit()
+        if not cur.rowcount:
+            return False
+    finally:
+        conn.close()
+    _mirror(email)
+    return True
+
+
 # Owner accounts get the admin panel just by being signed in, no ?admin= key.
 # Stored as SHA-256 rather than plaintext because this repo is public and an
 # email in source is an email in every scraper's list. Add more via the

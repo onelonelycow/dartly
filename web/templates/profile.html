@@ -469,10 +469,22 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
      time to act on. Every channel below is instant; the weekly email is a
      separate thing everybody gets, and it leads with the market rather than
      with listings that will be closed by the time they are read. #}
+  {% if email_off %}
+  {# They unsubscribed. The line above would be untrue for them, and the
+     unsubscribe page promised this is where email comes back on. #}
+  <div class="hint" style="margin:0 0 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px">
+    <span>You've unsubscribed from Nabbly email — no weekly email, nothing.
+      The channels below still work.</span>
+    <form method="post" action="/profile/email" style="margin:0">
+      <button class="ghost small" type="submit">Turn email back on</button>
+    </form>
+  </div>
+  {% else %}
   <p class="hint" style="margin:0 0 14px">Everyone gets the weekly email — what
     the market did, and the newest matches for
     <a href="#skills" class="aslink">what you do</a>. These channels are for
     hearing the moment a gig lands.</p>
+  {% endif %}
 
   <div class="chrow">
     <label class="f" for="sms_to">Text message{% if not is_pro %}

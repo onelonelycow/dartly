@@ -758,14 +758,37 @@ def fetch_rss(key: str) -> list[dict]:
             remote, location, work_type = hook(e) if hook else (None, "", "")
         except Exception:
             remote, location, work_type = None, "", ""
+        title = _strip(e.get("title", ""))
+        body = _strip(e.get("summary", "") or e.get("description", ""))
+        # THE LANGUAGE IS READ OFF THE FULL POSTING, THE BODY STAYS THE
+        # TEASER. Himalayas' feed carries a one-sentence summary (median 118
+        # chars, measured 2026-09-12) and the whole description in
+        # <content:encoded> (~1,900 chars stripped). The board stores the
+        # summary: Himalayas is 32,301 of the board's 56,143 rows, and storing
+        # the full text would grow the mirror pull that already bounds boot
+        # time by ~60MB. But a one-sentence teaser is too little for the
+        # language detector -- "Téléconseiller H/F 100% Télétravail" sat on
+        # the English board tagged en; on the full text it reads fr. So the
+        # detector runs here, once, on the text we do not keep, and the
+        # answer travels as the row's `lang` like a source-stated language
+        # would (see lang.of). Only when the content is actually longer;
+        # otherwise the board's own fallback sees the same text and decides.
+        lang_code = ""
+        try:
+            full = (e.get("content") or [{}])[0].get("value") or ""
+            if len(full) > len(body) + 200:
+                lang_code = _lang.detect(title, _strip(full))
+        except Exception:
+            lang_code = ""
         out.append({
             "source": src,
             "source_id": e.get("id") or link,
             "url": link,
-            "title": _strip(e.get("title", "")),
-            "body": _strip(e.get("summary", "") or e.get("description", "")),
+            "title": title,
+            "body": body,
             "posted_at": to_iso(e.get("published") or e.get("updated")),
             "remote": remote, "location": location, "work_type": work_type,
+            "lang": lang_code,
         })
     return out
 
