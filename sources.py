@@ -728,6 +728,11 @@ _RSS_LOCATION = {
 }
 
 
+# Characters of a feed's full description kept as the body. ~250 words: a
+# card's "See more" reads as a description, the draft has the actual brief.
+RSS_BODY_CAP = 1500
+
+
 def fetch_rss(key: str) -> list[dict]:
     """
     Any board that publishes an RSS feed, driven entirely by config.
@@ -760,24 +765,27 @@ def fetch_rss(key: str) -> list[dict]:
             remote, location, work_type = None, "", ""
         title = _strip(e.get("title", ""))
         body = _strip(e.get("summary", "") or e.get("description", ""))
-        # THE LANGUAGE IS READ OFF THE FULL POSTING, THE BODY STAYS THE
-        # TEASER. Himalayas' feed carries a one-sentence summary (median 118
-        # chars, measured 2026-09-12) and the whole description in
-        # <content:encoded> (~1,900 chars stripped). The board stores the
-        # summary: Himalayas is 32,301 of the board's 56,143 rows, and storing
-        # the full text would grow the mirror pull that already bounds boot
-        # time by ~60MB. But a one-sentence teaser is too little for the
-        # language detector -- "Téléconseiller H/F 100% Télétravail" sat on
-        # the English board tagged en; on the full text it reads fr. So the
-        # detector runs here, once, on the text we do not keep, and the
-        # answer travels as the row's `lang` like a source-stated language
-        # would (see lang.of). Only when the content is actually longer;
-        # otherwise the board's own fallback sees the same text and decides.
+        # THE FULL POSTING, CAPPED. Himalayas' feed carries a one-sentence
+        # summary (median 118 chars, measured 2026-09-12) and the whole
+        # description in <content:encoded> (~1,900 chars stripped). The
+        # board stored the summary, so 57% of its cards opened to a single
+        # line, the language detector had nothing to read ("Téléconseiller
+        # H/F 100% Télétravail" sat on the English board tagged en) and the
+        # AI draft wrote from a teaser. Storing the whole text would have
+        # grown the boot pull -- the number every capacity decision here
+        # turns on -- by ~60MB across 32,000 rows; RSS_BODY_CAP keeps it to
+        # about two-thirds of that and still gives a card a real description.
+        # Only new rows carry it, so the pull grows over the 14-day window
+        # rather than at once, and /health's boot_pull_s says by how much.
+        # The language is read off the uncapped text, once, and travels as
+        # the row's `lang` like a source-stated language would (lang.of).
         lang_code = ""
         try:
             full = (e.get("content") or [{}])[0].get("value") or ""
             if len(full) > len(body) + 200:
-                lang_code = _lang.detect(title, _strip(full))
+                full = _strip(full)
+                lang_code = _lang.detect(title, full)
+                body = full[:RSS_BODY_CAP].rsplit(" ", 1)[0] if len(full) > RSS_BODY_CAP else full
         except Exception:
             lang_code = ""
         out.append({

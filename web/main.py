@@ -2524,7 +2524,8 @@ def health():
         import sync
         s = sync.state()
         out.update(rows=s["rows"], drift_s=s["drift_s"],
-                   archived=s["archived"], errors=s["errors"])
+                   archived=s["archived"], errors=s["errors"],
+                   boot_pull_s=s.get("boot_pull_s"))
         # RETENTION, VISIBLE. The sweep runs unattended once a day and can
         # legitimately decline to run — the floor guard, an unreachable
         # mirror — so "it never happened" and "it happened and found nothing"

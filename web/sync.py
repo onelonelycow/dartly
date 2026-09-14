@@ -102,7 +102,7 @@ SWEEP_S = int(os.environ.get("NABBLY_SWEEP_S") or 86400)
 
 _COLS = board_store.COLS
 _PROJECT_SOURCES = frozenset(getattr(_config, "PROJECT_SOURCES", ()))
-_state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0,
+_state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0, "boot_pull_s": None,
           "watermark": "", "adds": 0, "archived": 0, "errors": 0,
           "hidden_dupes": 0, "note": "",
           # Retention against the mirror. last_sweep starts at 0 so the first
@@ -250,6 +250,7 @@ def full_sync() -> int:
     archival from the far cheaper flags query.
     """
     n = 0
+    t0 = time.time()
     conn = _connect_rw()
     try:
         _ensure_schema(conn)
@@ -263,6 +264,14 @@ def full_sync() -> int:
     if not n:
         return 0
     _migrate_mod.migrate(BOARD_DB, verbose=False)   # indexes + FTS
+    # THE NUMBER THAT BOUNDS A DEPLOY. Until this finishes the new instance
+    # serves an empty board (see the "booting" branch in web/main.py), and
+    # the pull's size is what this service's every capacity decision has
+    # turned on -- 142s at 14-day retention, measured 2026-08-24. Fuller
+    # Himalayas bodies (2026-09-13) grow it; /health carries this so the
+    # growth is read off the next few deploys rather than guessed.
+    _state["boot_pull_s"] = round(time.time() - t0, 1)
+    print(f"  board: pulled {n} rows in {_state['boot_pull_s']}s", flush=True)
     _invalidate_schema()
     _state["last_sync"] = time.time()
     return n
