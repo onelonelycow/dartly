@@ -83,6 +83,29 @@ def _country_pattern(name: str) -> str:
 # "anz only") and keep first refusal.
 _RESTRICT += [(c, _country_pattern(c)) for c in _MORE_COUNTRIES]
 
+# NINETY-SIX SCANS BECOMES SIX. tag() ran every _RESTRICT pattern as its own
+# re.search over the whole body, and the board runs it over every row at
+# boot: measured 2026-09-13, 120s of a 135s boot pull on a Mac and 406s on
+# Render -- the write itself is 0.1s per 10,000 rows. A generated country
+# pattern cannot match unless the country's first word is in the text, and
+# a substring test is a C loop; the regex only runs when it is. The six
+# hand-written patterns have no single needle and always run. Joining all
+# 96 into one alternation was tried first: identical answers, twice as slow.
+# Same answers as the plain loop on all 54,079 rows of the board.
+_NEEDLES = tuple(c.lower().split()[0] if c in _MORE_COUNTRIES else None
+                 for c, _ in _RESTRICT)
+_RESTRICT_RE = tuple(re.compile(pat) for _, pat in _RESTRICT)
+
+
+def _restrict(text_l: str):
+    """The first _RESTRICT code, in list order, whose pattern matches."""
+    for (code, _), needle, rx in zip(_RESTRICT, _NEEDLES, _RESTRICT_RE):
+        if needle is not None and needle not in text_l:
+            continue
+        if rx.search(text_l):
+            return code
+    return None
+
 _ONSITE    = re.compile(r"on[\s\-]?site|in[\s\-]person|on location|on-location"
                         r"|must be (?:physically )?(?:present|on[\s\-]?site|local)"
                         r"|\bhybrid\b|local to |based in your area|no remote", re.I)
@@ -172,18 +195,11 @@ def tag(gig: dict) -> dict:
     if loc:
         parts = [loc] + [x.strip() for x in re.split(r"[\-|,/;()]+", loc) if x.strip()]
         for part in parts:
-            ll = f"{part} only".lower()
-            for code, pat in _RESTRICT:
-                if re.search(pat, ll):
-                    restrict = code
-                    break
+            restrict = _restrict(f"{part} only".lower())
             if restrict:
                 break
     if restrict is None:
-        for code, pat in _RESTRICT:
-            if re.search(pat, tl):
-                restrict = code
-                break
+        restrict = _restrict(tl)
 
     worldwide = bool(_WORLDWIDE.search(tl)) or bool(loc and _WORLDWIDE.search(loc.lower()))
     if known_remote is not None:
