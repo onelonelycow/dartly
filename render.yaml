@@ -39,7 +39,13 @@ services:
     # a loop that ends on `sleep` would report a GREEN build with no
     # dependencies installed, which is far worse than the failure it replaces.
     # Both outcomes tested before shipping.
-    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
+    #
+    # No --no-cache-dir. Render keeps pip's download cache between builds;
+    # the flag told pip to discard it, so every deploy re-downloaded every
+    # wheel: 6m17s-6m20s per build on 2026-09-13, measured off the deploy
+    # records. The flag was there for disk on the old free tier; a starter
+    # instance has the room.
+    buildCommand: "for i in 1 2 3; do pip install -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
       - key: PYTHON_VERSION
@@ -115,7 +121,7 @@ services:
     name: nabbly-board
     runtime: python
     plan: starter
-    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
+    buildCommand: "for i in 1 2 3; do pip install -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     # One worker. Requests are ~1ms of Python over an indexed SQLite read, so
     # concurrency is bounded by I/O rather than CPU, and a second worker would
     # mean a second copy of the board file and a second sync loop pulling the
