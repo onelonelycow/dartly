@@ -424,10 +424,13 @@ app.add_middleware(
 # blocked agent together drew ~17 requests a day, the OpenAI two about a
 # dozen for the week, and robots.txt already keeps an indexer off /gigs?*,
 # /draft/ and /out/. gptbot stays: that one is training-data collection.
+# perplexitybot followed on 2026-09-14 for the same reason: it is the search
+# index behind an answer engine, its live-fetch agent (Perplexity-User) was
+# never on this list, and blocking one half of the pair was inconsistent.
 _BOTS = tuple(t.strip().lower() for t in (
     os.environ.get("NABBLY_BLOCK_UA") or
     "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
-    "ccbot,claudebot,anthropic-ai,perplexitybot,"
+    "ccbot,claudebot,anthropic-ai,"
     "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
     "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
     "seznambot,serpstatbot,barkrowler,zoominfobot"
