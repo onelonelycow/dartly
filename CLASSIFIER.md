@@ -105,3 +105,22 @@ Not done, and worth a second pass later: `Video / animation → Design`
 Video because `3d` sits in its list) and the judge's own uncertainty —
 "medium" or "low" on 124 of 300, so ~85% is the ceiling for a keyword
 classifier against this judge, not 100%.
+
+## Second pass, same day — the roles the taxonomy had no word for
+
+`Video → Design` (217 rows) touched none of the 500 judged rows and every
+title read was design work, so it stays. The `Other / general` bucket was
+real: purchasing, logistics and supply-chain roles, engineering managers,
+IT leadership, benefits coordinators — nothing in the keyword lists named
+them. Added as role names to Management, Development, IT, HR and Customer
+support; `coordinator` becomes a last-resort word for Admin / VA (it was
+7 of 7 wrong as a full keyword, because every one had somewhere better to
+go; as a fallback it only catches the ones nothing else claims).
+
+| set | old exact | new exact | old group | new group | fixes / regressions |
+|---|---|---|---|---|---|
+| fixture 300 | 58% | **72%** | 71% | **80%** | 49 / 5 |
+| validation 200 | 62% | **70%** | 74% | **80%** | 20 / 5 |
+
+Whole board: Other / general 3,993 → 4,056 (flat), Management 1,160 →
+1,352, IT / support 299 → 731. 37s.

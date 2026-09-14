@@ -410,6 +410,10 @@ NOT_AN_OPENING = {
 # nobody else claims is a software engineer far more often than not.
 JOB_TYPE_FALLBACKS = {
     "Development / tech": ["engineer"],
+    # 7 of 7 wrong as a full keyword (care, media, project coordinators all
+    # had somewhere better to go); as a last resort it catches the purchasing,
+    # logistics and itinerary coordinators nothing else names.
+    "Admin / VA": ["coordinator"],
 }
 
 JOB_TYPES = {
@@ -422,6 +426,7 @@ JOB_TYPES = {
         "animatiefilm", "videobewerking", "editor de video", "edición de video",
         "monteur vidéo", "montage vidéo", "editor de vídeo", "edição de vídeo",
         "montaggio video", "editor video"
+        "engineering manager", "head of engineering", "vp of engineering", "director of engineering", "head of data", "data platform",
     ],
     "Design / creative": [
         "logo", "branding", "head of design",
@@ -547,6 +552,7 @@ JOB_TYPES = {
         "soporte al cliente", "service client", "support client", "relation client",
         "atendimento ao cliente", "suporte ao cliente", "servizio clienti", "assistenza clienti",
         "client services", "member services", "customer engagement"
+        "client services",  "escalations",
     ],
     "Product / PM": [
         "product manager", "project manager", "program manager", "scrum",
@@ -559,12 +565,12 @@ JOB_TYPES = {
     ],
     "Admin / VA": [
         "virtual assistant", "va", "administrative", "admin assistant",
-        "data entry", "assistant", "scheduling", "office manager", "procurement", "receptionist",
+        "data entry", "assistant", "scheduling", "office manager", "receptionist",
         "back office", "sachbearbeiter", "verwaltungsfachkraft", "disposition",
         "büro", "sekretariat", "administratief medewerker", "receptioniste",
         "asistente virtual", "asistente administrativo", "auxiliar administrativo", "assistant administratif",
         "secrétaire", "assistant virtuel", "assistente virtual", "assistente administrativo",
-        "assistente amministrativo", "segretaria", "project coordinator", "office coordinator", "administrative coordinator", "admin coordinator",
+        "assistente amministrativo", "segretaria", "project coordinator", "administrative coordinator", "admin coordinator",
     ],
     "Audio / music": [
         "voice over", "voiceover", "audio edit", "podcast",
@@ -600,6 +606,7 @@ JOB_TYPES = {
         "hr operations", "hr systems", "hr generalist", "hr director",
         "hr coordinator", "hr specialist", "hr assistant", "hr lead",
         "hr advisor", "hr administrator", "hr analyst", "hris"
+        "benefits coordinator", "benefits specialist",  "people partner", 
     ],
     "Legal": [
         "lawyer", "attorney", "paralegal", "legal",
@@ -646,6 +653,7 @@ JOB_TYPES = {
         "suporte técnico", "administrador de rede", "amministratore di sistema", "supporto tecnico",
         "amministratore di rete", "systems administrator", "security operations", "service desk",
         "field service technician", "identity management", "network engineer", "systems engineer", "it engineer", "support engineer", "network manager",
+        "it manager", "it director", "head of it", "vp of information technology", "information technology", 
     ],
     "Consulting / strategy": [
         "consultant", "strategy", "advisor", "founders associate",
@@ -678,6 +686,7 @@ JOB_TYPES = {
         "diretor", "gerente de operações", "chefe de equipe", "responsabile operativo",
         "capo squadra", "business operations", "revenue operations", "operations specialist",
         "operations analyst"
+        "supply chain", "logistics", "purchasing", "procurement", "operations coordinator", "facilities", "office coordinator",
     ],
     "Translation / language": [
         "translator", "translation", "localization", "interpreter",
