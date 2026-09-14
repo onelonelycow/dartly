@@ -50,11 +50,20 @@ _MAX_PER_RUN = 40
 # already-scored gigs make the cut.
 _MAX_PER_SOURCE = 3
 _MAX_PER_TITLE_TAIL = 2
+# Same reasoning, for budget. fit_score gives Large +18, Medium +11, Small +6
+# whenever the profile has no rate floor -- which is every profile today --
+# and the scoring is deterministic, so the five slots went to the same shape
+# every week: Large, Urgent, project. Rendered 2026-09-12 for four profile
+# shapes: 20 picks, 20 "Large budget". Somebody whose work is $80 logos and
+# $150 edits never saw their kind of gig in the email. Three of five keeps
+# "pays more" first without making it the only thing shown.
+_MAX_PER_SIZE = 3
 
 
 def _diverse_top(scored: list, n: int) -> list:
     """
-    Best N by score, capped so no one source or company crowds out the rest.
+    Best N by score, capped so no one source, company or budget tier crowds
+    out the rest.
 
     "Company" isn't a real field — titles just carry it as "Role — Company",
     inconsistently enough (checked against 2,000 real titles; plenty use
@@ -69,18 +78,21 @@ def _diverse_top(scored: list, n: int) -> list:
     list short — a thin match pool should never show FEWER gigs than before,
     only a better-mixed ten when there's enough variety to mix.
     """
-    by_source, by_tail, out, skipped = {}, {}, [], []
+    by_source, by_tail, by_size, out, skipped = {}, {}, {}, [], []
     for s, p in scored:
         src = p.get("source", "")
+        size = p.get("size_tier") or ""
         tail = (p.get("title") or "").rsplit(" — ", 1)
         tail_key = tail[1].strip().lower() if len(tail) == 2 else None
         capped = (by_source.get(src, 0) >= _MAX_PER_SOURCE
-                  or (tail_key and by_tail.get(tail_key, 0) >= _MAX_PER_TITLE_TAIL))
+                  or (tail_key and by_tail.get(tail_key, 0) >= _MAX_PER_TITLE_TAIL)
+                  or (size and by_size.get(size, 0) >= _MAX_PER_SIZE))
         if capped:
             skipped.append(p)
             continue
         out.append(p)
         by_source[src] = by_source.get(src, 0) + 1
+        by_size[size] = by_size.get(size, 0) + 1
         if tail_key:
             by_tail[tail_key] = by_tail.get(tail_key, 0) + 1
         if len(out) >= n:
