@@ -60,6 +60,17 @@ _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
 
 
+def _trim():
+    """Return freed heap pages to the OS. glibc only; a no-op elsewhere."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
+
+
 def _rss_mb() -> float:
     """Current resident memory, in MB. Linux reads /proc (what Render runs);
     the getrusage fallback on macOS reports peak rather than current, which is
@@ -252,9 +263,21 @@ def _loop(on_update=None):
             # is the missing instrument: when (if) the next alert email
             # arrives, the log shows exactly what RSS was doing in the minutes
             # before, instead of us inferring it. ~720 short lines a day.
+            # HAND FREED MEMORY BACK. Killed for memory on 2026-09-15 with the
+            # log showing RSS climbing ~1MB a cycle all day, 401MB -> 485MB,
+            # on a 512MB instance -- and 433MB after 20 hours two days before,
+            # so it was always heading there. Nothing holds those bytes: each
+            # cycle allocates ~1,300 postings of text and frees them, and
+            # glibc keeps the freed, fragmented pages rather than returning
+            # them. malloc_trim gives them back; MALLOC_ARENA_MAX=2 in the
+            # environment stops the four threads each fragmenting an arena of
+            # their own. Both lines in the log so the slope is readable.
+            before = _rss_mb()
+            _trim()
             _state["rss_mb"] = _rss_mb()
             print(f"  mem: {_state['rss_mb']:.0f}MB rss "
-                  f"(cycle {_state['runs']})", flush=True)
+                  f"(cycle {_state['runs']}, {before:.0f}MB before trim)",
+                  flush=True)
 
             # Read anything people forwarded to their Nabbly address. Runs right
             # after the fetch so forwarded gigs are on the board before the

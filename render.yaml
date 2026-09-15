@@ -129,6 +129,11 @@ services:
     startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT --workers 1"
     healthCheckPath: /health
     envVars:
+      # One malloc arena per thread is how RSS crept ~1MB a cycle to the
+      # 512MB kill on 2026-09-15; two is the usual setting for a threaded
+      # Python service and costs nothing measurable. See refresh._trim().
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: PYTHON_VERSION
         value: "3.12.0"
       # Reaches the durable mirror to build and refresh its own local copy.
