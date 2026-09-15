@@ -557,9 +557,8 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
        unconfigured deploy shows nothing rather than a button that dead-ends. #}
     <div class="card" id="connections">
       <div class="ttl">Connected accounts</div>
-      <span class="sub">Freelancer is the one board on Nabbly where applying
-        needs an account there and there is an API to get past it. Connect it
-        and you can place a bid from the gig itself.</span>
+      <span class="sub">Link your Freelancer.com account and you can bid on a
+        Freelancer project straight from Nabbly, without opening another tab.</span>
 
       {% if fl_err %}<p class="fl-note fl-bad">{{ fl_err }}</p>{% endif %}
       {% if fl_connected %}<p class="fl-note fl-ok">Freelancer connected.</p>{% endif %}
@@ -573,7 +572,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
           {% elif fl.account %}
             <div class="conn-s">Connected{% if fl.sandbox %} · sandbox{% endif %}</div>
           {% else %}
-            <div class="conn-s">Not connected. Nabbly can bid for you once it is.</div>
+            <div class="conn-s">Not connected</div>
           {% endif %}
         </div>
         {% if fl.account %}
@@ -582,9 +581,9 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
           <a class="ghost small" href="/connect/freelancer">Connect</a>
         {% endif %}
       </div>
-      <p class="hint">Nabbly asks Freelancer for one permission — managing your
-        bids — and never posts one without you pressing send on it. Your
-        access is stored encrypted and you can cut it here at any time.</p>
+      <p class="hint">Nabbly only asks Freelancer for permission to place bids.
+        Nothing is sent until you press Send on a bid, and you can disconnect
+        here at any time.</p>
     </div>
 {% endif %}
   </div>
