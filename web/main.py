@@ -2301,7 +2301,7 @@ def freelancer_start(request: Request):
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import freelancer
     if not freelancer.enabled():
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="Freelancer connect isn't switched on yet.")
     state = freelancer.new_state()
     request.session[freelancer.STATE_KEY] = state
@@ -2329,33 +2329,33 @@ def freelancer_callback(request: Request, code: str = Query(""),
     if not webauth.current_email(request):
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     if error:
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="" if error == "access_denied"
                      else "Freelancer couldn't complete that connection.")
     if not want:
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="That connection link expired. Start again from here.")
     if state and state != want:
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="That connection link didn't check out. Try again.")
     if not code:
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="Freelancer didn't send a code back.")
     tok, err = freelancer.exchange_code(code)
     if err:
-        return _back("/profile", tab="board", err=err)
+        return _back("/profile", tab="acct", err=err)
     # Name the account before storing it, so the profile row can say WHICH
     # Freelancer account is connected. A row that just says "connected" is
     # useless to somebody who has two.
     who, werr = freelancer.me(tok["access_token"])
     if werr:
-        return _back("/profile", tab="board", err=werr)
+        return _back("/profile", tab="acct", err=werr)
     tok["user_id"] = who.get("id")
     tok["username"] = who.get("username") or who.get("display_name") or ""
     if not freelancer.save_tokens(tok):
-        return _back("/profile", tab="board",
+        return _back("/profile", tab="acct",
                      err="Couldn't store that connection securely.")
-    return _back("/profile", tab="board", connected="freelancer")
+    return _back("/profile", tab="acct", connected="freelancer")
 
 
 @app.post("/connect/freelancer/disconnect")
@@ -2365,7 +2365,7 @@ def freelancer_disconnect(request: Request):
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import freelancer
     freelancer.disconnect()
-    return _back("/profile", tab="board", disconnected="freelancer")
+    return _back("/profile", tab="acct", disconnected="freelancer")
 
 
 @app.get("/out/{gig_id}")

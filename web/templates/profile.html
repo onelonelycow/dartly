@@ -552,6 +552,39 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         <span>Only ping me for gigs marked urgent.</span></label>
     </div>
 
+  </div>
+
+  <!-- ── TAB: Account ────────────────────────────────────────────────── -->
+  <div class="pane pane-acct">
+    <div class="card">
+      <div class="ttl">Your plan</div>
+      <span class="sub">What you are on today, and what it gets you.</span>
+      <div class="plan">
+        <div>
+          <div class="plan-name">{{ plan.name }}</div>
+          <div class="plan-what">{{ plan.what }}</div>
+        </div>
+        <div class="plan-tag">{{ plan.tag }}</div>
+      </div>
+      {% if not is_pro %}
+        {# What Pro adds DEPENDS ON WHAT YOU ALREADY HAVE. This listed
+           "instant alerts" unconditionally, which is true for a free reader
+           and plainly false for somebody paying for the alerts tier — the one
+           thing they already bought, sold back to them. #}
+        {% if can_alerts %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, and market rates. Your alerts
+            carry over.</p>
+        {% else %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, market rates, and instant alerts.</p>
+        {% endif %}
+        <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
+      {% else %}
+        <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>
+      {% endif %}
+    </div>
+
 {% if fl.available %}
     {# CONNECTED ACCOUNTS. Only rendered when the credentials exist, so an
        unconfigured deploy shows nothing rather than a button that dead-ends. #}
@@ -586,38 +619,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         here at any time.</p>
     </div>
 {% endif %}
-  </div>
-
-  <!-- ── TAB: Account ────────────────────────────────────────────────── -->
-  <div class="pane pane-acct">
-    <div class="card">
-      <div class="ttl">Your plan</div>
-      <span class="sub">What you are on today, and what it gets you.</span>
-      <div class="plan">
-        <div>
-          <div class="plan-name">{{ plan.name }}</div>
-          <div class="plan-what">{{ plan.what }}</div>
-        </div>
-        <div class="plan-tag">{{ plan.tag }}</div>
-      </div>
-      {% if not is_pro %}
-        {# What Pro adds DEPENDS ON WHAT YOU ALREADY HAVE. This listed
-           "instant alerts" unconditionally, which is true for a free reader
-           and plainly false for somebody paying for the alerts tier — the one
-           thing they already bought, sold back to them. #}
-        {% if can_alerts %}
-          <p class="hint">Pro adds gigs ranked against your profile, replies
-            drafted from the actual posting, and market rates. Your alerts
-            carry over.</p>
-        {% else %}
-          <p class="hint">Pro adds gigs ranked against your profile, replies
-            drafted from the actual posting, market rates, and instant alerts.</p>
-        {% endif %}
-        <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
-      {% else %}
-        <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>
-      {% endif %}
-    </div>
 
     {% if inbox_address %}
     <div class="card">
@@ -628,13 +629,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       <div class="mono">{{ inbox_address }}</div>
     </div>
     {% endif %}
-
-    <div class="card">
-      <div class="ttl">Getting back in</div>
-      <span class="sub">There is no password on your account. Signing in sends a
-        code to {{ me }}, which is all you ever need.</span>
-      <button class="ghost small" type="submit" form="so">Sign out</button>
-    </div>
 
     <div class="card quiet">
       <div class="ttl small">Something wrong, or missing?</div>
@@ -654,7 +648,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
    is invalid HTML and the browser silently discards the inner one, so the
    sign-out button and the feedback box are bound to these by their form=
    attribute instead. #}
-<form id="so" method="post" action="/signout"></form>
 <form id="cv" method="post" action="/resume" enctype="multipart/form-data"></form>
 <form id="cv-clear" method="post" action="/resume/clear"></form>
 <form id="fl-off" method="post" action="/connect/freelancer/disconnect"></form>
