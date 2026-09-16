@@ -47,7 +47,7 @@ def _stale_cutoff() -> str:
 CARD_COLS = ("id", "title", "url", "source", "sort_at", "posted_at",
              "job_type", "size_tier", "urgency", "body", "apply_email",
              "is_remote", "is_onsite", "restrict_cc", "is_worldwide", "rare",
-             "work_type")
+             "work_type", "source_id")   # source_id: the Freelancer project id a bid needs
 
 PAGE_SIZE = 25
 MAX_LIMIT = 100          # a caller cannot ask for the whole board

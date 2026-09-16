@@ -20,6 +20,16 @@ textarea{width:100%;min-height:270px;background:var(--panel);
 textarea:focus{outline:2px solid var(--amber-d);outline-offset:1px;
   border-color:transparent}
 .row{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px;align-items:center}
+.bidbox{margin:18px 0 0;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+.bid-h{font-weight:700;font-size:15px;margin-bottom:8px}
+.bid-who{font-weight:400;color:var(--mute);font-size:13px;margin-left:8px}
+.bid-line{margin:0 0 10px;color:var(--ink2);font-size:13.5px}
+.bid-line a{color:var(--amber)}
+.bid-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.bid-f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--mute)}
+.bid-f input{width:150px;padding:9px 11px;border-radius:10px;border:1px solid var(--line2);background:var(--bg);color:var(--ink);font:inherit}
+.bid-note{margin:0 0 10px;font-size:13.5px;color:var(--ink2)}
+.bid-note.ok{color:#7fd88f}.bid-note.bad{color:#f0907f}
 /* Apply reads as the outbound step: amber edge, same weight as Copy. */
 a.ghost.apply{border-color:var(--amber-d);color:var(--amber-l)}
 a.ghost.apply:hover{background:rgba(232,147,58,.08)}
@@ -119,6 +129,68 @@ button.ghost:hover,a.ghost:hover{border-color:var(--amber-d);color:var(--amber-l
     {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
+
+{% if bid %}
+{# BID FROM HERE. Drawn only for a Freelancer gig, for a member whose account
+   is connected, from the project as Freelancer reports it right now. The
+   proposal is the draft above -- the form copies it on submit -- and every
+   number is the member's to change before anything leaves this page. #}
+<section class="bidbox" id="bid">
+  <div class="bid-h">Bid on Freelancer
+    <span class="bid-who">as {{ bid.username }}</span></div>
+  {% if bid_err %}<p class="bid-note bad">{{ bid_err }}</p>{% endif %}
+  {% if bid_done == 'placed' %}<p class="bid-note ok">Bid placed.</p>{% endif %}
+  {% if bid_done == 'retracted' %}<p class="bid-note">Bid retracted.</p>{% endif %}
+
+  {% if bid.unreachable %}
+    <p class="bid-note">Couldn't reach Freelancer just now ({{ bid.unreachable }}). Use the Apply link above.</p>
+  {% elif bid.placed %}
+    <p class="bid-line">Your bid: <b>{{ bid.sign }}{{ bid.placed.amount|int }} {{ bid.currency }}</b>
+      in <b>{{ bid.placed.period }} day{{ '' if bid.placed.period == 1 else 's' }}</b>.
+      <a href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer nofollow">See it on Freelancer →</a></p>
+    <form method="post" action="/draft/{{ g.id }}/bid/retract" class="bid-row">
+      <input type="hidden" name="back" value="{{ back }}">
+      <button class="ghost" type="submit">Retract bid</button>
+    </form>
+  {% elif not bid.open %}
+    <p class="bid-note">This project is {{ bid.status or 'closed' }} on Freelancer — no new bids.</p>
+  {% elif bid.hourly %}
+    <p class="bid-note">This is an hourly project. Bidding from Nabbly is fixed-price only for now — use Apply on Freelancer above.</p>
+  {% else %}
+    <p class="bid-line">
+      {% if bid.lo is not none %}Client's budget <b>{{ bid.sign }}{{ bid.lo|int }}{% if bid.hi %}–{{ bid.hi|int }}{% endif %} {{ bid.currency }}</b>{% endif %}
+      {% if bid.bids is not none %} · {{ bid.bids }} bid{{ '' if bid.bids == 1 else 's' }} so far{% endif %}
+      {% if bid.left is not none %} · <b>{{ bid.left }}</b> bid{{ '' if bid.left == 1 else 's' }} left on your account this month{% else %} · bids left: unknown{% endif %}
+    </p>
+    <form method="post" action="/draft/{{ g.id }}/bid" id="bidform" class="bid-row">
+      <input type="hidden" name="back" value="{{ back }}">
+      <input type="hidden" name="description" id="bid-desc" value="">
+      <label class="bid-f">Your price ({{ bid.currency }})
+        <input name="amount" type="number" min="1" step="1" required inputmode="numeric"
+               value="{{ (bid.lo or '')|int if bid.lo else '' }}"></label>
+      <label class="bid-f">Days to deliver
+        <input name="period" type="number" min="1" max="365" step="1" required inputmode="numeric" value="7"></label>
+      <button class="go" type="submit" id="bid-send">Place bid</button>
+    </form>
+    <p class="hint">Sends the draft above as your proposal, under your Freelancer account. You can retract it here afterwards.</p>
+  {% endif %}
+</section>
+<script>
+(function () {
+  var f = document.getElementById("bidform");
+  if (!f) return;
+  f.addEventListener("submit", function (e) {
+    var box = document.getElementById("d"), d = document.getElementById("bid-desc");
+    d.value = box ? box.value : "";
+    var amt = f.querySelector("[name=amount]").value, days = f.querySelector("[name=period]").value;
+    if (!window.confirm("Place this bid on Freelancer under your account?\n\n" +
+        amt + " {{ bid.currency }} · " + days + " days\n\nThis uses one of your bids for the month.")) {
+      e.preventDefault();
+    }
+  });
+})();
+</script>
+{% endif %}
 
 <script>
 (function () {

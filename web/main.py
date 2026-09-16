@@ -1517,6 +1517,8 @@ def draft_text(request: Request, gig_id: int, regen: int = Query(0)):
 @app.get("/draft/{gig_id}", response_class=HTMLResponse)
 def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
                regen: int = Query(0), saved_ok: int = Query(0),
+               bid: str = Query("", pattern="^(placed|retracted|)$"),
+               bid_err: str = Query(""),
                sync: int = Query(0)):
     """
     A reply, drafted for one gig, generated ON REQUEST.
@@ -1586,6 +1588,8 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
 
     resp = templates.TemplateResponse(request, "draft.html", {
         "g": g, "draft": text, "pro": pro, "me": me, "back": back,
+        "bid": _bid_context(g, me) if me else None,
+        "bid_done": bid, "bid_err": bid_err[:200],
         # Where this gig actually lives, as a name a person recognises —
         # "Freelancer.com", not "freelancer". The Apply button below the draft
         # is labelled with it so the last step reads as a destination.
@@ -1601,6 +1605,147 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     resp.headers["Cache-Control"] = "private, no-store"
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
+
+
+def _gig_by_id(gig_id: int) -> dict | None:
+    conn = queries.connect(DB_PATH)
+    try:
+        rows = queries.by_ids([gig_id], conn=conn)
+    finally:
+        conn.close()
+    return rows[0] if rows else None
+
+
+def _bid_context(g: dict, me: str) -> dict | None:
+    """
+    Everything the bid panel on a Freelancer gig needs, or None to draw nothing.
+
+    None when: not a Freelancer gig, no keys on this deploy, this member has
+    not connected, or Freelancer could not be reached. The panel is only ever
+    drawn from LIVE project data -- currency, budget, open or closed, bids so
+    far -- because a bid goes against the project as it is now, not as the
+    feed described it hours ago. FIXED-PRICE ONLY: what `amount` and `period`
+    mean on an hourly project is not something the docs settled on
+    2026-09-10, and a guess here spends somebody's real bids. Hourly gigs
+    keep the ordinary Apply link.
+    """
+    if (g.get("source") or "") != "freelancer":
+        return None
+    try:
+        import freelancer
+        if not freelancer.enabled():
+            return None
+        tok = freelancer.load_tokens()
+        if not tok:
+            return None
+        pid = int(g.get("source_id") or 0)
+        proj, err = freelancer.project(tok["access_token"], pid)
+        if err:
+            return {"pid": pid, "unreachable": err}
+        cur = (proj.get("currency") or {})
+        b = proj.get("budget") or {}
+        left, _ = freelancer.bids_left(tok["access_token"])
+        rec = freelancer.bid_record(pid)
+        status = str(proj.get("status") or "")
+        # A frozen/closed project would take the request and refuse it; say
+        # so before the form, not after the click.
+        open_ = status in ("active", "open", "") and not proj.get("frozen")
+        return {
+            "pid": pid, "type": str(proj.get("type") or ""),
+            "hourly": str(proj.get("type") or "").lower() == "hourly",
+            "open": open_, "status": status,
+            "currency": cur.get("code") or "", "sign": cur.get("sign") or "",
+            "lo": b.get("minimum"), "hi": b.get("maximum"),
+            "bids": (proj.get("bid_stats") or {}).get("bid_count"),
+            "left": left, "username": tok.get("username", ""),
+            "placed": rec if rec and not rec.get("retracted") else None,
+        }
+    except Exception as e:
+        print(f"  ! bid context {g.get('id')}: {type(e).__name__}: {e}", flush=True)
+        return None
+
+
+@app.post("/draft/{gig_id}/bid")
+def draft_bid(request: Request, gig_id: int, amount: str = Form(""),
+              period: str = Form(""), description: str = Form(""),
+              back: str = Form("/gigs")):
+    """
+    Place the member's bid on Freelancer, from the numbers and text THEY
+    submitted. Nothing is inferred at this step: the amount, the period and
+    the proposal are exactly what was on the form. One bid per project per
+    member is kept locally so the page can show it and offer the retraction.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
+    here = f"/draft/{gig_id}?back={quote_plus(_safe_next(back) or '/gigs')}"
+    import freelancer
+    g = _gig_by_id(gig_id)
+    if not g or (g.get("source") or "") != "freelancer":
+        return _back(f"/draft/{gig_id}", bid_err="That gig isn't on Freelancer.")
+    try:
+        amt = float(str(amount).replace(",", "").strip())
+        days = int(str(period).strip())
+    except ValueError:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Amount and days both need to be numbers."), status_code=303)
+    text = (description or "").strip()
+    if amt <= 0 or not (1 <= days <= 365):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Amount must be above zero and days between 1 and 365."), status_code=303)
+    if len(text) < 20:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Your proposal is the draft above -- it needs at least a sentence."), status_code=303)
+    tok = freelancer.load_tokens()
+    if not tok:
+        return RedirectResponse("/profile?tab=acct&err=" + quote_plus(
+            "Connect your Freelancer account first."), status_code=303)
+    pid = int(g.get("source_id") or 0)
+    if freelancer.bid_record(pid) and not freelancer.bid_record(pid).get("retracted"):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "You already have a bid on this project. Retract it first to bid again."), status_code=303)
+    who, err = freelancer.me(tok["access_token"])
+    if err or not who.get("id"):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            f"Freelancer didn't say who you are: {err or 'no id'}"), status_code=303)
+    res, err = freelancer.place_bid(tok["access_token"], pid, int(who["id"]),
+                                    amt, days, text)
+    if err:
+        print(f"  freelancer bid FAILED {me} project {pid}: {err}", flush=True)
+        return RedirectResponse(here + "&bid_err=" + quote_plus(err), status_code=303)
+    bid_id = res.get("id") or (res.get("bid") or {}).get("id")
+    print(f"  freelancer bid placed {me} project {pid} bid {bid_id} "
+          f"{amt} / {days}d", flush=True)
+    if bid_id:
+        freelancer.remember_bid(pid, bid_id, amt, days)
+    _ev(request, "bid_placed", "freelancer")
+    return RedirectResponse(here + "&bid=placed", status_code=303)
+
+
+@app.post("/draft/{gig_id}/bid/retract")
+def draft_bid_retract(request: Request, gig_id: int, back: str = Form("/gigs")):
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
+    here = f"/draft/{gig_id}?back={quote_plus(_safe_next(back) or '/gigs')}"
+    import freelancer
+    g = _gig_by_id(gig_id)
+    pid = int((g or {}).get("source_id") or 0)
+    rec = freelancer.bid_record(pid)
+    tok = freelancer.load_tokens()
+    if not rec or not tok:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "No bid of yours on this project to retract."), status_code=303)
+    _, err = freelancer.retract_bid(tok["access_token"], rec["bid_id"])
+    if err:
+        print(f"  freelancer retract FAILED {me} bid {rec['bid_id']}: {err}", flush=True)
+        return RedirectResponse(here + "&bid_err=" + quote_plus(err), status_code=303)
+    print(f"  freelancer bid retracted {me} project {pid} bid {rec['bid_id']}", flush=True)
+    freelancer.remember_bid(pid, rec["bid_id"], rec["amount"], rec["period"], retracted=True)
+    _ev(request, "bid_retracted", "freelancer")
+    return RedirectResponse(here + "&bid=retracted", status_code=303)
 
 
 @app.post("/draft/{gig_id}/save")

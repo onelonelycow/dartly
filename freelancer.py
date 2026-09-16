@@ -317,3 +317,39 @@ def retract_bid(token: str, bid_id: int) -> tuple[dict, str]:
     """Withdraw a bid — the undo that makes the button safe to offer."""
     return _call("PUT", f"/projects/0.1/bids/{int(bid_id)}/", token,
                  json={"action": "retract"})
+
+
+def project(token: str, project_id: int) -> tuple[dict, str]:
+    """
+    The live project, for the numbers a bid form must not guess at.
+
+    The board's copy of a Freelancer gig is what the feed said when it was
+    fetched; a bid is placed against the project as it is NOW -- its currency,
+    its budget, whether it is still open, how many bids it already has. One
+    GET before rendering the form. Same fields the ingest reads
+    (sources.fetch_freelancer): currency.code, budget.minimum/maximum, type,
+    status, bid_stats.bid_count.
+    """
+    return _call("GET", f"/projects/0.1/projects/{int(project_id)}/", token,
+                 params={"full_description": "false"})
+
+
+# ---------------------------------------------------------------------------
+# what this member has bid on, so the page can say so and offer the undo
+# ---------------------------------------------------------------------------
+BIDS_FILE = "freelancer_bids.json"
+
+
+def bid_record(project_id) -> dict | None:
+    import paths
+    recs = paths.read_user_json(BIDS_FILE, {}) or {}
+    return recs.get(str(project_id))
+
+
+def remember_bid(project_id, bid_id, amount, period, retracted=False):
+    import paths
+    recs = paths.read_user_json(BIDS_FILE, {}) or {}
+    recs[str(project_id)] = {"bid_id": int(bid_id), "amount": float(amount),
+                             "period": int(period), "placed_at": time.time(),
+                             "retracted": bool(retracted)}
+    paths.write_user_json(BIDS_FILE, recs)
