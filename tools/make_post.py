@@ -1,22 +1,22 @@
 """
 make_post.py — the weekly social image for @nabbly.co.
 
-  brand/posts/week-06-seven-hours-apart.png
-      One real gig posting, then the two people who found it. Maya at 9:06am,
-      four minutes after it went up. Sam at 4:41pm, seven hours after. Same
-      posting, same field, same day; the only variable on the canvas is the
-      hour each of them found out. It closes on the turn that makes the point:
-      Maya was not faster, Maya just knew first.
+  brand/posts/week-07-one-feed.png
+      Five real postings from five fields that have nothing to do with each
+      other: a telehealth nursing shift, a product spot, a monthly close, a
+      subtitling job, renders for a remodel. Read straight down, the surprise
+      is the range, not any one line. It closes on the only true claim the
+      picture needs: more than 20 fields, one feed.
 
-Editorial and text-first, in the spirit of week 4 — real times and a real field
-on the canvas rather than a shape standing in for the idea. Structurally it is
-its own piece: a single posting with two readers under it, not the radar sweep
-(week 1), the field of gig cards (week 2), the pack of racing trails (week 3),
-the timestamped rail down the day (week 4) or the dated shipping list (week 5).
+Editorial and text-first, in the spirit of weeks 4 and 6 — real gig titles and
+real field names on the canvas rather than a shape standing in for the idea.
+Structurally and argumentatively its own piece: the previous weeks all argued
+speed (radar sweep, field of cards, racing trails, the timestamped rail, the
+shipping list, the same gig found seven hours apart). This one argues breadth,
+and it is the first week with no clock on the canvas at all.
 
-Only two things carry amber: the 9:06 am timestamp and the closing half-line.
-Sam's whole entry is dimmed a step, so the contrast between the two entries is
-the composition rather than a second highlight.
+One accent only: the closing half-line. The five postings are set in greys so
+the eye reads the range first and lands on the turn at the bottom.
 
 Run:  .venv/bin/python tools/make_post.py
 
@@ -44,11 +44,6 @@ DIM   = (112, 119, 130)
 GREY  = (150, 157, 168)
 BODY  = (219, 223, 229)
 HOT   = (233, 175, 116)          # amber, pulled back so it sits in the text
-
-# The late entry, dimmed a step below its neighbours so the two entries read as
-# near and far without spending a second accent colour on the difference.
-LATE      = (124, 131, 142)
-LATE_NOTE = (90, 96, 106)
 
 M = 96            # side margin, ~9% in from every edge
 
@@ -153,70 +148,64 @@ def signature(img, d):
 
 
 # ===========================================================================
-# Week 6 — the same gig, seven hours apart
+# Week 7 — five fields, one feed
 #
-# The posting sits at the top the way it would on the board: the title, then
-# the field and the minute it went up. Everything under the rule is just the
-# two people who found it, written as plainly as the posting itself.
+# Each posting is written the way it would arrive on the board: the title as a
+# person would read it, the field under it in the smaller grey. Nothing is
+# highlighted among the five, because the argument is the set and not a member
+# of it. The distance between a telehealth shift and a product spot is the
+# whole picture.
 # ===========================================================================
-GIG = "Technical writer, API documentation"
-META = "Writing / content  ·  posted 9:02 am"
+OPEN = "All of this posted before lunch."
 
-# Only the 9:06 carries the accent. The rest of both entries is set in greys so
-# the eye lands on the timestamp and then reads down into the gap underneath.
-EARLY = [("Maya saw it at ", BODY), ("9:06 am", HOT)]
-EARLY_NOTE = "Four minutes after it posted."
-
-LATE_LINE = [("Sam saw it at ", LATE), ("4:41 pm", LATE)]
-LATE_NOTE_TEXT = "Seven hours after it posted."
-
-# The turn. The value is not speed, it is the hour you find out, and saying so
-# in two short beats lands it without a claim that needs a number behind it.
-CLOSE = [
-    ("Maya was not faster.", (198, 203, 211)),
-    ("Maya just knew first.", (219, 158, 96)),
+POSTINGS = [
+    ("Registered nurse, weekend telehealth shifts", "Healthcare / medical"),
+    ("Motion designer for a 30 second product spot", "Video / animation"),
+    ("Bookkeeper, monthly close for two entities",   "Finance / accounting"),
+    ("German to English subtitler, six episodes",    "Translation / language"),
+    ("Interior renders for a four unit remodel",     "Architecture / 3D"),
 ]
 
+# The turn. The floor is deliberate: 24 fields today and the number only grows,
+# so the picture stays true long after the week it goes up.
+CLOSE = [("More than 20 fields.  ", (198, 203, 211)), ("One feed.", HOT)]
 
-def week_six():
-    # The bloom sits behind Maya's line, low and wide, so the amber timestamp
-    # has warmth under it and the frame still falls away toward Sam.
-    img = ground([M - 210, 310, S - M + 40, 570], strength=104)
-    img = hairlines(img, (312, 768))
+
+def week_seven():
+    # The bloom sits low and wide, under the last postings and behind the turn,
+    # so the frame warms as it falls toward the amber rather than glowing at
+    # the top where there is nothing to light.
+    img = ground([M - 220, 640, S - M + 60, 960], strength=118)
+    img = hairlines(img, (232, 858))
     d = ImageDraw.Draw(img)
 
-    # The posting is context, not the headline, so it is set a step smaller and
-    # a step duller than the two entries under it. At full weight it read as
-    # the message of the frame and the point underneath lost the argument.
-    f_gig = font(38, "Semibold")
-    f_meta = font(25, "Regular", ARIAL)
-    f_line = font(40, "Regular", ARIAL)
-    f_note = font(26, "Regular", ARIAL)
+    f_open = font(30, "Regular", ARIAL)
+    f_gig = font(36, "Semibold")
+    f_field = font(24, "Regular", ARIAL)
     f_close = font(38, "Semibold")
 
-    # The posting.
-    d.text((M, 196), GIG, font=f_gig, fill=(176, 182, 191), anchor="lm")
-    d.text((M, 246), META, font=f_meta, fill=DIM, anchor="lm")
+    # The frame for the list, set quietly so it reads as the caption to the
+    # five postings rather than as a headline over them.
+    d.text((M, 176), OPEN, font=f_open, fill=GREY, anchor="lm")
 
-    # The two people who found it, near entry first.
-    runs(d, M, 442, EARLY, f_line)
-    d.text((M, 492), EARLY_NOTE, font=f_note, fill=(138, 128, 118), anchor="lm")
+    # The five. Even weight and even pitch on purpose: no entry wins, the range
+    # between them is what carries.
+    # The field sits close under its title and the next posting sits well clear
+    # of it, so each pair reads as one block rather than as ten loose lines.
+    y = 296
+    for title, field in POSTINGS:
+        d.text((M, y), title, font=f_gig, fill=(210, 215, 222), anchor="lm")
+        d.text((M, y + 38), field, font=f_field, fill=DIM, anchor="lm")
+        y += 118
 
-    runs(d, M, 620, LATE_LINE, f_line)
-    d.text((M, 670), LATE_NOTE_TEXT, font=f_note, fill=LATE_NOTE, anchor="lm")
-
-    # The turn.
-    cy = 846
-    for text, colour in CLOSE:
-        d.text((M, cy), text, font=f_close, fill=colour, anchor="lm")
-        cy += 52
+    runs(d, M, 906, CLOSE, f_close)
 
     signature(img, d)
-    return img, OUT / "week-06-seven-hours-apart.png"
+    return img, OUT / "week-07-one-feed.png"
 
 
 if __name__ == "__main__":
-    for render in (week_six,):
+    for render in (week_seven,):
         im, path = render()
         im.save(path, "PNG", optimize=True)
         print("wrote", path, im.size)
