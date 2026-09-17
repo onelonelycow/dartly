@@ -1,13 +1,11 @@
 You can now place a bid without leaving the draft page.
 
-Connect your Freelancer account once. On a fixed price gig from there, the page
-shows the client's budget, how many bids are already in, and how many you have
-left this month, read live before the form is drawn. Set your price and your
-delivery days. The reply you drafted goes as the proposal, and you confirm the
-numbers before anything is sent.
+Connect your Freelancer account once. On a fixed price gig, the page shows the
+client's budget, the bids already in, and how many you have left this month.
+Set your price and delivery days, and the reply you drafted goes as the
+proposal.
 
-Fixed price only for now. Hourly projects still go through Apply, because a
-wrong guess there would spend one of your real bids.
+Fixed price only for now. Hourly projects still go through Apply.
 
 Free to join at nabbly.co
 
