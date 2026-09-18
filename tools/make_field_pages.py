@@ -58,6 +58,7 @@ except ImportError:
     pass
 
 import config                                             # noqa: E402
+import lang as _lang                                      # noqa: E402
 
 DB = ROOT / "demand-radar.db" if (ROOT / "demand-radar.db").exists() \
     else ROOT / "demand_radar.db"
@@ -222,6 +223,7 @@ p{margin:14px 0 0}
 border:1px solid rgba(232,147,58,.16);padding:7px 13px;border-radius:100px}
 .gigs{list-style:none;padding:0;margin:18px 0 0;border-top:1px solid var(--line)}
 .gigs li{padding:13px 0;border-bottom:1px solid var(--line);font-size:15.5px;color:var(--ink2)}
+.btn.top{margin:4px 0 8px}
 .btn{display:inline-block;margin:26px 0 0;font-weight:600;font-size:16px;border-radius:11px;
 padding:14px 24px;text-decoration:none;color:#2a1806;
 background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
@@ -279,6 +281,7 @@ PAGE = """<!doctype html>
 <main class="wrap">
   <h1>{h1}</h1>
   <p class="lead">{lead}</p>
+  <a class="btn top" href="{BOARD}/gigs?field={cat}&amp;ref={REF}-{slug}">See live {noun} work &rarr;</a>
 
   <h2>What lands here</h2>
   <p>Nabbly reads {noun} briefs and roles from job boards and hiring
@@ -362,7 +365,26 @@ def build(by=None):
 
     written = []
     for field, s, noun, rows in fields:
-        terms = [t for t in config.JOB_TYPES.get(field, []) if len(t) > 2][:22]
+        # ENGLISH ROWS ONLY, BY THE BOARD'S OWN RULE. These pages are English
+        # and the board hides non-English postings from English readers
+        # (lang.reading_languages); the sample and the chips below are drawn
+        # from the same rows a reader would see. Regenerated on 2026-09-14
+        # without this, the writing page's evidence list carried "Rédaction
+        # Blog Sur Sagesse De Vie" and its chips said redakteur / lektor /
+        # tekstschrijver -- the German and Dutch keywords config.JOB_TYPES
+        # holds for classification, printed as if they were what an English
+        # reader types.
+        rows = [r for r in rows if _lang.of(r) == "en"]
+        # Chips are the keywords that appear most in those English titles,
+        # not the first 22 of the config list. A term that never matches an
+        # English title -- texter, redacteur -- has no business on the page.
+        all_terms = [t for t in config.JOB_TYPES.get(field, []) if len(t) > 2]
+        titles_l = [(r.get("title") or "").lower() for r in rows]
+        hits = {t: sum(1 for k in titles_l if t in k) for t in all_terms}
+        # A stray foreign word in an otherwise-English title still scores one
+        # hit; a chip has to be what the field is actually called here.
+        floor = max(3, len(rows) // 200)
+        terms = [t for t in sorted(all_terms, key=lambda t: -hits[t]) if hits[t] >= floor][:22]
         # PREFER TITLES THAT SAY WHAT THE FIELD SAYS. The sample used to take
         # the newest N that passed a length check, so the writing page led with
         # "Boost Google Reviews", "Transcribe Notes Into PDF" and "Draft
