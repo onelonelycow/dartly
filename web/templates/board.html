@@ -542,6 +542,16 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
 </nav>
 <div class="dash-col">
 <div class="feedtop">
+  {# A SINGLE CATEGORY IS INVISIBLE IN THE RAIL. The 24 fields sit behind the
+     "All categories" expander, so a reader who arrives on ?field=Writing /
+     content -- every field page's button -- sees writing cards under a rail
+     with nothing lit and "Everything" looking chosen. Say it where the
+     quick-filter already says itself, and let it be taken off the same way.
+     A whole group is already lit in the rail, so it gets no chip. #}
+  {% set _group_keys = groups|map(attribute='fields')|map('join', ',')|list %}
+  {% if carry.field and carry.field not in _group_keys and carry.field != 'Other / general' %}
+    <a class="gr-cat sm" href="{{ link(field='') }}">▸ {{ carry.field }} ✕</a>
+  {% endif %}
   {% if qf %}<a class="gr-cat sm" href="{{ link(qf='') }}">▸ {{ qf_label }} ✕</a>{% endif %}
   {% if can_rank %}<span class="viewsort">
     <a class="{% if not ranked %}on{% endif %}" href="{{ link(sort='') }}">Newest</a>
