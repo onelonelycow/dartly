@@ -296,7 +296,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       {% if not is_pro %}
         <div class="pro-note">This one's a Pro perk. Drafts still get written
           for you on Free — this decides how they sound.
-          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
+          <a href="/plans">See Pro</a></div>
       {% endif %}
 
       <label class="f">Length</label>
@@ -332,7 +332,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       {% if not is_pro %}
         <div class="pro-note">A Pro perk. Drafts still get written for you on
           Free; this is what lets them cite what you have actually done.
-          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
+          <a href="/plans">See Pro</a></div>
       {% endif %}
       {% if resume_bad %}
         <p class="hint warn">That file would not read. A scanned PDF has no text
@@ -579,9 +579,9 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
           <p class="hint">Pro adds gigs ranked against your profile, replies
             drafted from the actual posting, market rates, and instant alerts.</p>
         {% endif %}
-        <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
+        <a class="go small" href="/plans">See Pro</a>
       {% else %}
-        <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>
+        <a class="ghost small" href="/plans">Manage plan</a>
       {% endif %}
     </div>
 

@@ -257,7 +257,7 @@
       {% elif links.alerts %}
         <a class="buy" href="{{ links.alerts }}">Choose Alerts</a>
       {% else %}
-        {# NO FALLBACK LINK. This pointed at {{ app_url }}/?nav=pricing, and
+        {# NO FALLBACK LINK. This pointed at /plans, and
            app.py's _TO_BOARD maps "pricing" straight back to /plans -- so the
            button returned the reader to the page they clicked it on. The
            founder: "clicking the choose alerts button does nothing and just
