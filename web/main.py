@@ -1115,6 +1115,19 @@ def _oops_page(request: Request, status: int, heading: str, message: str,
         headers={"X-Robots-Tag": "noindex, nofollow"})
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """
+    Browsers, link previews and some crawlers ask for /favicon.ico whatever
+    the page declares; it was the one 404 in every day's log. Same file the
+    <link> tags already point at.
+    """
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "favicon.png"),
+                        media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/robots.txt")
 def robots():
     from fastapi.responses import PlainTextResponse

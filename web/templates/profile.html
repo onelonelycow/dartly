@@ -475,9 +475,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   <div class="hint" style="margin:0 0 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px">
     <span>You've unsubscribed from Nabbly email — no weekly email, nothing.
       The channels below still work.</span>
-    <form method="post" action="/profile/email" style="margin:0">
-      <button class="ghost small" type="submit">Turn email back on</button>
-    </form>
+    <button class="ghost small" type="submit" form="email-on">Turn email back on</button>
   </div>
   {% else %}
   <p class="hint" style="margin:0 0 14px">Everyone gets the weekly email — what
@@ -651,6 +649,10 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 <form id="cv" method="post" action="/resume" enctype="multipart/form-data"></form>
 <form id="cv-clear" method="post" action="/resume/clear"></form>
 <form id="fl-off" method="post" action="/connect/freelancer/disconnect"></form>
+{# Outside the profile form, like the others: a <form> nested inside one is
+   dropped by the browser, and its button would have saved the profile
+   instead of turning email back on. #}
+<form id="email-on" method="post" action="/profile/email"></form>
 <form id="fb" method="post" action="/feedback">
   <input type="hidden" name="page" value="profile">
 </form>
