@@ -1090,9 +1090,18 @@ def reclassify_all(force: bool = False) -> int:
     import classify
     conn = connect()
     try:
+        # ONLY ROWS THE KEYWORDS CAN STILL JUDGE. A row whose body has been
+        # cleared (archived, dead link) would be re-tagged on its title alone
+        # and lose the tier its budget once gave it; a row the second-pass
+        # LLM placed (llm_checked) was one the keywords could NOT place, so
+        # re-running them hands back "Other / general" and undoes the better
+        # answer. On 2026-09-21 a vocabulary change re-tagged 84,231 rows in
+        # one boot, most of them exactly these, and tried to push the lot to
+        # the mirror on a day it was already over its IO budget.
         cur = conn.execute(
             "SELECT id, source_id, title, body, source, job_type, size_tier, "
-            "urgency FROM posts")
+            "urgency, COALESCE(llm_checked, 0) AS llm_checked FROM posts "
+            "WHERE COALESCE(body, '') <> ''")
         # Only the rows that actually changed are held, and each is four short
         # strings rather than a full description. A repeat run finds nothing and
         # so holds nothing — the idempotence this function already promised.
@@ -1104,6 +1113,8 @@ def reclassify_all(force: bool = False) -> int:
                 break
             for r in rows:
                 t = classify.classify(r["title"], r["body"], r["source"])
+                if r["llm_checked"] and t["job_type"] == "Other / general":
+                    t["job_type"] = r["job_type"]      # the LLM's placement stands
                 if (t["job_type"] != r["job_type"] or t["size_tier"] != r["size_tier"]
                         or t["urgency"] != r["urgency"]):
                     pending.append((t["job_type"], t["size_tier"], t["urgency"],
@@ -1123,18 +1134,26 @@ def reclassify_all(force: bool = False) -> int:
         # local commit, and best-effort: the board is already correct by here, so
         # a mirror that refuses the write must not cost the re-tag. Printed
         # because a silent failure is the exact shape of the bug this fixes.
-        if mirror:
+        mirrored = True
+        import board_store
+        if mirror and board_store.enabled():
             try:
-                import board_store
                 sent = board_store.push_tags(mirror)
                 if sent != len(mirror):
                     print(f"  ! reclassify: mirrored {sent}/{len(mirror)} re-tags")
+                    mirrored = False
             except Exception as e:
                 print(f"  ! reclassify: mirror push failed ({type(e).__name__})")
-        # Stamped only after the pass completed. A crash or a killed process
-        # part-way leaves the stamp untouched, so the next boot does the work
-        # again rather than recording a re-tag that never finished.
-        _mark_reclassified(fp)
+                mirrored = False
+        # Stamped only after the pass completed AND the mirror has it. A crash
+        # part-way, or a mirror that refused the push, leaves the stamp
+        # untouched so the next boot does the work again -- otherwise the
+        # local re-tag is wiped by the next deploy, the mirror still holds the
+        # old tags, and the stamp says there is nothing to do: the exact
+        # permanence bug push_tags' docstring describes, reached from the
+        # other side (measured: "mirrored 0/84231", stamp written anyway).
+        if mirrored:
+            _mark_reclassified(fp)
         return len(pending)
     finally:
         conn.close()

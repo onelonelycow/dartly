@@ -140,6 +140,23 @@ _SCRIPTS = (
     ("zh", re.compile(r"[\u4E00-\u9FFF]")),
 )
 _LETTER = re.compile(r"[^\W\d_]")
+# THE SCRIPT NAMES A FAMILY, NOT A LANGUAGE. Cyrillic letters are Ukrainian
+# as often as Russian on this board (four live "uk" postings on 2026-09-21),
+# Arabic script carries Urdu and Persian, Devanagari carries Marathi and
+# Nepali. When the SOURCE names one of those, the source is right and the
+# script check only confirms it; the check overrides a field only when the
+# field names a language that cannot be written in what is on the page --
+# "en" on an Arabic brief.
+_SCRIPT_FAMILY = {
+    "ar": {"ar", "ur", "fa", "ps", "ku", "sd"},
+    "he": {"he", "yi"},
+    "hi": {"hi", "mr", "ne", "sa"},
+    "th": {"th"},
+    "ru": {"ru", "uk", "bg", "sr", "mk", "be", "kk", "ky", "tg", "mn"},
+    "ja": {"ja"},
+    "ko": {"ko"},
+    "zh": {"zh"},
+}
 
 
 def script_of(title: str, body: str = "") -> str:
@@ -174,9 +191,11 @@ def of(post: dict) -> str:
     before the field existed (2026-09-12) carry '' and fall through to detect().
     """
     title, body = post.get("title") or "", post.get("body") or ""
-    return (script_of(title, body)
-            or normalize(post.get("lang"))
-            or detect(title, body))
+    field = normalize(post.get("lang"))
+    script = script_of(title, body)
+    if script and field in _SCRIPT_FAMILY[script]:
+        return field                      # same alphabet: the source knows which
+    return script or field or detect(title, body)
 
 
 def reading_languages(prof: dict | None) -> list[str]:

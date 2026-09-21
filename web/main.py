@@ -158,7 +158,10 @@ _WORK_NOTE = {"project": "Project", "contract": "Contract",
 # the fix keeps the tier and nothing is guessed.
 _BUDGET_KNOWN = re.compile(
     r"\$(\d[\d,]*)(?:\s*-\s*\$(\d[\d,]*))?(\+)?\s*budget\s*\(([\d.,]+\s*)?([A-Z]{3})\)"
-    r"|(\d[\d,]*)(?:\.0+)?(?:\s*-\s*(\d[\d,]*)(?:\.0+)?)?(\+)?\s*([A-Z]{3})\s*budget")
+    # Anchored so "800.25 INR" cannot be read from its ".25" -- that printed
+    # "25 INR" on a 250.5-800.25 range. Whole amounts only; a fractional
+    # budget shows the tier and no pill rather than a wrong number.
+    r"|(?<![\d.])(\d[\d,]*)(?:\.0+)?(?:\s*-\s*(\d[\d,]*)(?:\.0+)?)?(\+)?\s+([A-Z]{3})\s*budget")
 
 
 def _budget_note(body: str) -> str:
@@ -179,6 +182,14 @@ def _budget_note(body: str) -> str:
     lo, hi, plus, cur = m.group(6), m.group(7), m.group(8), m.group(9)
     amt = f"{lo}–{hi}" if hi else f"{lo}{'+' if plus else ''}"
     return f"{amt} {cur}"
+
+
+def _budget_note_with_period(body: str) -> str:
+    """The amount pill, with /hr when PeoplePerHour says the project is hourly."""
+    note = _budget_note(body)
+    if note and " hourly" in (body or "").split("\x1f", 1)[-1]:
+        note += " /hr"
+    return note
 
 
 def decorate(rows, ranked=False):
@@ -243,7 +254,7 @@ def decorate(rows, ranked=False):
         # Empty for rows from before the field existed, so no pill rather
         # than a guessed one.
         r["work_note"] = _WORK_NOTE.get(r.pop("work_type", None) or "", "")
-        r["budget_note"] = _budget_note(r.get("body") or "")
+        r["budget_note"] = _budget_note_with_period(r.get("body") or "")
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
