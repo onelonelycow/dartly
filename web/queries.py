@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, timezone
 # 21, so a week of rows would render here and 404 on the source. Retuned
 # together 2026-08-24 (21 -> 14) when boot hit 86% of its budget; db.py
 # carries the full reasoning.
-STALE_DAYS = int(os.environ.get("NABBLY_STALE_DAYS") or 14)
+STALE_DAYS = int(os.environ.get("NABBLY_STALE_DAYS") or 10)
 
 
 def _stale_cutoff() -> str:

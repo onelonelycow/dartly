@@ -609,7 +609,14 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
 # six-week-old gig is nearly always filled, and a dead listing is worse than no
 # listing (see archive_stale). The board is a marketing number; the part a
 # member actually feels is whether the links they click are still alive.
-STALE_DAYS = 14
+#
+# 14 -> 10 on 2026-09-21. The boot pull read 263s against a 270s deploy
+# ceiling, on a board of 57,666 rows and 104MB of body text. The body cap in
+# sources.py brings the text down over a window's turnover; this brings it
+# down today: a 10-day window is 44,664 rows and 88MB, measured on the mirror
+# that morning. Both copies of this number moved together -- see
+# web/queries.py.
+STALE_DAYS = 10
 
 
 def archive_stale(days: int = STALE_DAYS) -> int:

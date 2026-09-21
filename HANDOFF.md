@@ -135,7 +135,7 @@ sign-in needed) → find a gig → Draft my reply → sign in with email code �
   truth and everything rehydrates from it on boot.
 - **Board sync (`web/sync.py`):** on boot pulls the whole board from the mirror
   (137–173s measured 2026-09-15), then incremental every 60s, reconcile every
-  15 min, retention sweep daily (14-day window, ~53–55k rows steady state).
+  15 min, retention sweep daily (10-day window since 2026-09-21, ~45k rows).
 - **Auth:** email one-time codes (Resend) or Google OAuth; per-user data lives
   under a scope derived from the email (`paths.py`).
 - **Billing (`billing.py`):** Stripe subscriptions, two prices; no webhook —
@@ -427,7 +427,7 @@ fixes without asking, but ask before anything outward-facing.
 
 **Current state in 10 bullets**
 1. Product is the FastAPI board at board.nabbly.co; Streamlit app is legacy.
-2. ~53–55k gigs on the board from 21 sites, 14-day window, minutes of latency.
+2. ~45k gigs on the board from 21 sites, 10-day window, minutes of latency.
 3. 5 real members (all founding, 60-day Pro) plus the founder and two test
    accounts; 0 paying. Their Pro ends one at a time, Oct 19 – Nov 6; a
    "your Pro ends soon" email now goes 3 days before each.

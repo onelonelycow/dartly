@@ -204,6 +204,100 @@ def check() -> list[dict]:
                       f"has added none since yesterday. The cycle count will "
                       f"still look healthy because the other sources are "
                       f"working."})
+    out.extend(_page_checks())
+    out.extend(_capacity_checks())
+    return out
+
+
+# ---------------------------------------------------------------------------
+# THE PAGES, NOT JUST THE PIPE. Everything above watches whether gigs arrive.
+# Nothing watched whether a person can read them: a 500 on /gigs, a draft
+# page that stopped writing, a sign-in wall on the public board. Each is a
+# real request to the live service with a browser's user agent, so the
+# crawler middleware treats it as a visitor. Added 2026-09-21 -- the founder:
+# "we need to be constantly checking bugs".
+# ---------------------------------------------------------------------------
+PAGE_TIMEOUT_S = 20
+BOOT_PULL_WARN_S = 240     # deploy ceiling is 270; say so before it is hit
+RSS_WARN_MB = 400          # instance is 512; the OOM on 2026-09-15 came at 485
+_UA = {"User-Agent": "Mozilla/5.0 (Macintosh) Safari/605.1.15 nabbly-selfcheck"}
+
+
+def _board_url() -> str:
+    import mailer
+    return mailer.BOARD_URL
+
+
+def _page_checks() -> list[dict]:
+    """Fetch the four public pages the way a visitor would; report any that fail."""
+    out = []
+    try:
+        import requests
+    except Exception:
+        return out
+    base = _board_url()
+    pages = {
+        "/": ("Nabbly", "the front door"),
+        "/gigs": ("Draft my reply", "the board -- no gig cards rendered"),
+        "/market": ("Where the work is", "the Market page"),
+        "/plans": ("Pro", "the Plans page"),
+    }
+    for path, (must_contain, what) in pages.items():
+        try:
+            r = requests.get(base + path, headers=_UA, timeout=PAGE_TIMEOUT_S,
+                             allow_redirects=True)
+            if r.status_code != 200:
+                out.append({"key": f"page-status:{path}",
+                            "title": f"{path} returns {r.status_code}",
+                            "detail": f"{what} answered HTTP {r.status_code} to a "
+                                      f"plain browser request at {base}{path}."})
+            elif must_contain not in r.text:
+                out.append({"key": f"page-empty:{path}",
+                            "title": f"{path} loads but is missing its content",
+                            "detail": f"{what}: HTTP 200, but the page does not "
+                                      f"contain {must_contain!r}. A template or a "
+                                      f"query is rendering empty."})
+            elif "{{" in r.text or "Traceback" in r.text:
+                out.append({"key": f"page-raw:{path}",
+                            "title": f"{path} is showing raw template or an error",
+                            "detail": f"{what} contains a literal template tag or "
+                                      f"a Traceback in the HTML."})
+        except Exception as e:
+            out.append({"key": f"page-down:{path}",
+                        "title": f"{path} did not answer",
+                        "detail": f"{what}: {type(e).__name__}: {e}"})
+    return out
+
+
+def _capacity_checks() -> list[dict]:
+    """The two numbers that decide whether this instance keeps fitting."""
+    out = []
+    try:
+        import requests
+        h = requests.get(_board_url() + "/health", headers=_UA,
+                         timeout=PAGE_TIMEOUT_S).json()
+    except Exception:
+        return out
+    pull = h.get("boot_pull_s")
+    if isinstance(pull, (int, float)) and pull >= BOOT_PULL_WARN_S:
+        out.append({"key": "boot-pull-high",
+                    "title": f"Boot pull is {pull:.0f}s -- deploy ceiling is 270s",
+                    "detail": "Past 270s a deploy does not come up at all. The "
+                              "levers, in order: sources.BODY_CAP (stored text "
+                              "per gig), then STALE_DAYS in db.py AND "
+                              "web/queries.py together, then the standard plan."})
+    try:
+        import refresh
+        rss = float(refresh._state.get("rss_mb") or 0)
+        if rss >= RSS_WARN_MB:
+            out.append({"key": "memory-high",
+                        "title": f"Memory is {rss:.0f}MB of 512",
+                        "detail": "The ingest process was killed at 485MB on "
+                                  "2026-09-15. It trims after every cycle; if "
+                                  "this is climbing anyway, a deploy resets it "
+                                  "and the standard plan ($25) doubles the room."})
+    except Exception:
+        pass
     return out
 
 
