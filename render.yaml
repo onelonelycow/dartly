@@ -215,6 +215,17 @@ services:
     runtime: static
     buildCommand: ""
     staticPublishPath: ./site
+    # SHORT LINKS FOR PLACES THAT CANNOT CARRY A QUERY STRING. An Instagram bio
+    # gets one URL and people retype it; "nabbly.co/instagram" survives that,
+    # "nabbly.co/?ref=instagram_bio" does not. The redirect lands on the home
+    # page with the tag, the page's own script copies ?ref onto every board
+    # link, and the board writes it to the member's record at signup -- the
+    # same path a partner link takes. 302, not 301: a browser caches a 301
+    # and would keep sending a re-pointed tag to the old destination.
+    routes:
+      - type: redirect
+        source: /instagram
+        destination: /?ref=instagram_bio
     headers:
       # Long-cache the images; keep the HTML fresh so edits show up fast.
       - path: /*.png
