@@ -386,8 +386,10 @@ a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl{
         {# Only offer the upgrade to someone who has not got it. This was
            unconditional, so a founding Pro member was told to upgrade. #}
         {% if not v.pro %}<a href="/plans">Upgrade to Pro</a>{% endif %}
-        {# Admin lives on the app and was reachable only by typing the URL. #}
-        {% if v.owner %}<a href="{{ app_url }}/?nav=admin">Admin</a>{% endif %}
+        {# Admin lives on the app, which does not share this sign-in: the link
+           carries the account's email token so the app knows who arrived.
+           See main._viewer. #}
+        {% if v.owner and v.admin_url %}<a href="{{ v.admin_url }}" rel="nofollow">Admin</a>{% endif %}
         <div class="acct-sep"></div>
         <form method="post" action="/signout">
           <button type="submit">Sign out</button>

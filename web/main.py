@@ -77,14 +77,28 @@ def _viewer(request):
     try:
         acc = webauth.account_for(request)
         if not acc:
-            return {"pro": False, "owner": False}
+            return {"pro": False, "owner": False, "admin_url": ""}
         st = accounts.status(acc)
-        return {"pro": bool(st.get("pro")),
-                "owner": bool(accounts.is_owner(st.get("email") or ""))}
+        owner = bool(accounts.is_owner(st.get("email") or ""))
+        # THE ADMIN PANEL STILL LIVES ON THE APP, AND THE APP DOES NOT SHARE
+        # THIS SIGN-IN. It knows a visitor by its own Google cookie or by a
+        # ?u= / ?e= token in the URL -- nothing else -- so a bare
+        # /?nav=admin arrived as a stranger: the founder clicked Admin and got
+        # an empty page with a signed-out icon (2026-09-21). The link now
+        # carries the account's email token, which the app already resolves
+        # server-side on the way back from Stripe Checkout (app._resolve_account).
+        # Rendered only inside the owner's own signed-in chrome, never in an
+        # email. Goes away with the app (RETIRE-APP.md §2).
+        admin_url = ""
+        if owner and APP_URL:
+            admin_url = (f"{APP_URL}/?nav=admin"
+                         f"&e={accounts.email_token(acc.get('token') or '')}")
+        return {"pro": bool(st.get("pro")), "owner": owner,
+                "admin_url": admin_url}
     except Exception:
         # Chrome must never take a page down. Unknown reads as "not pro",
         # which shows an upgrade link — wrong, but harmless and self-correcting.
-        return {"pro": False, "owner": False}
+        return {"pro": False, "owner": False, "admin_url": ""}
 
 
 templates.env.globals["viewer"] = _viewer
