@@ -1,6 +1,6 @@
 # Nabbly — Handoff
 
-Written 2026-09-16 from the repository, its commit history (603 commits since
+Written 2026-09-16, updated 2026-09-21, from the repository, its commit history (603 commits since
 2026-07-19), the docs in the repo, the Render and Supabase state as read that
 day, and the working notes kept by the assistant who built most of it. Where a
 number is given, it was measured on the date stated, not remembered. No
@@ -97,6 +97,7 @@ Freelancer bid live 09-16.
 | `/profile` | Three tabs: **You** (name, country, skills, keywords, rate floor, resume upload), **Preferences** (alert channels: push/Telegram/Slack/Discord/SMS, cadence, urgent-only; language; forwarding address), **Account** (plan, **Connected accounts — Freelancer**, email opt-in, feedback, delete). |
 | `/signin` | Email code (30-min TTL) or Google. No passwords. |
 | `/unsubscribe` | One-click, with a way back on the profile. |
+| Attribution | `?ref=` / `utm_source` on nabbly.co rides to the board, survives sign-in, is written to the member record; PostHog events (signup, draft_view, gig_click, trial_start, purchase, cancel…) carry `campaign`; internal accounts excluded. `tools/acquisition.py` reports signups → 7-day return → trials → paying by campaign. |
 | Weekly email | Market summary + five fresh picks in the reader's languages, capped per source/company/budget tier. |
 | Alerts | Instant pings on matching gigs via the member's chosen channels. |
 | `nabbly.co` | Static marketing site: home, about, FAQ, pricing, privacy, terms, 23 SEO field pages ("freelance design jobs" etc.) regenerated from the live board. |
@@ -233,9 +234,11 @@ Single repo. Entry points: `web/main.py` (board, ~2,900 lines, every route),
 
 **Works:** everything in §3. Sign-in, board, filters, drafts (template and AI),
 saved, market, plans/checkout/cancel/resume, weekly email in-window, alerts,
-unsubscribe round trip, Freelancer connect and bid panel (bid placement
-verified end-to-end only against a stubbed API as of writing — the first real
-bid is the founder's to place).
+unsubscribe round trip, Freelancer connect and bid panel (the panel reads live
+project data from the real Freelancer API — budget, bid count, bids-left all
+confirmed on 2026-09-16; the *placing* of a bid is untested on the live site
+by decision: the founder will place the first one on a project he actually
+wants, not a test).
 
 **Partially working / caveats:**
 - Freelancer bids: fixed-price projects only; the "bids left" field shape was
@@ -249,7 +252,9 @@ bid is the founder's to place).
   guarantees mixed budget tiers, but Small is still rare.
 
 **Known operational facts:** memory was 485MB/512MB on 2026-09-15 before the
-trim; after it, ~150MB steady. Boot pull 137–173s. If either climbs, the levers
+trim; after it 150→190MB over 35 hours (read 09-18), reset by every deploy.
+Boot pull 137–255s (255s on 2026-09-21 as the fuller Himalayas bodies come in
+— watch it; the lever is `RSS_BODY_CAP`). If either climbs, the levers
 are `RSS_BODY_CAP` (sources.py), `STALE_DAYS` (db.py *and* web/queries.py,
 together), or the standard plan ($25/mo).
 
@@ -258,8 +263,11 @@ is one large file; no automated test suite (measurement scripts and ad-hoc
 TestClient sweeps instead); Stripe without webhooks; two copies of the
 retention window.
 
-**Blockers:** none technical. Growth is the blocker: 8 accounts, 6 founding, 1
-paying (Alerts).
+**Blockers:** none technical. Growth is the blocker: 8 accounts, of which 5
+are real members (all founding, signed up Aug 20 – Sep 7) plus the founder
+and two internal test accounts. **Zero paying customers** — the one Alerts
+subscription is a test account (corrected 2026-09-21; the 09-16 draft
+counted it).
 
 **Priorities:** see §15.
 
@@ -331,8 +339,16 @@ fixes without asking, but ask before anything outward-facing.
   the standard plan; automated tests.
 - **UX:** John's feedback; the profile's three tabs were just reshuffled
   (2026-09-15) and need a real user's eyes.
-- **Go-to-market:** roundup outreach has nine targets and a template and has
-  never been sent; Guru email ready; NextNW intro unsent by design.
+- **Go-to-market:** five verified roundup targets drafted (two in Gmail,
+  three contact forms), none sent; Guru email ready; NextNW intro unsent by
+  design.
+- **Before any paid ads (decisions, not code):** (1) approve the privacy-page
+  correction — it still says "Nabbly does not currently take payments" and
+  omits Stripe and Resend; proposed copy is in the 2026-09-21 session notes
+  / commit `6871713`'s message; (2) whether one-word search terms may go to
+  PostHog at all; (3) Meta Pixel or Conversions API means an advertising
+  cookie or hashed emails to Meta — a privacy rewrite and a consent decision
+  the page currently promises against.
 
 ## 11. Roadmap
 
@@ -391,6 +407,14 @@ fixes without asking, but ask before anything outward-facing.
   added); "Start free trial" was charging — fixed; structured location and
   work-type at ingest; PeoplePerHour added; weekly email rebuilt and windowed;
   sign-in code TTL 10→30 min; marketplaces evaluated; demo for John.
+- **Sep 17–21:** five roundup-outreach targets verified and drafted
+  (`outreach/READY-TO-SEND.md`); field pages regenerated English-only with a
+  top CTA; single-category chip on the board; every pricing link now goes to
+  the board's own Plans; nested-form bug in "Turn email back on" fixed;
+  favicon route; sign-in email said 10 minutes (was 30); full attribution
+  audit before a Meta ads test — session id and campaign now survive sign-in,
+  outcome events added, purchase deduped, internal accounts excluded,
+  `tools/acquisition.py` (see §15); Scoutify noted as a comparable.
 - **Sep 12–16:** Projects-only filter; language from the source; French
   Himalayas leak fixed and fuller bodies (capped); unsubscribe way back;
   ChatGPT/Perplexity allowed; classifier measured and rewritten (58→70% exact
@@ -418,14 +442,20 @@ fixes without asking, but ask before anything outward-facing.
 10. Every claim in the docs carries a measurement date.
 
 **Top 5 priorities**
-1. First real bid, then John's feedback → ranked list.
-2. Roundup outreach (Tier 1) — the highest-leverage non-code work, untouched.
-3. Watch the founding cohort's 60-day lapse and what converts.
-4. Guru reply → fetcher; otherwise nothing new on supply.
-5. Retire app.nabbly.co and stop paying for the standard plan.
+1. Send the five outreach emails (`outreach/READY-TO-SEND.md`) and the Guru
+   message — drafted, verified, the site now backs every claim in them.
+2. Approve the privacy-page correction before any ad spend.
+3. The five founding members' Pro ends Oct 19 – Nov 6, one at a time; no
+   "your Pro ends soon" email exists yet — the only conversion touch they
+   will get. Build it before Oct 19.
+4. First real Freelancer bid (founder's call, on a real project), then
+   John's feedback → ranked list.
+5. Read `boot_pull_s` (255s on 09-21) and the `mem:` line on each deploy;
+   lower `RSS_BODY_CAP` if the pull passes ~270s.
 
 **Top 5 risks**
-1. Growth: single-digit accounts; no channel has been worked yet.
+1. Growth: five real members, zero paying, no channel has been worked yet —
+   and no returning-visit signal from any of the five.
 2. Memory/boot on a 512MB instance — instrumented, but the slope needs a week
    of reading.
 3. Source fragility: Himalayas is 57% of the board; a feed change there is a
@@ -445,5 +475,13 @@ fixes without asking, but ask before anything outward-facing.
 - Render's `cache.profile: no-cache` is the page cache, not the build cache.
 - Board size is not a reason to delete gigs; retention is the lever.
 - The Stripe `timeout=` parameter is not a thing; prices are immutable.
+- The founder's account is Pro for life by an owner check in `accounts.status`;
+  its `pro_until` date in the database is dead data.
+- The people-table campaign tags for the first five members are gone
+  (predate the mirror); "(none)" in the acquisition report is permanent for
+  them, not a bug.
+- Nested `<form>` tags are dropped by browsers; the TestClient honours them.
+  Secondary forms on the profile page sit outside the main form and are
+  wired by `form=`.
 - The weekly email cadence and window were the founder's call; ask before
   changing any number a member receives.
