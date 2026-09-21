@@ -157,10 +157,10 @@ def verify(email: str, code: str, campaign: str = "") -> tuple[bool, str]:
     ok, err = accounts.check_code(email, code)
     if not ok:
         return False, err or "That code didn't work."
-    acc, _is_new = accounts.sign_in(email, source="board", campaign=campaign)
+    acc, is_new = accounts.sign_in(email, source="board", campaign=campaign)
     if not acc:
         return False, "We couldn't sign you in. Try again."
-    return True, ""
+    return True, "new" if is_new else ""
 
 
 def sign_in_google(email: str, campaign: str = "") -> tuple[bool, str]:
@@ -175,14 +175,27 @@ def sign_in_google(email: str, campaign: str = "") -> tuple[bool, str]:
     email = (email or "").strip().lower()
     if not email:
         return False, "Google didn't share an email address."
-    acc, _is_new = accounts.sign_in(email, source="google", campaign=campaign)
+    acc, is_new = accounts.sign_in(email, source="google", campaign=campaign)
     if not acc:
         return False, "We couldn't sign you in. Try again."
-    return True, ""
+    return True, "new" if is_new else ""
+
+
+# Session keys that describe the VISIT rather than the identity, and so
+# survive sign-in. _vid is the rotating analytics id the privacy page
+# promises; clearing it at sign-in split every member into two strangers in
+# PostHog -- the one who arrived from a campaign and the one who signed up --
+# so no funnel could ever be read. _camp is the partner tag; it had already
+# been written to people.campaign by then, so grants worked, but the session
+# forgot where the member came from one request after learning it.
+_KEEP_ACROSS_SIGNIN = ("_vid", "_camp")
 
 
 def sign_in_session(request, email: str):
+    kept = {k: request.session.get(k) for k in _KEEP_ACROSS_SIGNIN
+            if request.session.get(k)}
     request.session.clear()          # never merge into a previous identity
+    request.session.update(kept)
     request.session["email"] = (email or "").strip().lower()
     request.session["at"] = int(time.time())
 

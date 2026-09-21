@@ -257,6 +257,18 @@ _BOT_UA = ("bot", "crawler", "spider", "slurp", "curl/", "wget", "python-request
            "nabbly-selfcheck")   # our own monitoring is not a visitor either
 
 
+_INTERNAL_DOMAINS = tuple(d.strip().lower() for d in (
+    os.environ.get("NABBLY_INTERNAL_DOMAINS") or "onelonelycow.com").split(",") if d.strip())
+
+
+def _is_internal(email: str) -> bool:
+    """The founder and the test accounts: real traffic to the server, not to the business."""
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    return accounts.is_owner(e) or e.rsplit("@", 1)[-1] in _INTERNAL_DOMAINS
+
+
 def _is_bot(ua: str) -> bool:
     ua = (ua or "").lower()
     return not ua or any(b in ua for b in _BOT_UA)
@@ -290,6 +302,12 @@ def _ev(request: Request, event: str, detail: str = ""):
         # trust is worse than no number, because you act on it.
         if _is_bot(request.headers.get("user-agent", "")):
             return
+        # NEITHER DO WE. The founder's own account and the test accounts on
+        # the founder's domain are most of the activity on an 8-account board;
+        # counted, every funnel reads as "converts great" because the person
+        # who built it keeps walking through it.
+        if _is_internal(webauth.current_email(request)):
+            return
         sid = request.session.get("_vid")
         first_of_session = not sid
         if not sid:
@@ -312,10 +330,10 @@ def _ev(request: Request, event: str, detail: str = ""):
                 "arrival",
                 analytics.referrer_label(request.headers.get("referer", "")),
                 sid, path)
-        telemetry.capture(event, detail, sid, path)
-        camp = request.session.get("_camp")
+        camp = request.session.get("_camp") or ""
+        telemetry.capture(event, detail, sid, path, campaign=camp)
         if camp and event == "board_view":
-            telemetry.capture("from_campaign", camp, sid, path)
+            telemetry.capture("from_campaign", camp, sid, path, campaign=camp)
     except Exception:
         pass          # a counter must never stand between someone and a gig
 
@@ -1225,10 +1243,11 @@ def google_callback(request: Request, code: str = Query(""),
     if err:
         return _back("/signin", err=err)
     nxt = _safe_next(request.session.get("_next", ""))
-    ok, err = webauth.sign_in_google(email, campaign=_campaign(request))
+    ok, flag = webauth.sign_in_google(email, campaign=_campaign(request))
     if not ok:
-        return _back("/signin", err=err)
+        return _back("/signin", err=flag)
     webauth.sign_in_session(request, email)
+    _ev(request, "signup" if flag == "new" else "signin", "google")
     return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
@@ -1250,10 +1269,11 @@ def signin_verify(request: Request, email: str = Form(""), code: str = Form(""))
     # partner tag with it.
     camp = _campaign(request)
     nxt = _safe_next(request.session.get("_next", ""))
-    ok, err = webauth.verify(email, code, campaign=camp)
+    ok, flag = webauth.verify(email, code, campaign=camp)
     if not ok:
-        return _back("/signin", sent=email.strip().lower(), err=err)
+        return _back("/signin", sent=email.strip().lower(), err=flag)
     webauth.sign_in_session(request, email)
+    _ev(request, "signup" if flag == "new" else "signin", "email")
     return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
@@ -1593,6 +1613,10 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
         else:
             text = pitch.draft_template(g, prof)
 
+    # THE FIRST USEFUL ACTION. A reply drafted for a real posting is the moment
+    # the product did something for this person; /out/ (gig_click) is the other.
+    # Detail is the category, never the text.
+    _ev(request, "draft_view", "pro" if pro else "free")
     mailto = ""
     addr = (g.get("apply_email") or "").strip()
     if addr:
@@ -1896,6 +1920,11 @@ def plans_page(request: Request, stripe_session: str = Query(""),
             paid_ok, _ = billing.confirm_session(stripe_session)
             if paid_ok:
                 st_ = accounts.status(webauth.account_for(request)) or st_
+                # ONCE. The success URL can be reloaded; the checkout session
+                # id is remembered so a refresh does not count a second sale.
+                if request.session.get("_paid_sid") != stripe_session[:64]:
+                    request.session["_paid_sid"] = stripe_session[:64]
+                    _ev(request, "purchase", st_.get("plan") or "")
         except Exception:
             paid_ok = False
 
@@ -2087,6 +2116,7 @@ def plan_trial(request: Request):
         print(f"  ! plan trial: {me} refused — {msg}", flush=True)
         return RedirectResponse("/plans?done=notrial", status_code=303)
     print(f"  plan: {me} started the {accounts.TRIAL_DAYS}-day trial", flush=True)
+    _ev(request, "trial_start", "pro")
     return RedirectResponse("/plans?done=trial", status_code=303)
 
 
@@ -2118,6 +2148,7 @@ def plan_resume(request: Request):
         print(f"  ! plan resume: {me} refused — {err}", flush=True)
         return RedirectResponse("/plans?done=noresume", status_code=303)
     print(f"  plan: {me} resumed — the cancellation is off", flush=True)
+    _ev(request, "resume", "")
     return RedirectResponse("/plans?done=resumed", status_code=303)
 
 
@@ -2168,6 +2199,7 @@ def plan_switch(request: Request, tier: str = Form(""),
         if ok:
             print(f"  plan: {me} cancels at period end"
                   f"{' (' + why + ')' if why else ''}", flush=True)
+            _ev(request, "cancel", "")          # the reason stays out of analytics
             # WHY, WHEN THEY OFFER IT. At this size a single churn reason is a
             # large fraction of what is known about why anyone leaves, and it
             # is unrecoverable after the fact. Keyed by email so a second
@@ -2233,6 +2265,7 @@ def plan_switch(request: Request, tier: str = Form(""),
             # for a reconciliation pass to receive it.
             accounts.set_plan(me, tier)
             print(f"  plan: {me} -> {tier}", flush=True)
+            _ev(request, "plan_switch", tier)
     if not ok:
         print(f"  ! plan switch failed for {me} -> {tier}: {err}", flush=True)
         return RedirectResponse("/plans?done=failed", status_code=303)

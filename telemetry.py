@@ -112,7 +112,8 @@ def _connect():
     return _client
 
 
-def capture(event: str, detail: str = "", session: str = "", path: str = ""):
+def capture(event: str, detail: str = "", session: str = "", path: str = "",
+            campaign: str = ""):
     """
     Mirror one already-recorded event. Never allowed to break the page.
 
@@ -142,6 +143,13 @@ def capture(event: str, detail: str = "", session: str = "", path: str = ""):
         if p:
             props["$current_url"] = p
             props["path"] = p
+        # The partner or ad tag the visit arrived on, on EVERY event -- so any
+        # outcome (signup, draft_view, purchase) can be cut by source. It used
+        # to be its own event on board_view alone, which could say how many
+        # arrived and nothing about what they did next.
+        camp = _clean(campaign)
+        if camp:
+            props["campaign"] = camp[:40]
         c.capture(distinct_id=(session or "anonymous"),
                   event=str(event)[:64], properties=props)
     except Exception:
