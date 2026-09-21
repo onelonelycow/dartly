@@ -273,6 +273,9 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
     opening the email at all. No unsubscribe footer: this is a direct reply to
     something they just did, not a mailing (empty token drops it in _shell).
     """
+    # The lifetime is accounts.CODE_TTL_MIN's, not a number typed here: this
+    # said "10 minutes" for a week after the code started lasting 30.
+    from accounts import CODE_TTL_MIN as ttl
     subject = f"{code} is your Nabbly sign-in code"
     body = f"""
 <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 16px;">
@@ -283,7 +286,7 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{code}</div>
 <p style="font-size:14px;color:{MUTE};line-height:1.6;margin:18px 0 0;">
   Type this back into Nabbly to finish signing in. It works once and runs out
-  after 10 minutes.
+  after {ttl} minutes.
 </p>
 <p style="font-size:12.5px;color:{FAINT};line-height:1.6;margin:14px 0 0;">
   If you didn't ask to sign in, you can ignore this. Nobody can get into your
@@ -292,7 +295,7 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
 """
     text = (f"Your Nabbly sign-in code is {code}\n\n"
             "Type it back into Nabbly to finish signing in. It works once and "
-            "runs out after 10 minutes.\n\n"
+            f"runs out after {ttl} minutes.\n\n"
             "If you didn't ask to sign in, you can ignore this.\n")
     return subject, _shell(f"{code} — type this back into Nabbly.", body, ""), text
 
