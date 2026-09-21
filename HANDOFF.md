@@ -79,7 +79,8 @@ nabbly.co domain and handle were secured. Brand kit in `brand/`.
 
 **Milestones:** first deploy 07-19; nabbly.co live 07-25; Supabase mirror
 07-24; board service serving members 08-13; Stripe checkout on the board
-08-30/31; first real purchase 09-08 (Alerts tier); demo to "John" 09-11;
+08-30/31; first completed checkout 09-08 (a test account on the Alerts
+tier — it proved the pipe, not the market); demo to "John" 09-11;
 Freelancer bid live 09-16.
 
 ## 3. Current product
@@ -374,7 +375,7 @@ fixes without asking, but ask before anything outward-facing.
   social posts in `brand/posts/`; demo video in `brand/posts/demo/`.
 - **Research:** which agencies to interview for team accounts; whether hourly
   bidding is worth the API work; conversion of founding members.
-- **Financial modeling:** 8 accounts, 1 paying; costs ≈ Render (~$32/mo for
+- **Financial modeling:** 5 real members, 0 paying; costs ≈ Render (~$32/mo for
   three services), Supabase free tier, Anthropic per draft, Resend, domain.
 - **Pitch materials:** `brand/deck-alts`, the demo walkthrough, this document.
 - **Documentation:** keep this file and `ROADMAP.md` current; retire
@@ -427,10 +428,11 @@ fixes without asking, but ask before anything outward-facing.
 **Current state in 10 bullets**
 1. Product is the FastAPI board at board.nabbly.co; Streamlit app is legacy.
 2. ~53–55k gigs on the board from 21 sites, 14-day window, minutes of latency.
-3. 8 accounts, 6 founding (60-day Pro), 1 paying (Alerts $5). Founding cohort
-   starts lapsing mid-October.
-4. Pricing live: Free / $5 Alerts / $15 Pro; Stripe on the board; first real
-   purchase 2026-09-08.
+3. 5 real members (all founding, 60-day Pro) plus the founder and two test
+   accounts; 0 paying. Their Pro ends one at a time, Oct 19 – Nov 6; a
+   "your Pro ends soon" email now goes 3 days before each.
+4. Pricing live: Free / $5 Alerts / $15 Pro; Stripe on the board; checkout
+   proven end to end by a test purchase on 2026-09-08. No customer purchase yet.
 5. Freelancer bidding is live on the real site as of 2026-09-16 (fixed-price).
 6. Classifier at 70% exact / 80% group on unseen rows; measured, with fixtures.
 7. Weekly email: once a week, 7–9am Pacific, market first, reading-language
@@ -454,8 +456,11 @@ fixes without asking, but ask before anything outward-facing.
    lower `RSS_BODY_CAP` if the pull passes ~270s.
 
 **Top 5 risks**
-1. Growth: five real members, zero paying, no channel has been worked yet —
-   and no returning-visit signal from any of the five.
+1. Growth: five real members, zero paying, no channel has been worked yet.
+   None of the five has a *recorded* return visit ≥7 days after signup — but
+   `last_seen` was only reliably updated on some paths before 2026-09-21, and
+   PostHog split every member into two identities until the same day, so this
+   is "not measured", not "confirmed inactive". Re-read in October.
 2. Memory/boot on a 512MB instance — instrumented, but the slope needs a week
    of reading.
 3. Source fragility: Himalayas is 57% of the board; a feed change there is a
