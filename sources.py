@@ -443,10 +443,16 @@ def fetch_freelancer() -> list[dict]:
         # and the WHOLE fetch returned nothing. Measured 2026-09-02: freelancer
         # failed 12 cycles in a row and contributed 0 gigs, on the source that
         # supplies most of the priced board.
+        # The code rides along in parentheses, the way PeoplePerHour's
+        # already does: 1,169 of 1,749 design projects in the 7-21 Sep window
+        # read "$" with no way to tell EUR from USD, and nothing downstream
+        # can compare them. The size classifier reads the "$n" and ignores
+        # the rest; nothing displays this string raw.
+        tag = "" if cur in ("USD", "") else f" ({cur})"
         if lo is not None and hi is not None and cur in dollarish:
-            budget = f"${int(lo)} - ${int(hi)} budget"
+            budget = f"${int(lo)} - ${int(hi)} budget{tag}"
         elif lo is not None and cur in dollarish:
-            budget = f"${int(lo)}+ budget"
+            budget = f"${int(lo)}+ budget{tag}"
         elif lo is not None and hi is not None:
             budget = f"{lo} - {hi} {cur} budget"
         elif lo is not None:
@@ -749,6 +755,26 @@ _RSS_LOCATION = {
 }
 
 
+# ONE LISTING, ONE ID, WHATEVER FEED IT ARRIVED BY. Jobicy publishes the same
+# posting through its JSON API (fetch_jobicy keys it on the numeric id) and
+# through fourteen category feeds (keyed here on the guid, which is the URL).
+# Both wrote under source "jobicy", so UNIQUE(source, source_id) never saw a
+# collision and the board showed the listing twice -- 491 of them on
+# 2026-09-21, 3% of every card a visitor scrolled, with the title dedupe
+# unable to help because the API appends " -- Company" to its titles. Every
+# Jobicy URL carries the numeric id in its slug (2,662 of 2,662 stored rows),
+# so the feed row takes that id and simply never stores a second time.
+_RSS_ID = {
+    "jobicy": re.compile(r"jobicy\.com/jobs/(\d+)-"),
+}
+
+
+def _rss_id(src: str, entry, link: str) -> str:
+    rx = _RSS_ID.get(src)
+    m = rx.search(link or "") if rx else None
+    return m.group(1) if m else (entry.get("id") or link)
+
+
 # Characters of a feed's full description kept as the body. ~250 words: a
 # card's "See more" reads as a description, the draft has the actual brief.
 RSS_BODY_CAP = 1500
@@ -779,7 +805,9 @@ def fetch_rss(key: str) -> list[dict]:
         link = e.get("link", "")
         if not link:
             continue
-        hook = _RSS_LOCATION.get(src)
+        # By feed key first, then by the board it folds into: a category
+        # feed keeps its own hook after it starts writing under the parent.
+        hook = _RSS_LOCATION.get(key) or _RSS_LOCATION.get(src)
         try:
             remote, location, work_type = hook(e) if hook else (None, "", "")
         except Exception:
@@ -811,7 +839,7 @@ def fetch_rss(key: str) -> list[dict]:
             lang_code = ""
         out.append({
             "source": src,
-            "source_id": e.get("id") or link,
+            "source_id": _rss_id(src, e, link),
             "url": link,
             "title": title,
             "body": body,

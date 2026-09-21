@@ -61,7 +61,10 @@ NAMES = {"de": "German", "nl": "Dutch", "es": "Spanish", "fr": "French",
          "pt": "Portuguese", "it": "Italian", "en": "English",
          # Seen in Freelancer's own language field (below); the stopword lists
          # above cannot detect these, so they only ever arrive from a source.
-         "id": "Indonesian", "tr": "Turkish", "uk": "Ukrainian", "sw": "Swahili"}
+         "id": "Indonesian", "tr": "Turkish", "uk": "Ukrainian", "sw": "Swahili",
+         # Read off the script (see script_of), never from a stopword list.
+         "ar": "Arabic", "zh": "Chinese", "hi": "Hindi", "ru": "Russian",
+         "ja": "Japanese", "ko": "Korean", "he": "Hebrew", "th": "Thai"}
 
 # Which language a profile country implies, so someone in Germany keeps their
 # German gigs without having to find a setting.
@@ -90,6 +93,9 @@ def detect(title: str, body: str = "") -> str:
     text = f"{title or ''} {str(body or '')[:_SAMPLE]}"
     if not text.strip():
         return "en"
+    by_script = script_of(title, body)
+    if by_script:
+        return by_script
     best, best_hits = "en", 0
     for code, pat in _COMPILED.items():
         # DISTINCT words, not total occurrences. One word repeated is one piece
@@ -115,6 +121,44 @@ def normalize(code) -> str:
     return c if len(c) == 2 and c.isalpha() else ""
 
 
+# THE SCRIPT SAYS MORE THAN THE FIELD. Freelancer's language field read "en"
+# on a posting written entirely in Arabic ("موقع ووردبرس احترافي لشركة محاماة",
+# freelancer:40725067), and the stopword detector -- Latin languages only --
+# agreed, so an English reader got a brief they could not read. 27 live rows
+# on 2026-09-21. A page whose letters are mostly Arabic, Han, Devanagari or
+# Cyrillic is not English whatever a form field says; that check runs first.
+# Only whole scripts are named here -- a Latin-script language the stopword
+# lists don't know still falls through to them, and then to the field.
+_SCRIPTS = (
+    ("ar", re.compile(r"[\u0600-\u06FF]")),
+    ("he", re.compile(r"[\u0590-\u05FF]")),
+    ("hi", re.compile(r"[\u0900-\u097F]")),
+    ("th", re.compile(r"[\u0E00-\u0E7F]")),
+    ("ru", re.compile(r"[\u0400-\u04FF]")),
+    ("ja", re.compile(r"[\u3040-\u30FF]")),        # kana; Han alone reads as zh
+    ("ko", re.compile(r"[\uAC00-\uD7AF]")),
+    ("zh", re.compile(r"[\u4E00-\u9FFF]")),
+)
+_LETTER = re.compile(r"[^\W\d_]")
+
+
+def script_of(title: str, body: str = "") -> str:
+    """
+    A language code when most of the LETTERS are in one non-Latin script,
+    else ''. Digits, punctuation and the odd borrowed word don't count; an
+    English brief that asks for "an Arabic brochure" stays English.
+    """
+    text = f"{title or ''} {str(body or '')[:_SAMPLE]}"
+    letters = len(_LETTER.findall(text))
+    if not letters:
+        return ""
+    for code, rx in _SCRIPTS:
+        n = len(rx.findall(text))
+        if n * 2 > letters:
+            return code
+    return ""
+
+
 def of(post: dict) -> str:
     """
     The language of a stored gig: what the source said, else what the text
@@ -129,8 +173,10 @@ def of(post: dict) -> str:
     an English gig — the one mistake that costs somebody work. Rows from
     before the field existed (2026-09-12) carry '' and fall through to detect().
     """
-    return (normalize(post.get("lang"))
-            or detect(post.get("title") or "", post.get("body") or ""))
+    title, body = post.get("title") or "", post.get("body") or ""
+    return (script_of(title, body)
+            or normalize(post.get("lang"))
+            or detect(title, body))
 
 
 def reading_languages(prof: dict | None) -> list[str]:

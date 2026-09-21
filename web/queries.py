@@ -287,9 +287,13 @@ def _filters(conn, keyword, job_types, sizes, sources, urgent_only,
     # A project someone can bid on, as opposed to a job someone can be hired
     # into. The value is a fact from the source, not read out of the prose:
     # Freelancer and PeoplePerHour list nothing but projects, and the job
-    # boards say "Full-time" / "Contract" in a field of their own. A row that
-    # has no value is a job-board row from before the field existed
-    # (2026-09-11), and a project filter is right to leave it out.
+    # boards say "Full-time" / "Contract" in a field of their own. A row with
+    # no value comes from a feed that has no such field -- Himalayas' RSS
+    # carries none at all, nor do RemoteOK, Working Nomads or the forums --
+    # so "unknown" is the honest reading and a project filter is right to
+    # leave it out. (Until 2026-09-21 this said "from before the field
+    # existed"; those rows have all aged off.) Contract rows are not
+    # projects either: they show under "Anything" with a Contract note.
     if work_type == "project" and _has_col(conn, "work_type"):
         where += " AND p.work_type = 'project'"
 

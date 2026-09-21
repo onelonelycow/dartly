@@ -128,13 +128,18 @@ RSS_SOURCES = {
                    "label": "Himalayas"},
     # See the note in ENABLE_SOURCES for why these five and not the others.
     "jobicy_dev": {"url": "https://jobicy.com/?feed=job_feed&job_categories=dev",
-                   "label": "Jobicy"},
+                   "label": "Jobicy", "source": "jobicy"},
     "wwr_sales":  {"url": "https://weworkremotely.com/categories/"
                           "remote-sales-and-marketing-jobs.rss",
-                   "label": "We Work Remotely"},
+                   "label": "We Work Remotely", "source": "weworkremotely"},
     "wwr_management": {"url": "https://weworkremotely.com/categories/"
                               "remote-management-and-finance-jobs.rss",
-                       "label": "We Work Remotely"},
+                       "label": "We Work Remotely", "source": "weworkremotely"},
+    # The three above were added without "source" on 2026-08-20 and so wrote
+    # under their own names: the same WWR posting sat in the mirror as
+    # wwr_sales AND weworkremotely, and jobicy_dev doubled the Jobicy API
+    # (101 listings shown twice on 2026-09-21). Folded 2026-09-21; the old
+    # rows age out on their own.
     # General remote-jobs board, same shape as RemoteOK/Remotive above. Its
     # own listing page (not the feed link) carries the real employer apply
     # link with no login — confirmed on a live posting, an AshbyHQ link sat
@@ -474,7 +479,10 @@ JOB_TYPES = {
         "data-analist", "data-analyse", "datawetenschapper", "analista de datos",
         "ciencia de datos", "científico de datos", "analyste de données", "science des données",
         "analista de dados", "ciência de dados", "cientista de dados", "analista dati",
-        "scienza dei dati", "ingeniero de datos", "bi analyst"
+        "scienza dei dati", "ingeniero de datos", "bi analyst",
+        # Freelancer skill tags; "AI/ML Based Crop Yield Enhancement" tied
+        # Design 4-4 on tags alone and lost on dict order (freelancer:40724805).
+        "data analysis", "ai model development",
     ],
     # Non-software engineering: mechanical, electrical, civil, industrial. Sits
     # BEFORE Development/tech because that list contains a bare "engineer", which
@@ -494,6 +502,11 @@ JOB_TYPES = {
         "ingénieur électrique", "ingénieur civil", "électricien", "engenheiro mecânico",
         "engenheiro elétrico", "engenheiro civil", "eletricista", "ingegnere meccanico",
         "ingegnere elettrico", "ingegnere civile", "elettricista", "controls engineer", "controls engineering", "automation engineer",
+        # Freelancer skill tags (see Development / tech): a mechatronics
+        # prototype was Design because "Product Design" was the only tag
+        # any list knew (freelancer:40724862).
+        "mechatronics", "electronics", "embedded systems", "pcb layout",
+        "arduino", "circuit design",
     ],
     "Development / tech": [
         "developer", "software engineer", "programmer", "coding",
@@ -511,6 +524,14 @@ JOB_TYPES = {
         "ingénieur logiciel", "desenvolvedor", "engenheiro de software", "sviluppatore",
         "ingegnere software", "programmatore", "secops", "solutions architect",
         "software development", "integration engineer", "app development", "web development", "website development", "software architect", "database architect", "cloud architect", "data architect", "ai engineer", "ml engineer", "machine learning engineer", "senior engineer", "staff engineer", "principal engineer", "lead engineer", "solution engineer", "solutions engineer", "technical lead", "tech lead", "fullstack",
+        # Freelancer's own skill-tag names. A client ticks "Graphic Design"
+        # next to "Java, Flutter, PostgreSQL, FastAPI, Computer Vision" and
+        # the software words matched nothing here, so a biometric-ID build
+        # landed in Design on the strength of one tag (freelancer:40724803,
+        # 2026-09-21). Checked against the judged fixture: no regressions.
+        "java", "flutter", "postgresql", "fastapi", "computer vision",
+        "artificial intelligence", "deep learning", "django", "laravel",
+        "php", "mysql", "c++", "c#", ".net",
     ],
     "Writing / content": [
         "writer", "copywriter", "copywriting", "content writer",
