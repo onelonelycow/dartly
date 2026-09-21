@@ -57,12 +57,20 @@ _warned = False
 # An @ means an address. A run of four or more words means somebody started
 # passing prose, which is the failure mode this guard exists for.
 _LOOKS_PERSONAL = re.compile(r"@|(?:\S+\s+){3,}\S+")
+# Two or three capitalised words with nothing else -- "John Smith", "Acme
+# Corp Ltd" -- is a name far more often than a skill. Skills people search
+# for are lowercase ("figma", "logo design"); a company or person is not.
+# Decided 2026-09-21 before any ad traffic: the words stay, names do not.
+_LOOKS_LIKE_NAME = re.compile(r"^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$")
+_DIGITS = re.compile(r"\d{4,}")   # phone numbers, ids, zip codes
 
 
 def _clean(detail: str) -> str:
     """Behaviour survives, content does not."""
     d = (detail or "").strip()[:_MAX_DETAIL]
-    return "" if _LOOKS_PERSONAL.search(d) else d
+    if _LOOKS_PERSONAL.search(d) or _LOOKS_LIKE_NAME.match(d) or _DIGITS.search(d):
+        return ""
+    return d
 
 
 def enabled() -> bool:
