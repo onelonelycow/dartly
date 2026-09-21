@@ -19,6 +19,7 @@ Runs alongside the Streamlit app rather than replacing it — same database,
 same db.py. Nothing here writes.
 """
 import os
+import re
 import secrets
 import threading
 import sys
@@ -131,6 +132,38 @@ APP_URL = (os.environ.get("NABBLY_APP_URL")
 _WORK_NOTE = {"project": "Project", "contract": "Contract",
               "fulltime": "Full-time"}
 
+# THE NUMBER, ONLY WHEN ITS CURRENCY IS KNOWN. The card has always said
+# "Medium budget" and never the amount, because until 2026-09-21 a Freelancer
+# "$250" could be USD, EUR, GBP or five other codes and the fetcher had thrown
+# the code away. PeoplePerHour rows have always carried theirs ("$26 budget
+# (20 GBP)"), Freelancer rows stored from 2026-09-21 16:35Z carry one too
+# ("$250 - $750 budget (GBP)"), and non-dollar rows always did ("1500 - 12500
+# INR budget"). Those three shapes get an amount pill; a bare "$" from before
+# the fix keeps the tier and nothing is guessed.
+_BUDGET_KNOWN = re.compile(
+    r"\$(\d[\d,]*)(?:\s*-\s*\$(\d[\d,]*))?(\+)?\s*budget\s*\(([\d.,]+\s*)?([A-Z]{3})\)"
+    r"|(\d[\d,]*)(?:\.0+)?(?:\s*-\s*(\d[\d,]*)(?:\.0+)?)?(\+)?\s*([A-Z]{3})\s*budget")
+
+
+def _budget_note(body: str) -> str:
+    tail = (body or "").split("\x1f", 1)
+    if len(tail) < 2:
+        return ""
+    m = _BUDGET_KNOWN.search(tail[1])
+    if not m:
+        return ""
+    if m.group(5):                                   # "$lo - $hi budget (CUR)"
+        lo, hi, plus, orig, cur = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+        if orig:                                     # PPH: USD conversion, original kept
+            return f"${lo} · {orig.strip()} {cur}"
+        # Freelancer wrote "$" for a dollar-ish code; the code is the truth,
+        # so "250–750 GBP", not "$250–$750 GBP".
+        amt = f"{lo}–{hi}" if hi else f"{lo}{'+' if plus else ''}"
+        return f"{amt} {cur}"
+    lo, hi, plus, cur = m.group(6), m.group(7), m.group(8), m.group(9)
+    amt = f"{lo}–{hi}" if hi else f"{lo}{'+' if plus else ''}"
+    return f"{amt} {cur}"
+
 
 def decorate(rows, ranked=False):
     """
@@ -194,6 +227,7 @@ def decorate(rows, ranked=False):
         # Empty for rows from before the field existed, so no pill rather
         # than a guessed one.
         r["work_note"] = _WORK_NOTE.get(r.pop("work_type", None) or "", "")
+        r["budget_note"] = _budget_note(r.get("body") or "")
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
@@ -205,7 +239,11 @@ def decorate(rows, ranked=False):
             # before the post.
             r["apply_note"], r["apply_cls"] = "Free account needed to read and apply", "locoff"
         elif src in getattr(config, "ACCOUNT_REQUIRED_SOURCES", ()):
-            r["apply_note"], r["apply_cls"] = "Free account needed to apply", "locoff"
+            # Named, so nobody reads it as a Nabbly wall: the account is on
+            # the board that holds the posting, and Nabbly never asks for one
+            # to read or click through.
+            r["apply_note"] = f"Free {config.source_label(src)} account to apply"
+            r["apply_cls"] = "locoff"
         else:
             r["apply_note"] = ""
         r.pop("apply_email", None)   # a real address; never reaches the page

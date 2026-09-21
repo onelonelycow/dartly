@@ -39,6 +39,9 @@
     {# "Medium budget", not "Medium" — the app says what the number describes,
        and a bare size word next to a job type reads as part of the role. #}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
+    {# The amount itself, only on rows whose currency the source kept -- see
+       main._budget_note. A bare "$" from before 2026-09-21 shows the tier alone. #}
+    {% if g.budget_note %}<span class="gr-pill">{{ g.budget_note }}</span>{% endif %}
     {% if g.loc_note %}<span class="gr-pill {{ g.loc_cls }}">{{ g.loc_note }}</span>{% endif %}
     {% if g.work_note %}<span class="gr-pill">{{ g.work_note }}</span>{% endif %}
     {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}

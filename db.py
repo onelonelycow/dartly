@@ -4,7 +4,9 @@ db.py — stores demand posts in a single local file (demand_radar.db).
 SQLite is a database that lives in one file. No server, no setup.
 """
 import os
+import re
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 from paths import data_file
@@ -560,6 +562,89 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
         except Exception:
             pass
     return sum(d for d, _ in verdicts)
+
+
+# AWARDED IS NOT 404. PeoplePerHour keeps a project's page up, HTTP 200, after
+# the client has picked someone -- it even still renders a "Send Proposal"
+# button -- and prints the status in a label: <span class="job-status
+# awarded">Awarded</span>. The sweep above reads only status codes, so an
+# awarded project stayed on the board until the ten-day archive: 4 of 24 live
+# PPH rows sampled on 2026-09-21 were already awarded, at ages from 2.9 to 7.9
+# days, so no age rule would do. This re-reads the label, two rows a cycle,
+# oldest check first: ~1,400 reads a day over ~470 live rows, every row about
+# every eight hours. Freelancer likely has the same shape; measure it before
+# assuming it.
+#
+# link_checked doubles as the timestamp (epoch seconds) of the last look so
+# no column is added -- a 1 left by the dead-link sweep reads as "long ago"
+# and gets re-checked, and the dead-link sweep skips anything non-NULL, so the
+# two never fetch the same page twice. Local-only, like the rest of that
+# column: a deploy starts the rotation again from the oldest.
+PPH_STATUS_PER_CYCLE = 2
+PPH_STATUS_EVERY_S = 8 * 3600
+_PPH_STATUS = re.compile(r'class="[^"]*\bjob-status\s+([a-z_-]+)"')
+_PPH_GONE = {"awarded", "closed", "cancelled", "canceled", "expired", "completed"}
+
+
+def sweep_pph_status(limit: int = PPH_STATUS_PER_CYCLE) -> int:
+    """Take awarded / closed PeoplePerHour projects off the board. Returns how many."""
+    try:
+        import requests
+    except ImportError:
+        return 0
+    now = int(time.time())
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, url, source, source_id FROM posts "
+            "WHERE source = 'peopleperhour' AND is_demand = 1 AND url LIKE 'http%' "
+            "  AND COALESCE(link_checked, 0) < ? "
+            "ORDER BY COALESCE(link_checked, 0) ASC, id ASC LIMIT ?",
+            (now - PPH_STATUS_EVERY_S, int(limit))).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                             "AppleWebKit/537.36 (KHTML, like Gecko) "
+                             "Chrome/120.0 Safari/537.36"}
+    verdicts, gone = [], []
+    for r in rows:
+        dead = 0
+        try:
+            resp = requests.get(r["url"], headers=headers, timeout=15,
+                                allow_redirects=True)
+            if resp.status_code in (404, 410):
+                dead = 1
+            elif resp.status_code == 200:
+                m = _PPH_STATUS.search(resp.text)
+                # No label, or one this doesn't know, is NOT gone: the page
+                # may have changed shape, and the cost of guessing is a live
+                # project deleted. Only the source's own closing words count.
+                if m and m.group(1) in _PPH_GONE:
+                    dead = 1
+        except Exception:
+            pass          # unreachable now != gone; the next pass looks again
+        verdicts.append((dead, now, r["id"]))
+        if dead:
+            gone.append((r["source"], r["source_id"]))
+    conn = connect()
+    try:
+        conn.executemany(
+            "UPDATE posts SET link_checked = ?2, "
+            "is_demand = CASE WHEN ?1 = 1 THEN 0 ELSE is_demand END, "
+            "body = CASE WHEN ?1 = 1 THEN '' ELSE body END "
+            "WHERE id = ?3", verdicts)
+        conn.commit()
+    finally:
+        conn.close()
+    if gone:
+        try:
+            import board_store
+            board_store.mark_archived(gone)
+        except Exception:
+            pass
+    return sum(d for d, _, _ in verdicts)
 
 
 # How long a gig stays on the board. This, not any row cap, is what decides how

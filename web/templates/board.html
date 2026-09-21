@@ -527,7 +527,9 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   </div>
   <span class="lbl mt">Location</span>
   <a href="{{ link(where='') }}" class="{% if not where %}on{% endif %}">Everywhere</a>
-  <a href="{{ link(where='remote') }}" class="{% if where == 'remote' %}on pick{% endif %}">Remote I can take</a>
+  <a href="{{ link(where='remote') }}" class="{% if where == 'remote' %}on pick{% endif %}">Remote</a>{# "Remote", not "Remote I can take": the filter is is_remote=1 and
+     nothing excludes a row restricted to another country, for anyone. Say what
+     it does. #}
   <a href="{{ link(where='onsite') }}" class="{% if where == 'onsite' %}on pick{% endif %}">On-site / local</a>
   <span class="lbl mt">Kind of work</span>
   <a href="{{ link(work='') }}" class="{% if not work %}on{% endif %}">Anything</a>

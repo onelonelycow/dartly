@@ -553,6 +553,13 @@ JOB_TYPES = {
         "gestor de marketing", "especialista en marketing", "responsable marketing", "chargé de marketing",
         "especialista em marketing", "marketing digitale", "responsabile marketing", "specialista marketing",
         "paid media", "demand generation", "lifecycle marketing", "paid social", "marketing manager", "brand marketing", "growth manager", "media coordinator", "marketing coordinator", "technical seo",
+        # PeoplePerHour files link-building under "Marketing, Branding & Sales
+        # / Direct Marketing", and that label's "Branding" scored one point
+        # for Design while nothing here scored for the work itself -- a
+        # three-way tie that Design won on list order. 12 of 45 live rows
+        # under that label sat in Design on 2026-09-21. Two-word terms
+        # outscore the tie.
+        "direct marketing", "backlinks", "link building",
     ],
     "Sales / outreach": [
         "sales", "salesperson", "sales rep", "sales manager",

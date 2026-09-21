@@ -347,6 +347,9 @@ def _loop(on_update=None):
                 # Retire postings the source has already taken down. The age
                 # cutoff alone missed a WWR gig that expired inside the window.
                 _dead = db.sweep_dead_links()
+                # PeoplePerHour says "Awarded" on a page that still answers
+                # 200; the sweep above cannot see that. See db.sweep_pph_status.
+                _dead += db.sweep_pph_status()
                 if _dead:
                     _state["dead_links"] = _state.get("dead_links", 0) + _dead
             except Exception:

@@ -97,8 +97,23 @@ _NEEDLES = tuple(c.lower().split()[0] if c in _MORE_COUNTRIES else None
 _RESTRICT_RE = tuple(re.compile(pat) for _, pat in _RESTRICT)
 
 
+# "WE'RE A UK-BASED COMPANY" IS WHERE THE CLIENT SITS, NOT WHERE YOU MUST.
+# The patterns above count "-based" as a restriction word, which is right for
+# "must be UK based" and wrong for a company introducing itself: a PeoplePerHour
+# design brief that opened "We're a UK-based company" wore a UK-only pill on
+# 2026-09-21 with no restriction anywhere in it. Eleven live rows rested on
+# that phrase alone. The phrase is blanked before the patterns run; "UK-based
+# candidates only" and "applicants must be based in the UK" still match.
+_COMPANY_BASED = re.compile(
+    r"\b[\w.]+[\s\-]based\s+(?:company|agency|startup|start-up|studio|business"
+    r"|firm|team|brand|organi[sz]ation|practice|consultancy|label|publisher"
+    r"|charity|shop|store|platform|group|employer|enterprise)\b")
+
+
 def _restrict(text_l: str):
     """The first _RESTRICT code, in list order, whose pattern matches."""
+    if "based" in text_l:
+        text_l = _COMPANY_BASED.sub(" ", text_l)
     for (code, _), needle, rx in zip(_RESTRICT, _NEEDLES, _RESTRICT_RE):
         if needle is not None and needle not in text_l:
             continue
