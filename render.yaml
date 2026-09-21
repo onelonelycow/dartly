@@ -220,8 +220,10 @@ services:
     # "nabbly.co/?ref=instagram_bio" does not. The redirect lands on the home
     # page with the tag, the page's own script copies ?ref onto every board
     # link, and the board writes it to the member's record at signup -- the
-    # same path a partner link takes. 302, not 301: a browser caches a 301
-    # and would keep sending a re-pointed tag to the old destination.
+    # same path a partner link takes. Render answers 301 and offers no other
+    # code, so a browser that has followed it once keeps the old target;
+    # re-point the tag by changing the destination, not by expecting the
+    # same visitor to see the change on the same device.
     routes:
       - type: redirect
         source: /instagram
