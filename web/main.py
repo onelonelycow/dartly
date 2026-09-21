@@ -85,14 +85,16 @@ def _viewer(request):
         # ?u= / ?e= token in the URL -- nothing else -- so a bare
         # /?nav=admin arrived as a stranger: the founder clicked Admin and got
         # an empty page with a signed-out icon (2026-09-21). The link now
-        # carries the account's email token, which the app already resolves
-        # server-side on the way back from Stripe Checkout (app._resolve_account).
-        # Rendered only inside the owner's own signed-in chrome, never in an
-        # email. Goes away with the app (RETIRE-APP.md §2).
+        # carries the account's own sign-in token as ?u=, which is exactly how
+        # the app identifies every email-signed-in member on every internal
+        # link it renders (app._u). The first attempt used the HMAC email
+        # token (?e=); that only resolves when both services share the same
+        # AUTH_COOKIE_SECRET, and it did not open the panel. ?u= needs no
+        # shared secret. Rendered only inside the owner's own signed-in chrome,
+        # never in an email. Goes away with the app (RETIRE-APP.md §2).
         admin_url = ""
-        if owner and APP_URL:
-            admin_url = (f"{APP_URL}/?nav=admin"
-                         f"&e={accounts.email_token(acc.get('token') or '')}")
+        if owner and APP_URL and acc.get("token"):
+            admin_url = f"{APP_URL}/?nav=admin&u={quote_plus(acc['token'])}"
         return {"pro": bool(st.get("pro")), "owner": owner,
                 "admin_url": admin_url}
     except Exception:
