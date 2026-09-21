@@ -51,7 +51,7 @@ def run() -> dict:
         # skipped it. One choke point protects future fetchers too, and _strip
         # is idempotent on already-clean text so the double pass costs nothing.
         post["title"] = sources.clean_stored(post["title"])
-        post["body"] = sources.clean_stored(post["body"])
+        post["body"] = sources.cap_body(sources.clean_stored(post["body"]))
         tags = classify.classify(post["title"], post["body"], post["source"])
         record = {
             **post,

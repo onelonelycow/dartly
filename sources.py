@@ -125,6 +125,27 @@ def _clean_title(text: str) -> str:
 HINT_SEP = "\x1f"
 
 
+# What a stored body may hold, in characters of the human part. ~250 words:
+# a card's "See more" reads as a description and the draft has the brief.
+#
+# EVERY SOURCE, AT INGEST. The RSS cap alone left the biggest weight
+# untouched: Arbeitnow, a German job board, was 16% of the board's rows and
+# 41% of its text (43MB of 105MB on 2026-09-21) because a corporate vacancy
+# runs 4,600 characters of benefits and boilerplate. Bodies are what the
+# boot pull hauls and what the board tags row by row on a slow CPU; the pull
+# read 255s that morning against a 270s deploy ceiling. Capped here, total
+# body text lands near 65MB as rows turn over. The machine-hint tail after
+# HINT_SEP is kept whole -- it is short and the classifier reads it.
+BODY_CAP = 1500
+
+
+def cap_body(text: str) -> str:
+    human, sep, tail = (text or "").partition(HINT_SEP)
+    if len(human) > BODY_CAP:
+        human = human[:BODY_CAP].rsplit(" ", 1)[0]
+    return human + (sep + tail if sep else "")
+
+
 def clean_stored(text: str) -> str:
     """
     _strip, for text that may already carry the HINT_SEP.
