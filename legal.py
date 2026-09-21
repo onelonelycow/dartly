@@ -11,7 +11,7 @@ the same commit — a privacy policy that quietly stops being true is worse than
 not having one.
 """
 
-UPDATED = "24 August 2026"
+UPDATED = "21 September 2026"
 CONTACT = "hello@nabbly.co"
 
 
@@ -134,9 +134,11 @@ link can access your account, so treat it like a password and do not share it.
 
 ### Information We Do Not Collect
 
-We never ask for and never store passwords, payment card details, government
-identification, or your contacts. Nabbly does not currently take payments at
-all.
+We never ask for and never store passwords, government identification, or
+your contacts. If you subscribe to a paid plan, **Stripe** handles the
+payment: your card details go to Stripe and never touch our servers. We keep
+only Stripe's reference for your subscription, so we can show you what you are
+on and let you cancel.
 
 ### How We Share Information
 
@@ -148,6 +150,12 @@ to:
 - **Supabase** stores the database, so your account and profile survive a
   redeploy.
 - **Google** handles sign-in, if you choose that option.
+- **Stripe** processes payments for paid plans.
+- **Resend** delivers our email: sign-in codes, the weekly email, and any
+  alerts you set to email.
+- **Freelancer.com**, only if you connect your Freelancer account: your bid
+  is sent to Freelancer under your own account, and the access token they
+  give us is stored encrypted. You can disconnect at any time.
 - **ip-api.com** is queried only if you press "Detect my location", to guess a
   country and city from an IP address.
 - **Anthropic** powers drafted replies where that feature is switched on. When
