@@ -189,6 +189,45 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
     return subject, _shell("Pro's on for two months, free.", body, token), text
 
 
+def pro_ending_email(name: str, days_left: int, ends_on: str, founding: bool,
+                     unsub_token: str) -> tuple[str, str, str]:
+    """
+    Three days before a founding grant or trial ends: what stays, what goes,
+    where to keep it. The only conversion touch a founding member gets.
+    """
+    plans_url = f"{BOARD_URL}/plans"
+    hi = f"{name}, y" if name else "Y"
+    what = "two months of Pro" if founding else "Pro trial"
+    when = f"in {days_left} day{'' if days_left == 1 else 's'}, on {ends_on}"
+    subject = f"Your Nabbly Pro ends {ends_on}"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  {hi}our {what} ends {when}.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  Nothing is charged and nothing you built goes anywhere. Your profile, your
+  saved gigs and your drafts stay. The whole board stays free.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  What stops: gigs ranked against your profile, replies written from the
+  actual posting, market rates, and instant alerts. Pro is $15 a month,
+  cancel any time.
+</p>
+{_button("Keep Pro", plans_url)}
+<p style="font-size:12.5px;color:{MUTE};line-height:1.6;margin:22px 0 0;">
+  Do nothing and you drop back to Free on the day. No card was ever taken.
+</p>
+"""
+    text = (f"{hi}our {what} ends {when}.\n\n"
+            "Nothing is charged and nothing you built goes anywhere. Your profile, "
+            "your saved gigs and your drafts stay. The whole board stays free.\n\n"
+            "What stops: gigs ranked against your profile, replies written from "
+            "the actual posting, market rates, and instant alerts. Pro is $15 a "
+            f"month, cancel any time.\n\nKeep Pro: {plans_url}\n\n"
+            "Do nothing and you drop back to Free on the day. No card was ever taken.\n")
+    return subject, _shell(f"Your Pro ends {ends_on}.", body, unsub_token), text
+
+
 def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
     board_url = f"{BOARD_URL}/"
     hi = f"Hi {name}," if name else "Hi,"

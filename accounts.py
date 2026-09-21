@@ -66,7 +66,7 @@ _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
 # this list is meant to close.
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
          "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest",
-         "pay_nudge_sent", "stripe_customer_id", "stripe_subscription_id",
+         "pay_nudge_sent", "ending_soon_sent", "stripe_customer_id", "stripe_subscription_id",
          "stripe_session_id")
 _rehydrated = False
 # Schema setup is process-wide, but init() sits at app.py's module scope, which
@@ -158,7 +158,7 @@ def init():
     # Safe migration for tables created before these columns existed.
     for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
                       ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT"),
-                      ("pay_nudge_sent", "TEXT"),
+                      ("pay_nudge_sent", "TEXT"), ("ending_soon_sent", "TEXT"),
                       ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT"),
                       ("stripe_session_id", "TEXT")):
         try:
@@ -853,6 +853,17 @@ def set_pay_nudge_sent(email: str, when: str):
     init()
     conn = _connect()
     conn.execute("UPDATE accounts SET pay_nudge_sent=? WHERE email=?",
+                 (when, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
+def set_ending_soon_sent(email: str, when: str):
+    """Stamp the "your Pro ends soon" email so it goes once per account -- see ending_soon.py."""
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET ending_soon_sent=? WHERE email=?",
                  (when, email.strip().lower()))
     conn.commit()
     conn.close()

@@ -388,6 +388,13 @@ def _loop(on_update=None):
                         _state["nudges_sent"] = _state.get("nudges_sent", 0) + nd
                 except Exception:
                     pass
+                try:
+                    import ending_soon
+                    ne = ending_soon.run_all()
+                    if ne:
+                        _state["ending_soon_sent"] = _state.get("ending_soon_sent", 0) + ne
+                except Exception:
+                    pass
                 last_nudge_check = time.time()
 
             # Daily is plenty — a freshness cutoff doesn't need a 2-minute clock,
