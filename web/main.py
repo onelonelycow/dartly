@@ -579,11 +579,11 @@ _BOTS = tuple(t.strip().lower() for t in (
     "ccbot,claudebot,anthropic-ai,"
     "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
     "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
-    "seznambot,serpstatbot,barkrowler,zoominfobot,"
-    # OUR OWN CHECKS ARE NOT VISITORS. ops_watch, the uptime workflow and the
-    # daily bug check all fetch these pages with a nabbly- agent; counted, the
-    # admin panel would report a visitor every morning who is a cron job.
-    "nabbly-selfcheck,nabbly-uptime,nabbly-"
+    # NOT our own agents. This list BLOCKS with a 403; the analytics filter is
+    # _BOT_UA, which has excluded nabbly-selfcheck since d55d471. Adding them
+    # here 403'd ops_watch's page checks, the uptime workflow and the daily bug
+    # check -- monitoring that answers 403 reports the site as down.
+    "seznambot,serpstatbot,barkrowler,zoominfobot"
 ).split(",") if t.strip())
 
 # Reachable even to a blocked agent. robots.txt is how a crawler learns to stop
