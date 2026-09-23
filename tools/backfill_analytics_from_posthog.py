@@ -52,14 +52,30 @@ BUCKET = {
     "bid_placed":  ("clicks", "Placed a bid"),
     "bid_retracted": ("clicks", "Retracted a bid"),
     "unsubscribe": ("clicks", "Unsubscribed"),
+    # The Streamlit app's own names, for days when it was still the product.
+    "view":   ("views", "Gigs"),
+    "click":  ("clicks", "Opened a gig"),
+    "search_empty": ("clicks", "Search"),
 }
 # Not visitor actions: 'arrival' is the referrer marker counted separately, and
 # 'from_campaign' is a duplicate of board_view carrying the tag.
-SKIP = {"arrival", "from_campaign"}
+SKIP = {"arrival", "from_campaign", "session", "device", "ref"}
 
 
 def query(sql: str) -> list:
+    """
+    Run one HogQL query, and refuse a partial answer.
+
+    PostHog caps an unbounded query at 100 rows and says so only in `hasMore`.
+    A 34-day breakdown is ~440 rows, so the first run of this script silently
+    got August and nothing after it, and wrote days whose page views were
+    empty because the rows never arrived. A truncated read that looks like a
+    complete one is the worst shape a backfill can have: it does not fail, it
+    just stores something wrong. Ask for a high limit, then check anyway.
+    """
     import requests
+    if " limit " not in sql.lower():
+        sql = f"{sql} LIMIT 100000"
     r = requests.post(
         f"{HOST}/api/projects/{PROJECT}/query/",
         headers={"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"},
@@ -68,7 +84,11 @@ def query(sql: str) -> list:
     )
     if r.status_code != 200:
         sys.exit(f"PostHog said {r.status_code}: {r.text[:300]}")
-    return r.json().get("results") or []
+    body = r.json()
+    if body.get("hasMore"):
+        sys.exit("PostHog truncated this query. Narrow the window and re-run; "
+                 "storing a partial day is worse than storing nothing.")
+    return body.get("results") or []
 
 
 def main():
@@ -90,15 +110,22 @@ def main():
     # people, which is worse than the blank chart it replaces.
     #
     # A visitor counts if they did a SECOND thing, or arrived from somewhere
-    # real. _ev() emits an `arrival` alongside the first event, so one page
-    # view is two rows here and the second thing starts at three -- the same
-    # rule web/main._ev now applies live, so a backfilled day and a recorded
-    # one mean the same thing.
+    # real -- the same rule web/main._ev now applies live, so a backfilled day
+    # and a recorded one mean the same thing.
+    #
+    # COUNTED ON ACTIONS, NOT ON EVENTS, because the two surfaces announce
+    # themselves differently. The Streamlit app fires session+device+ref once
+    # per visitor before they do anything (1,622 of each across 20-31 Aug, one
+    # per id), so "three or more events" would wave through every bot it ever
+    # saw. Only a page viewed or a thing clicked counts, from either surface.
+    ACTIONS = ("'board_view','gig_click','market_view','search','draft_view',"
+               "'view','click','search_empty'")
+    REFERRED = "'arrival','ref'"          # whichever surface recorded it
     engaged = (
         f"distinct_id IN (SELECT distinct_id FROM events WHERE {window} "
-        f"AND {ours} AND event IN ('arrival','board_view','gig_click',"
-        f"'market_view','search','draft_view') GROUP BY distinct_id "
-        f"HAVING count() >= 3 OR countIf(event = 'arrival' "
+        f"AND {ours} GROUP BY distinct_id "
+        f"HAVING countIf(event IN ({ACTIONS})) >= 2 "
+        f"OR countIf(event IN ({REFERRED}) "
         f"AND properties.detail NOT IN ('Direct','')) > 0)")
 
     days = defaultdict(lambda: {"sessions": 0, "views": {}, "clicks": {},
@@ -148,18 +175,36 @@ def main():
     import store
     if not store.enabled():
         sys.exit("No durable store configured (DATABASE_URL).")
+    # --replace rewrites the app's own "<day>" key. Needed only for days the
+    # app also recorded: adding a second key there would SUM an inflated count
+    # with a corrected one and make the day worse than before. Everything it
+    # overwrites is printed first and saved to a file, because this is the one
+    # operation here that destroys a number somebody might want back.
+    replace = "--replace" in sys.argv
     wrote = 0
+    if replace:
+        import json
+        backup = {d: (store.get(analytics._ANALYTICS_SCOPE, d) or {})
+                  for d in sorted(days)}
+        path = f"analytics-backup-{START}-to-{END}.json"
+        with open(path, "w") as fh:
+            json.dump(backup, fh, indent=1)
+        print(f"\nprevious values saved to {path}")
     for day in sorted(days):
-        key = f"{day}{analytics._LIVE_SUFFIX}"
-        # Merge, never replace: if the live counter has already written
-        # anything for a day in this range, it is real and must survive.
-        current = store.get(analytics._ANALYTICS_SCOPE, key) or {}
-        merged = analytics._merge_rollup(current, days[day])
-        if store.put(analytics._ANALYTICS_SCOPE, key, merged):
+        if replace:
+            key, payload = day, days[day]
+        else:
+            key = f"{day}{analytics._LIVE_SUFFIX}"
+            # Merge, never replace: if the live counter has already written
+            # anything for a day in this range, it is real and must survive.
+            payload = analytics._merge_rollup(
+                store.get(analytics._ANALYTICS_SCOPE, key) or {}, days[day])
+        if store.put(analytics._ANALYTICS_SCOPE, key, payload):
             wrote += 1
         else:
             print(f"  ! refused to store {key}")
-    print(f"\nstored {wrote}/{len(days)} days")
+    print(f"\nstored {wrote}/{len(days)} days"
+          f"{' (replaced the app key)' if replace else ''}")
 
 
 if __name__ == "__main__":
