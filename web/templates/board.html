@@ -8,7 +8,10 @@
    with Streamlit primitives rather than a .gr- class. */
 
 .rule{border:0;border-top:1px solid var(--line);margin:18px 0 4px}
-.cards{display:flex;flex-direction:column;gap:14px}
+/* 14px between 273px-tall cards read as one block of interface rather
+   than a list of separate gigs. Enough air to separate them, not so
+   much that the feed stops feeling like a feed. */
+.cards{display:flex;flex-direction:column;gap:22px}
 .gr-cardwrap{border:1px solid var(--line);border-radius:14px;background:#14171b;
   padding:15px 18px 13px;position:relative;
   transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
