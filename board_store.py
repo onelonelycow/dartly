@@ -687,17 +687,51 @@ def mark_archived(pairs) -> int:
             # anywhere said so. Measured 2026-08-16: 3,849 gigs the app had
             # retired were still being served, and this is the write that was
             # supposed to prevent that.
+            # A DEAD CONNECTION IS NOT A DEAD BATCH. One connection carried
+            # every chunk, so the moment the server hung up -- Supabase closes
+            # idle or over-budget connections, and a long archival is exactly
+            # when that happens -- each remaining chunk raised "the connection
+            # is closed" and was written off. Measured 2026-09-23T00:00Z: 500
+            # of 1,286 landed and the other 786 were abandoned mid-loop.
+            #
+            # Abandoned is worse than it sounds, because nothing retries them:
+            # archive_stale() selects is_demand = 1 and the local row is
+            # already 0 by here, so no later daily pass revisits it. The mirror
+            # keeps serving those gigs as live until a deploy rehydrates them
+            # and the next pass tries again. So a batch that fails gets one
+            # fresh connection and one more attempt before it is given up on.
             done = 0
             for i in range(0, len(pairs), 500):
                 batch = pairs[i:i + 500]
-                try:
-                    with conn:
-                        conn.cursor().executemany(sql, batch)
-                    done += len(batch)
-                except Exception as e:
-                    print(f"  ! mirror archival FAILED for {len(batch)} gigs "
-                          f"({i}..{i + len(batch)} of {len(pairs)}): "
-                          f"{type(e).__name__}: {e}", flush=True)
+                for attempt in (1, 2):
+                    try:
+                        with conn:
+                            conn.cursor().executemany(sql, batch)
+                        done += len(batch)
+                        break
+                    except Exception as e:
+                        if attempt == 1:
+                            try:
+                                conn.close()
+                            except Exception:
+                                pass
+                            try:
+                                conn, ph = store._connect()
+                                _ensure(conn)
+                                sql = (f"UPDATE {_TABLE} SET is_demand = 0, "
+                                       f"body = '' WHERE source = {ph} "
+                                       f"AND source_id = {ph}")
+                                continue
+                            except Exception as e2:
+                                # No connection to retry on: report this batch
+                                # once and stop attempting it.
+                                print(f"  ! mirror archival could not "
+                                      f"reconnect: {type(e2).__name__}: {e2}",
+                                      flush=True)
+                        print(f"  ! mirror archival FAILED for {len(batch)} "
+                              f"gigs ({i}..{i + len(batch)} of {len(pairs)}): "
+                              f"{type(e).__name__}: {e}", flush=True)
+                        break
             if done < len(pairs):
                 print(f"  ! mirror archival incomplete: {done:,}/{len(pairs):,} "
                       f"landed. The board service will keep serving the rest "
