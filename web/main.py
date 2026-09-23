@@ -420,16 +420,44 @@ def _ev(request: Request, event: str, detail: str = ""):
                 sid, path)
         # The same event, counted for the admin panel. PostHog answers "what
         # are people doing"; this answers "is anyone here at all", which is the
-        # question the panel asks and could not answer for the board -- see
-        # analytics.bump. Two dict increments, no disk and no network on this
-        # path; analytics.flush_live() folds them in from the refresh loop.
-        if first_of_session:
+        # question the panel asks and could not answer for the board.
+        #
+        # NOT EVERY FIRST REQUEST IS A VISITOR. Counting them made the number
+        # meaningless: of 2,370 apparent visitors in PostHog over 1-22 Sep,
+        # 2,318 arrived with no referrer, viewed one page and never came back
+        # with the same cookie -- scrapers that simply do not send a user agent
+        # this file knows. Ninety-seven behaved like people. A panel that says
+        # 108 a day when the truth is four is worse than the blank one it
+        # replaced, so a session is counted when it does a SECOND thing, or
+        # when it arrives from somewhere real. Both are things a one-shot
+        # fetcher does not do.
+        ref = (analytics.referrer_label(request.headers.get("referer", ""))
+               if first_of_session else "")
+        seen = int(request.session.get("_evn") or 0) + 1
+        request.session["_evn"] = seen
+        engaged = bool(request.session.get("_eng"))
+        if not engaged and (seen >= 2 or (ref and ref != "Direct")):
+            engaged = True
+            request.session["_eng"] = 1
             analytics.bump("sessions", "1")
-            analytics.bump("refs", analytics.referrer_label(
-                request.headers.get("referer", "")))
+            analytics.bump("refs", request.session.get("_ref") or ref or "Direct")
             analytics.bump("devices", analytics.device_label(
                 request.headers.get("user-agent", "")))
-        analytics.bump(*_ROLLUP_BUCKET.get(event, ("clicks", event)))
+            # Whatever this session did before it qualified, counted now rather
+            # than lost -- the first page view is the one that matters most.
+            for held in (request.session.pop("_evq", None) or []):
+                kind, _, label = held.partition("|")
+                analytics.bump(kind, label)
+        elif first_of_session:
+            request.session["_ref"] = ref or "Direct"
+        kind, label = _ROLLUP_BUCKET.get(event, ("clicks", event))
+        if engaged:
+            analytics.bump(kind, label)
+        else:
+            held = list(request.session.get("_evq") or [])
+            if len(held) < 3:
+                held.append(f"{kind}|{label}")
+                request.session["_evq"] = held
         camp = request.session.get("_camp") or ""
         telemetry.capture(event, detail, sid, path, campaign=camp)
         if camp and event == "board_view":
@@ -551,7 +579,11 @@ _BOTS = tuple(t.strip().lower() for t in (
     "ccbot,claudebot,anthropic-ai,"
     "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
     "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
-    "seznambot,serpstatbot,barkrowler,zoominfobot"
+    "seznambot,serpstatbot,barkrowler,zoominfobot,"
+    # OUR OWN CHECKS ARE NOT VISITORS. ops_watch, the uptime workflow and the
+    # daily bug check all fetch these pages with a nabbly- agent; counted, the
+    # admin panel would report a visitor every morning who is a cron job.
+    "nabbly-selfcheck,nabbly-uptime,nabbly-"
 ).split(",") if t.strip())
 
 # Reachable even to a blocked agent. robots.txt is how a crawler learns to stop
