@@ -28,6 +28,7 @@ already left the building.
 import os
 import re
 import sqlite3
+import threading as _threading
 from datetime import datetime, timedelta, timezone
 
 from paths import data_file
@@ -342,6 +343,39 @@ def stats() -> dict:
         conn.close()
     except sqlite3.Error:
         pass
+    # EVERYTHING ABOVE READS ONE SERVICE'S LOCAL DISK, which is why the admin
+    # panel stopped moving on 2026-08-31: it was reading the Streamlit app's
+    # table while every visitor was on the board, whose events never land
+    # there. history() is the whole picture -- both services, all the days
+    # that survived a deploy -- so the headline numbers come from it whenever
+    # it knows more than the disk does.
+    try:
+        hist = history(3650)
+        if hist:
+            today = datetime.now(timezone.utc).date()
+            week = (today - timedelta(days=7)).isoformat()
+            out["sessions"] = max(out["sessions"],
+                                  sum(r.get("sessions", 0) for _, r in hist))
+            out["sessions_24h"] = max(
+                out["sessions_24h"],
+                sum(r.get("sessions", 0) for d, r in hist
+                    if d == today.isoformat()))
+            out["sessions_7d"] = max(
+                out["sessions_7d"],
+                sum(r.get("sessions", 0) for d, r in hist if d >= week))
+            merged = {}
+            for _, r in hist:
+                merged = _merge_rollup(merged, r)
+            if merged["views"]:
+                out["views"] = sorted(merged["views"].items(),
+                                      key=lambda x: -x[1])
+            if merged["clicks"]:
+                out["clicks"] = sorted(merged["clicks"].items(),
+                                       key=lambda x: -x[1])[:15]
+            if not out["started"]:
+                out["started"] = hist[0][0]
+    except Exception:
+        pass          # the panel is better stale than broken
     return out
 
 
@@ -382,6 +416,102 @@ def day_rollup(day: str) -> dict:
     return out
 
 
+# ---------------------------------------------------------------------------
+# THE BOARD'S OWN NUMBERS.
+#
+# track() above writes a row to local SQLite on the calling thread. That is
+# fine for the Streamlit app and wrong for the board, which answers /gigs in
+# 3-4ms and whose disk Render wipes on every deploy -- so web/main._ev() sends
+# events to PostHog instead and never touches the events table here.
+#
+# The cost of that choice only showed up later: the admin panel reads THIS
+# module, so when people moved from app.nabbly.co to board.nabbly.co (30 Aug
+# to 1 Sep 2026) its traffic chart froze on 2026-08-31 and stayed there,
+# showing a surface nobody visits while the real board went unmeasured.
+#
+# So the board keeps counters in memory and folds them into the durable store
+# every refresh cycle. In memory because incrementing a dict costs nothing on
+# a hot path; folded rather than written because the process can restart at
+# any moment and a deploy must not reset the day to zero.
+#
+# UNDER ITS OWN KEY, "<day>#live", never the app's "<day>". flush() below
+# recomputes a whole day from local SQLite and overwrites; this one adds a
+# delta. Pointing both at one key would mean whichever ran last won, and the
+# app -- which still runs this loop, and still has its old rows -- would
+# silently erase the board's numbers. history() merges the pair on read.
+_LIVE_SUFFIX = "#live"
+_live_lock = _threading.Lock()
+_live: dict = {}
+
+
+def _live_day() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+def bump(kind: str, key: str, n: int = 1):
+    """Count one thing on the board. Never touches the disk or the network."""
+    if not key:
+        return
+    try:
+        with _live_lock:
+            day = _live.setdefault(_live_day(), {})
+            if kind == "sessions":
+                day["sessions"] = day.get("sessions", 0) + n
+            else:
+                bucket = day.setdefault(kind, {})
+                bucket[key[:60]] = bucket.get(key[:60], 0) + n
+    except Exception:
+        pass          # a counter must never stand between someone and a gig
+
+
+def _merge_rollup(base: dict, extra: dict) -> dict:
+    """base + extra, summing sessions and every per-key bucket."""
+    out = {"sessions": 0, "views": {}, "clicks": {}, "refs": {}, "devices": {}}
+    for src in (base or {}, extra or {}):
+        out["sessions"] += int(src.get("sessions") or 0)
+        for kind in ("views", "clicks", "refs", "devices"):
+            for k, v in (src.get(kind) or {}).items():
+                out[kind][k] = out[kind].get(k, 0) + int(v or 0)
+    return out
+
+
+def flush_live() -> int:
+    """
+    Fold the board's in-memory counters into the durable store. Returns days sent.
+
+    Read-add-write rather than write: the stored day already holds everything
+    counted before this process started, and a deploy in the middle of a busy
+    afternoon must add to that rather than replace it.
+
+    Counters are cleared only after the write is accepted. A failed write
+    therefore costs nothing -- the same numbers are folded in on the next
+    cycle, which is the behaviour the mirror-drift rule asks for everywhere
+    else in this codebase.
+    """
+    import store
+    if not store.enabled():
+        return 0
+    with _live_lock:
+        pending = {d: r for d, r in _live.items() if r}
+        _live.clear()
+    if not pending:
+        return 0
+    sent = 0
+    for day, delta in pending.items():
+        key = f"{day}{_LIVE_SUFFIX}"
+        try:
+            current = store.get(_ANALYTICS_SCOPE, key) or {}
+            if store.put(_ANALYTICS_SCOPE, key, _merge_rollup(current, delta)):
+                sent += 1
+                continue
+        except Exception:
+            pass
+        # Put it back for the next cycle rather than dropping it.
+        with _live_lock:
+            _live[day] = _merge_rollup(_live.get(day, {}), delta)
+    return sent
+
+
 def flush(days_back: int = 2) -> int:
     """
     Mirror recent days to the durable store. Returns how many days were sent.
@@ -409,12 +539,33 @@ def history(days: int = 30) -> list:
     local numbers so the newest day is never stale.
     """
     import store
-    saved = store.list_scope(_ANALYTICS_SCOPE) or {}
-    today = datetime.now(timezone.utc).date()
-    live = day_rollup(today.isoformat())
-    if live["sessions"] or live["views"]:
-        saved[today.isoformat()] = live
-    cutoff = (today - timedelta(days=days)).isoformat()
+    raw = store.list_scope(_ANALYTICS_SCOPE) or {}
+    today = datetime.now(timezone.utc).date().isoformat()
+    # Two writers, one scope: the app recomputes a whole day into "<day>", the
+    # board adds deltas into "<day>#live". Kept apart while reading, because
+    # they need opposite treatment for today (below), then folded per day.
+    app_days: dict = {}
+    board_days: dict = {}
+    for key, roll in raw.items():
+        if key.endswith(_LIVE_SUFFIX):
+            day = key[: -len(_LIVE_SUFFIX)]
+            board_days[day] = _merge_rollup(board_days.get(day, {}), roll)
+        else:
+            app_days[key] = _merge_rollup(app_days.get(key, {}), roll)
+    # Today only. The app's local table holds the SAME events as its stored
+    # "<day>" -- flush() recomputes the whole day -- so it replaces rather than
+    # adds, or every read would count the app's day twice. The board's pending
+    # counters are the opposite: increments not yet folded in, so they add.
+    local = day_rollup(today)
+    if local["sessions"] or local["views"]:
+        app_days[today] = local
+    with _live_lock:
+        pending = dict(_live.get(today) or {})
+    if pending:
+        board_days[today] = _merge_rollup(board_days.get(today, {}), pending)
+    saved = {d: _merge_rollup(app_days.get(d, {}), board_days.get(d, {}))
+             for d in set(app_days) | set(board_days)}
+    cutoff = (datetime.now(timezone.utc).date() - timedelta(days=days)).isoformat()
     return sorted(((d, r) for d, r in saved.items() if d >= cutoff),
                   key=lambda x: x[0])
 

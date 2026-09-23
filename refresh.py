@@ -323,6 +323,10 @@ def _loop(on_update=None):
             try:
                 import analytics
                 analytics.flush()
+                # The board's own counters. flush() above is a no-op here --
+                # this service never writes the local events table -- so
+                # without this the admin panel sees nothing the board did.
+                analytics.flush_live()
             except Exception:
                 pass
             # Keep the AI spend ledger small — it only needs recent days.

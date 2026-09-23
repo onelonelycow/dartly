@@ -339,6 +339,29 @@ def _is_bot(ua: str) -> bool:
     return not ua or any(b in ua for b in _BOT_UA)
 
 
+# Which admin-panel bucket each board event belongs in, and what to call it
+# there. A page someone looked at is a view; anything they did is a click.
+# Events missing from here fall through to clicks under their own name, so a
+# new _ev() call is counted the day it ships rather than the day someone
+# remembers to add it.
+_ROLLUP_BUCKET = {
+    "board_view":  ("views", "Gigs"),
+    "market_view": ("views", "Market"),
+    "draft_view":  ("views", "Draft a reply"),
+    "gig_click":   ("clicks", "Opened a gig"),
+    "search":      ("clicks", "Search"),
+    "signup":      ("clicks", "Signed up"),
+    "trial_start": ("clicks", "Started a trial"),
+    "purchase":    ("clicks", "Paid"),
+    "cancel":      ("clicks", "Cancelled"),
+    "resume":      ("clicks", "Resumed"),
+    "plan_switch": ("clicks", "Switched plan"),
+    "bid_placed":  ("clicks", "Placed a bid"),
+    "bid_retracted": ("clicks", "Retracted a bid"),
+    "unsubscribe": ("clicks", "Unsubscribed"),
+}
+
+
 def _ev(request: Request, event: str, detail: str = ""):
     """
     Record one thing a visitor did.
@@ -395,6 +418,18 @@ def _ev(request: Request, event: str, detail: str = ""):
                 "arrival",
                 analytics.referrer_label(request.headers.get("referer", "")),
                 sid, path)
+        # The same event, counted for the admin panel. PostHog answers "what
+        # are people doing"; this answers "is anyone here at all", which is the
+        # question the panel asks and could not answer for the board -- see
+        # analytics.bump. Two dict increments, no disk and no network on this
+        # path; analytics.flush_live() folds them in from the refresh loop.
+        if first_of_session:
+            analytics.bump("sessions", "1")
+            analytics.bump("refs", analytics.referrer_label(
+                request.headers.get("referer", "")))
+            analytics.bump("devices", analytics.device_label(
+                request.headers.get("user-agent", "")))
+        analytics.bump(*_ROLLUP_BUCKET.get(event, ("clicks", event)))
         camp = request.session.get("_camp") or ""
         telemetry.capture(event, detail, sid, path, campaign=camp)
         if camp and event == "board_view":
