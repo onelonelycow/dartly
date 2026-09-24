@@ -19,12 +19,45 @@
 <link rel="apple-touch-icon" href="/static/favicon.png">
 <link rel="stylesheet" href="/static/nabbly.css?v={{ css_v }}">
 <style>
+/* THE HOUSE FACE. Archivo, one variable file, self-hosted from /static.
+   Self-hosted rather than linked from Google: a webfont on the critical path
+   is a third-party DNS lookup plus TLS handshake before a single heading can
+   paint, and this file is 90KB served from the same origin the page came from.
+
+   font-display:swap so the page never blocks on it — text paints in the system
+   stack and re-renders when the face lands. The fallback stack below is the
+   one the site shipped with, so a failed font request is the OLD design, not
+   a broken one.
+
+   ONE FILE covers every weight and width because it is a variable font: the
+   100-900 weight axis and the 62-125% width axis are inside these 90KB. That
+   is what makes a single face enough for headings, cards, buttons and micro
+   type without the four or five static files this would have cost. */
+@font-face{font-family:'Archivo';src:url('/static/archivo.woff2?v={{ css_v }}') format('woff2');
+  font-weight:100 900;font-stretch:62% 125%;font-display:swap;font-style:normal}
+/* THE PEN. One face, used for at most one thing per screen: the note that says
+   "this row is yours". It never sets a title, a control, a number or body copy
+   — those are Archivo, and the split is what stops this from creeping. Loaded
+   like the display face and just as small, so the cost is one cached request.
+
+   .tack is deliberately NOT positioned here. Where the note hangs depends on
+   what else is in that corner — the feed card has a save star top-right, the
+   top-match card does not — so each surface places it and this only owns how
+   it LOOKS. */
+@font-face{font-family:'Caveat';src:url('/static/caveat.woff2?v={{ css_v }}') format('woff2');
+  font-weight:400 700;font-display:swap;font-style:normal}
+.tack{position:absolute;background:var(--amber);color:#191308;font-family:'Caveat';
+  font-weight:700;font-size:16.5px;line-height:1;white-space:nowrap;
+  padding:7px 11px 8px;box-shadow:0 7px 15px rgba(0,0,0,.45);z-index:3}
+@media (prefers-reduced-motion:no-preference){
+  .tack{animation:tack-in .38s cubic-bezier(.3,1.35,.4,1) .45s both}}
+@keyframes tack-in{from{opacity:0;transform:translateY(-10px) rotate(0) scale(1.06)}}
 /* Only what plain HTML needs and Streamlit provided for itself: a page frame,
    and the handful of controls Streamlit rendered as widgets. Everything with a
    .gr- class comes from the shared sheet above. */
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);
-  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-family:'Archivo',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased}
 /* Measured against the app at 1280x800, which is the only way either of these
    showed up.
@@ -38,6 +71,12 @@ html,body{margin:0;background:var(--bg);color:var(--ink);
    this left 2px, which is what made the board read as cramped up top next to
    the real thing. 37px here plus the hero's own 2px margin lands on 39. */
 .wrap{max-width:920px;margin:0 auto;padding:37px 20px 72px}
+/* On a wide desktop 920 leaves ~500px of dead gutter each side. The cap stays
+   for every size at or below a laptop; past 1440 the shell opens up so the
+   feed can lay its cards out two across (board.html). Widening the SINGLE
+   column instead would have been the wrong move: the card description already
+   runs 89 characters a line at 680, and more width only makes that worse. */
+@media (min-width:1440px){.wrap{max-width:1320px}}
 .topbar{display:flex;align-items:center;gap:18px;padding:14px 20px;
   border-bottom:1px solid var(--line);background:var(--bg2);
   position:sticky;top:0;z-index:20}
@@ -132,6 +171,40 @@ button.go:hover{background:var(--amber-l)}
   color:#aeb4be;text-decoration:none;background:#191d23;border-radius:10px;
   padding:8px 13px}
 .draftlink:hover{background:#1e232a;color:var(--amber-l)}
+/* THE WHOLE CARD IS THE DRAFT LINK. The founder: "all the cards need to be
+   clickable anywhere, not just the title of the card" — and the destination is
+   his call too: the draft page, not /out. A card click that left for
+   Freelancer would skip the one thing Nabbly does, and the draft page carries
+   "Apply on <source> →" anyway, so nothing is lost by going through it.
+
+   Done with a stretched pseudo-element rather than a handler: this service has
+   no JavaScript and does not start now. .gr-cardwrap already carries
+   position:relative (board.html, saved.html) so inset:0 resolves to the card.
+
+   Everything else on the card is lifted ABOVE the overlay and keeps working:
+   the title still opens the source in a new tab, the save star still posts,
+   and "See more" still expands. The checkbox is raised too — it is visually
+   hidden but must stay reachable by keyboard for the label to toggle it. */
+.draftlink::after{content:"";position:absolute;inset:0;z-index:1;border-radius:14px}
+.gr-cardwrap{cursor:pointer}
+a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl{
+  position:relative;z-index:2}
+/* .draftlink MUST NOT be positioned. Its ::after anchors to the nearest
+   positioned ancestor, so giving the link position:relative made the overlay
+   cover the LINK instead of the card -- shipped that way once, and a hit test
+   at the card's top-right corner returned .gr-cardtitle rather than the draft
+   link. The link's own text still activates it: the pseudo-element belongs to
+   the same anchor, so a click anywhere in it follows the same href. */
+/* The body text sits UNDER the overlay, so it is no longer selectable by drag.
+   Accepted: this is a scannable listing, not a document, and "Draft my reply"
+   is what the card is for. The full text is one click away on the draft page,
+   where it is selectable normally. */
+/* On a phone the link that starts the whole product measured 31px tall on
+   /gigs. The dashboard already lifts it (board.html: .dash .draftlink); this
+   gives every other card the same floor. Desktop is untouched. */
+@media (max-width:640px){
+  .draftlink{min-height:44px;display:inline-flex;align-items:center;padding:0 14px}
+}
 /* The card head: title and save star as flex siblings, so the star owns real
    space instead of being absolutely positioned over the text — five of eight
    dashboard titles measurably ran underneath it. Shared here because the card
@@ -152,8 +225,55 @@ button.go:hover{background:var(--amber-l)}
    and not a heading, and it made the board's sections louder than the app's.
    Pages still set their own margin, which genuinely differs: the board has a
    search row tight underneath, the others have body copy. */
-.sec-h{font-size:26px;font-weight:700;letter-spacing:-.6px;margin:26px 0 14px}
+/* TUNED FOR ARCHIVO, NOT INHERITED FROM THE SYSTEM STACK. A face swap is not
+   neutral: Archivo runs a little wider and has a taller x-height than the
+   -apple-system/Segoe fallback these numbers were set against, so the old
+   -.6px tracking read loose and 700 read heavy at this size. 660 and -.022em
+   land where 700/-.6px did before, which is the point — the page should read
+   as better set, not as restyled. */
+.sec-h{font-size:26px;font-weight:660;letter-spacing:-.022em;margin:26px 0 14px}
 .sec-h .accent{color:var(--amber)}
+/* SEGMENT SEPARATION, the other half of the readability fix. Abutting fills of
+   one hue read as a single smear no matter how well the steps are chosen; a
+   2px gap in the surface colour gives every boundary an edge. Overridden here
+   rather than in nabbly.css, which is generated from app.py and overwritten.
+   The widths are percentages summing to 100, so the gaps cost the last segment
+   ~4px of a ~1350px bar — under a third of a percent, and invisible. */
+.gr-stack-bar{gap:2px;background:var(--bg)}
+/* A third column for the direct label. The row grid is generated into
+   nabbly.css as two columns; overridden rather than edited, since that file is
+   rebuilt from app.py. tabular-nums so the percentages line up as a column of
+   figures rather than drifting with digit width — this is the number the rows
+   are sorted by, so it has to read as a ranking. */
+.gr-stack-row{grid-template-columns:min(38%,190px) 1fr auto}
+.gr-stack-val{font-size:12.5px;font-weight:650;color:var(--ink2);
+  font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.gr-stack-val span{font-weight:500;color:var(--faint);margin-left:5px}
+/* At phone width the label column costs the bar too much, and the bars are the
+   chart. The share still reaches a reader who cannot hover: it moves under the
+   skill name, which is where the eye already is. */
+@media (max-width:560px){
+  .gr-stack-row{grid-template-columns:min(44%,160px) 1fr;row-gap:2px}
+  .gr-stack-val{grid-column:1;grid-row:2;text-align:left;font-size:11.5px}
+  .gr-stack-bar{grid-column:2;grid-row:1/3}
+}
+/* The feed heading and its update pill share a baseline. flex-wrap, because
+   at 375px "1,364 new since your last visit" will not sit beside a 21px
+   heading and belongs on its own line rather than squeezed against it. The
+   row takes its top margin from .sec-h, which already carries one. */
+.sec-row{display:flex;align-items:baseline;gap:10px 12px;flex-wrap:wrap}
+.newpill{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  font-size:12.5px;font-weight:600;line-height:1;color:var(--ink2);
+  background:var(--bg2);border:1px solid var(--line2);border-radius:999px;
+  padding:6px 11px 7px}
+.newpill::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;
+  background:var(--amber)}
+/* The hero comes from the generated sheet (nabbly.css, built out of app.py),
+   which the board must not edit — it is shared with the app. Overridden here
+   instead, after the link tag, which is the board-only escape hatch this
+   block exists for. -1.4px was set for the old face and pinches Archivo's
+   wider caps at 46px; the em-based value holds at every size the hero takes. */
+.gr-h1{font-weight:720;letter-spacing:-.028em;line-height:1.1}
 {# THE PER-PAGE BLOCK RENDERS ABOVE THE MOBILE RAMP, NOT BELOW IT.
 
    It used to sit after, and every page defining its own .sec-h silently killed
@@ -209,6 +329,9 @@ button.go:hover{background:var(--amber-l)}
 /* A body short enough to fit is not clamped, so no control appears without
    something behind it. Set by decorate() in web/main.py. */
 .gr-body.gr-full{-webkit-line-clamp:unset}
+.aslink{color:var(--amber);cursor:pointer;text-decoration:underline;
+  text-underline-offset:2px}
+.aslink:hover{filter:brightness(1.12)}
 </style>
 </head>
 <body>
@@ -234,6 +357,11 @@ button.go:hover{background:var(--amber-l)}
        Same product, sibling subdomain, session cookie scoped to .nabbly.co. #}
     <a href="/market" class="{% if tab == 'market' %}on{% endif %}">Market</a>
     {% if me %}<a href="/saved" class="{% if tab == 'saved' %}on{% endif %}">Saved</a>{% endif %}
+    {# PLANS IS A SIGNED-OUT TAB TOO, unlike Dashboard and Saved. What a thing
+       costs is the one question a visitor is most likely to have before they
+       have an account, and until now the only way to answer it from inside the
+       product was to leave for nabbly.co or the old app. #}
+    <a href="/plans" class="{% if tab == 'plans' %}on{% endif %}">Plans</a>
   </nav>
   <span class="who">
     {# The app puts an avatar here, not the word "Sign in" — signed out it is
@@ -257,9 +385,11 @@ button.go:hover{background:var(--amber-l)}
         {% set v = viewer(request) %}
         {# Only offer the upgrade to someone who has not got it. This was
            unconditional, so a founding Pro member was told to upgrade. #}
-        {% if not v.pro %}<a href="{{ app_url }}/?nav=pricing">Upgrade to Pro</a>{% endif %}
-        {# Admin lives on the app and was reachable only by typing the URL. #}
-        {% if v.owner %}<a href="{{ app_url }}/?nav=admin">Admin</a>{% endif %}
+        {% if not v.pro %}<a href="/plans">Upgrade to Pro</a>{% endif %}
+        {# Admin lives on the app, which does not share this sign-in: the link
+           carries the account's email token so the app knows who arrived.
+           See main._viewer. #}
+        {% if v.owner and v.admin_url %}<a href="{{ v.admin_url }}" rel="nofollow">Admin</a>{% endif %}
         <div class="acct-sep"></div>
         <form method="post" action="/signout">
           <button type="submit">Sign out</button>
@@ -291,12 +421,18 @@ button.go:hover{background:var(--amber-l)}
     <div class="foot-links">
       <a class="foot-link" href="https://nabbly.co/about.html">About</a>
       <a class="foot-link" href="https://nabbly.co/faq.html">FAQ</a>
-      <a class="foot-link" href="{{ app_url }}/?nav=pricing">Pricing</a>
+      {# Pricing is a QUESTION, not a checkout. It used to point into the old
+         Streamlit app, which is a different shell at a different speed, to
+         read a number that now lives on nabbly.co with the rest of the
+         marketing copy. The Upgrade button above still goes to the app,
+         because that is where the Stripe checkout actually is. #}
+      <a class="foot-link" href="https://nabbly.co/#plans">Pricing</a>
     </div>
     <div class="foot-legal">
       <a href="https://nabbly.co/privacy.html">Privacy</a>
       <a href="https://nabbly.co/terms.html">Terms</a>
-      <span class="meta">OneLonelyCow &middot; &copy; 2026</span>
+      {# The GitHub handle was showing through on the surface customers use. #}
+      <span class="meta">Nabbly &middot; &copy; 2026</span>
     </div>
   </div>
 </div>

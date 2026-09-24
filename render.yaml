@@ -39,7 +39,13 @@ services:
     # a loop that ends on `sleep` would report a GREEN build with no
     # dependencies installed, which is far worse than the failure it replaces.
     # Both outcomes tested before shipping.
-    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
+    #
+    # No --no-cache-dir. Render keeps pip's download cache between builds;
+    # the flag told pip to discard it, so every deploy re-downloaded every
+    # wheel: 6m17s-6m20s per build on 2026-09-13, measured off the deploy
+    # records. The flag was there for disk on the old free tier; a starter
+    # instance has the room.
+    buildCommand: "for i in 1 2 3; do pip install -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     startCommand: "streamlit run app.py --server.port $PORT --server.address 0.0.0.0"
     envVars:
       - key: PYTHON_VERSION
@@ -115,7 +121,7 @@ services:
     name: nabbly-board
     runtime: python
     plan: starter
-    buildCommand: "for i in 1 2 3; do pip install --no-cache-dir -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
+    buildCommand: "for i in 1 2 3; do pip install -r requirements.txt && exit 0; echo \"pip failed, retrying in 20s\"; sleep 20; done; exit 1"
     # One worker. Requests are ~1ms of Python over an indexed SQLite read, so
     # concurrency is bounded by I/O rather than CPU, and a second worker would
     # mean a second copy of the board file and a second sync loop pulling the
@@ -123,6 +129,11 @@ services:
     startCommand: "uvicorn web.main:app --host 0.0.0.0 --port $PORT --workers 1"
     healthCheckPath: /health
     envVars:
+      # One malloc arena per thread is how RSS crept ~1MB a cycle to the
+      # 512MB kill on 2026-09-15; two is the usual setting for a threaded
+      # Python service and costs nothing measurable. See refresh._trim().
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: PYTHON_VERSION
         value: "3.12.0"
       # Reaches the durable mirror to build and refresh its own local copy.
@@ -171,6 +182,25 @@ services:
       # with it.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Apply-from-Nabbly. Absent, freelancer.enabled() is False and the
+      # Connected accounts card does not render at all — no dead button.
+      #
+      # SANDBOX UNLESS FREELANCER_LIVE=1. Bids are scarce (six a month on a
+      # free Freelancer account) and placed publicly under the member's own
+      # name, so the default has to be the environment where a mistake costs
+      # nothing. Register the sandbox app at
+      # accounts.freelancer-sandbox.com/settings/develop with redirect URI
+      # https://board.nabbly.co/connect/freelancer/callback
+      - key: FREELANCER_CLIENT_ID
+        sync: false
+      - key: FREELANCER_CLIENT_SECRET
+        sync: false
+      - key: FREELANCER_LIVE
+        sync: false
+      # Encrypts the stored OAuth tokens. Falls back to AUTH_COOKIE_SECRET,
+      # which is why that one must also be set on this service.
+      - key: AUTH_COOKIE_SECRET
+        sync: false
     domains:
       - board.nabbly.co
 
@@ -185,6 +215,19 @@ services:
     runtime: static
     buildCommand: ""
     staticPublishPath: ./site
+    # SHORT LINKS FOR PLACES THAT CANNOT CARRY A QUERY STRING. An Instagram bio
+    # gets one URL and people retype it; "nabbly.co/instagram" survives that,
+    # "nabbly.co/?ref=instagram_bio" does not. The redirect lands on the home
+    # page with the tag, the page's own script copies ?ref onto every board
+    # link, and the board writes it to the member's record at signup -- the
+    # same path a partner link takes. Render answers 301 and offers no other
+    # code, so a browser that has followed it once keeps the old target;
+    # re-point the tag by changing the destination, not by expecting the
+    # same visitor to see the change on the same device.
+    routes:
+      - type: redirect
+        source: /instagram
+        destination: /?ref=instagram_bio
     headers:
       # Long-cache the images; keep the HTML fresh so edits show up fast.
       - path: /*.png

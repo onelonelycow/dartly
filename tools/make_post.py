@@ -1,22 +1,19 @@
 """
 make_post.py — the weekly social image for @nabbly.co.
 
-  brand/posts/week-07-one-feed.png
-      Five real postings from five fields that have nothing to do with each
-      other: a telehealth nursing shift, a product spot, a monthly close, a
-      subtitling job, renders for a remodel. Read straight down, the surprise
-      is the range, not any one line. It closes on the only true claim the
-      picture needs: more than 20 fields, one feed.
+  brand/posts/week-08-place-the-bid.png
+      The bid panel from a gig's draft page, drawn as it appears: the gig, the
+      client's budget and the bids so far as Freelancer reports them, the
+      member's own bids left for the month, price and days to deliver, and
+      one button. The headline says what the page now does; the panel shows
+      it with the real numbers a bid needs.
 
-Editorial and text-first, in the spirit of weeks 4 and 6 — real gig titles and
-real field names on the canvas rather than a shape standing in for the idea.
-Structurally and argumentatively its own piece: the previous weeks all argued
-speed (radar sweep, field of cards, racing trails, the timestamped rail, the
-shipping list, the same gig found seven hours apart). This one argues breadth,
-and it is the first week with no clock on the canvas at all.
-
-One accent only: the closing half-line. The five postings are set in greys so
-the eye reads the range first and lands on the turn at the bottom.
+Editorial and text-first, in the spirit of weeks 4, 6 and 7 — the content on
+the canvas is what a member would actually read, not a shape standing in for
+the idea. Structurally new: the first week built around a control rather than
+a list or a pair. The single accent is the Place bid button; the headline's
+second line is amber pulled well back so it points at the button rather than
+competing with it.
 
 Run:  .venv/bin/python tools/make_post.py
 
@@ -148,64 +145,134 @@ def signature(img, d):
 
 
 # ===========================================================================
-# Week 7 — five fields, one feed
+# Week 8 — draft the reply, then place the bid
 #
-# Each posting is written the way it would arrive on the board: the title as a
-# person would read it, the field under it in the smaller grey. Nothing is
-# highlighted among the five, because the argument is the set and not a member
-# of it. The distance between a telehealth shift and a product spot is the
-# whole picture.
+# The panel is the one on the draft page, set at poster scale. Every number in
+# it is the kind the page reads live before it draws the form: the client's
+# budget, how many bids are already in, how many the member has left. The
+# price is pre-filled with the budget floor the way the real form does it.
 # ===========================================================================
-OPEN = "All of this posted before lunch."
+HEAD = [("Draft the reply,", BODY), ("then place the bid.", HOT)]
 
-POSTINGS = [
-    ("Registered nurse, weekend telehealth shifts", "Healthcare / medical"),
-    ("Motion designer for a 30 second product spot", "Video / animation"),
-    ("Bookkeeper, monthly close for two entities",   "Finance / accounting"),
-    ("German to English subtitler, six episodes",    "Translation / language"),
-    ("Interior renders for a four unit remodel",     "Architecture / 3D"),
-]
+GIG = "Landing page rewrite for a B2B analytics tool"
+PILLS = ["Copywriting", "Fixed price", "posted 3 min ago"]
 
-# The turn. The floor is deliberate: 24 fields today and the number only grows,
-# so the picture stays true long after the week it goes up.
-CLOSE = [("More than 20 fields.  ", (198, 203, 211)), ("One feed.", HOT)]
+PANEL_H = "Bid on Freelancer"
+PANEL_WHO = "as maya_writes"
+LIVE_1 = "Client's budget $250 to $500 USD  \u00b7  9 bids so far"
+LIVE_2 = "41 bids left on your account this month"
+
+FIELDS = [("Your price (USD)", "250"), ("Days to deliver", "5")]
+BUTTON = "Place bid"
+HINT = "Sends the draft above as your proposal. You can retract it here afterwards."
+
+PANEL = (18, 20, 25)       # a shade up from the ground, like the app's panel
+INPUT = (12, 14, 18)       # the input wells sit back into the ground
+LINE = (255, 255, 255, 30)
 
 
-def week_seven():
-    # The bloom sits low and wide, under the last postings and behind the turn,
-    # so the frame warms as it falls toward the amber rather than glowing at
-    # the top where there is nothing to light.
-    img = ground([M - 220, 640, S - M + 60, 960], strength=118)
-    img = hairlines(img, (232, 858))
+def rounded_layer(box, radius, fill=None, outline=None, width=1):
+    """A rounded rectangle drawn at 3x and downscaled so the corners are clean."""
+    layer = Image.new("RGBA", (S * SS, S * SS), (0, 0, 0, 0))
+    ImageDraw.Draw(layer).rounded_rectangle(
+        [v * SS for v in box], radius=radius * SS, fill=fill, outline=outline,
+        width=width * SS)
+    return layer.resize((S, S), Image.LANCZOS)
+
+
+def over(img, layer):
+    return Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
+
+
+def week_eight():
+    # The bloom sits behind the panel's lower half, under the button, so the
+    # warmth gathers where the eye is meant to land.
+    img = ground([M - 160, 574, S - M + 160, 914], strength=112)
+
+    f_head = font(54, "Semibold")
+    f_gig = font(33, "Semibold")
+    f_pill = font(20, "Regular", ARIAL)
+    f_ph = font(27, "Semibold")
+    f_who = font(21, "Regular", ARIAL)
+    f_live = font(23, "Regular", ARIAL)
+    f_lab = font(20, "Regular", ARIAL)
+    f_val = font(28, "Semibold")
+    f_btn = font(24, "Semibold")
+    f_hint = font(20, "Regular", ARIAL)
+
+    # The panel. Padding inside it is generous so the numbers have air.
+    px0, py0, px1, py1 = M, 332, S - M, 886
+    pad = 44
+    img = over(img, rounded_layer((px0, py0, px1, py1), 22, fill=PANEL + (255,),
+                                  outline=LINE, width=1))
     d = ImageDraw.Draw(img)
 
-    f_open = font(30, "Regular", ARIAL)
-    f_gig = font(36, "Semibold")
-    f_field = font(24, "Regular", ARIAL)
-    f_close = font(38, "Semibold")
+    # Headline: two lines, the second in the pulled-back amber.
+    d.text((M, 164), HEAD[0][0], font=f_head, fill=HEAD[0][1], anchor="lm")
+    d.text((M, 230), HEAD[1][0], font=f_head, fill=HEAD[1][1], anchor="lm")
 
-    # The frame for the list, set quietly so it reads as the caption to the
-    # five postings rather than as a headline over them.
-    d.text((M, 176), OPEN, font=f_open, fill=GREY, anchor="lm")
+    # The gig, as it reads at the top of the draft page.
+    x, y = px0 + pad, py0 + pad + 16
+    d.text((x, y), GIG, font=f_gig, fill=(214, 218, 225), anchor="lm")
 
-    # The five. Even weight and even pitch on purpose: no entry wins, the range
-    # between them is what carries.
-    # The field sits close under its title and the next posting sits well clear
-    # of it, so each pair reads as one block rather than as ten loose lines.
-    y = 296
-    for title, field in POSTINGS:
-        d.text((M, y), title, font=f_gig, fill=(210, 215, 222), anchor="lm")
-        d.text((M, y + 38), field, font=f_field, fill=DIM, anchor="lm")
-        y += 118
+    # Pills under it: outline only, so they read as labels and not buttons.
+    y += 56
+    cx = x
+    for text in PILLS:
+        w = d.textlength(text, font=f_pill)
+        box = (cx, y - 17, cx + w + 28, y + 17)
+        img = over(img, rounded_layer(box, 17, outline=(255, 255, 255, 34), width=1))
+        d = ImageDraw.Draw(img)
+        d.text((cx + 14, y), text, font=f_pill, fill=GREY, anchor="lm")
+        cx += w + 28 + 12
 
-    runs(d, M, 906, CLOSE, f_close)
+    # Rule between the gig and the bid.
+    y += 52
+    d.line([(px0 + pad, y), (px1 - pad, y)], fill=(34, 37, 43), width=1)
+
+    # The bid panel proper.
+    y += 54
+    d.text((x, y), PANEL_H, font=f_ph, fill=(228, 231, 236), anchor="lm")
+    wx = x + d.textlength(PANEL_H, font=f_ph) + 14
+    d.text((wx, y), PANEL_WHO, font=f_who, fill=DIM, anchor="lm")
+
+    # The live numbers. Two lines rather than one long one, so each stays legible.
+    y += 48
+    d.text((x, y), LIVE_1, font=f_live, fill=(176, 182, 192), anchor="lm")
+    y += 36
+    d.text((x, y), LIVE_2, font=f_live, fill=(176, 182, 192), anchor="lm")
+
+    # Price, days, button, on one row. The wells are dark and the button is the
+    # only filled amber on the canvas.
+    y += 60
+    well_w, well_h, gap = 196, 62, 22
+    cx = x
+    for label, val in FIELDS:
+        d.text((cx, y), label, font=f_lab, fill=DIM, anchor="lm")
+        box = (cx, y + 20, cx + well_w, y + 20 + well_h)
+        img = over(img, rounded_layer(box, 12, fill=INPUT + (255,),
+                                      outline=(255, 255, 255, 38), width=1))
+        d = ImageDraw.Draw(img)
+        d.text((cx + 18, y + 20 + well_h / 2), val, font=f_val,
+               fill=(228, 231, 236), anchor="lm")
+        cx += well_w + gap
+    bw = d.textlength(BUTTON, font=f_btn) + 56
+    box = (cx, y + 20, cx + bw, y + 20 + well_h)
+    img = over(img, rounded_layer(box, 12, fill=AMBER + (255,)))
+    d = ImageDraw.Draw(img)
+    d.text((cx + bw / 2, y + 20 + well_h / 2), BUTTON, font=f_btn,
+           fill=(27, 18, 5), anchor="mm")
+
+    # The line under the form, as the page says it.
+    y += 20 + well_h + 40
+    d.text((x, y), HINT, font=f_hint, fill=DIM, anchor="lm")
 
     signature(img, d)
-    return img, OUT / "week-07-one-feed.png"
+    return img, OUT / "week-08-place-the-bid.png"
 
 
 if __name__ == "__main__":
-    for render in (week_seven,):
+    for render in (week_eight,):
         im, path = render()
         im.save(path, "PNG", optimize=True)
         print("wrote", path, im.size)

@@ -67,8 +67,8 @@
 {% block body %}
 
 <h1 class="signin-h">Sign in to <span class="accent">Nabbly</span></h1>
-<p class="signin-sub">Save your profile and picks, get alerts, and keep your
-  board across visits. No password.</p>
+<p class="signin-sub">{{ lede or "Save your profile and picks, get alerts, and
+  keep your board across visits. No password." }}</p>
 
 <div class="panel">
   {% if err %}<div class="err">{{ err }}</div>{% endif %}

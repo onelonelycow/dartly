@@ -33,6 +33,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import board_store  # noqa: E402
+import config as _config  # noqa: E402
 import lang as _lang  # noqa: E402
 import location as _location  # noqa: E402
 import migrate as _migrate_mod  # noqa: E402  (web/migrate.py)
@@ -62,11 +63,19 @@ def _dup_key(title: str) -> str:
 def _derive(rec: dict) -> tuple:
     title = (rec.get("title") or "")
     body = (rec.get("body") or "")
-    t = _location.tag({"title": title, "body": body})
+    # remote/location ride along so the tagger can prefer the field over the
+    # prose. They are absent (None/'') on rows stored before 2026-09-11, and
+    # for those this is exactly the text inference it always was.
+    t = _location.tag({"title": title, "body": body,
+                       "remote": rec.get("remote"),
+                       "location": rec.get("location")})
     return (1 if t["remote"] else 0,
             1 if t["onsite"] else 0,
             t["restrict"] or "",
-            _lang.detect(title, body) or "en",
+            # The source's stated language when it gave one (Freelancer
+            # does), else the text detector -- lang.of() is the one rule.
+            _lang.of({"lang": rec.get("lang"), "title": title, "body": body})
+            or "en",
             _location.city_lock({"title": title}) or "",
             _dup_key(title),
             # Stored separately from is_remote even though is_remote already
@@ -79,11 +88,26 @@ BOARD_DB = os.environ.get("NABBLY_BOARD_DB") or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "board.db")
 REFRESH_S = int(os.environ.get("NABBLY_REFRESH_S") or 60)
 RECONCILE_S = int(os.environ.get("NABBLY_RECONCILE_S") or 900)
+# RETENTION, RUN WHERE THE DATA ACTUALLY LIVES.
+#
+# db.archive_stale() sweeps the ingest machine's local SQLite and mirrors the
+# result. That machine is redeployed with an empty disk, so the sweep finds
+# nothing, reports zero, and the mirror keeps every gig it has ever seen. The
+# board boots from the mirror, so the tail lands here: 85,056 rows and a 232s
+# boot against Render's 270s limit, which had to be swept by hand.
+#
+# This service is the one that suffers and the one that is always running, so
+# it does the sweeping. Once a day is plenty for a 14-day window.
+SWEEP_S = int(os.environ.get("NABBLY_SWEEP_S") or 86400)
 
 _COLS = board_store.COLS
-_state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0,
+_PROJECT_SOURCES = frozenset(getattr(_config, "PROJECT_SOURCES", ()))
+_state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0, "boot_pull_s": None,
           "watermark": "", "adds": 0, "archived": 0, "errors": 0,
-          "hidden_dupes": 0, "note": ""}
+          "hidden_dupes": 0, "note": "",
+          # Retention against the mirror. last_sweep starts at 0 so the first
+          # pass runs shortly after boot rather than a day later.
+          "last_sweep": 0.0, "swept": 0, "sweep_note": ""}
 _lock = threading.Lock()
 _started = False
 
@@ -101,10 +125,13 @@ def _connect_rw():
     return conn
 
 
+_INT_COLS = ("is_demand", "page_checked", "link_checked", "llm_checked",
+             "rare", "remote")
+
+
 def _ensure_schema(conn):
     cols = ", ".join(
-        f"{c} INTEGER" if c in ("is_demand", "page_checked", "link_checked")
-        else f"{c} TEXT" for c in _COLS)
+        f"{c} INTEGER" if c in _INT_COLS else f"{c} TEXT" for c in _COLS)
     conn.execute(f"""CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             {cols}, sort_at TEXT,
@@ -112,13 +139,15 @@ def _ensure_schema(conn):
             lang_code TEXT, city_lock TEXT, dup_key TEXT, is_primary INTEGER,
             is_worldwide INTEGER,
             UNIQUE (source, source_id))""")
-    # An older board.db predates the derived columns; add them rather than
-    # forcing a full re-pull.
+    # An older board.db predates some columns — the derived ones, or a mirror
+    # column added later (work_type, 2026-09-11); add them rather than forcing
+    # a full re-pull. Only the derived set was checked before, so a file from
+    # before a mirror column existed failed on the first upsert instead.
     have = {r[1] for r in conn.execute("PRAGMA table_info(posts)")}
-    for c in _DERIVED + ("is_primary",):
+    for c in _COLS + _DERIVED + ("is_primary",):
         if c not in have:
-            conn.execute(f"ALTER TABLE posts ADD COLUMN {c} "
-                         f"{'INTEGER' if c.startswith('is_') else 'TEXT'}")
+            kind = "INTEGER" if (c in _INT_COLS or c.startswith("is_")) else "TEXT"
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {c} {kind}")
     conn.commit()
 
 
@@ -134,6 +163,13 @@ def _upsert(conn, rows) -> int:
            f"ON CONFLICT (source, source_id) DO UPDATE SET {sets}")
     payload = []
     for r in rows:
+        # A marketplace row from before work_type existed carries None. The
+        # value is a fact about the source, not the row (config.PROJECT_SOURCES),
+        # so fill it here rather than leave 14,000 Freelancer projects out of
+        # "Projects only" until they age off the board. Measured 2026-09-12:
+        # 13,944 of the board's 14,788 marketplace rows had no value.
+        if not r.get("work_type") and (r.get("source") or "") in _PROJECT_SOURCES:
+            r["work_type"] = "project"
         vals = [r.get(c) for c in _COLS]
         posted = (r.get("posted_at") or "").strip()
         payload.append(tuple(vals)
@@ -214,6 +250,7 @@ def full_sync() -> int:
     archival from the far cheaper flags query.
     """
     n = 0
+    t0 = time.time()
     conn = _connect_rw()
     try:
         _ensure_schema(conn)
@@ -227,6 +264,14 @@ def full_sync() -> int:
     if not n:
         return 0
     _migrate_mod.migrate(BOARD_DB, verbose=False)   # indexes + FTS
+    # THE NUMBER THAT BOUNDS A DEPLOY. Until this finishes the new instance
+    # serves an empty board (see the "booting" branch in web/main.py), and
+    # the pull's size is what this service's every capacity decision has
+    # turned on -- 142s at 14-day retention, measured 2026-08-24. Fuller
+    # Himalayas bodies (2026-09-13) grow it; /health carries this so the
+    # growth is read off the next few deploys rather than guessed.
+    _state["boot_pull_s"] = round(time.time() - t0, 1)
+    print(f"  board: pulled {n} rows in {_state['boot_pull_s']}s", flush=True)
     _invalidate_schema()
     _state["last_sync"] = time.time()
     return n
@@ -266,10 +311,19 @@ def reconcile() -> int:
     # Paged: capped, this could not see an archived gig past the cap, so it
     # would stay on the board copy forever — the exact bug this function is
     # here to prevent.
-    dead = []
+    dead, tags = [], []
     for page in board_store.iter_flags():
-        dead.extend((s, sid) for s, sid, d in page if not d)
-    if not dead:
+        for row in page:
+            # Tolerates the three-column shape too, so a board running ahead of
+            # a mirror that has not been migrated yet reconciles archival rather
+            # than throwing and reconciling nothing.
+            s_, sid, d = row[0], row[1], row[2]
+            job, rare = (row[3], row[4]) if len(row) >= 5 else (None, None)
+            if not d:
+                dead.append((s_, sid))
+            if job is not None or rare is not None:
+                tags.append((job, rare, s_, sid))
+    if not dead and not tags:
         _state["last_reconcile"] = time.time()
         return 0
     conn = _connect_rw()
@@ -280,19 +334,67 @@ def reconcile() -> int:
         # retired hundreds of gigs would report whatever the final UPDATE
         # happened to touch — usually zero. A monitoring number that reads 0
         # while the work is happening is worse than no number.
+        # What this copy currently believes, so only real differences are
+        # written. Two small columns keyed on the natural key.
+        have = {(r[0], r[1]): (r[2], r[3]) for r in conn.execute(
+            "SELECT source, source_id, job_type, rare FROM posts")}
+        changed = []
+        for job, rare, s_, sid in tags:
+            cur = have.get((s_, sid))
+            if cur is None:
+                continue                      # not on this copy yet
+            job = cur[0] if job is None else job
+            rare = cur[1] if rare is None else rare
+            if (job, rare) != cur:
+                changed.append((job, rare, s_, sid))
+
         before = conn.execute(
             "SELECT COUNT(*) FROM posts WHERE is_demand = 0").fetchone()[0]
         with conn:
-            conn.executemany(
-                "UPDATE posts SET is_demand = 0 WHERE source = ? AND source_id = ? "
-                "AND is_demand != 0", dead)
+            if dead:
+                conn.executemany(
+                    "UPDATE posts SET is_demand = 0 WHERE source = ? AND source_id = ? "
+                    "AND is_demand != 0", dead)
+            # Differences are worked out in Python against what this copy
+            # already holds, rather than in a WHERE clause clever enough to be
+            # wrong. This runs on a timer over the whole board, so writing every
+            # row each pass would rewrite 49,000 rows a minute to change none of
+            # them; writing only what differs is usually a handful.
+            if changed:
+                conn.executemany(
+                    "UPDATE posts SET job_type = ?, rare = ? "
+                    "WHERE source = ? AND source_id = ?", changed)
         n = conn.execute(
             "SELECT COUNT(*) FROM posts WHERE is_demand = 0").fetchone()[0] - before
         _state["archived"] += n
+        _state["retagged"] = _state.get("retagged", 0) + len(changed)
     finally:
         conn.close()
     _state["last_reconcile"] = time.time()
     return n
+
+
+def sweep_mirror() -> int:
+    """
+    Age gigs past the retention window out of the mirror. Never raises.
+
+    The stamp moves even when the sweep refuses or fails, deliberately: a
+    mirror that is unreachable or a floor that trips would otherwise retry on
+    every pass of the loop, which is a failing network call every REFRESH_S
+    instead of once a day. The reason is kept on _state and surfaced by
+    /health, so a refusal is visible rather than silent.
+    """
+    _state["last_sweep"] = time.time()
+    try:
+        import board_store
+        import queries
+        out = board_store.archive_stale_mirror(queries.STALE_DAYS)
+        _state["swept"] = out.get("archived", 0)
+        _state["sweep_note"] = out.get("note", "")
+        return _state["swept"]
+    except Exception as e:
+        _state["sweep_note"] = f"{type(e).__name__}: {e}"
+        return 0
 
 
 def _loop():
@@ -301,6 +403,8 @@ def _loop():
             incremental()
             if time.time() - _state["last_reconcile"] > RECONCILE_S:
                 reconcile()
+            if time.time() - _state["last_sweep"] > SWEEP_S:
+                sweep_mirror()
             _state["note"] = ""
         except Exception as e:
             _state["errors"] += 1

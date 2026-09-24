@@ -57,15 +57,17 @@
 {%- endmacro %}
 
 {% macro stacked(rows, legend) -%}
-{# legend: (label, color) pairs. rows: (row_label, segs) where each seg is
-   (seg_label, value, color, width_pct). #}
+{# legend: (label, color) pairs. rows: (row_label, segs, large_pct) where each
+   seg is (seg_label, value, color, width_pct). large_pct is rendered as a
+   direct label: the values are otherwise hover-only, which is no value at all
+   on a phone, and this is the number the chart is sorted by. #}
 <div class="gr-donut-legend" style="flex-direction:row;flex-wrap:wrap;margin-bottom:12px">
   {%- for l, c in legend %}
   <span class="row" style="display:inline-flex;margin-right:16px"><span class="sw" style="background:{{ c }}"></span>{{ l }}</span>
   {%- endfor %}
 </div>
 <div class="gr-stack">
-  {%- for r, segs in rows %}
+  {%- for r, segs, large_pct in rows %}
   <div class="gr-stack-row">
     <div class="gr-stack-lbl" title="{{ r }}">{{ r }}</div>
     <div class="gr-stack-bar">
@@ -73,6 +75,7 @@
       <div class="seg" style="width:{{ w }}%;background:{{ c }}" title="{{ s }}: {{ "{:,}".format(v) }}"></div>
       {%- endfor %}
     </div>
+    <div class="gr-stack-val">{{ large_pct }}%<span>large</span></div>
   </div>
   {%- endfor %}
 </div>

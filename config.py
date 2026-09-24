@@ -27,6 +27,7 @@ ENABLE_SOURCES = [
     # without those puts the same 54-second hole straight back.
     # "reddit",        # r/forhire & friends — freelance [Hiring] gigs
     "freelancer",      # Freelancer.com — many small fixed-price projects
+    "peopleperhour",   # PeoplePerHour — UK-rooted marketplace, fixed & hourly projects
     "remoteok",        # RemoteOK — remote jobs/contracts
     "remotive",        # Remotive — remote jobs
     "arbeitnow",       # Arbeitnow — remote/EU jobs
@@ -105,6 +106,21 @@ ENABLE_SOURCES = [
 # demand lives in Slack rooms and listservs, which no crawler can reach. That
 # gap is an inbox problem, not a scraping one.
 # ---------------------------------------------------------------------------
+# The boards a freelancer would plausibly check on their own. Used ONLY to
+# decide which gigs are hard to find elsewhere — see db.mark_rare().
+#
+# DELIBERATELY A JUDGEMENT, NOT A THRESHOLD. Deriving this from volume would
+# quietly promote any niche source that had a good month into "mainstream" and
+# strip the marker from the gigs that earn it. Measured 2026-08-26: these carry
+# 43,154 of 49,395 live gigs, and the 6,241 outside them contain 4,151 whose
+# titles appear nowhere in this set.
+MAINSTREAM_SOURCES = {
+    "himalayas", "freelancer", "peopleperhour", "remoteok", "weworkremotely", "remotive",
+    "jobicy", "jobicy_dev", "workingnomads", "jobspresso", "wwr_sales",
+    "wwr_management", "realworkfromanywhere",
+}
+
+
 RSS_SOURCES = {
     "dribbble":   {"url": "https://dribbble.com/jobs.rss",
                    "label": "Dribbble"},
@@ -112,13 +128,18 @@ RSS_SOURCES = {
                    "label": "Himalayas"},
     # See the note in ENABLE_SOURCES for why these five and not the others.
     "jobicy_dev": {"url": "https://jobicy.com/?feed=job_feed&job_categories=dev",
-                   "label": "Jobicy"},
+                   "label": "Jobicy", "source": "jobicy"},
     "wwr_sales":  {"url": "https://weworkremotely.com/categories/"
                           "remote-sales-and-marketing-jobs.rss",
-                   "label": "We Work Remotely"},
+                   "label": "We Work Remotely", "source": "weworkremotely"},
     "wwr_management": {"url": "https://weworkremotely.com/categories/"
                               "remote-management-and-finance-jobs.rss",
-                       "label": "We Work Remotely"},
+                       "label": "We Work Remotely", "source": "weworkremotely"},
+    # The three above were added without "source" on 2026-08-20 and so wrote
+    # under their own names: the same WWR posting sat in the mirror as
+    # wwr_sales AND weworkremotely, and jobicy_dev doubled the Jobicy API
+    # (101 listings shown twice on 2026-09-21). Folded 2026-09-21; the old
+    # rows age out on their own.
     # General remote-jobs board, same shape as RemoteOK/Remotive above. Its
     # own listing page (not the feed link) carries the real employer apply
     # link with no login — confirmed on a live posting, an AshbyHQ link sat
@@ -386,6 +407,20 @@ NOT_AN_OPENING = {
 # same slice lang.py detects and can hide). Same discipline as the English
 # list and lang.py's own function-word lists: compounds and full role nouns
 # only, nothing short/generic enough to collide with an unrelated category.
+# Last-resort words: scored at a fraction of a real keyword, so they only ever
+# decide a posting nothing more specific matched. "engineer" alone was a full
+# Development keyword and filed every network, controls, sales and QA engineer
+# as a developer (CLASSIFIER.md); removed outright, 430 dev postings with a
+# bare "X Engineer" title fell to Other / general. On this board an engineer
+# nobody else claims is a software engineer far more often than not.
+JOB_TYPE_FALLBACKS = {
+    "Development / tech": ["engineer"],
+    # 7 of 7 wrong as a full keyword (care, media, project coordinators all
+    # had somewhere better to go); as a last resort it catches the purchasing,
+    # logistics and itinerary coordinators nothing else names.
+    "Admin / VA": ["coordinator"],
+}
+
 JOB_TYPES = {
     "Video / animation": [
         "video edit", "video editor", "video editing", "animation",
@@ -396,9 +431,10 @@ JOB_TYPES = {
         "animatiefilm", "videobewerking", "editor de video", "edición de video",
         "monteur vidéo", "montage vidéo", "editor de vídeo", "edição de vídeo",
         "montaggio video", "editor video"
+        "engineering manager", "head of engineering", "vp of engineering", "director of engineering", "head of data", "data platform",
     ],
     "Design / creative": [
-        "logo", "brand", "branding", "head of design",
+        "logo", "branding", "head of design",
         "graphic design", "graphic designer", "designer", "illustrator",
         "illustration", "figma", "ui/ux", "ui design",
         "ux design", "ux/ui", "photoshop", "packaging",
@@ -408,7 +444,7 @@ JOB_TYPES = {
         "productontwerper", "diseñador gráfico", "diseño gráfico", "diseñador ux",
         "diseñador de producto", "designer graphique", "graphiste", "designer produit",
         "directeur artistique", "designer gráfico", "design gráfico", "designer de produto",
-        "grafico", "designer grafico", "progettazione grafica"
+        "grafico", "designer grafico", "progettazione grafica", "brand identity", "brand design", "brand designer",
     ],
     # Sits AFTER Design/Video on purpose: the classifier scans the body as a
     # fallback and takes the first category that matches, so a design or video
@@ -433,18 +469,20 @@ JOB_TYPES = {
         "testautomatisering", "control de calidad", "probador de software", "pruebas de software",
         "assurance qualité", "testeur logiciel", "test logiciel", "controle de qualidade",
         "testador de software", "testes de software", "controllo qualità", "tester software",
-        "collaudatore"
+        "collaudatore", "quality engineer", "engineer in test", "sdet", "qa automation",
     ],
     "Data / analytics": [
         "data analyst", "data analytics", "data science", "data scientist",
-        "data engineer", "sql", "machine learning", "ml engineer",
-        "ai engineer", "business intelligence", "power bi", "tableau",
+        "data engineer", "sql", "machine learning", "business intelligence", "power bi", "tableau",
         "analytics", "big data", "analista", "risk analyst",
         "quantitative", "datenanalyst", "datenanalytik", "datenwissenschaftler",
         "data-analist", "data-analyse", "datawetenschapper", "analista de datos",
         "ciencia de datos", "científico de datos", "analyste de données", "science des données",
         "analista de dados", "ciência de dados", "cientista de dados", "analista dati",
-        "scienza dei dati", "ingeniero de datos", "bi analyst"
+        "scienza dei dati", "ingeniero de datos", "bi analyst",
+        # Freelancer skill tags; "AI/ML Based Crop Yield Enhancement" tied
+        # Design 4-4 on tags alone and lost on dict order (freelancer:40724805).
+        "data analysis", "ai model development",
     ],
     # Non-software engineering: mechanical, electrical, civil, industrial. Sits
     # BEFORE Development/tech because that list contains a bare "engineer", which
@@ -463,7 +501,12 @@ JOB_TYPES = {
         "ingeniero eléctrico", "ingeniero civil", "electricista", "ingénieur mécanique",
         "ingénieur électrique", "ingénieur civil", "électricien", "engenheiro mecânico",
         "engenheiro elétrico", "engenheiro civil", "eletricista", "ingegnere meccanico",
-        "ingegnere elettrico", "ingegnere civile", "elettricista"
+        "ingegnere elettrico", "ingegnere civile", "elettricista", "controls engineer", "controls engineering", "automation engineer",
+        # Freelancer skill tags (see Development / tech): a mechatronics
+        # prototype was Design because "Product Design" was the only tag
+        # any list knew (freelancer:40724862).
+        "mechatronics", "electronics", "embedded systems", "pcb layout",
+        "arduino", "circuit design",
     ],
     "Development / tech": [
         "developer", "software engineer", "programmer", "coding",
@@ -472,7 +515,7 @@ JOB_TYPES = {
         "full stack", "full-stack", "backend", "back end",
         "frontend", "front end", "devops", "api",
         "sdk", "software developer", "mobile app", "ios developer",
-        "android developer", "engineer", "programming", "web developer",
+        "android developer", "programming", "web developer",
         "bot", "softwareentwickler", "entwickler", "programmierer",
         "anwendungsentwickler", "cloud engineer", "platform engineer", "site reliability",
         "sre", "aws", "azure", "kubernetes",
@@ -480,7 +523,15 @@ JOB_TYPES = {
         "desarrollador", "ingeniero de software", "programador", "développeur",
         "ingénieur logiciel", "desenvolvedor", "engenheiro de software", "sviluppatore",
         "ingegnere software", "programmatore", "secops", "solutions architect",
-        "software development", "integration engineer"
+        "software development", "integration engineer", "app development", "web development", "website development", "software architect", "database architect", "cloud architect", "data architect", "ai engineer", "ml engineer", "machine learning engineer", "senior engineer", "staff engineer", "principal engineer", "lead engineer", "solution engineer", "solutions engineer", "technical lead", "tech lead", "fullstack",
+        # Freelancer's own skill-tag names. A client ticks "Graphic Design"
+        # next to "Java, Flutter, PostgreSQL, FastAPI, Computer Vision" and
+        # the software words matched nothing here, so a biometric-ID build
+        # landed in Design on the strength of one tag (freelancer:40724803,
+        # 2026-09-21). Checked against the judged fixture: no regressions.
+        "java", "flutter", "postgresql", "fastapi", "computer vision",
+        "artificial intelligence", "deep learning", "django", "laravel",
+        "php", "mysql", "c++", "c#", ".net",
     ],
     "Writing / content": [
         "writer", "copywriter", "copywriting", "content writer",
@@ -501,7 +552,14 @@ JOB_TYPES = {
         "social-media-manager", "online marketing", "social media manager", "marketing digital",
         "gestor de marketing", "especialista en marketing", "responsable marketing", "chargé de marketing",
         "especialista em marketing", "marketing digitale", "responsabile marketing", "specialista marketing",
-        "paid media", "demand generation", "lifecycle marketing", "paid social"
+        "paid media", "demand generation", "lifecycle marketing", "paid social", "marketing manager", "brand marketing", "growth manager", "media coordinator", "marketing coordinator", "technical seo",
+        # PeoplePerHour files link-building under "Marketing, Branding & Sales
+        # / Direct Marketing", and that label's "Branding" scored one point
+        # for Design while nothing here scored for the work itself -- a
+        # three-way tie that Design won on list order. 12 of 45 live rows
+        # under that label sat in Design on 2026-09-21. Two-word terms
+        # outscore the tie.
+        "direct marketing", "backlinks", "link building",
     ],
     "Sales / outreach": [
         "sales", "salesperson", "sales rep", "sales manager",
@@ -512,7 +570,7 @@ JOB_TYPES = {
         "vertriebsmitarbeiter", "kundenberater", "außendienst", "verkoper",
         "accountmanager", "salesmedewerker", "representante de ventas", "ejecutivo de cuentas",
         "commercial", "représentant commercial", "chargé de clientèle", "representante de vendas",
-        "executivo de contas", "rappresentante commerciale"
+        "executivo de contas", "rappresentante commerciale", "sales engineer",
     ],
     "Customer support": [
         "customer support", "customer success", "support agent", "help desk",
@@ -522,6 +580,7 @@ JOB_TYPES = {
         "soporte al cliente", "service client", "support client", "relation client",
         "atendimento ao cliente", "suporte ao cliente", "servizio clienti", "assistenza clienti",
         "client services", "member services", "customer engagement"
+        "client services",  "escalations",
     ],
     "Product / PM": [
         "product manager", "project manager", "program manager", "scrum",
@@ -534,13 +593,12 @@ JOB_TYPES = {
     ],
     "Admin / VA": [
         "virtual assistant", "va", "administrative", "admin assistant",
-        "data entry", "assistant", "scheduling", "office manager",
-        "coordinator", "procurement", "operations manager", "receptionist",
+        "data entry", "assistant", "scheduling", "office manager", "receptionist",
         "back office", "sachbearbeiter", "verwaltungsfachkraft", "disposition",
         "büro", "sekretariat", "administratief medewerker", "receptioniste",
         "asistente virtual", "asistente administrativo", "auxiliar administrativo", "assistant administratif",
         "secrétaire", "assistant virtuel", "assistente virtual", "assistente administrativo",
-        "assistente amministrativo", "segretaria"
+        "assistente amministrativo", "segretaria", "project coordinator", "administrative coordinator", "admin coordinator",
     ],
     "Audio / music": [
         "voice over", "voiceover", "audio edit", "podcast",
@@ -576,6 +634,7 @@ JOB_TYPES = {
         "hr operations", "hr systems", "hr generalist", "hr director",
         "hr coordinator", "hr specialist", "hr assistant", "hr lead",
         "hr advisor", "hr administrator", "hr analyst", "hris"
+        "benefits coordinator", "benefits specialist",  "people partner", 
     ],
     "Legal": [
         "lawyer", "attorney", "paralegal", "legal",
@@ -599,7 +658,7 @@ JOB_TYPES = {
         "medico", "operatore sanitario", "mental health", "behavioral health",
         "registered nurse", "lpn", "lvn", "lcsw",
         "lmft", "clinician", "patient care", "provider enrollment",
-        "utilization review", "home health", "claims adjuster", "medical claims"
+        "utilization review", "home health", "claims adjuster", "medical claims", "care coordinator", "patient coordinator", "patient access", "patient support", "telehealth",
     ],
     "Architecture / 3D": [
         "architect", "interior design", "floor plan", "furniture design",
@@ -621,7 +680,8 @@ JOB_TYPES = {
         "administrador de red", "administrateur systèmes", "support informatique", "administrateur réseau",
         "suporte técnico", "administrador de rede", "amministratore di sistema", "supporto tecnico",
         "amministratore di rete", "systems administrator", "security operations", "service desk",
-        "field service technician", "identity management"
+        "field service technician", "identity management", "network engineer", "systems engineer", "it engineer", "support engineer", "network manager",
+        "it manager", "it director", "head of it", "vp of information technology", "information technology", 
     ],
     "Consulting / strategy": [
         "consultant", "strategy", "advisor", "founders associate",
@@ -645,7 +705,7 @@ JOB_TYPES = {
     # ("Engineering Manager", "Manager Field Safety", "Head of Operations").
     # Those were the single biggest remaining lump in Other / general.
     "Management / operations": [
-        "head of", "director", "vp of", "vice president",
+        "director", "vice president",
         "chief", "general manager", "operations manager", "operations lead",
         "managing director", "office manager", "branch manager", "chief of staff",
         "geschäftsführer", "betriebsleiter", "abteilungsleiter", "teamleitung",
@@ -654,6 +714,7 @@ JOB_TYPES = {
         "diretor", "gerente de operações", "chefe de equipe", "responsabile operativo",
         "capo squadra", "business operations", "revenue operations", "operations specialist",
         "operations analyst"
+        "supply chain", "logistics", "purchasing", "procurement", "operations coordinator", "facilities", "office coordinator",
     ],
     "Translation / language": [
         "translator", "translation", "localization", "interpreter",
@@ -701,6 +762,12 @@ URGENT_SIGNALS = ["asap", "urgent", "immediately", "today", "right away", "start
 # "Remote" pill next to a source called RemoteOK is the same fact twice.
 REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 
+# Marketplaces where every listing is a project to bid on, never a job to be
+# hired into. The fetchers stamp work_type="project" from this; the board
+# applies the same fact to rows mirrored before the field existed
+# (2026-09-11), so "Projects only" is not a filter that starts empty.
+PROJECT_SOURCES = {"freelancer", "peopleperhour"}
+
 # Boards where applying means creating a FREE account on THEIR site first —
 # a real interruption to "reply first" that's worse if it's a surprise.
 # Deliberately a short, confirmed list rather than a guess at every source:
@@ -715,7 +782,21 @@ REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "weworkremotely"}
 # someone a surprise wall anyway, but a wrong "account needed" claim on a board
 # that doesn't require one trains people to ignore the badge.
 ACCOUNT_REQUIRED_SOURCES = {"weworkremotely", "himalayas", "freelancer",
+                            "peopleperhour",   # login gate on "send proposal", checked 2026-09-10
                             "bubble", "blenderartists"}
+
+# SHARPER THAN THE ABOVE, AND CHECKED THE SAME WAY. On these the wall is not at
+# applying, it is at reading: We Work Remotely's "Apply now" goes to
+# /job-seekers/account/register?alert=Create+an+account+to+view+full+job+details
+# (verified 2026-09-05 on a live listing). Someone who clicks expecting to read
+# the post and is asked to register instead learns to distrust the badge, which
+# is the exact failure the note above warns about.
+#
+# Himalayas is deliberately NOT here: the same day, a live listing served its
+# full 7,500-character description with no gate and only "Apply now" pointing
+# at /signup/talent. Apply-gated, not read-gated. Anything else joins this set
+# only after the same check on a real listing.
+VIEW_REQUIRES_ACCOUNT_SOURCES = {"weworkremotely"}
 
 # Distinct from the above on purpose: this isn't "make a free account," it's
 # "pay money before you can even see the apply link." Nodesk was the one board
@@ -736,6 +817,7 @@ SOURCE_LABELS = {
     "arbeitnow": "Arbeitnow",
     "jobicy": "Jobicy",
     "freelancer": "Freelancer.com",
+    "peopleperhour": "PeoplePerHour",
     "reddit": "Reddit",
     "soundlister": "Soundlister",
     "inbox": "Forwarded",     # a gig this person emailed in themselves

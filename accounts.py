@@ -66,7 +66,7 @@ _ACCT_SCOPE = "_accounts"      # namespace for the durable mirror
 # this list is meant to close.
 _COLS = ("email", "token", "created", "last_seen", "trial_start", "pro_until",
          "founding", "plan", "last_alert_id", "visits", "email_opt_out", "last_digest",
-         "pay_nudge_sent", "stripe_customer_id", "stripe_subscription_id",
+         "pay_nudge_sent", "ending_soon_sent", "stripe_customer_id", "stripe_subscription_id",
          "stripe_session_id")
 _rehydrated = False
 # Schema setup is process-wide, but init() sits at app.py's module scope, which
@@ -158,7 +158,7 @@ def init():
     # Safe migration for tables created before these columns existed.
     for col, decl in (("pro_until", "TEXT"), ("founding", "INTEGER DEFAULT 0"),
                       ("email_opt_out", "INTEGER DEFAULT 0"), ("last_digest", "TEXT"),
-                      ("pay_nudge_sent", "TEXT"),
+                      ("pay_nudge_sent", "TEXT"), ("ending_soon_sent", "TEXT"),
                       ("stripe_customer_id", "TEXT"), ("stripe_subscription_id", "TEXT"),
                       ("stripe_session_id", "TEXT")):
         try:
@@ -320,7 +320,17 @@ def _sign_in_locked(email: str, source: str, campaign: str) -> tuple[dict | None
         # a gift. Everyone after that lands on Free and can start the opt-in
         # trial when they choose. (The count is a snapshot; a rare simultaneous
         # signup could put us a hair over 50, which is fine — erring generous.)
-        existing = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        #
+        # COUNTS GRANTS, NOT ROWS. This was SELECT COUNT(*) FROM accounts, which
+        # is a different number and disagreed with the founding_left the admin
+        # page shows (that one counts founding=1). Two consequences, both live:
+        # a partner-grant signup takes the branch above, is written founding=0,
+        # and still consumed one of the fifty — so the nextnw link was quietly
+        # spending the launch gift on people who were never given it. And a
+        # founding flag cleared afterwards, by downgrade() or by the partner
+        # release above, freed nothing, because the row remained.
+        existing = conn.execute(
+            "SELECT COUNT(*) FROM accounts WHERE founding=1").fetchone()[0]
         founding = 1 if existing < FOUNDING_LIMIT else 0
         pro_until = (datetime.now(timezone.utc)
                      + timedelta(days=FOUNDING_DAYS)).isoformat(timespec="seconds") \
@@ -554,13 +564,37 @@ def _founding_rank(acc: dict) -> int | None:
 # ---------------------------------------------------------------------------
 # Entitlement
 # ---------------------------------------------------------------------------
+# The cheap rung: alerts, and nothing else Pro has.
+#
+# The ladder was Free or $15, so everyone who found $15 too much converted to
+# nothing at all. Alerts already worked and already had a delivery path, so
+# this tier is a price and a gate rather than a feature.
+#
+# IT IS A CAPABILITY, NOT A PLAN NAME. Callers ask status()["alerts"], never
+# `plan == "alerts"` — Pro includes alerts, a trial includes alerts, and the
+# founder's account includes alerts, so a plan-name comparison would be wrong
+# in three ways on day one and wrong again the next time a tier is added.
+ALERTS_PLAN = "alerts"
+
+
 def status(acc: dict | None) -> dict:
     """
     What this person can currently do.
 
     Anonymous visitors get the free view: they can browse the whole board and
     see what Pro adds, which is the point of a shop window.
+
+    Wraps _status so every one of the several exits below picks up the derived
+    capability flags in one place. Adding a flag at each `return` is how one
+    of them gets missed, and a missed one here is somebody paying for alerts
+    that never arrive.
     """
+    out = _status(acc)
+    out["alerts"] = bool(out.get("pro")) or out.get("plan") == ALERTS_PLAN
+    return out
+
+
+def _status(acc: dict | None) -> dict:
     if not acc:
         return {"signed_in": False, "pro": False, "plan": "anon",
                 "days_left": 0, "expired": False, "email": "",
@@ -577,7 +611,7 @@ def status(acc: dict | None) -> dict:
             "can_trial": False,
             # A real Stripe subscription behind this account, vs. a manual/
             # founding/partner grant — plan_card uses this to tell a paying
-            # member "you're on the $12/mo plan" instead of "on the house".
+            # member "you're on the $15/mo plan" instead of "on the house".
             "paid": bool(acc.get("stripe_subscription_id"))}
 
     # The founder's own account: Pro for life, not a 60-day clock. Checked
@@ -689,10 +723,24 @@ def downgrade(email: str) -> bool:
     return True
 
 
+# Every plan this may write. ALERTS_PLAN IS IN HERE FOR A REASON: it was not,
+# and the allow-list below rejected it silently, so billing.confirm_session
+# would take a $5 payment, call set_plan(email, "alerts"), have it refused
+# without a word, and leave the customer on Free having just been charged.
+# Nothing logged, nothing raised, Stripe perfectly happy. Add a tier to this
+# tuple or it cannot be granted.
+_SETTABLE_PLANS = ("trial", "pro", "free", ALERTS_PLAN)
+
+
 def set_plan(email: str, plan: str):
-    """Grant Pro, drop to free, or restart a trial. Used from the admin page."""
+    """Grant Pro or Alerts, drop to free, or restart a trial."""
     plan = (plan or "trial").lower()
-    if plan not in ("trial", "pro", "free"):
+    if plan not in _SETTABLE_PLANS:
+        # LOUD, not silent. The quiet `return` here is what let a paid plan go
+        # ungranted; a refusal that says nothing is indistinguishable from
+        # having worked.
+        print(f"  ! set_plan refused unknown plan {plan!r} for {email} — add it "
+              f"to accounts._SETTABLE_PLANS", flush=True)
         return
     init()
     conn = _connect()
@@ -811,6 +859,17 @@ def set_pay_nudge_sent(email: str, when: str):
     _mirror(email)
 
 
+def set_ending_soon_sent(email: str, when: str):
+    """Stamp the "your Pro ends soon" email so it goes once per account -- see ending_soon.py."""
+    init()
+    conn = _connect()
+    conn.execute("UPDATE accounts SET ending_soon_sent=? WHERE email=?",
+                 (when, email.strip().lower()))
+    conn.commit()
+    conn.close()
+    _mirror(email)
+
+
 def email_token(signin_token: str) -> str:
     """
     A per-account identifier safe to put in an email. NOT a way to sign in.
@@ -901,7 +960,18 @@ def backfill_last_digest() -> int:
 #     and it dies quickly.
 #   * Issuing is rate-limited per address, so nobody can be mailbombed by
 #     someone pounding "send me a code" with their address in the box.
-CODE_TTL_MIN = 10          # how long a code stays good
+CODE_TTL_MIN = 30          # how long a code stays good
+# THIRTY, NOT TEN. Ten assumes somebody is sitting on the tab when the mail
+# lands. Testing the live sign-in on 2026-09-10 it expired twice in a row on
+# ordinary delays -- read the mail, come back, code dead -- and the founder was
+# sending the link to someone that afternoon. Two failed sign-ins is a poor
+# first five minutes for anybody judging whether the product is solid.
+#
+# The security here was never the clock: the code is single-use, dies after
+# CODE_MAX_ATTEMPTS wrong guesses, and CODE_MAX_PER_HOUR caps how many can be
+# requested for one inbox. Widening the window costs a longer period in which a
+# single-use six-digit code sits in somebody's own mailbox, which is the same
+# risk profile as the magic links this replaced.
 CODE_MAX_ATTEMPTS = 5      # wrong guesses before a code is burned
 CODE_MAX_PER_HOUR = 5      # codes we'll send one INBOX in an hour
 # A ceiling across everyone, not per address. The per-address limit stops one
@@ -1095,6 +1165,32 @@ def unsubscribe(tok: str) -> bool:
     conn.execute("UPDATE accounts SET email_opt_out=1 WHERE email=?", (email,))
     conn.commit()
     conn.close()
+    _mirror(email)
+    return True
+
+
+def resubscribe(email: str) -> bool:
+    """
+    Turn email back on for a signed-in member who unsubscribed.
+
+    The unsubscribe page has promised "email is switched back on from your
+    profile" since it shipped, and the profile had no such switch -- the
+    opt-out was one-way. Takes an address, not a token: the only caller is
+    the profile page, which already knows who is signed in.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    init()
+    conn = _connect()
+    try:
+        cur = conn.execute("UPDATE accounts SET email_opt_out=0 WHERE email=?",
+                           (email,))
+        conn.commit()
+        if not cur.rowcount:
+            return False
+    finally:
+        conn.close()
     _mirror(email)
     return True
 

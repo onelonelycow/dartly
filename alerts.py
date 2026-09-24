@@ -31,6 +31,16 @@ DEFAULT_PREFS = {
     "skills": [], "budgets": [], "keyword": "",
     "discord_webhook": "", "ntfy_topic": "", "telegram_token": "",
     "telegram_chat": "", "sms_to": "",
+    # NO EMAIL CHANNEL HERE, deliberately. Email cannot do instant: a
+    # Freelancer bid period is 7 days and the median project still listed as
+    # active is about an hour old, so anything mailed on a schedule is already
+    # closed. Email is weekly_digest's job, once a week, for everybody. The
+    # four above are the instant ones, and they are what the Alerts tier sells.
+    # Epoch seconds of the last alert actually sent to this person. Lives in
+    # prefs rather than the accounts table because prefs are already mirrored
+    # durably per scope, and this has to survive a redeploy or every restart
+    # resets everyone's clock to "never".
+    "last_sent_at": 0.0,
     # --- how often, from where, how many -------------------------------
     # The three levers that decide whether alerts feel like an edge or like
     # spam. Defaults are deliberately calm: a quarter-hour digest of at most
@@ -44,6 +54,17 @@ DEFAULT_PREFS = {
 
 # Where a "see them all" link should point. Overridable for local testing.
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://nabbly.co").rstrip("/")
+# THE BOARD, NOT THE MARKETING SITE. nabbly.co is a static landing page that
+# ignores every query string it is handed, so the "see them all" link on every
+# push, Telegram message and webhook was quietly delivering people to the shop
+# window instead of their own board — the one click the whole alert exists to
+# earn. mailer.py moved to this host months ago and alerts.py was left behind.
+# NABBLY_PUBLIC_URL is already set to the board on the service that runs this
+# loop; NABBLY_BOARD_URL is the app service's name for the same address.
+BOARD_URL = (os.environ.get("NABBLY_BOARD_URL")
+             or os.environ.get("NABBLY_PUBLIC_URL")
+             or PUBLIC_URL.replace("://nabbly.co", "://board.nabbly.co")
+             ).rstrip("/")
 
 # Phone numbers must be E.164: a + then country code, e.g. +15551234567.
 _PHONE_RE = re.compile(r"^\+[1-9]\d{7,14}$")
@@ -88,7 +109,7 @@ def board_url(gigs: list[dict], total: int | None = None) -> str:
         total = len(gigs)
     if total == 1 and gigs and gigs[0].get("url"):
         return gigs[0]["url"]
-    return f"{PUBLIC_URL}/?nav=gigs&qf=recent"
+    return f"{BOARD_URL}/gigs?qf=recent"
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +453,11 @@ def notify_everyone(desktop: bool = False) -> int:
     # used to load the entire board (~10,000 rows, ~45MB) on every pass, all
     # night, which is what ate the instance's memory. Nobody to alert means no
     # query at all.
-    live = [a for a in accounts.all_accounts() if accounts.status(a)["pro"]]
+    # "alerts", not "pro": this is the one line that decides who gets pinged,
+    # and the alerts-only tier exists precisely to be here without being Pro.
+    # Pro, an active trial and the founder's account all report alerts=True,
+    # so nobody who used to be alerted stops being alerted.
+    live = [a for a in accounts.all_accounts() if accounts.status(a)["alerts"]]
     if not live:
         return 0
 
@@ -491,12 +516,66 @@ def notify_everyone(desktop: bool = False) -> int:
         scope = paths.scope_for(acc["email"])
         paths.set_scope(scope)
         prefs = load_prefs()
-        if not any(prefs.get(k) for k in
-                   ("ntfy_topic", "sms_to", "telegram_chat", "discord_webhook")):
+        # ALERTS FOLLOW THE PROFILE WHEN NOTHING SPECIFIC IS SET.
+        #
+        # alert_prefs' own skills/budgets/sources can only be edited in the
+        # Streamlit app; web/main.py's profile form writes five channel fields,
+        # every_min, max_per_alert and two checkboxes, and nothing else. So on
+        # the board -- the surface people actually use -- alert matching had NO
+        # filter at all and matches() passed every gig on a 4,000-a-day board.
+        #
+        # The skills picker on that same page writes profile.skills, which is
+        # what weekly_digest already matches on. Reading it here means the
+        # answer to "what do you want to hear about" is asked once, in the
+        # place people already fill in, instead of twice in two different
+        # stores. An explicit alert-specific list still wins if one exists.
+        if not prefs.get("skills"):
+            try:
+                import profile as _profile
+                prefs["skills"] = (_profile.load() or {}).get("skills") or []
+            except Exception:
+                pass
+        # SMS IS THE ONE CHANNEL THAT COSTS MONEY PER MESSAGE. ntfy, Telegram
+        # and the webhooks are free to deliver; Twilio is not, and how much it
+        # costs is decided by how many gigs match, which is not something the
+        # subscriber or we control. On the alerts tier that tail can eat a
+        # third of the subscription. So texts stay with Pro, and the cheap tier
+        # keeps every free channel — it still does the whole job it promises,
+        # which is telling you first.
+        can_sms = bool(accounts.status(acc).get("pro"))
+        channels = ["ntfy_topic", "telegram_chat", "discord_webhook"]
+        if can_sms:
+            channels.append("sms_to")
+        # Email needs no setup, so it counts as a configured channel on its
+        # own — that is the whole point of it being here.
+        has_push = any(prefs.get(k) for k in channels)
+        if not has_push:
             # Still advance the marker so they don't bank a backlog that fires
             # the moment they switch a channel on.
             _advance(accounts, acc, newest)
             continue
+
+        # HOW OFTEN THEY ASKED TO HEAR FROM US, enforced here and nowhere else.
+        # refresh.py picks the loop's tick as min(every_min) across everybody,
+        # which is right for the loop and wrong for the person: it meant one
+        # user wanting alerts every five minutes set the pace for the user who
+        # asked for one message every three hours. The setting rendered on the
+        # Alerts page, saved correctly, and then did nothing.
+        #
+        # The two clocks are separate because the two channels are. A push is
+        # cheap and dismissible; an email is not, so it takes the longer of
+        # their gap and the hourly floor. Stamping one clock for both would
+        # mean anybody with a push configured never receives an email at all —
+        # the push keeps resetting the clock the email is waiting on.
+        now = time.time()
+        gap_s = max(1, int(prefs.get("every_min") or 15)) * 60
+        push_due = (now - float(prefs.get("last_sent_at") or 0)) >= gap_s
+        # Nothing is due yet. Return WITHOUT advancing the marker, so the gigs
+        # stay queued and arrive in one message when their gap is up — which is
+        # what asking for a gap means.
+        if not push_due:
+            continue
+
         # Their own forwarded gigs count as theirs to be alerted about, and are
         # often the most valuable ones on their board.
         mine = _db.posts_since(floor, demand_only=True, owner=scope)
@@ -510,12 +589,22 @@ def notify_everyone(desktop: bool = False) -> int:
             total = len(fresh)
             shown = fresh[:max(1, int(prefs.get("max_per_alert") or 5))]
             send_ntfy(prefs.get("ntfy_topic", ""), shown, total)
-            send_sms(prefs.get("sms_to", ""), shown, total)
+            if can_sms:
+                send_sms(prefs.get("sms_to", ""), shown, total)
             send_telegram(prefs.get("telegram_token", ""),
                           prefs.get("telegram_chat", ""), shown, total)
             send_discord(prefs.get("discord_webhook", ""), shown, total)
+            prefs["last_sent_at"] = now
+            # One write, and only when something actually went out.
+            save_prefs(prefs)
             pinged += 1
         # Move the marker even when nothing matched, so a quiet person doesn't
         # accumulate a backlog that fires the moment they change their skills.
+        #
+        # Someone running both channels advances on the push, so their hourly
+        # email carries what landed since the LAST message rather than since
+        # the last email. That is the right trade: the push already told them
+        # about the rest, and the alternative is a second watermark per person
+        # to re-send what they have already read.
         _advance(accounts, acc, newest)
     return pinged

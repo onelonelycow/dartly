@@ -41,6 +41,22 @@ DB_PATH = data_file("budget.db")
 DAILY_TOTAL = int(os.environ.get("AI_DAILY_TOTAL") or 400)
 DAILY_PER_ACCOUNT = int(os.environ.get("AI_DAILY_PER_ACCOUNT") or 20)
 
+# THE BACKGROUND CLASSIFIER GETS ITS OWN CEILING, NOT A SHARE OF THE ABOVE.
+# It ran uncapped and turned the API key off: db.classify_unlabelled reads 200
+# gigs a cycle at 20 a request, refresh.py runs a cycle every 120s, so the
+# ceiling was ~7,200 model calls a day against a drafting budget of 400.
+#
+# It is counted separately on purpose. Drafting is a person waiting on a
+# button; classification is housekeeping nobody is watching. If they shared
+# one counter, a morning of backfill would spend the day's drafts and every
+# member would silently get the template instead. Housekeeping must never be
+# able to starve the thing someone is looking at.
+#
+# 60 calls x 20 gigs is 1,200 a day, which clears a 5,000-gig backlog inside a
+# week and then idles, because the queue only refills as fast as new gigs
+# arrive that the keyword rules cannot place.
+CLASSIFY_DAILY = int(os.environ.get("NABBLY_CLASSIFY_DAILY") or 60)
+
 
 def _today() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -161,6 +177,47 @@ def allow(who: str) -> tuple[bool, str]:
         # and a database error is not that — it would be worse to break the
         # feature for everyone because a counter file got locked.
         return True, "ledger unavailable"
+
+
+def allow_classify() -> tuple[bool, str]:
+    """
+    May the background classifier spend a call right now?
+
+    Deliberately does NOT consult DAILY_TOTAL, and record_classify does not
+    touch the `_all` row: see CLASSIFY_DAILY. Fails OPEN on a broken ledger for
+    the same reason allow() does — but the caller stops on the first refusal,
+    so a wedged counter costs one cycle's work rather than a day's.
+    """
+    try:
+        init()
+        conn = _connect()
+        try:
+            n = _count(conn, _today(), "_classify")
+            if n >= CLASSIFY_DAILY:
+                return False, f"classifier daily cap reached ({n})"
+            return True, ""
+        finally:
+            conn.close()
+    except Exception:
+        return True, "ledger unavailable"
+
+
+def record_classify(n: int = 1):
+    """
+    Count a classifier call. Its own row only — never `_all`, so background
+    work cannot eat the drafting budget a member is waiting on.
+    """
+    try:
+        init()
+        conn = _connect()
+        conn.execute(
+            "INSERT INTO ai_usage (day, who, n) VALUES (?, ?, ?) "
+            "ON CONFLICT(day, who) DO UPDATE SET n = n + ?",
+            (_today(), "_classify", n, n))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
 
 
 def record(who: str, n: int = 1):

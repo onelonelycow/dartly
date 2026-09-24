@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guides &middot; Nabbly</title>
+<meta name="description" content="Practical guides to finding freelance work and replying to it well, written from what actually lands on the board.">
+<link rel="canonical" href="https://nabbly.co/guides/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#121418">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nabbly">
+<meta property="og:title" content="Guides &middot; Nabbly">
+<meta property="og:description" content="Practical guides to finding freelance work and replying to it well, written from what actually lands on the board.">
+<meta property="og:url" content="https://nabbly.co/guides/">
+<meta property="og:image" content="https://nabbly.co/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" type="image/png" href="/favicon.png">
+
+<style>
+@font-face{font-family:'Archivo';src:url('/archivo.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}
+:root{--bg:#121418;--bg2:#15181d;--panel:#171a20;--line:#262a31;--line2:#2f343d;
+--ink:#F6F8FA;--ink2:#AEB4BE;--mute:#868D98;--amber:#E8933A;--amber-l:#F7B569;
+--amber-d:#CB6F16;--radius:16px;--maxw:800px;
+--sans:'Archivo',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--line)}
+/* no flex gap here: the wordmark is "Nabb" + a coloured "ly" span, and a gap
+   between flex children split the brand into two words. */
+.nav{display:flex;align-items:center;height:64px;font-weight:650;font-size:19px;
+letter-spacing:-.02em;text-decoration:none}
+.amber{color:var(--amber)}
+h1{font-size:clamp(30px,4.6vw,42px);font-weight:650;letter-spacing:-.02em;line-height:1.12;
+margin:44px 0 0;text-wrap:balance}
+.lead{color:var(--ink2);margin:18px 0 0;font-size:18px}
+h2{font-size:21px;font-weight:650;letter-spacing:-.02em;margin:44px 0 0}
+p{margin:14px 0 0}
+.terms{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 0;padding:0;list-style:none}
+.terms li{font-size:14px;color:var(--ink2);background:rgba(232,147,58,.07);
+border:1px solid rgba(232,147,58,.16);padding:7px 13px;border-radius:100px}
+.gigs{list-style:none;padding:0;margin:18px 0 0;border-top:1px solid var(--line)}
+.gigs li{padding:13px 0;border-bottom:1px solid var(--line);font-size:15.5px;color:var(--ink2)}
+.btn.top{margin:4px 0 8px}
+.btn{display:inline-block;margin:26px 0 0;font-weight:600;font-size:16px;border-radius:11px;
+padding:14px 24px;text-decoration:none;color:#2a1806;
+background:linear-gradient(180deg,var(--amber-l),var(--amber-d))}
+.more{display:flex;flex-wrap:wrap;gap:9px;margin:18px 0 0;padding:0;list-style:none}
+.more a{font-size:14px;color:var(--ink2);text-decoration:none;background:var(--bg2);
+border:1px solid var(--line);padding:8px 14px;border-radius:100px}
+/* 8px padding lands these pills at ~35px tall, under the 44px touch floor
+   (FEEL.md §10). Bumped on phones only — the sweep that caught this measured
+   35px on about.html and both field pages at 375px, while desktop is a mouse
+   and can keep the tighter pill. This sheet has no other media block; if one
+   grows here later, it must stay BELOW the base rules it overrides — the same
+   cascade-order mistake shipped twice on the board this week. */
+@media(max-width:640px){.more a{padding:13px 16px}}
+.more a:hover{border-color:var(--amber);color:var(--ink)}
+footer{border-top:1px solid var(--line);margin-top:56px;padding:26px 0 48px;
+color:var(--mute);font-size:13px}
+/* Privacy and Terms drop to a quieter line of their own, so About and FAQ
+   are not ranked level with the two pages nobody reads. */
+footer .legal{display:inline-block;margin-top:6px;opacity:.7;font-size:12.5px}
+footer a{color:var(--mute)}
+.guidelink{margin-top:30px;font-size:15px;color:var(--mute)}
+.guidelink a{color:var(--amber);text-decoration:none;font-weight:600}
+.guidelink a:hover{text-decoration:underline}
+
+dt{font-weight:650;font-size:17.5px;letter-spacing:-.01em;margin:30px 0 0}
+dd{margin:10px 0 0;color:var(--ink2)}
+</style>
+</head>
+<body>
+<header><div class="wrap"><a class="nav" href="/">Nabb<span class="amber">ly</span></a></div></header>
+<main class="wrap">
+  <h1>Guides</h1>
+  <p class="lead">How to find work worth replying to, and how to reply so it gets read.</p>
+  <ul class="more"><li><a href="/guides/how-to-reply-to-a-freelance-job-post/">How to reply to a freelance job post</a></li></ul>
+  <a class="btn" href="https://board.nabbly.co/gigs?ref=site-guide">Open the board &rarr;</a>
+<h2>Browse by field</h2><ul class="more"><li><a href="/freelance-development-jobs/">Developer</a></li><li><a href="/freelance-sales-jobs/">Sales</a></li><li><a href="/freelance-marketing-jobs/">Marketing</a></li><li><a href="/freelance-design-jobs/">Design</a></li><li><a href="/freelance-finance-jobs/">Finance</a></li><li><a href="/freelance-healthcare-jobs/">Healthcare</a></li><li><a href="/freelance-data-jobs/">Data</a></li><li><a href="/freelance-video-jobs/">Video Editing</a></li><li><a href="/freelance-customer-support-jobs/">Customer Support</a></li><li><a href="/freelance-consulting-jobs/">Consulting</a></li><li><a href="/freelance-admin-jobs/">Virtual Assistant</a></li><li><a href="/freelance-product-jobs/">Product Manager</a></li><li><a href="/freelance-management-jobs/">Project Manager</a></li><li><a href="/freelance-writing-jobs/">Writing</a></li><li><a href="/freelance-architecture-jobs/">Architecture</a></li><li><a href="/freelance-it-jobs/">IT</a></li><li><a href="/freelance-hr-jobs/">HR</a></li><li><a href="/freelance-legal-jobs/">Legal</a></li><li><a href="/freelance-teaching-jobs/">Teaching</a></li><li><a href="/freelance-engineering-jobs/">Engineering</a></li><li><a href="/freelance-qa-jobs/">QA</a></li><li><a href="/freelance-translation-jobs/">Translation</a></li><li><a href="/freelance-audio-jobs/">Audio</a></li><li><a href="/freelance-photography-jobs/">Photography</a></li></ul>
+</main>
+<footer><div class="wrap">
+  <a href="/">Nabbly</a> &middot; freelance and remote work from every board, in one place
+  &middot; <a href="/about.html">About</a> &middot; <a href="/faq.html">FAQ</a>
+  <br><span class="legal"><a href="/privacy.html">Privacy</a>
+  &middot; <a href="/terms.html">Terms</a></span>
+</div></footer>
+</body>
+</html>

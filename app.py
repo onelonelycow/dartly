@@ -86,6 +86,140 @@ def _page_icon():
 st.set_page_config(page_title="Nabbly", page_icon=_page_icon(), layout="wide",
                    initial_sidebar_state="collapsed")
 
+# ── CRAWLERS GET NOTHING, AND THIS IS THE FIRST THING THAT RUNS ──────────────
+#
+# meta-externalagent has been walking this host since the board started
+# blocking it on 2026-08-27 — the board got web/main.py's _turn_away_crawlers,
+# app.py got nothing, so the crawler simply moved next door. Measured
+# 2026-09-03 from 57.141.0.*: invented paths (/companies/…, /listing_ads/13/
+# click?…, /post-a-remote-job?nav=gigs) and, the part that actually hurt,
+# repeated GETs of /_stcore/stream. Every one of those opens a Streamlit
+# session, sessions accumulate, and memory climbed ~4MB a minute until the
+# 512MB instance was OOM-killed roughly hourly.
+#
+# THIS STOPS THE WORK, NOT THE ALLOCATION. By the time this line runs Streamlit
+# has already accepted the websocket and built the AppSession. An edge rule that
+# refused the request before it reached Render would be strictly better.
+#
+# THAT EDGE RULE IS NOT AVAILABLE, AND THE EARLIER NOTE HERE SENT TWO PEOPLE
+# LOOKING FOR IT. nabbly.co is registered with Cloudflare but its nameservers
+# are Namecheap's, so there is no zone to hold a WAF rule and the dashboard
+# returns a 404 for the firewall pages. The `server: cloudflare` header on our
+# responses is RENDER's Cloudflare, in front of their origin, not ours. Buying
+# the rule means moving DNS off Namecheap and re-creating every record.
+#
+# Measured 2026-09-04, that trade is not worth taking: with this block in place
+# the whole workspace uses 5.2GB of a 25GB monthly allowance, and the block cut
+# board bandwidth ~95% on its own. Revisit only if bandwidth approaches the cap,
+# and then as a planned DNS migration rather than as a fix for this file.
+#
+# Same list as the board, same env override, so the two cannot drift. curl and
+# python-requests are deliberately absent — the uptime check uses them, and a
+# monitor that gets turned away is a monitor that lies.
+_BOTS = tuple(t.strip().lower() for t in (
+    os.environ.get("NABBLY_BLOCK_UA") or
+    "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
+    "oai-searchbot,chatgpt-user,ccbot,claudebot,anthropic-ai,perplexitybot,"
+    "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
+    "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
+    "seznambot,serpstatbot,barkrowler,zoominfobot"
+).split(",") if t.strip())
+
+
+def _is_crawler() -> bool:
+    """True for a known crawler. Never raises — a header read must not 500."""
+    try:
+        ua = (st.context.headers.get("User-Agent") or "").lower()
+    except Exception:
+        return False
+    return any(b in ua for b in _BOTS)
+
+
+if _is_crawler():
+    # No markup, no redirect, no session work. Just stop.
+    st.stop()
+
+
+# ── THE APP IS SIGN-IN AND ADMIN NOW ─────────────────────────────────────────
+#
+# Everything a member uses lives on board.nabbly.co. This app forwards the rest
+# — see RETIRE-APP.md. Sign-in stays because the ?u= magic link is validated
+# here and Streamlit cannot set the board's session cookie; admin stays because
+# the board has no equivalent; unsubscribe and out stay because those links sit
+# in already-delivered email forever.
+#
+# AS EARLY AS THE SCRIPT ALLOWS, AND THAT IS THE POINT. This first sat at the
+# far end of the file, so a request that only needed a redirect still executed
+# db.init_db(), _resolve_account(), three more init()s and five thousand lines
+# of Streamlit script on the way there. Since the redirect landed, most traffic
+# to this host is redirect traffic — app.nabbly.co peaked at 276 requests in
+# five minutes — and on a 512MB instance memory climbed about a megabyte a
+# minute until the box was killed. Placed here it costs an import and a dict
+# lookup.
+#
+# Uses st.session_state rather than ACCESS deliberately: ACCESS is resolved at
+# line ~1600 and needing it would undo the whole point. _tok is set for anyone
+# signed in on this app, which is the only thing the guard actually asks.
+_BOARD = os.environ.get("BOARD_URL", "https://board.nabbly.co").rstrip("/")
+_TO_BOARD = {"dashboard": "/", "gigs": "/gigs", "market": "/market",
+             "saved": "/saved", "profile": "/profile", "pricing": "/plans",
+             "about": "https://nabbly.co/about.html",
+             "faq": "https://nabbly.co/faq.html",
+             "privacy": "https://nabbly.co/privacy.html",
+             "terms": "https://nabbly.co/terms.html"}
+
+
+def _forward(dest: str):
+    """
+    Send the browser to the board, and stop the script before it costs.
+
+    THE FALLBACK IS HIDDEN FOR THE FIRST FEW SECONDS. The founder: "for a split
+    second when i load app.nabbly.com it shows this, and i dont want this to be
+    seen by the actual user". He is right -- someone who lands here is
+    mid-navigation, and "Moved to https://board.nabbly.co/." flashing past reads
+    like a broken site rather than a redirect that worked.
+
+    It cannot simply be deleted: the meta refresh is the whole mechanism, and if
+    it ever fails to fire (a browser with it disabled, a proxy stripping it) a
+    blank page strands them with no way forward. So the link stays in the
+    markup, invisible, and fades in after three seconds -- long past when a
+    working redirect has already left. Nobody sees it unless they need it.
+
+    No JavaScript: Streamlit strips <script> from st.markdown even with
+    unsafe_allow_html, so window.location.replace is not available here. The
+    meta refresh is what actually moves the browser.
+    """
+    url = dest if dest.startswith("http") else f"{_BOARD}{dest}"
+    esc = html.escape(url, quote=True)
+    st.markdown(
+        f'<meta http-equiv="refresh" content="0; url={esc}">'
+        '<style>'
+        '.nb-fwd{opacity:0;animation:nbfwd 240ms ease-in 3s forwards}'
+        '@keyframes nbfwd{to{opacity:1}}'
+        '</style>'
+        f'<p class="nb-fwd" style="font-family:system-ui;padding:24px">'
+        f'Taking you to <a href="{esc}">{html.escape(url)}</a> — '
+        f'tap the link if nothing happens.</p>',
+        unsafe_allow_html=True)
+    st.stop()
+
+
+# Never when a token is riding along: ?u= is a sign-in and ?t= is an
+# unsubscribe, and forwarding either drops what made the request meaningful.
+if ("nav" in st.query_params
+        and not st.query_params.get("u") and not st.query_params.get("t")):
+    _n = (st.query_params.get("nav", "") or "").lower()
+    if _n == "alerts":
+        _n = "profile"
+    if _n in _TO_BOARD:
+        _forward(_TO_BOARD[_n])
+
+# A bare signed-out visit — the case a stranger typing app.nabbly.co hits.
+if (not st.query_params
+        and not st.session_state.get("_tok")
+        and st.session_state.get("_page") != "admin"):
+    _forward("/")
+
 # --- a little house style so cards/pills read as one cohesive, non-"code" look ---
 st.markdown("""
 <style>
@@ -868,6 +1002,14 @@ header[data-testid="stHeader"]{height:0!important;min-height:0!important;backgro
 .gr-doc ul{margin:0 0 16px;padding-left:20px}
 .gr-doc li{font-size:15.5px;color:#b8bfc9;margin:7px 0;padding-left:2px}
 .gr-doc li::marker{color:#E8933A}
+/* The Stripe jump links on the admin page. Chips rather than a list: they are
+   five destinations of equal weight, and a bulleted list of five links reads
+   as reading material instead of a control strip. */
+.gr-striperow{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
+.gr-striperow a{display:inline-block;padding:7px 12px;border-radius:9px;
+  border:1px solid #2f343d;background:#15181d;color:#AEB4BE !important;
+  font-size:12.5px;font-weight:600;text-decoration:none !important}
+.gr-striperow a:hover{border-color:#CB6F16;color:#F7B569 !important}
 .gr-doc a{color:#eaa662!important;text-decoration:none;
   border-bottom:1px solid rgba(232,147,58,.35)}
 .gr-doc a:hover{border-bottom-color:#E8933A}
@@ -2035,8 +2177,11 @@ def _build_feed(posts):
     df["_city"] = [location.city_lock({"title": t}) for t in df["title"].fillna("")]
     # Same reasoning as _city: a gig's language is a property of the POST, so
     # it's computed once here rather than per render.
-    df["_lang"] = [lang.detect(t, b) for t, b in
-                   zip(df["title"].fillna(""), df["body"].fillna(""))]
+    # lang.of(): the source's stated language when the row carries one, else
+    # the text detector. The column is absent from a seed older than 2026-09-12.
+    _src_lang = df["lang"].fillna("") if "lang" in df.columns else [""] * len(df)
+    df["_lang"] = [lang.of({"lang": l, "title": t, "body": b}) for l, t, b in
+                   zip(_src_lang, df["title"].fillna(""), df["body"].fillna(""))]
     # Whether a gig is remote, on-site, or region-restricted is ALSO a property
     # of the post — location.tag() only ever reads the gig's own title and body.
     # It used to be called per row, per render, by both location_counts() and
@@ -2586,7 +2731,18 @@ def _dash_picks(version, scope, prof_key, skills, srcs):
     return out.head(DASH_CACHE_ROWS), len(out)
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+# max_entries IS LOAD-BEARING, and its absence is what killed this service.
+# Streamlit's default is unbounded, so this cache only ever released an entry
+# when its 30-minute TTL expired — never because it got too big. One entry per
+# gig, PAGE_SIZE=25 added per dashboard render, against a 50,000-gig board and
+# bot traffic that never repeats a card: memory climbed ~1.9MB/min until the
+# 512MB instance was OOM-killed, roughly every two and a half hours. Every
+# other cache in this file is capped; this one was missed.
+#
+# 512 is ~20 pages of cards, which is the reuse the cache exists for, and
+# bounds it to single-digit MB. Bodies are small (median 207B, p90 2.9KB), so
+# the cost here was never entry size — it was that there were unboundedly many.
+@st.cache_data(ttl=1800, show_spinner=False, max_entries=512)
 def _cached_free_draft(gid, title, body, size_tier, urgency, job_type,
                         name, headline, bio, portfolio):
     """
@@ -4217,6 +4373,55 @@ def view_profile(pro):
                 st.rerun()
 
 
+def _paying(a) -> bool:
+    """
+    On a plan we are actually billing for.
+
+    Not the same as "has Pro". A founding member and somebody on a trial both
+    have Pro and pay nothing, and both should still be offered the cheap tier
+    — their free run ends, and this is the decision waiting for them when it
+    does. Only a live Stripe subscription, or a standing pro/alerts plan,
+    means there is nothing left to sell.
+    """
+    return bool(a.get("paid") or a.get("plan") in ("pro", accounts.ALERTS_PLAN))
+
+
+def alerts_offer(email: str, where: str, already_paying: bool = False):
+    """
+    The cheap rung, offered exactly where somebody has just declined $15.
+
+    The ladder was Free or Pro, so everyone who found Pro too much converted
+    to nothing. This is shown after the Pro button rather than beside it: it
+    is the fallback for a no, not a competing option, and putting it level
+    with Pro would talk people out of the more valuable plan.
+
+    NO PRICE IN THE LABEL. The amount lives in Stripe. A number typed here
+    would be a second source of truth that disagrees silently the first time
+    the price changes, and this one sits on a button that takes money.
+    Checkout shows the real figure before anyone pays.
+
+    Renders nothing at all when STRIPE_ALERTS_PRICE_ID is unset, which is how
+    this ships before the price exists.
+    """
+    # ALREADY PAYING, not "has the alerts capability". status()["alerts"] is
+    # True for anyone with Pro, including a founding member on a free grant —
+    # and those are exactly the people who should be able to choose the cheap
+    # plan before their free run ends. The thing to suppress is selling
+    # somebody a plan they are already being billed for.
+    if already_paying or not billing.alerts_enabled() or not email:
+        return
+    url = billing.checkout_url(
+        email,
+        success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
+        cancel_url=f"{mailer.APP_URL}/?nav={where}&e={EMAIL_TOKEN}",
+        tier="alerts")
+    if not url:
+        return
+    st.markdown('<div class="gr-cta-fine">Not ready for Pro?</div>',
+                unsafe_allow_html=True)
+    st.link_button("Just the alerts \u2014 a cheaper plan", url, width="stretch")
+
+
 def plan_card():
     """
     What you're on, what it costs, when it renews, and the way out.
@@ -4247,7 +4452,7 @@ def plan_card():
         renews = f"{_left} · ends {_when.strftime('%-d %B %Y')}"
 
     if ACCESS["plan"] == "pro" and not days and ACCESS.get("paid"):
-        name, price, note = ("Pro", "$12/mo",
+        name, price, note = ("Pro", "$15/mo",
                              "Renews automatically. Cancel anytime.")
     elif ACCESS["plan"] == "pro" and not days:
         name, price, note = "Pro", "On the house", "Thanks for backing us."
@@ -4256,11 +4461,23 @@ def plan_card():
         # founding_badge_html) — this card says the same thing in plain
         # text rather than repeating the graphic a second time on the same
         # page load.
-        name, price, note = ("Pro · founding member", "Free for 60 days",
-                             "Our thank-you to the people who backed it first.")
+        # Real days remaining, not a hardcoded 60 — the number people care
+        # about is how long they have left, and a constant goes stale the
+        # moment any grant is ever a different length.
+        _d = ACCESS.get("days_left") or 0
+        name = "Pro · founding member"
+        price = (f"Free for {_d} more day{'s' if _d != 1 else ''}" if _d
+                 else "Free while your founding window runs")
+        note = "Our thank-you to the people who backed it first."
     elif ACCESS["pro"]:
         name, price, note = ("Pro · trial", "Free for 14 days",
                              "You drop back to Free when it ends, not charged.")
+    elif ACCESS.get("alerts"):
+        # Paying, but not for Pro. Falling through to the Free card below told
+        # a subscriber they were on the free plan.
+        name, price, note = ("Alerts", "Instant pings",
+                             "Cancel anytime. Upgrade to Pro whenever you want "
+                             "the rest.")
     else:
         name, price, note = ("Free", "$0 — the whole board",
                              "Every gig, every field, search and browse.")
@@ -4310,14 +4527,22 @@ def plan_card():
                     success_url=f"{mailer.APP_URL}/?from=profile&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
                     cancel_url=f"{mailer.APP_URL}/?nav=profile&e={EMAIL_TOKEN}")
                 if _url:
-                    st.link_button("Upgrade to Pro — $12/mo", _url,
+                    st.link_button("Upgrade to Pro — $15/mo", _url,
                                    type="primary", width="stretch")
                 else:
                     st.warning("Checkout's briefly unavailable — try again in a moment.")
             else:
                 st.caption("Your 14-day Pro trial has been used. We'll email you "
                            "the moment paid Pro opens.")
+        alerts_offer(ACCESS["email"], "profile", _paying(ACCESS))
         return
+
+    # A founding member and somebody mid-trial both land here: Pro today, on a
+    # clock, paying nothing. They are the people best placed to decide they
+    # want the cheap plan when the clock runs out, and until now the offer was
+    # behind a `not pro` guard they could never satisfy. _paying keeps it away
+    # from anyone actually being billed.
+    alerts_offer(ACCESS["email"], "profile", _paying(ACCESS))
 
     # The way out. Owner accounts are permanently Pro (accounts.status), so
     # there's nothing to downgrade and the control would do nothing.
@@ -4539,7 +4764,7 @@ def signup_card(where="dashboard"):
                     '<span class="gr-cta-mark"></span>'
                     '<div class="gr-cta-h">Quick one while you\'re here</div>'
                     '<div class="gr-cta-s">When your Pro ends, would you pay '
-                    '<b>$12/mo</b> to keep ranked picks, post-aware drafts and '
+                    '<b>$15/mo</b> to keep ranked picks, post-aware drafts and '
                     'instant alerts?</div>', unsafe_allow_html=True)
                 a1, a2, a3 = st.columns(3)
                 for col, label, val in ((a1, "Yes", "yes"), (a2, "Maybe", "maybe"),
@@ -4556,6 +4781,10 @@ def signup_card(where="dashboard"):
             _lbl = "of founding Pro left" if a.get("founding") else "of Pro left on your trial"
             st.markdown(f'<div class="gr-mini"><b>{d} day{"s" if d != 1 else ""}</b> '
                         f'{_lbl}</div>', unsafe_allow_html=True)
+        # OUTSIDE the if/else. Inside the else it only appeared once the
+        # research question above had been answered, which for a fresh session
+        # is never — the question renders and returns first.
+        alerts_offer(a["email"], where, _paying(a))
         return
 
     # Signed in, on Free, never trialed: offer Pro as a choice, not a default.
@@ -4580,6 +4809,10 @@ def signup_card(where="dashboard"):
                         st.warning(msg)
             st.markdown('<div class="gr-cta-fine">Or keep browsing on Free — the '
                         'whole board is yours either way</div>', unsafe_allow_html=True)
+            # Under the trial offer, not beside it: the free trial is still the
+            # better first step, and this is the answer for someone who has
+            # already decided they do not want the whole thing.
+            alerts_offer(a["email"], where, _paying(a))
         return
 
     # Signed in with a lapsed trial → keep-Pro interest. Not signed in → sign in
@@ -4598,13 +4831,14 @@ def signup_card(where="dashboard"):
                         success_url=f"{mailer.APP_URL}/?from={where}&stripe_session={{CHECKOUT_SESSION_ID}}&e={EMAIL_TOKEN}",
                         cancel_url=f"{mailer.APP_URL}/?nav={where}&e={EMAIL_TOKEN}")
                     if _url:
-                        st.link_button("Upgrade to Pro — $12/mo", _url,
+                        st.link_button("Upgrade to Pro — $15/mo", _url,
                                        type="primary", width="stretch")
                     else:
                         st.caption("Checkout's briefly unavailable — try again "
                                    "in a moment.")
                 st.markdown('<div class="gr-cta-fine">Cancel any time from your '
                             'plan page</div>', unsafe_allow_html=True)
+                alerts_offer(a["email"], where, _paying(a))
             # Billing not configured (e.g. local dev): fall back to recording
             # interest so the ask still means something.
             elif st.session_state.get("_upgrade_noted"):
@@ -4620,7 +4854,7 @@ def signup_card(where="dashboard"):
                         st.session_state["_upgrade_noted"] = True
                         note("click", f"upgrade:{where}")
                         st.rerun()
-                st.markdown('<div class="gr-cta-fine">$12/mo when it launches · '
+                st.markdown('<div class="gr-cta-fine">$15/mo when it launches · '
                             'nothing charged now</div>', unsafe_allow_html=True)
         else:
             st.markdown('<span class="gr-cta-mark"></span>'
@@ -5004,6 +5238,53 @@ def view_admin():
         ("Last 7 days", f"{s['sessions_7d']:,}", "#35b37e"),
     ])
 
+    # --- Billing: the Stripe pages, and who is actually on them ------------
+    #
+    # Refunding a charge, reading an invoice and cancelling from the other side
+    # all live in Stripe -- this app never touches money, it only tells Stripe
+    # what to charge. So the useful thing is not to rebuild any of that here,
+    # it is to remove the hunt: land on the right Stripe page in one click, and
+    # go from a Nabbly account straight to ITS subscription rather than
+    # searching the dashboard by email.
+    #
+    # Live-mode URLs. Stripe puts test mode behind a /test/ prefix, and these
+    # deliberately point at the real one, because the reason to open this
+    # section is almost always a real customer's money.
+    st.markdown("#### Billing")
+    _sub_rows = [r for r in accounts.all_accounts()
+                 if (r.get("stripe_subscription_id") or "").strip()]
+    st.caption(f"{len(_sub_rows)} account"
+               f"{'' if len(_sub_rows) == 1 else 's'} with a Stripe "
+               f"subscription on file. Everything below opens Stripe in a new "
+               f"tab — refunds, invoices and card details all live there.")
+    st.markdown(
+        '<div class="gr-striperow">'
+        '<a href="https://dashboard.stripe.com/payments" target="_blank" '
+        'rel="noopener">Payments</a>'
+        '<a href="https://dashboard.stripe.com/subscriptions" target="_blank" '
+        'rel="noopener">Subscriptions</a>'
+        '<a href="https://dashboard.stripe.com/customers" target="_blank" '
+        'rel="noopener">Customers</a>'
+        '<a href="https://dashboard.stripe.com/products" target="_blank" '
+        'rel="noopener">Products &amp; prices</a>'
+        '<a href="https://dashboard.stripe.com/billing" target="_blank" '
+        'rel="noopener">Billing overview</a>'
+        '</div>', unsafe_allow_html=True)
+
+    if _sub_rows:
+        _sd = pd.DataFrame([{
+            "Email": r.get("email", ""),
+            "Plan": (r.get("plan") or "") or "—",
+            # The id is the thing you paste into Stripe's search when a link
+            # is not to hand, so it is shown rather than hidden behind one.
+            "Subscription": r.get("stripe_subscription_id") or "",
+            "Open in Stripe": "https://dashboard.stripe.com/subscriptions/"
+                              + (r.get("stripe_subscription_id") or ""),
+        } for r in _sub_rows])
+        st.dataframe(_sd, width="stretch", hide_index=True,
+                     column_config={"Open in Stripe": st.column_config.LinkColumn(
+                         "Open in Stripe", display_text="Open →")})
+
     # --- Partner links: did the collaboration actually work? ----------------
     _camp = analytics.campaign_funnel(30)
     if _camp:
@@ -5147,7 +5428,10 @@ def view_admin():
         ("Would pay · yes", f"{_pay.get('yes', 0):,}", "#e5675f"),
     ])
     if _pay:
-        st.caption(f"Would pay $12/month — yes: **{_pay.get('yes', 0)}** · "
+        # $12 STAYS. These are answers to a question that asked about $12,
+        # collected before the price moved to $15. Relabelling them would
+        # quietly restate what people actually said.
+        st.caption(f"Would pay $12/month (asked pre-$15) — yes: **{_pay.get('yes', 0)}** · "
                    f"maybe: **{_pay.get('maybe', 0)}** · no: **{_pay.get('no', 0)}**")
 
     acc = accounts.stats()
@@ -5699,5 +5983,5 @@ st.markdown(
     f'<a class="foot-link" href="{ilink("?nav=privacy")}" target="_self">Privacy</a>'
     f'<a class="foot-link" href="{ilink("?nav=terms")}" target="_self">Terms</a>'
     '</div>'
-    '<span class="meta">OneLonelyCow · © 2026</span>'
+    '<span class="meta">Nabbly · © 2026</span>'
     '</div>', unsafe_allow_html=True)

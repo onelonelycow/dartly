@@ -21,6 +21,7 @@ It reuses store.py's connection + DSN handling, so the SQLite-or-Postgres
 placeholder juggling lives in one place. Point DATABASE_URL at a sqlite file and
 this runs identically to how it runs against Supabase, which is how it's tested.
 """
+import os
 import store
 
 _TABLE = "nabbly_posts"
@@ -51,13 +52,18 @@ CAP = 40000
 # never catching up. Add a column to posts, add it here too.
 _COLS = ("source", "source_id", "url", "title", "body", "posted_at",
          "fetched_at", "is_demand", "job_type", "size_tier", "urgency", "owner",
-         "apply_email", "page_checked", "link_checked")
+         "apply_email", "page_checked", "link_checked", "llm_checked",
+         "archived_at", "rare", "remote", "location", "work_type", "lang")
 # page_checked/link_checked default to NULL, not 0 or "": db.py asks for work
 # with `WHERE page_checked IS NULL`, so a 0 would mark every restored gig as
 # already swept, and an "" would fail outright against an integer column in
 # Postgres — taking the whole executemany, and the batch, down with it.
 _DEFAULTS = {"is_demand": 1, "owner": "",
-             "page_checked": None, "link_checked": None}
+             "page_checked": None, "link_checked": None, "llm_checked": None,
+             # None, never 0: 0 is "on-site". Same integer-column reasoning as
+             # page_checked above -- "" would fail against Postgres outright.
+             "remote": None, "location": "", "work_type": "", "lang": "",
+             "archived_at": None, "rare": None}
 
 # db.upsert_many() restores exactly these columns, so it reads them from here
 # rather than keeping a second copy that can drift out of sync (it did).
@@ -87,6 +93,9 @@ def _ensure(conn):
                 apply_email text,
                 page_checked integer,
                 link_checked integer,
+                llm_checked integer,
+                archived_at text,
+                rare integer,
                 PRIMARY KEY (source, source_id)
             )""")
     _migrate(conn)
@@ -97,7 +106,16 @@ def _ensure(conn):
 # columns only ever arrive through here.
 _ADDED = (("apply_email", "text"),
           ("page_checked", "integer"),
-          ("link_checked", "integer"))
+          ("link_checked", "integer"),
+          ("llm_checked", "integer"),
+          ("archived_at", "text"),
+          # 2026-09-11: structured location. See db.init_db for the contract.
+          ("remote", "integer"),
+          ("location", "text"),
+          ("work_type", "text"),
+          ("rare", "integer"),
+          # 2026-09-12: the source's own language for the posting. lang.of().
+          ("lang", "text"))
 
 
 def _migrate(conn):
@@ -145,13 +163,148 @@ def push(records) -> int:
             _ensure(conn)
             cols = ", ".join(_COLS)
             marks = ", ".join([ph] * len(_COLS))
-            sets = ", ".join(f"{c}=excluded.{c}" for c in _COLS
-                             if c not in ("source", "source_id"))
+            # archived_at is COALESCEd rather than assigned. An ingest record
+            # carries no archived_at, so a plain assignment would blank the date
+            # on any row this ever re-pushes — and that date cannot be
+            # recomputed from anything, unlike every other column here. A
+            # re-push must be able to correct a gig without erasing when it
+            # left the board.
+            sets = ", ".join(
+                (f"{c}=COALESCE(excluded.{c}, {_TABLE}.{c})"
+                 if c == "archived_at" else f"{c}=excluded.{c}")
+                for c in _COLS if c not in ("source", "source_id"))
             sql = (f"INSERT INTO {_TABLE} ({cols}) VALUES ({marks}) "
                    f"ON CONFLICT (source, source_id) DO UPDATE SET {sets}")
             with conn:                       # commits on clean exit (both drivers)
                 conn.cursor().executemany(sql, [_row(r) for r in records])
             return len(records)
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def push_tags(rows) -> int:
+    """
+    Mirror what a re-classification decided: job_type, size_tier, urgency.
+    `rows` is [(job_type, size_tier, urgency, source, source_id)].
+
+    WITHOUT THIS A CLASSIFIER FIX SURVIVES ONE PROCESS AND THEN UNDOES ITSELF.
+    db.reclassify_all() UPDATEs the local SQLite file and nothing else, exactly
+    as the sweeps did before push_sweep() existed — and this one is worse,
+    because the re-tag is fingerprint-gated and the stamp is durable. The cycle:
+    change the keywords, boot, re-tag locally, stamp the new fingerprint; next
+    deploy wipes Render's disk, the board restores from the mirror's OLD tags,
+    and reclassify_all sees a fingerprint it has already stamped and skips. The
+    wrong tags are then permanent, and no later run will ever revisit them.
+
+    The SEO generator reads the mirror too, so without this a re-tag never
+    reaches the field pages at all, however many times the board re-tags itself.
+
+    Assignment, not COALESCE, unlike push_sweep: a sweep that finds nothing must
+    not blank an address it did not look for, but a classifier that returns
+    "Other / general" has genuinely decided that, and an empty urgency is a real
+    value meaning "not urgent" rather than an absence.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET "
+                   f"job_type = {ph}, size_tier = {ph}, urgency = {ph} "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
+            # Chunked: a re-tag after a vocabulary change can move tens of
+            # thousands of rows, and one executemany that size is a single
+            # statement the pooler can time out on — losing every row rather
+            # than the batch that failed.
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def push_llm_result(rows) -> int:
+    """
+    Mirror one second-pass run: the field it decided, and the fact that it
+    looked. `rows` is [(job_type_or_None, source, source_id)].
+
+    COALESCE on job_type, unlike push_tags: None here does not mean "the
+    classifier had no opinion to record", it means the model declined to place
+    this gig, and the row must keep the "Other / general" it already has rather
+    than be blanked.
+
+    llm_checked is set unconditionally, and that is the whole point of mirroring
+    this. Render wipes the local disk on every deploy and the board restores
+    from here — so a mark that lived only in SQLite would be gone by morning and
+    the entire unplaced backlog would be sent to the model again, and billed
+    again, after every single deploy.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET "
+                   f"job_type = COALESCE({ph}, job_type), llm_checked = 1 "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
+        finally:
+            conn.close()
+    except Exception:
+        return 0
+
+
+def push_rare(rows) -> int:
+    """
+    Mirror which gigs are hard to find elsewhere. `rows` is
+    [(rare, source, source_id)].
+
+    Same reason as push_tags: db.mark_rare() writes the local SQLite file, and
+    Render wipes that on every deploy. Without this the board would rebuild from
+    the mirror with the marker blank and the badge would vanish from the site
+    until the next recompute — visible to anyone reading, and confusing in the
+    exact place the product is making its strongest claim.
+    """
+    rows = [r for r in (rows or []) if r and r[-2] and r[-1]]
+    if not enabled() or not rows:
+        return 0
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            sql = (f"UPDATE {_TABLE} SET rare = {ph} "
+                   f"WHERE source = {ph} AND source_id = {ph}")
+            sent = 0
+            for i in range(0, len(rows), 2000):
+                chunk = rows[i:i + 2000]
+                with conn:
+                    conn.cursor().executemany(sql, chunk)
+                sent += len(chunk)
+            return sent
+        except Exception:
+            return 0
         finally:
             conn.close()
     except Exception:
@@ -281,12 +434,21 @@ def pull_since(since: str, cap: int = CAP) -> list[dict]:
 
 def iter_flags(batch: int = 20000):
     """
-    Every gig's (source, source_id, is_demand), in pages.
+    Every gig's (source, source_id, is_demand, job_type, rare), in pages.
 
     Paged for the same reason as iter_all: capped at CAP, reconciliation could
     not see an archived gig that had fallen past the cap, so it would stay on
     the board copy forever — which is exactly the bug reconciliation exists to
-    prevent. Three small columns, so the pages can be large.
+    prevent. Small columns, so the pages can be large.
+
+    JOB_TYPE AND RARE TRAVEL WITH is_demand BECAUSE THEY HAVE THE SAME PROBLEM.
+    The board's incremental sync asks for rows WHERE fetched_at > watermark, so
+    it can only ever see a gig ARRIVE. Anything that changes an existing row
+    without touching fetched_at is invisible to it — which is the whole reason
+    this reconciliation pass exists for archival, and is equally true of the two
+    columns added since. The second-pass classifier re-tags a gig in the mirror
+    and the board would have gone on showing "Other / general" until its next
+    restart; mark_rare() would have set a badge no visitor ever saw.
     """
     if not enabled():
         return
@@ -297,10 +459,11 @@ def iter_flags(batch: int = 20000):
             try:
                 _ensure(conn)
                 cur = conn.execute(
-                    f"SELECT source, source_id, is_demand FROM {_TABLE} "
+                    f"SELECT source, source_id, is_demand, job_type, rare "
+                    f"FROM {_TABLE} "
                     f"ORDER BY COALESCE(posted_at, fetched_at) DESC "
                     f"LIMIT {int(batch)} OFFSET {int(offset)}")
-                rows = [(r[0], r[1], r[2]) for r in cur.fetchall()]
+                rows = [(r[0], r[1], r[2], r[3], r[4]) for r in cur.fetchall()]
             finally:
                 conn.close()
         except Exception:
@@ -398,6 +561,85 @@ def count() -> int:
         return -1
 
 
+# The retention floor. A sweep that would leave the board below this many
+# live gigs is refused rather than run, because the only way to reach that
+# number is a misconfigured window — NABBLY_STALE_DAYS set to 1, a clock skew,
+# a cutoff computed in the wrong units. Retention is supposed to trim a tail,
+# never empty a board, and the difference is worth one COUNT per day.
+MIRROR_FLOOR = int(os.environ.get("NABBLY_MIRROR_FLOOR") or 5000)
+
+
+def archive_stale_mirror(days: int, floor: int = MIRROR_FLOOR) -> dict:
+    """
+    Age gigs out of the MIRROR itself. Returns what happened, never raises.
+
+    WHY THIS EXISTS AT ALL. db.archive_stale() sweeps the local SQLite file
+    and then mirrors the result. That works on a machine that keeps its disk;
+    it does nothing on one that does not. The ingest service is redeployed
+    with an empty database, so the sweep runs against no rows, reports zero,
+    and the mirror — which every reader actually boots from — keeps its full
+    history forever. Retention was measured at 85,056 rows and a 232s boot
+    against a 270s limit before it was swept by hand, and it drifts back the
+    moment nobody is watching.
+
+    So this does not sweep a copy and hope: it archives in the mirror, in one
+    UPDATE, on whatever schedule the caller runs it. Same rule as
+    db.archive_stale — is_demand=0 and the body dropped, never a DELETE, so
+    the row still blocks its own source_id from being re-ingested.
+    """
+    out = {"ran": False, "archived": 0, "live_before": 0, "would_leave": 0,
+           "note": ""}
+    if not enabled():
+        out["note"] = "mirror not configured"
+        return out
+    from datetime import datetime, timezone, timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    try:
+        conn, ph = store._connect()
+        try:
+            _ensure(conn)
+            cur = conn.cursor()
+            # Count first, decide second. The floor check is worthless after
+            # the UPDATE has already committed.
+            cur.execute(f"SELECT COUNT(*) FROM {_TABLE} WHERE is_demand = 1")
+            live = int(cur.fetchone()[0] or 0)
+            cur.execute(
+                f"SELECT COUNT(*) FROM {_TABLE} WHERE is_demand = 1 "
+                f"  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < {ph}",
+                (cutoff,))
+            aged = int(cur.fetchone()[0] or 0)
+            out["live_before"], out["would_leave"] = live, live - aged
+            if aged and (live - aged) < floor:
+                out["note"] = (f"refused: would leave {live - aged:,} live, "
+                               f"below the {floor:,} floor")
+                print(f"  ! archive_stale_mirror {out['note']} "
+                      f"(cutoff {days}d) — nothing was changed", flush=True)
+                return out
+            if not aged:
+                out["ran"] = True
+                return out
+            cur.execute(
+                # Stamped here as well as in db.archive_stale, because the two
+                # paths retire rows independently: the mirror sweep can retire a
+                # row this copy of the board never saw go. COALESCE so whichever
+                # runs second does not overwrite the first date.
+                f"UPDATE {_TABLE} SET is_demand = 0, body = '', "
+                f"       archived_at = COALESCE(archived_at, {ph}) "
+                f"WHERE is_demand = 1 "
+                f"  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < {ph}",
+                (datetime.now(timezone.utc).isoformat(), cutoff))
+            conn.commit()
+            out["ran"], out["archived"] = True, int(cur.rowcount or 0)
+            print(f"  archive_stale_mirror: retired {out['archived']:,} gigs "
+                  f"past {days}d, {out['would_leave']:,} still live", flush=True)
+        finally:
+            conn.close()
+    except Exception as e:
+        out["note"] = f"{type(e).__name__}: {e}"
+        print(f"  ! archive_stale_mirror failed: {out['note']}", flush=True)
+    return out
+
+
 def mark_archived(pairs) -> int:
     """
     Record in the mirror that these (source, source_id) gigs are off the board.
@@ -445,17 +687,51 @@ def mark_archived(pairs) -> int:
             # anywhere said so. Measured 2026-08-16: 3,849 gigs the app had
             # retired were still being served, and this is the write that was
             # supposed to prevent that.
+            # A DEAD CONNECTION IS NOT A DEAD BATCH. One connection carried
+            # every chunk, so the moment the server hung up -- Supabase closes
+            # idle or over-budget connections, and a long archival is exactly
+            # when that happens -- each remaining chunk raised "the connection
+            # is closed" and was written off. Measured 2026-09-23T00:00Z: 500
+            # of 1,286 landed and the other 786 were abandoned mid-loop.
+            #
+            # Abandoned is worse than it sounds, because nothing retries them:
+            # archive_stale() selects is_demand = 1 and the local row is
+            # already 0 by here, so no later daily pass revisits it. The mirror
+            # keeps serving those gigs as live until a deploy rehydrates them
+            # and the next pass tries again. So a batch that fails gets one
+            # fresh connection and one more attempt before it is given up on.
             done = 0
             for i in range(0, len(pairs), 500):
                 batch = pairs[i:i + 500]
-                try:
-                    with conn:
-                        conn.cursor().executemany(sql, batch)
-                    done += len(batch)
-                except Exception as e:
-                    print(f"  ! mirror archival FAILED for {len(batch)} gigs "
-                          f"({i}..{i + len(batch)} of {len(pairs)}): "
-                          f"{type(e).__name__}: {e}", flush=True)
+                for attempt in (1, 2):
+                    try:
+                        with conn:
+                            conn.cursor().executemany(sql, batch)
+                        done += len(batch)
+                        break
+                    except Exception as e:
+                        if attempt == 1:
+                            try:
+                                conn.close()
+                            except Exception:
+                                pass
+                            try:
+                                conn, ph = store._connect()
+                                _ensure(conn)
+                                sql = (f"UPDATE {_TABLE} SET is_demand = 0, "
+                                       f"body = '' WHERE source = {ph} "
+                                       f"AND source_id = {ph}")
+                                continue
+                            except Exception as e2:
+                                # No connection to retry on: report this batch
+                                # once and stop attempting it.
+                                print(f"  ! mirror archival could not "
+                                      f"reconnect: {type(e2).__name__}: {e2}",
+                                      flush=True)
+                        print(f"  ! mirror archival FAILED for {len(batch)} "
+                              f"gigs ({i}..{i + len(batch)} of {len(pairs)}): "
+                              f"{type(e).__name__}: {e}", flush=True)
+                        break
             if done < len(pairs):
                 print(f"  ! mirror archival incomplete: {done:,}/{len(pairs):,} "
                       f"landed. The board service will keep serving the rest "

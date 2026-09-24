@@ -58,7 +58,13 @@ _SIGNALS = {
 _COMPILED = {k: re.compile(v, re.I) for k, v in _SIGNALS.items()}
 
 NAMES = {"de": "German", "nl": "Dutch", "es": "Spanish", "fr": "French",
-         "pt": "Portuguese", "it": "Italian", "en": "English"}
+         "pt": "Portuguese", "it": "Italian", "en": "English",
+         # Seen in Freelancer's own language field (below); the stopword lists
+         # above cannot detect these, so they only ever arrive from a source.
+         "id": "Indonesian", "tr": "Turkish", "uk": "Ukrainian", "sw": "Swahili",
+         # Read off the script (see script_of), never from a stopword list.
+         "ar": "Arabic", "zh": "Chinese", "hi": "Hindi", "ru": "Russian",
+         "ja": "Japanese", "ko": "Korean", "he": "Hebrew", "th": "Thai"}
 
 # Which language a profile country implies, so someone in Germany keeps their
 # German gigs without having to find a setting.
@@ -66,7 +72,9 @@ COUNTRY_LANG = {
     "Germany": "de", "Austria": "de", "Switzerland": "de",
     "Netherlands": "nl", "Belgium": "nl",
     "Spain": "es", "Mexico": "es", "Argentina": "es",
+    "Colombia": "es", "Chile": "es", "Peru": "es", "Costa Rica": "es",
     "France": "fr", "Portugal": "pt", "Brazil": "pt", "Italy": "it",
+    "Indonesia": "id", "Turkey": "tr", "Ukraine": "uk",
 }
 
 _MIN_HITS = 3
@@ -85,6 +93,9 @@ def detect(title: str, body: str = "") -> str:
     text = f"{title or ''} {str(body or '')[:_SAMPLE]}"
     if not text.strip():
         return "en"
+    by_script = script_of(title, body)
+    if by_script:
+        return by_script
     best, best_hits = "en", 0
     for code, pat in _COMPILED.items():
         # DISTINCT words, not total occurrences. One word repeated is one piece
@@ -102,3 +113,106 @@ def detect(title: str, body: str = "") -> str:
 
 def label(code: str) -> str:
     return NAMES.get(code, code.upper())
+
+
+def normalize(code) -> str:
+    """A source's language value as a two-letter code, or '' if it isn't one."""
+    c = str(code or "").strip().lower()[:2]
+    return c if len(c) == 2 and c.isalpha() else ""
+
+
+# THE SCRIPT SAYS MORE THAN THE FIELD. Freelancer's language field read "en"
+# on a posting written entirely in Arabic ("موقع ووردبرس احترافي لشركة محاماة",
+# freelancer:40725067), and the stopword detector -- Latin languages only --
+# agreed, so an English reader got a brief they could not read. 27 live rows
+# on 2026-09-21. A page whose letters are mostly Arabic, Han, Devanagari or
+# Cyrillic is not English whatever a form field says; that check runs first.
+# Only whole scripts are named here -- a Latin-script language the stopword
+# lists don't know still falls through to them, and then to the field.
+_SCRIPTS = (
+    ("ar", re.compile(r"[\u0600-\u06FF]")),
+    ("he", re.compile(r"[\u0590-\u05FF]")),
+    ("hi", re.compile(r"[\u0900-\u097F]")),
+    ("th", re.compile(r"[\u0E00-\u0E7F]")),
+    ("ru", re.compile(r"[\u0400-\u04FF]")),
+    ("ja", re.compile(r"[\u3040-\u30FF]")),        # kana; Han alone reads as zh
+    ("ko", re.compile(r"[\uAC00-\uD7AF]")),
+    ("zh", re.compile(r"[\u4E00-\u9FFF]")),
+)
+_LETTER = re.compile(r"[^\W\d_]")
+# THE SCRIPT NAMES A FAMILY, NOT A LANGUAGE. Cyrillic letters are Ukrainian
+# as often as Russian on this board (four live "uk" postings on 2026-09-21),
+# Arabic script carries Urdu and Persian, Devanagari carries Marathi and
+# Nepali. When the SOURCE names one of those, the source is right and the
+# script check only confirms it; the check overrides a field only when the
+# field names a language that cannot be written in what is on the page --
+# "en" on an Arabic brief.
+_SCRIPT_FAMILY = {
+    "ar": {"ar", "ur", "fa", "ps", "ku", "sd"},
+    "he": {"he", "yi"},
+    "hi": {"hi", "mr", "ne", "sa"},
+    "th": {"th"},
+    "ru": {"ru", "uk", "bg", "sr", "mk", "be", "kk", "ky", "tg", "mn"},
+    "ja": {"ja"},
+    "ko": {"ko"},
+    "zh": {"zh"},
+}
+
+
+def script_of(title: str, body: str = "") -> str:
+    """
+    A language code when most of the LETTERS are in one non-Latin script,
+    else ''. Digits, punctuation and the odd borrowed word don't count; an
+    English brief that asks for "an Arabic brochure" stays English.
+    """
+    text = f"{title or ''} {str(body or '')[:_SAMPLE]}"
+    letters = len(_LETTER.findall(text))
+    if not letters:
+        return ""
+    for code, rx in _SCRIPTS:
+        n = len(rx.findall(text))
+        if n * 2 > letters:
+            return code
+    return ""
+
+
+def of(post: dict) -> str:
+    """
+    The language of a stored gig: what the source said, else what the text
+    looks like.
+
+    THE FIELD FIRST. Freelancer states each project's language, and measured
+    against 100 live projects on 2026-09-12 it was right on every row a person
+    could check: 11 were not English, the stopword lists above caught 8, and
+    the three they missed (Turkish, Arabic script, a Portuguese post scored as
+    Spanish) all sat on an English reader's board. In the other direction the
+    field never said "en" where the text disagreed, so trusting it cannot hide
+    an English gig — the one mistake that costs somebody work. Rows from
+    before the field existed (2026-09-12) carry '' and fall through to detect().
+    """
+    title, body = post.get("title") or "", post.get("body") or ""
+    field = normalize(post.get("lang"))
+    script = script_of(title, body)
+    if script and field in _SCRIPT_FAMILY[script]:
+        return field                      # same alphabet: the source knows which
+    return script or field or detect(title, body)
+
+
+def reading_languages(prof: dict | None) -> list[str]:
+    """
+    Which languages this reader's board — and their email — should include.
+
+    English always, plus whatever their country implies, so somebody in
+    Germany keeps their German gigs without having to find a setting. Empty
+    means "everything": they asked for it (Profile → show all languages).
+    One rule, read by the board (web/main.py) and the weekly email, so the
+    two cannot disagree about what a person can read.
+    """
+    prof = prof or {}
+    if prof.get("show_all_languages"):
+        return []
+    codes = {"en"}
+    implied = COUNTRY_LANG.get((prof.get("country") or "").strip())
+    if implied:
+        codes.add(implied)
+    return sorted(codes)

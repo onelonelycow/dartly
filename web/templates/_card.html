@@ -2,14 +2,20 @@
    Structure mirrors app.py's gig_card(): title + star, pill row, clamped body
    with a pure-CSS "see more", then the posted line. #}
 {% macro card(g, me, saved_ids, here, ranked, compact=false) -%}
-<div class="gr-cardwrap">
+<div class="gr-cardwrap{% if g._tack %} tacked{% endif %}">
+  {# Set in web/main.py for at most one row per page, and only when that row
+     genuinely matches a declared skill. #}
+  {% if g._tack %}<span class="tack"><span class="tk-lg">matches </span>{{ g._tack }}</span>{% endif %}
   {# MEASURED AT 375px: five of eight dashboard titles ran UNDER the save star
      — title right edge at 335 against the star's left edge at 320, and the
      founder screenshotted the same bleed. The star was absolutely positioned,
      so the title had no idea it was there. A flex head reserves the space
      instead of hoping. #}
   <div class="gr-cardhead">
-    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer">{{ g.title }}</a></div>
+    {# Set by db.mark_rare(): this gig's title appears on none of the boards a
+       member could check on their own. Deliberately says nothing about WHICH
+       boards — FEEL section 7, provenance is plumbing. #}
+    <div class="gr-cardtitle">{% if g.is_new %}<span class="gr-new">New</span> {% endif %}{% if g.rare %}<span class="gr-rare" title="You won't find this one on the big boards.">Rare</span> {% endif %}<a class="gr-title" href="/out/{{ g.id }}" target="_blank" rel="noopener noreferrer nofollow">{{ g.title }}</a></div>
     {% if me %}
       {% set is_saved = g.id|string in saved_ids %}
       <form method="post" action="/save" class="inline gr-saveform">
@@ -33,7 +39,11 @@
     {# "Medium budget", not "Medium" — the app says what the number describes,
        and a bare size word next to a job type reads as part of the role. #}
     {% if g.size_tier %}<span class="gr-pill">{{ g.size_tier }} budget</span>{% endif %}
+    {# The amount itself, only on rows whose currency the source kept -- see
+       main._budget_note. A bare "$" from before 2026-09-21 shows the tier alone. #}
+    {% if g.budget_note %}<span class="gr-pill">{{ g.budget_note }}</span>{% endif %}
     {% if g.loc_note %}<span class="gr-pill {{ g.loc_cls }}">{{ g.loc_note }}</span>{% endif %}
+    {% if g.work_note %}<span class="gr-pill">{{ g.work_note }}</span>{% endif %}
     {% if g.urgency == 'Urgent' %}<span class="gr-pill urgent">Urgent</span>{% endif %}
     {# Apply-method last on purpose: it is the one pill carrying no signal
        colour, so it reads as a trailing note rather than competing with
@@ -42,7 +52,7 @@
        badge on 95% of cards distinguishes nothing — it is a constant printed
        eight times, costing each card a pill row. /gigs keeps it, where the
        mix is wider and someone is choosing between rows. #}
-    {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
+    {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}"><span class="wide-only">{{ g.apply_note }}</span><span class="narrow-only">{{ g.apply_short or g.apply_note }}</span></span>{% endif %}
   </div>
 
   {# WHY THIS MATCHED YOU. The reasons were already computed and thrown away:
@@ -73,7 +83,7 @@
      card about what Nabbly does beyond listing gigs, and hiding it from the
      people who have not signed up yet hides it from exactly the audience it
      would convince. The route sends them to sign-in. #}
-  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  <a class="draftlink" rel="nofollow" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% else %}
   <div class="gr-bodywrap gr-nobody">
@@ -82,7 +92,7 @@
      card about what Nabbly does beyond listing gigs, and hiding it from the
      people who have not signed up yet hides it from exactly the audience it
      would convince. The route sends them to sign-in. #}
-  <a class="draftlink" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
+  <a class="draftlink" rel="nofollow" href="/draft/{{ g.id }}?back={{ here|urlencode }}">Draft my reply →</a>
   </div>
   {% endif %}
 </div>

@@ -17,7 +17,14 @@ import re
 # Regions a gig may be *restricted* to. Match the "…only / …based / must be in…"
 # shapes, not a bare country mention (a company HQ isn't an eligibility rule).
 _RESTRICT = [
+    # "united states" is here because it is what a STRUCTURED field says.
+    # Himalayas' locationrestriction reads "United States" on 6 of 20 live
+    # entries (2026-09-11) and the pattern below did not match it in any
+    # form, so the biggest source's most common restriction would have
+    # reached the board as "worldwide". Free text rarely writes it out in
+    # full, which is why it was missing.
     ("US",     r"u\.?s\.?a?[\s\-]?(?:only|based|residents?|citizens?)"
+               r"|united\s+states(?:\s+of\s+america)?(?:[\s\-]?only)?"
                r"|(?:must be|only)\s+(?:in|located in|based in|authorized to work in)\s+the\s+u\.?s"
                r"|us\s+candidates?\s+only|america[ns]?\s+only|\bus[\-\s]based\b"),
     ("EU",     r"\b(?:eu|eea)[\s\-]?(?:only|based|residents?)"
@@ -30,13 +37,119 @@ _RESTRICT = [
     ("Australia", r"australia[\s\-]?(?:only|based)|\banz\b\s+only"),
 ]
 
+# EVERY OTHER COUNTRY, in the same shape as the six above.
+#
+# Those six WERE the whole list, so a Himalayas listing badged "Colombia only"
+# reached the board as a plain "Remote" pill and somebody could draft a reply
+# for a job they are not eligible for. Measured 2026-09-08 against the live
+# tagger: "Colombia only", "Germany only", "Brazil only" and "Japan only" all
+# returned restrict=None. Germany bites hardest -- Arbeitnow is a German board,
+# so those are already on the feed wearing the wrong pill.
+#
+# ANCHORED TO RESTRICTION WORDS, never to a bare country name. Job text is full
+# of countries that restrict nothing -- "clients across Germany", "our Tokyo
+# office" -- so a name only counts beside "only", "-based", "residents", or an
+# explicit "must be based in". That is precisely what the six hand-written
+# patterns do; this generalises them rather than inventing a looser rule.
+#
+# Georgia is deliberately absent: in this corpus it is a US state far more often
+# than a country, and "Georgia based" on a US posting would restrict a gig to
+# the wrong continent. The six above are excluded so one country cannot come
+# back under two different codes.
+_MORE_COUNTRIES = (
+    "Colombia", "Brazil", "Argentina", "Chile", "Peru", "Mexico", "Costa Rica",
+    "Germany", "France", "Spain", "Portugal", "Italy", "Netherlands", "Belgium",
+    "Austria", "Switzerland", "Sweden", "Norway", "Denmark", "Finland",
+    "Iceland", "Ireland", "Poland", "Czechia", "Slovakia", "Hungary", "Romania",
+    "Bulgaria", "Croatia", "Slovenia", "Serbia", "Ukraine", "Lithuania",
+    "Latvia", "Estonia", "Greece",
+    "Japan", "South Korea", "Singapore", "Malaysia", "Indonesia", "Thailand",
+    "Vietnam", "Philippines", "Taiwan", "Hong Kong", "New Zealand",
+    "Pakistan", "Bangladesh", "Sri Lanka", "Nepal",
+    "South Africa", "Nigeria", "Kenya", "Ghana", "Egypt", "Morocco",
+    "Israel", "Turkey", "United Arab Emirates", "Saudi Arabia", "Qatar",
+)
+
+
+def _country_pattern(name: str) -> str:
+    """The six patterns above, generated for one country name."""
+    n = name.lower().replace(" ", r"\s+")
+    return (r"\b" + n + r"[\s\-]?(?:only|based|residents?|citizens?)\b"
+            r"|(?:must be|only)\s+(?:in|located in|based in|resident in)\s+" + n + r"\b"
+            r"|residents?\s+of\s+" + n + r"\b")
+
+
+# Appended, not prepended: the six above know their own spellings ("us-based",
+# "anz only") and keep first refusal.
+_RESTRICT += [(c, _country_pattern(c)) for c in _MORE_COUNTRIES]
+
+# NINETY-SIX SCANS BECOMES SIX. tag() ran every _RESTRICT pattern as its own
+# re.search over the whole body, and the board runs it over every row at
+# boot: measured 2026-09-13, 120s of a 135s boot pull on a Mac and 406s on
+# Render -- the write itself is 0.1s per 10,000 rows. A generated country
+# pattern cannot match unless the country's first word is in the text, and
+# a substring test is a C loop; the regex only runs when it is. The six
+# hand-written patterns have no single needle and always run. Joining all
+# 96 into one alternation was tried first: identical answers, twice as slow.
+# Same answers as the plain loop on all 54,079 rows of the board.
+_NEEDLES = tuple(c.lower().split()[0] if c in _MORE_COUNTRIES else None
+                 for c, _ in _RESTRICT)
+_RESTRICT_RE = tuple(re.compile(pat) for _, pat in _RESTRICT)
+
+
+# "WE'RE A UK-BASED COMPANY" IS WHERE THE CLIENT SITS, NOT WHERE YOU MUST.
+# The patterns above count "-based" as a restriction word, which is right for
+# "must be UK based" and wrong for a company introducing itself: a PeoplePerHour
+# design brief that opened "We're a UK-based company" wore a UK-only pill on
+# 2026-09-21 with no restriction anywhere in it. Eleven live rows rested on
+# that phrase alone. The phrase is blanked before the patterns run; "UK-based
+# candidates only" and "applicants must be based in the UK" still match.
+_COMPANY_BASED = re.compile(
+    r"\b[\w.]+[\s\-]based\s+(?:company|agency|startup|start-up|studio|business"
+    r"|firm|team|brand|organi[sz]ation|practice|consultancy|label|publisher"
+    r"|charity|shop|store|platform|group|employer|enterprise)\b")
+
+
+def _restrict(text_l: str):
+    """The first _RESTRICT code, in list order, whose pattern matches."""
+    if "based" in text_l:
+        text_l = _COMPANY_BASED.sub(" ", text_l)
+    for (code, _), needle, rx in zip(_RESTRICT, _NEEDLES, _RESTRICT_RE):
+        if needle is not None and needle not in text_l:
+            continue
+        if rx.search(text_l):
+            return code
+    return None
+
 _ONSITE    = re.compile(r"on[\s\-]?site|in[\s\-]person|on location|on-location"
                         r"|must be (?:physically )?(?:present|on[\s\-]?site|local)"
                         r"|\bhybrid\b|local to |based in your area|no remote", re.I)
 _REMOTE    = re.compile(r"\bremote\b|work from home|\bwfh\b|fully remote|100% remote"
                         r"|remote[\s\-]?(?:friendly|first|ok)", re.I)
-_WORLDWIDE = re.compile(r"worldwide|anywhere in the world|any (?:location|country|timezone)"
-                        r"|global(?:ly)?|remote\s*[\-–]\s*anywhere|open to all", re.I)
+# "GLOBAL" ALONE IS NOT A PLACE YOU CAN WORK. This matched global(?:ly)?, which
+# is boilerplate on a large share of postings -- "a fast-growing global
+# company", "the global leader in" -- and it was read as a statement about
+# where the READER may be. Measured on the live board 2026-09-08: searching
+# "global" returned 25 cards, 21 badged Worldwide, and 17 of those never used
+# the word. Among them "Pricing Analyst - REMOTE (Houston Tx, US)" and
+# "Freelance Market Research Analyst - Singapore", both told they were open
+# worldwide. An absent pill costs a reader nothing; one that says the opposite
+# of the truth costs them an application.
+#
+# What survives has to say something about the ROLE, not the employer: the
+# adjective now only counts attached to distribution or hiring.
+_WORLDWIDE = re.compile(r"worldwide|anywhere in the world|work from anywhere"
+                        r"|any (?:location|country|timezone)"
+                        r"|glob(?:al|ally)\s+(?:distributed|remote)"
+                        r"|(?:hiring|hire|work|remote)\s+globally"
+                        r"|fully distributed"
+                        r"|remote\s*[\-–]\s*anywhere"
+                        # "open to all" ALONE IS ABOUT PEOPLE, NOT PLACE.
+                        # It matched "open to all experience levels" and
+                        # "open to all backgrounds" -- inclusion
+                        # statements, read as permission to work from
+                        # anywhere. It only counts where a place follows.
+                        r"|open to all\s+(?:countries|locations|timezones|time zones|regions|nationalities)", re.I)
 
 # What the profile's country dropdown offers, and how each maps to a region code.
 COUNTRIES = ["United States", "United Kingdom", "European Union", "Canada",
@@ -53,20 +166,71 @@ def country_region(country: str):
 
 
 def tag(gig: dict) -> dict:
-    """Read a gig's text into location signals. Cheap enough to call per-render."""
+    """
+    A gig's location signals. Cheap enough to call per-render.
+
+    STRUCTURED FIRST, TEXT AS THE FALLBACK. Every source on the board hands
+    over a real location field -- Freelancer's `local` flag, Arbeitnow's
+    `remote` boolean and city, Himalayas' locationrestriction, WWR's region,
+    Jobicy's jobGeo, PeoplePerHour's location_type -- and until 2026-09-11 all
+    of it was discarded at ingest and this function guessed from prose. The
+    guess was measurably worse than the field: filtering the live board to
+    "remote" made the first page MORE job-board (68% vs 48%), because job
+    boards write the word "remote" more than a client posting a project does.
+
+    So when the row carries `remote` (1/0) it decides remote-vs-onsite
+    outright, and when it carries `location` that string is scanned for a
+    restriction BEFORE the prose is. Both are optional: the ~55,000 rows
+    stored before the columns existed carry neither, and for them this is
+    exactly the text inference it always was.
+
+    Two deliberate readings of the structured pair:
+      - remote=1 with an empty location means "anywhere". That is what every
+        remote-first source means by an empty restriction (Himalayas: 9 of 20
+        live entries), and it is the honest reading of Freelancer's
+        local=False with no country.
+      - a location that names a city ("Berlin") but no country restriction
+        pattern is not a restriction; the `remote` flag already says whether
+        you must be there. A restriction is a place you must be IN, not a
+        place the client is.
+    """
     text = f"{gig.get('title','')} {gig.get('body','')}"
     tl = text.lower()
+    loc = (gig.get("location") or "").strip()
+    known_remote = gig.get("remote")
+    if known_remote not in (0, 1, True, False):
+        known_remote = None
+
     restrict = None
-    for code, pat in _RESTRICT:
-        if re.search(pat, tl):
-            restrict = code
-            break
-    onsite = bool(_ONSITE.search(tl))
-    remote = bool(_REMOTE.search(tl))
+    # The field, phrased the way the patterns expect: a bare "Portugal" says
+    # nothing to a regex built for "Portugal only". Tried segment by segment
+    # as well as whole, because sources compose the field -- Arbeitnow writes
+    # "Hybrid - Germany - Berlin", and "…Berlin only" never lets the Germany
+    # pattern see "Germany only".
+    if loc:
+        parts = [loc] + [x.strip() for x in re.split(r"[\-|,/;()]+", loc) if x.strip()]
+        for part in parts:
+            restrict = _restrict(f"{part} only".lower())
+            if restrict:
+                break
+    if restrict is None:
+        restrict = _restrict(tl)
+
+    worldwide = bool(_WORLDWIDE.search(tl)) or bool(loc and _WORLDWIDE.search(loc.lower()))
+    if known_remote is not None:
+        remote = bool(known_remote)
+        onsite = not remote
+        # An explicit remote flag with no restriction anywhere is "anywhere".
+        if remote and not loc and restrict is None:
+            worldwide = True
+    else:
+        onsite = bool(_ONSITE.search(tl))
+        remote = bool(_REMOTE.search(tl)) or worldwide
+        onsite = onsite and not remote            # "hybrid" leans remote-capable
     return {
-        "remote": remote or bool(_WORLDWIDE.search(tl)),
-        "onsite": onsite and not remote,          # "hybrid" leans remote-capable
-        "worldwide": bool(_WORLDWIDE.search(tl)),
+        "remote": remote,
+        "onsite": onsite,
+        "worldwide": worldwide,
         "restrict": restrict,
     }
 

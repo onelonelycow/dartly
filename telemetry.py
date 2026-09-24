@@ -57,12 +57,20 @@ _warned = False
 # An @ means an address. A run of four or more words means somebody started
 # passing prose, which is the failure mode this guard exists for.
 _LOOKS_PERSONAL = re.compile(r"@|(?:\S+\s+){3,}\S+")
+# Two or three capitalised words with nothing else -- "John Smith", "Acme
+# Corp Ltd" -- is a name far more often than a skill. Skills people search
+# for are lowercase ("figma", "logo design"); a company or person is not.
+# Decided 2026-09-21 before any ad traffic: the words stay, names do not.
+_LOOKS_LIKE_NAME = re.compile(r"^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$")
+_DIGITS = re.compile(r"\d{4,}")   # phone numbers, ids, zip codes
 
 
 def _clean(detail: str) -> str:
     """Behaviour survives, content does not."""
     d = (detail or "").strip()[:_MAX_DETAIL]
-    return "" if _LOOKS_PERSONAL.search(d) else d
+    if _LOOKS_PERSONAL.search(d) or _LOOKS_LIKE_NAME.match(d) or _DIGITS.search(d):
+        return ""
+    return d
 
 
 def enabled() -> bool:
@@ -112,7 +120,8 @@ def _connect():
     return _client
 
 
-def capture(event: str, detail: str = "", session: str = "", path: str = ""):
+def capture(event: str, detail: str = "", session: str = "", path: str = "",
+            campaign: str = ""):
     """
     Mirror one already-recorded event. Never allowed to break the page.
 
@@ -142,6 +151,13 @@ def capture(event: str, detail: str = "", session: str = "", path: str = ""):
         if p:
             props["$current_url"] = p
             props["path"] = p
+        # The partner or ad tag the visit arrived on, on EVERY event -- so any
+        # outcome (signup, draft_view, purchase) can be cut by source. It used
+        # to be its own event on board_view alone, which could say how many
+        # arrived and nothing about what they did next.
+        camp = _clean(campaign)
+        if camp:
+            props["campaign"] = camp[:40]
         c.capture(distinct_id=(session or "anonymous"),
                   event=str(event)[:64], properties=props)
     except Exception:

@@ -31,6 +31,12 @@
 #pt-board:focus-visible ~ .tabs label[for=pt-board],
 #pt-acct:focus-visible ~ .tabs label[for=pt-acct]{outline:2px solid var(--amber-d);
   outline-offset:-2px}
+/* THE RULES BELOW ONLY EVER TURNED PANES ON. Nothing turned them off, so a
+   div's default display won and all three tabs rendered stacked, always:
+   clicking a tab did nothing visible, and Account — which carries the private
+   forwarding address — sat on screen permanently instead of behind its tab.
+   One radio is always checked, so exactly one pane shows. */
+.pane{display:none}
 #pt-you:checked ~ .pane-you{display:block}
 #pt-board:checked ~ .pane-board{display:block}
 #pt-acct:checked ~ .pane-acct{display:block}
@@ -114,22 +120,30 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--amber-d);
   transform:rotate(45deg)}
 .bar{position:sticky;bottom:0;background:linear-gradient(transparent,var(--bg) 32%);
   padding:16px 0 6px;display:flex;gap:10px;align-items:center}
-button.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+/* a.go TOO, not just button.go. "See Pro" is an anchor, so it picked up the
+   .go.small padding and none of the colour, and rendered as default browser
+   link blue on a near-black card — effectively invisible. It is the only
+   upgrade control on this page. */
+button.go,a.go{background:var(--amber);color:#1b1205;border:0;border-radius:11px;
+  text-decoration:none;
   padding:12px 24px;font-weight:650;font-size:14.5px;cursor:pointer;font-family:inherit}
-button.go:hover{background:var(--amber-l)}
+button.go:hover,a.go:hover{background:var(--amber-l)}
 /* "Saved." CONFIRMS, THEN LEAVES. The founder's call: long enough to know
    the save landed, then gone so the page stays clean and a stale "Saved."
    cannot sit next to fields someone has since edited. Pure CSS: hold 2.5s,
-   fade 0.6s, then stop taking space. Both indicators share the timing. */
+   fade 0.6s, then stop taking space.
+
+   ONE indicator, at the top. There used to be a second beside the Save
+   button, which meant a save said the same word twice on one screen — and the
+   one by the button is the one you are least likely to be looking at, since
+   the eye goes back up to the fields it just changed. */
 @keyframes saved-out{
   0%,100%{opacity:0;visibility:hidden}
   1%,80%{opacity:1;visibility:visible}
 }
-.said{font-size:12.5px;color:var(--amber);
-  animation:saved-out 3.1s ease forwards}
 .savedbar{animation:saved-out 3.1s ease forwards}
 @media (prefers-reduced-motion:reduce){
-  .said,.savedbar{animation:none;opacity:1}
+  .savedbar{animation:none;opacity:1}
 }
 .savedbar{display:flex;align-items:center;gap:8px;margin:0 0 16px;padding:10px 14px;
   border:1px solid var(--amber-d);border-radius:11px;font-size:13.5px;
@@ -167,6 +181,9 @@ details.grp .skills{padding:2px 0 14px}
   font-size:13.5px;font-family:inherit;cursor:pointer;text-decoration:none}
 .ghost:hover{border-color:var(--amber-d);color:var(--amber-l)}
 .go.small,.ghost.small{padding:8px 14px;font-size:12.5px}
+.pro-only{margin-left:7px;font-size:10.5px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;color:var(--amber);border:1px solid var(--amber-d);
+  border-radius:100px;padding:1px 7px;vertical-align:middle}
 /* THE FEEDBACK BOX IS NOT A SETTING. It earns a place here because this is
    where people are when something annoys them, but a settings page is about
    settings — so it sits last, in a quieter card, at a smaller size. */
@@ -200,6 +217,14 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
   .bar .go{padding:14px 22px}
   .skills label{padding:10px 14px}
 }
+.conn{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 0;border-top:1px solid var(--line);margin-top:10px}
+.conn-n{font-weight:650;font-size:14.5px}
+.conn-s{font-size:12.5px;color:var(--mute);margin-top:3px}
+.fl-note{font-size:13px;margin:8px 0 0;padding:8px 11px;border-radius:9px;
+  background:rgba(255,255,255,.04)}
+.fl-ok{color:#7fd88f}
+.fl-bad{color:#f0907f}
 {% endblock %}
 
 {% block body %}
@@ -257,8 +282,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         </div>
       </div>
       <label class="f" for="portfolio">Portfolio link</label>
-      <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}"
-             placeholder="alexrivera.com">
+      <input id="portfolio" name="portfolio" value="{{ prof.portfolio }}">
       <label class="f" for="bio">One line about you</label>
       <textarea id="bio" name="bio"
         placeholder="Ten years on brand identity, mostly for SaaS and healthcare.">{{ prof.bio }}</textarea>
@@ -272,7 +296,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       {% if not is_pro %}
         <div class="pro-note">This one's a Pro perk. Drafts still get written
           for you on Free — this decides how they sound.
-          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
+          <a href="/plans">See Pro</a></div>
       {% endif %}
 
       <label class="f">Length</label>
@@ -308,7 +332,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       {% if not is_pro %}
         <div class="pro-note">A Pro perk. Drafts still get written for you on
           Free; this is what lets them cite what you have actually done.
-          <a href="{{ app_url }}/?nav=pricing">See Pro</a></div>
+          <a href="/plans">See Pro</a></div>
       {% endif %}
       {% if resume_bad %}
         <p class="hint warn">That file would not read. A scanned PDF has no text
@@ -351,7 +375,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
   <!-- ── TAB: Your board ─────────────────────────────────────────────── -->
   <div class="pane pane-board">
-    <div class="card">
+    <div class="card" id="skills">
       <div class="ttl">What you do</div>
       <span class="sub">This is what Best match sorts by. Pick nothing and the board stays newest-first.</span>
       {# ONE ROW PER VERTICAL, FOLDED SHUT. Twenty-two pills open at once was
@@ -424,20 +448,53 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
     <div class="card" id="alerts">
       <div class="ttl">Alerts</div>
-      <span class="sub">Nabbly can ping you the moment a matching gig lands.
-        Pick where it should go, fill in that one field, and save. Clearing the
-        field turns it off again.</span>
+      <span class="sub">Phone push, Telegram, Slack and Discord ping you the
+        moment a matching gig lands — fill in that one field and save, and
+        clearing it turns the channel off again. Email is the roundup, at most
+        twice a week, and needs nothing set up.</span>
 
       {# EVERY CHANNEL VISIBLE, ALWAYS. This was a picker showing one channel at
      a time, and the founder called the failure: save a Telegram token, come
      back with the picker on Text message, and your setup looks GONE. A saved
      value must never be hidden behind a control. Each channel is now its own
      labelled row; a filled one reads as on at a glance. #}
+  {# TEXTS ARE PRO. Every other channel here is free to deliver; Twilio is
+     not, so it sits with Pro. The field must SAY so rather than just quietly
+     not firing — somebody on the alerts tier who types a number into an
+     enabled-looking box and then hears nothing has been told, by the product,
+     that alerts are broken. #}
+  {# EMAIL IS NOT ON THIS CARD. It was, briefly, and it was wrong: a
+     Freelancer bid period is 7 days and the median project still listed as
+     active is about an hour old, so nothing mailed on a schedule arrives in
+     time to act on. Every channel below is instant; the weekly email is a
+     separate thing everybody gets, and it leads with the market rather than
+     with listings that will be closed by the time they are read. #}
+  {% if email_off %}
+  {# They unsubscribed. The line above would be untrue for them, and the
+     unsubscribe page promised this is where email comes back on. #}
+  <div class="hint" style="margin:0 0 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px">
+    <span>You've unsubscribed from Nabbly email — no weekly email, nothing.
+      The channels below still work.</span>
+    <button class="ghost small" type="submit" form="email-on">Turn email back on</button>
+  </div>
+  {% else %}
+  <p class="hint" style="margin:0 0 14px">Everyone gets the weekly email — what
+    the market did, and the newest matches for
+    <a href="#skills" class="aslink">what you do</a>. These channels are for
+    hearing the moment a gig lands.</p>
+  {% endif %}
+
   <div class="chrow">
-    <label class="f" for="sms_to">Text message</label>
+    <label class="f" for="sms_to">Text message{% if not is_pro %}
+      <span class="pro-only">Pro</span>{% endif %}</label>
     <input id="sms_to" name="sms_to" value="{{ prefs.sms_to }}"
-           placeholder="+15551234567">
-    <p class="hint">Your mobile number, with the country code.</p>
+           placeholder="+15551234567" {% if not is_pro %}disabled{% endif %}>
+    {% if is_pro %}
+      <p class="hint">Your mobile number, with the country code.</p>
+    {% else %}
+      <p class="hint">Texts are a Pro channel. Phone push, Telegram and
+        Slack below are instant too, and they are on your plan.</p>
+    {% endif %}
   </div>
   <div class="chrow">
     <label class="f" for="ntfy_topic">Phone push</label>
@@ -492,6 +549,7 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         {% if prefs.urgent_only %}checked{% endif %}>
         <span>Only ping me for gigs marked urgent.</span></label>
     </div>
+
   </div>
 
   <!-- ── TAB: Account ────────────────────────────────────────────────── -->
@@ -507,13 +565,58 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
         <div class="plan-tag">{{ plan.tag }}</div>
       </div>
       {% if not is_pro %}
-        <p class="hint">Pro adds gigs ranked against your profile, replies
-          drafted from the actual posting, market rates, and instant alerts.</p>
-        <a class="go small" href="{{ app_url }}/?nav=pricing">See Pro</a>
+        {# What Pro adds DEPENDS ON WHAT YOU ALREADY HAVE. This listed
+           "instant alerts" unconditionally, which is true for a free reader
+           and plainly false for somebody paying for the alerts tier — the one
+           thing they already bought, sold back to them. #}
+        {% if can_alerts %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, and market rates. Your alerts
+            carry over.</p>
+        {% else %}
+          <p class="hint">Pro adds gigs ranked against your profile, replies
+            drafted from the actual posting, market rates, and instant alerts.</p>
+        {% endif %}
+        <a class="go small" href="/plans">See Pro</a>
       {% else %}
-        <a class="ghost small" href="{{ app_url }}/?nav=pricing">Manage plan</a>
+        <a class="ghost small" href="/plans">Manage plan</a>
       {% endif %}
     </div>
+
+{% if fl.available %}
+    {# CONNECTED ACCOUNTS. Only rendered when the credentials exist, so an
+       unconfigured deploy shows nothing rather than a button that dead-ends. #}
+    <div class="card" id="connections">
+      <div class="ttl">Connected accounts</div>
+      <span class="sub">Link your Freelancer.com account and you can bid on a
+        Freelancer project straight from Nabbly, without opening another tab.</span>
+
+      {% if fl_err %}<p class="fl-note fl-bad">{{ fl_err }}</p>{% endif %}
+      {% if fl_connected %}<p class="fl-note fl-ok">Freelancer connected.</p>{% endif %}
+      {% if fl_disconnected %}<p class="fl-note">Freelancer disconnected.</p>{% endif %}
+
+      <div class="conn">
+        <div class="conn-l">
+          <div class="conn-n">Freelancer.com</div>
+          {% if fl.account and fl.account.username %}
+            <div class="conn-s">Connected as <strong>{{ fl.account.username }}</strong>{% if fl.sandbox %} · sandbox{% endif %}</div>
+          {% elif fl.account %}
+            <div class="conn-s">Connected{% if fl.sandbox %} · sandbox{% endif %}</div>
+          {% else %}
+            <div class="conn-s">Not connected</div>
+          {% endif %}
+        </div>
+        {% if fl.account %}
+          <button class="ghost small" type="submit" form="fl-off">Disconnect</button>
+        {% else %}
+          <a class="ghost small" href="/connect/freelancer">Connect</a>
+        {% endif %}
+      </div>
+      <p class="hint">Nabbly only asks Freelancer for permission to place bids.
+        Nothing is sent until you press Send on a bid, and you can disconnect
+        here at any time.</p>
+    </div>
+{% endif %}
 
     {% if inbox_address %}
     <div class="card">
@@ -524,13 +627,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
       <div class="mono">{{ inbox_address }}</div>
     </div>
     {% endif %}
-
-    <div class="card">
-      <div class="ttl">Getting back in</div>
-      <span class="sub">There is no password on your account. Signing in sends a
-        code to {{ me }}, which is all you ever need.</span>
-      <button class="ghost small" type="submit" form="so">Sign out</button>
-    </div>
 
     <div class="card quiet">
       <div class="ttl small">Something wrong, or missing?</div>
@@ -543,7 +639,6 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
 
   <div class="bar">
     <button class="go" type="submit">Save profile</button>
-    {% if saved_ok %}<span class="said">Saved.</span>{% endif %}
   </div>
 </form>
 
@@ -551,9 +646,13 @@ input[type=file]{width:auto;max-width:100%;padding:9px 12px;margin-bottom:10px;
    is invalid HTML and the browser silently discards the inner one, so the
    sign-out button and the feedback box are bound to these by their form=
    attribute instead. #}
-<form id="so" method="post" action="/signout"></form>
 <form id="cv" method="post" action="/resume" enctype="multipart/form-data"></form>
 <form id="cv-clear" method="post" action="/resume/clear"></form>
+<form id="fl-off" method="post" action="/connect/freelancer/disconnect"></form>
+{# Outside the profile form, like the others: a <form> nested inside one is
+   dropped by the browser, and its button would have saved the profile
+   instead of turning email back on. #}
+<form id="email-on" method="post" action="/profile/email"></form>
 <form id="fb" method="post" action="/feedback">
   <input type="hidden" name="page" value="profile">
 </form>

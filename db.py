@@ -3,7 +3,10 @@ db.py — stores demand posts in a single local file (demand_radar.db).
 
 SQLite is a database that lives in one file. No server, no setup.
 """
+import os
+import re
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 from paths import data_file
@@ -78,6 +81,56 @@ def init_db():
         conn.execute("ALTER TABLE posts ADD COLUMN link_checked INTEGER")
     except sqlite3.OperationalError:
         pass
+    # Whether the second-pass classifier has already looked at this gig. Same
+    # reason as page_checked above: most of what it reads it cannot place, and
+    # without a mark those gigs would be re-sent — and re-billed — every two
+    # minutes for as long as the board runs, while never moving.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN llm_checked INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    # WHEN a gig left the board, not merely that it did. is_demand=0 records the
+    # fact and loses the date, and the date is the whole signal: how long work in
+    # a field survives before it is taken is the one number a member cannot get
+    # anywhere else, and the only honest basis for telling them to reply now
+    # rather than tonight. Every day this went unrecorded was a day of it gone
+    # for good — the rows survived, the timing did not.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN archived_at TEXT")
+    except sqlite3.OperationalError:
+        pass
+    # Whether this gig appears on none of the boards a member could check
+    # themselves. Recomputed, not fixed at ingest: a gig that is the only copy
+    # today can be reposted to a mainstream board tomorrow, and a marker that
+    # said otherwise would be a claim the board could not stand behind.
+    try:
+        conn.execute("ALTER TABLE posts ADD COLUMN rare INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    # WHERE THE WORK IS, AS THE SOURCE SAID IT -- not as a regex guessed it.
+    # Every fetcher receives a structured location and until 2026-09-11 threw
+    # it away; location.tag() then inferred remote/on-site from prose, and the
+    # inference was measurably worse than the field (see location.tag).
+    #   remote     1 = can be done remotely, 0 = must be on site, NULL = the
+    #              source did not say (the ~55k rows stored before this column
+    #              existed). NULL is load-bearing: 0 is an answer.
+    #   location   the country / region / city the source supplied, verbatim.
+    #              '' when it supplied nothing. Read by location.tag() for the
+    #              restriction ("United States" -> US-only), never displayed
+    #              raw.
+    #   work_type  'project' (a client posts, you bid), 'contract',
+    #              'fulltime', or '' -- the axis that separates project work
+    #              from a salaried vacancy, and the one thing the board could
+    #              not tell about a gig before now.
+    #   lang       the two-letter language the SOURCE states for the posting
+    #              ('' when it states none). Read through lang.of(), which
+    #              falls back to the text detector; never displayed raw.
+    for col, decl in (("remote", "INTEGER"), ("location", "TEXT"),
+                      ("work_type", "TEXT"), ("lang", "TEXT")):
+        try:
+            conn.execute(f"ALTER TABLE posts ADD COLUMN {col} {decl}")
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     conn.close()
 
@@ -104,13 +157,18 @@ def upsert_post(post: dict) -> bool:
             """
             INSERT INTO posts
                 (source, source_id, url, title, body, posted_at, fetched_at,
-                 is_demand, job_type, size_tier, urgency, is_new, alerted, owner)
+                 is_demand, job_type, size_tier, urgency, is_new, alerted, owner,
+                 remote, location, work_type, lang)
             VALUES
                 (:source, :source_id, :url, :title, :body, :posted_at, :fetched_at,
-                 :is_demand, :job_type, :size_tier, :urgency, 1, 0, :owner)
+                 :is_demand, :job_type, :size_tier, :urgency, 1, 0, :owner,
+                 :remote, :location, :work_type, :lang)
             """,
             # Everything except the inbox arrives without an owner, i.e. public.
-            {"owner": "",
+            # remote defaults to None, not 0: a fetcher that has not learned
+            # the field yet must land as "unknown", not as "on-site".
+            {"owner": "", "remote": None, "location": "", "work_type": "",
+             "lang": "",
              "fetched_at": datetime.now(timezone.utc).isoformat(),
              **post},
         )
@@ -506,6 +564,89 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
     return sum(d for d, _ in verdicts)
 
 
+# AWARDED IS NOT 404. PeoplePerHour keeps a project's page up, HTTP 200, after
+# the client has picked someone -- it even still renders a "Send Proposal"
+# button -- and prints the status in a label: <span class="job-status
+# awarded">Awarded</span>. The sweep above reads only status codes, so an
+# awarded project stayed on the board until the ten-day archive: 4 of 24 live
+# PPH rows sampled on 2026-09-21 were already awarded, at ages from 2.9 to 7.9
+# days, so no age rule would do. This re-reads the label, two rows a cycle,
+# oldest check first: ~1,400 reads a day over ~470 live rows, every row about
+# every eight hours. Freelancer likely has the same shape; measure it before
+# assuming it.
+#
+# link_checked doubles as the timestamp (epoch seconds) of the last look so
+# no column is added -- a 1 left by the dead-link sweep reads as "long ago"
+# and gets re-checked, and the dead-link sweep skips anything non-NULL, so the
+# two never fetch the same page twice. Local-only, like the rest of that
+# column: a deploy starts the rotation again from the oldest.
+PPH_STATUS_PER_CYCLE = 2
+PPH_STATUS_EVERY_S = 8 * 3600
+_PPH_STATUS = re.compile(r'class="[^"]*\bjob-status\s+([a-z_-]+)"')
+_PPH_GONE = {"awarded", "closed", "cancelled", "canceled", "expired", "completed"}
+
+
+def sweep_pph_status(limit: int = PPH_STATUS_PER_CYCLE) -> int:
+    """Take awarded / closed PeoplePerHour projects off the board. Returns how many."""
+    try:
+        import requests
+    except ImportError:
+        return 0
+    now = int(time.time())
+    conn = connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, url, source, source_id FROM posts "
+            "WHERE source = 'peopleperhour' AND is_demand = 1 AND url LIKE 'http%' "
+            "  AND COALESCE(link_checked, 0) < ? "
+            "ORDER BY COALESCE(link_checked, 0) ASC, id ASC LIMIT ?",
+            (now - PPH_STATUS_EVERY_S, int(limit))).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        return 0
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                             "AppleWebKit/537.36 (KHTML, like Gecko) "
+                             "Chrome/120.0 Safari/537.36"}
+    verdicts, gone = [], []
+    for r in rows:
+        dead = 0
+        try:
+            resp = requests.get(r["url"], headers=headers, timeout=15,
+                                allow_redirects=True)
+            if resp.status_code in (404, 410):
+                dead = 1
+            elif resp.status_code == 200:
+                m = _PPH_STATUS.search(resp.text)
+                # No label, or one this doesn't know, is NOT gone: the page
+                # may have changed shape, and the cost of guessing is a live
+                # project deleted. Only the source's own closing words count.
+                if m and m.group(1) in _PPH_GONE:
+                    dead = 1
+        except Exception:
+            pass          # unreachable now != gone; the next pass looks again
+        verdicts.append((dead, now, r["id"]))
+        if dead:
+            gone.append((r["source"], r["source_id"]))
+    conn = connect()
+    try:
+        conn.executemany(
+            "UPDATE posts SET link_checked = ?2, "
+            "is_demand = CASE WHEN ?1 = 1 THEN 0 ELSE is_demand END, "
+            "body = CASE WHEN ?1 = 1 THEN '' ELSE body END "
+            "WHERE id = ?3", verdicts)
+        conn.commit()
+    finally:
+        conn.close()
+    if gone:
+        try:
+            import board_store
+            board_store.mark_archived(gone)
+        except Exception:
+            pass
+    return sum(d for d, _, _ in verdicts)
+
+
 # How long a gig stays on the board. This, not any row cap, is what decides how
 # big the board gets: intake times retention. At ~1,200 new gigs a day, 45 days
 # meant the board was converging on ~54,000 rows, and it was already at 33,000
@@ -553,7 +694,14 @@ def sweep_dead_links(limit: int = LINK_CHECK_PER_CYCLE) -> int:
 # six-week-old gig is nearly always filled, and a dead listing is worse than no
 # listing (see archive_stale). The board is a marketing number; the part a
 # member actually feels is whether the links they click are still alive.
-STALE_DAYS = 14
+#
+# 14 -> 10 on 2026-09-21. The boot pull read 263s against a 270s deploy
+# ceiling, on a board of 57,666 rows and 104MB of body text. The body cap in
+# sources.py brings the text down over a window's turnover; this brings it
+# down today: a 10-day window is 44,664 rows and 88MB, measured on the mirror
+# that morning. Both copies of this number moved together -- see
+# web/queries.py.
+STALE_DAYS = 10
 
 
 def archive_stale(days: int = STALE_DAYS) -> int:
@@ -585,10 +733,15 @@ def archive_stale(days: int = STALE_DAYS) -> int:
         # averages 1,640 bytes and is 93% of what a row weighs, so keeping it
         # meant the archive tail grew forever and had to be hauled back over
         # the network at every boot for nothing.
+        # COALESCE on archived_at, so a row retired once keeps the date it was
+        # first retired on. Re-stamping would quietly reset the clock on the
+        # only measurement this column exists to support.
+        now = datetime.now(timezone.utc).isoformat()
         cur = conn.execute(
-            "UPDATE posts SET is_demand = 0, body = '' "
+            "UPDATE posts SET is_demand = 0, body = '', "
+            "                 archived_at = COALESCE(archived_at, ?) "
             "WHERE is_demand = 1 "
-            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (cutoff,))
+            "  AND COALESCE(NULLIF(posted_at, ''), fetched_at) < ?", (now, cutoff))
         conn.commit()
         n = cur.rowcount or 0
     finally:
@@ -937,22 +1090,37 @@ def reclassify_all(force: bool = False) -> int:
     import classify
     conn = connect()
     try:
+        # ONLY ROWS THE KEYWORDS CAN STILL JUDGE. A row whose body has been
+        # cleared (archived, dead link) would be re-tagged on its title alone
+        # and lose the tier its budget once gave it; a row the second-pass
+        # LLM placed (llm_checked) was one the keywords could NOT place, so
+        # re-running them hands back "Other / general" and undoes the better
+        # answer. On 2026-09-21 a vocabulary change re-tagged 84,231 rows in
+        # one boot, most of them exactly these, and tried to push the lot to
+        # the mirror on a day it was already over its IO budget.
         cur = conn.execute(
-            "SELECT id, title, body, source, job_type, size_tier, urgency FROM posts")
+            "SELECT id, source_id, title, body, source, job_type, size_tier, "
+            "urgency, COALESCE(llm_checked, 0) AS llm_checked FROM posts "
+            "WHERE COALESCE(body, '') <> ''")
         # Only the rows that actually changed are held, and each is four short
         # strings rather than a full description. A repeat run finds nothing and
         # so holds nothing — the idempotence this function already promised.
         pending = []
+        mirror = []
         while True:
             rows = cur.fetchmany(2000)
             if not rows:
                 break
             for r in rows:
                 t = classify.classify(r["title"], r["body"], r["source"])
+                if r["llm_checked"] and t["job_type"] == "Other / general":
+                    t["job_type"] = r["job_type"]      # the LLM's placement stands
                 if (t["job_type"] != r["job_type"] or t["size_tier"] != r["size_tier"]
                         or t["urgency"] != r["urgency"]):
                     pending.append((t["job_type"], t["size_tier"], t["urgency"],
                                     r["id"]))
+                    mirror.append((t["job_type"], t["size_tier"], t["urgency"],
+                                   r["source"], r["source_id"]))
         # Applied after the read cursor is exhausted, never during it: SQLite
         # gives no guarantees about a SELECT still being stepped through while
         # the same table is being written.
@@ -961,13 +1129,261 @@ def reclassify_all(force: bool = False) -> int:
                 "UPDATE posts SET job_type=?, size_tier=?, urgency=? WHERE id=?",
                 pending)
         conn.commit()
-        # Stamped only after the pass completed. A crash or a killed process
-        # part-way leaves the stamp untouched, so the next boot does the work
-        # again rather than recording a re-tag that never finished.
-        _mark_reclassified(fp)
+        # The mirror gets the same decision, or the next deploy restores the old
+        # tags and the durable stamp stops this ever running again. After the
+        # local commit, and best-effort: the board is already correct by here, so
+        # a mirror that refuses the write must not cost the re-tag. Printed
+        # because a silent failure is the exact shape of the bug this fixes.
+        mirrored = True
+        import board_store
+        if mirror and board_store.enabled():
+            try:
+                sent = board_store.push_tags(mirror)
+                if sent != len(mirror):
+                    print(f"  ! reclassify: mirrored {sent}/{len(mirror)} re-tags")
+                    mirrored = False
+            except Exception as e:
+                print(f"  ! reclassify: mirror push failed ({type(e).__name__})")
+                mirrored = False
+        # Stamped only after the pass completed AND the mirror has it. A crash
+        # part-way, or a mirror that refused the push, leaves the stamp
+        # untouched so the next boot does the work again -- otherwise the
+        # local re-tag is wiped by the next deploy, the mirror still holds the
+        # old tags, and the stamp says there is nothing to do: the exact
+        # permanence bug push_tags' docstring describes, reached from the
+        # other side (measured: "mirrored 0/84231", stamp written anyway).
+        if mirrored:
+            _mark_reclassified(fp)
         return len(pending)
     finally:
         conn.close()
+
+
+# How many unplaced gigs one refresh cycle offers the second-pass classifier.
+# At a 120s cycle this is a ceiling of ~14,400 a day against an intake of a few
+# hundred, so the backlog drains in hours and the steady state is idle: once
+# every gig carries llm_checked the SELECT below returns nothing and no request
+# is made at all. The cost of this feature when it has caught up is zero.
+LLM_PER_CYCLE = int(os.environ.get("NABBLY_CLASSIFY_PER_CYCLE") or 200)
+
+
+def classify_unlabelled(limit: int = 0) -> int:
+    """
+    Ask the model to name the gigs the keyword rules could not, and record it.
+
+    ONLY EVER READS ROWS ALREADY IN "Other / general". A gig the keywords
+    placed is never shown to the model and never rewritten, so the second pass
+    can move a row out of the catch-all and nowhere else. No existing
+    classification is at risk from a bad answer here.
+
+    Every row read is marked llm_checked whether or not it got a label. A gig
+    the model declines to place is the common case — the bucket holds German
+    onsite ads, one-line tasks and titles that name no field at all — and
+    without the mark those would be re-sent every cycle forever, paying again
+    each time to learn the same nothing. This is the page_checked lesson: the
+    expensive mistake is not the failed lookup, it is repeating it.
+
+    Returns how many gigs actually moved.
+    """
+    try:
+        import classify_llm
+    except Exception:
+        return 0
+    if not classify_llm.enabled():
+        return 0
+
+    conn = connect()
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, source, source_id, title, body FROM posts "
+            "WHERE is_demand = 1 AND job_type = ? AND llm_checked IS NULL "
+            "AND COALESCE(title,'') != '' "
+            "ORDER BY COALESCE(posted_at, fetched_at) DESC LIMIT ?",
+            (classify_llm.OTHER, int(limit or LLM_PER_CYCLE)))]
+        if not rows:
+            return 0
+
+        # CHUNKED PER REQUEST, not one request for the whole cycle's work. The
+        # request carries a page of titles and the reply carries a label per
+        # line, so a cycle limit of 200 in a single call would ask for a 200-line
+        # answer and get a truncated one — which _parse correctly refuses,
+        # throwing away all 200. Chunks also mean a bad batch costs its own 20
+        # gigs rather than the cycle's.
+        done, labels, ok, failed = [], [], 0, 0
+        step = max(1, classify_llm.BATCH)
+        capped = ""
+        for i in range(0, len(rows), step):
+            # EVERY BILLED REQUEST IS COUNTED AND CHECKED, not just the cycle.
+            # This loop ran uncapped and spent the API key: 200 gigs a cycle at
+            # 20 a request, a cycle every two minutes. The cap is the
+            # classifier's own (budget.CLASSIFY_DAILY) so background work can
+            # never eat the drafting budget a member is waiting on.
+            import budget
+            allowed, why = budget.allow_classify()
+            if not allowed:
+                capped = why
+                break
+            chunk = rows[i:i + step]
+            got = classify_llm.label(chunk)
+            # CHARGED AFTER THE CALL, AND ONLY IF IT WAS BILLED -- an unusable
+            # answer still costs money and still counts; a 400 for no credit
+            # never reached the API and must not. Charging first meant a day
+            # with no credit spent all 60 on 400s inside ten minutes and then
+            # said "cap reached" for twenty-three hours: the classifier read as
+            # throttled when it was simply unpaid.
+            if getattr(classify_llm, "LAST_BILLED", True):
+                budget.record_classify()
+            if got is None:
+                # No usable answer: leave this chunk unmarked for a later cycle.
+                # Marking would record it as read when nothing read it, and the
+                # mark is what prevents the retry.
+                failed += 1
+                # AND STOP THE CYCLE. Every later chunk would fail the same way
+                # -- the causes are all per-service, not per-batch: no key, no
+                # credit, a timeout. Trying the other nine proves nothing, and
+                # when the failures are billed it pays to prove it.
+                break
+            ok += 1
+            done.extend(chunk)
+            labels.extend(got)
+
+        reason = getattr(classify_llm, "LAST_REASON", "")
+        try:
+            import store
+            if store.enabled():
+                store.put("_classifier", "llm_stats",
+                          {"read": len(done), "batches_ok": ok,
+                           "batches_failed": failed, "last_reason": reason,
+                           "capped": capped})
+        except Exception:
+            pass
+        if failed:
+            print(f"  llm classify: {failed} of {ok + failed} batches unusable"
+                  f"{' — ' + reason if reason else ''}", flush=True)
+        # Said out loud, because a cap that stops work silently looks exactly
+        # like a feature that quietly died — which is how the uncapped version
+        # went unnoticed in the first place.
+        if capped:
+            print(f"  llm classify: stopped early — {capped}", flush=True)
+        if not done:
+            return 0
+        rows = done
+
+        moved, placed = [], {}
+        for r, field in zip(rows, labels):
+            if field and field != classify_llm.OTHER:
+                moved.append((field, r["id"]))
+                placed[r["id"]] = field
+        if moved:
+            conn.executemany("UPDATE posts SET job_type = ? WHERE id = ?", moved)
+        # Marked in the same transaction as the labels, so a crash between the
+        # two cannot leave a gig relabelled but eligible to be asked again.
+        conn.executemany("UPDATE posts SET llm_checked = 1 WHERE id = ?",
+                         [(r["id"],) for r in rows])
+        conn.commit()
+
+        # One push carries both halves: the field for the gigs that moved, and
+        # the mark for every gig read. The mark matters more than the labels —
+        # Render wipes the disk each deploy and the board restores from the
+        # mirror, so a mark that never left SQLite means buying this whole
+        # backlog again after every deploy.
+        try:
+            import board_store
+            sent = board_store.push_llm_result(
+                [(placed.get(r["id"]), r["source"], r["source_id"])
+                 for r in rows])
+            if sent != len(rows):
+                print(f"  ! llm classify: mirrored {sent}/{len(rows)}",
+                      flush=True)
+        except Exception as e:
+            print(f"  ! llm classify: mirror push failed "
+                  f"({type(e).__name__})", flush=True)
+
+        if moved:
+            print(f"  llm classify: placed {len(moved)} of {len(rows)}",
+                  flush=True)
+        return len(moved)
+    finally:
+        conn.close()
+
+
+def mark_rare() -> int:
+    """
+    Mark the gigs that appear on none of the boards a member could check alone.
+
+    THE PRODUCT'S ONLY VISIBLE ANSWER TO "why not just go to the big board".
+    Measured 2026-08-26, 43,154 of 49,395 live gigs came from sources in
+    config.MAINSTREAM_SOURCES, and of the 6,241 outside them, 4,151 carried a
+    title appearing nowhere in that set. Those 4,151 are the ones worth pointing
+    at, and until now nothing knew which they were.
+
+    RECOMPUTED IN FULL, NEVER SET ONCE AT INGEST. A gig that is the only copy
+    today can be reposted to a mainstream board tomorrow, and a marker claiming
+    otherwise is a claim the board cannot stand behind. Cheap enough to redo:
+    two streamed passes and a write of only the rows whose answer changed.
+
+    Compares on classify.title_key, the same definition tools/probe_source.py
+    scores candidate sources with, so the badge and the evidence for it can
+    never mean different things.
+    """
+    import classify
+    import config
+
+    mainstream = set(getattr(config, "MAINSTREAM_SOURCES", ()) or ())
+    if not mainstream:
+        return 0
+
+    conn = connect()
+    try:
+        # Pass one: every title key visible on a mainstream board. Keys only —
+        # holding whole rows here is the "load it all to use a bit of it" shape
+        # that has taken this app down twice.
+        seen = set()
+        cur = conn.execute(
+            "SELECT title FROM posts WHERE is_demand = 1 "
+            "AND COALESCE(title,'') != '' AND source IN (%s)"
+            % ",".join("?" * len(mainstream)), tuple(mainstream))
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            for r in batch:
+                k = classify.title_key(r["title"])
+                if k:
+                    seen.add(k)
+
+        # Pass two: decide each live gig, and keep only what changed.
+        pending, mirror = [], []
+        cur = conn.execute(
+            "SELECT id, source, source_id, title, rare FROM posts "
+            "WHERE is_demand = 1 AND COALESCE(title,'') != ''")
+        while True:
+            batch = cur.fetchmany(2000)
+            if not batch:
+                break
+            for r in batch:
+                k = classify.title_key(r["title"])
+                rare = 1 if (r["source"] not in mainstream and k and k not in seen) else 0
+                if r["rare"] != rare:
+                    pending.append((rare, r["id"]))
+                    mirror.append((rare, r["source"], r["source_id"]))
+        if pending:
+            conn.executemany("UPDATE posts SET rare = ? WHERE id = ?", pending)
+        conn.commit()
+    finally:
+        conn.close()
+
+    if mirror:
+        try:
+            import board_store
+            board_store.push_rare(mirror)
+        except Exception as e:
+            print(f"  ! mark_rare: mirror push failed ({type(e).__name__})",
+                  flush=True)
+    if pending:
+        print(f"  mark_rare: {sum(1 for p in pending if p[0])} newly hard to find, "
+              f"{len(pending)} changed", flush=True)
+    return sum(1 for p in pending if p[0])
 
 
 def all_posts(demand_only: bool = True, owner: str | None = None):
@@ -1144,6 +1560,32 @@ def posts_recent(days: int, demand_only: bool = True):
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def count_between(days_ago_from: int, days_ago_to: int,
+                  demand_only: bool = True) -> int:
+    """
+    How many gigs landed in a window, WITHOUT loading them.
+
+    The weekly email wants last week's total to say whether the board moved.
+    posts_recent(14) would answer it and cost ~60,000 rows in Python to
+    produce one integer, on the service that has been OOM-killed before -- the
+    exact pattern posts_recent's own docstring warns about. COUNT(*) does it
+    in the database.
+    """
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    lo = (now - timedelta(days=days_ago_from)).isoformat()
+    hi = (now - timedelta(days=days_ago_to)).isoformat()
+    conn = connect()
+    try:
+        col = "COALESCE(NULLIF(posted_at, ''), fetched_at)"
+        where = f"WHERE {col} >= ? AND {col} < ?" + \
+                (" AND is_demand = 1" if demand_only else "")
+        return conn.execute(f"SELECT COUNT(*) FROM posts {where}",
+                            (lo, hi)).fetchone()[0]
+    finally:
+        conn.close()
 
 
 def post_by_id(gig_id) -> dict | None:

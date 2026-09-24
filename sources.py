@@ -7,6 +7,7 @@ Every source returns a list of plain dicts in the same shape:
 All sources here are public APIs/feeds that need no login or API key.
 Turn sources on/off in config.ENABLE_SOURCES.
 """
+import json
 import re
 import time
 import html as _html
@@ -19,6 +20,7 @@ import functools
 import feedparser
 
 import config
+import lang as _lang
 
 HEADERS = {"User-Agent": "nabbly/0.1 (public job & gig aggregator)"}
 TIMEOUT = 25
@@ -123,6 +125,27 @@ def _clean_title(text: str) -> str:
 HINT_SEP = "\x1f"
 
 
+# What a stored body may hold, in characters of the human part. ~250 words:
+# a card's "See more" reads as a description and the draft has the brief.
+#
+# EVERY SOURCE, AT INGEST. The RSS cap alone left the biggest weight
+# untouched: Arbeitnow, a German job board, was 16% of the board's rows and
+# 41% of its text (43MB of 105MB on 2026-09-21) because a corporate vacancy
+# runs 4,600 characters of benefits and boilerplate. Bodies are what the
+# boot pull hauls and what the board tags row by row on a slow CPU; the pull
+# read 255s that morning against a 270s deploy ceiling. Capped here, total
+# body text lands near 65MB as rows turn over. The machine-hint tail after
+# HINT_SEP is kept whole -- it is short and the classifier reads it.
+BODY_CAP = 1500
+
+
+def cap_body(text: str) -> str:
+    human, sep, tail = (text or "").partition(HINT_SEP)
+    if len(human) > BODY_CAP:
+        human = human[:BODY_CAP].rsplit(" ", 1)[0]
+    return human + (sep + tail if sep else "")
+
+
 def clean_stored(text: str) -> str:
     """
     _strip, for text that may already carry the HINT_SEP.
@@ -143,6 +166,27 @@ def _body(human, *hints) -> str:
     human = _strip(human or "")
     tail = _strip(" ".join(str(h) for h in hints if h))
     return f"{human}{HINT_SEP}{tail}" if tail else human
+
+
+# Employment type, from whatever the source calls it, onto three words the
+# board can reason about. This is the axis that separates a client posting a
+# project from a company posting a vacancy -- the thing the founder meant by
+# "what really defines a freelance job" -- and every job board in the list
+# labels it (WWR `type`, Jobicy `jobType`, Arbeitnow `job_types`); the
+# marketplaces are projects by construction. '' means the source did not say.
+_WT_CONTRACT = ("contract", "freelance", "temporary", "temp", "part-time", "part time")
+_WT_FULLTIME = ("full-time", "full time", "fulltime", "permanent", "intern")
+
+
+def _work_type(*labels) -> str:
+    text = " ".join(str(x) for x in labels if x).lower()
+    if not text:
+        return ""
+    if any(k in text for k in _WT_CONTRACT):
+        return "contract"
+    if any(k in text for k in _WT_FULLTIME):
+        return "fulltime"
+    return ""
 
 
 def _epoch_to_iso(epoch):
@@ -277,6 +321,14 @@ def fetch_remoteok() -> list[dict]:
             "title": f"{it.get('position','')} — {it.get('company','')}".strip(" —"),
             "body": _body(it.get("description", ""), tags, salary),
             "posted_at": to_iso(it.get("date")),
+            # A remote-only board. `location` is present on 73/99 and ranges
+            # from "Remote" to a city to Arabic mojibake; the tagger scans it
+            # for a country restriction and finds nothing in junk, which is
+            # the right outcome. "Remote" itself is not a place.
+            "remote": 1,
+            "location": ("" if (it.get("location") or "").strip().lower() in ("remote", "worldwide", "anywhere")
+                         else (it.get("location") or "").strip()),
+            "work_type": "",
         })
     return out
 
@@ -318,6 +370,11 @@ def fetch_arbeitnow() -> list[dict]:
                           " ".join(it.get("tags", []) or []),
                           " ".join(it.get("job_types", []) or [])),
             "posted_at": _epoch_to_iso(it.get("created_at")),
+            # `remote` on 250/250, `location` on 244/250 ("Berlin",
+            # "Hybrid - Germany - Berlin"), job_types on 153/250.
+            "remote": 1 if it.get("remote") else 0,
+            "location": (it.get("location") or "").strip(),
+            "work_type": _work_type(*(it.get("job_types") or [])),
         })
     return out
 
@@ -341,6 +398,12 @@ def fetch_jobicy() -> list[dict]:
             "body": _body(f"{it.get('jobExcerpt','')} {it.get('jobDescription','')}",
                           " ".join(it.get("jobIndustry", []) or []), salary),
             "posted_at": to_iso(it.get("pubDate")),
+            # A remote-only board. jobGeo on 100/100 ("Spain", "Europe",
+            # "UK", "Anywhere") is where you must be; "Anywhere" is nowhere.
+            "remote": 1,
+            "location": ("" if (it.get("jobGeo") or "").strip().lower() == "anywhere"
+                         else (it.get("jobGeo") or "").strip()),
+            "work_type": _work_type(*(it.get("jobType") or [])),
         })
     return out
 
@@ -349,24 +412,51 @@ def fetch_jobicy() -> list[dict]:
 # Freelancer.com — active fixed-price projects (many small budgets)
 # ---------------------------------------------------------------------------
 def fetch_freelancer() -> list[dict]:
+    # location_details=true is what makes `location.country.name` non-null
+    # on a local project. Without it the API returns the location object with
+    # every field null even when the project is on-site in Belgium -- measured
+    # 2026-09-11: 6 local projects, 0 named countries without the flag, 6 of 6
+    # with it. `local_details=true` does NOT do this, whatever its name says.
     url = ("https://www.freelancer.com/api/projects/0.1/projects/active/"
-           "?limit=100&full_description=true&job_details=true")
+           "?limit=100&full_description=true&job_details=true&location_details=true")
     r = _get(url)
     if r.status_code != 200:
         print(f"  ! freelancer: HTTP {r.status_code}"); return []
     projs = r.json().get("result", {}).get("projects", [])
     out = []
+    bad = 0
     for p in projs:
+      # ONE MALFORMED PROJECT IS NOT AN OUTAGE. The bug above was a two-line
+      # fix; that it cost every gig from this source for hours was the loop
+      # having no floor under it. A field this API can leave null should cost
+      # one listing, not a hundred.
+      try:
         cur = (p.get("currency") or {}).get("code", "")
         b = p.get("budget") or {}
         lo, hi = b.get("minimum"), b.get("maximum")
         # Roughly dollar-equivalent currencies -> mark with $ so the budget
         # classifier reads the amount. Others (e.g. INR) are left unparsed.
         dollarish = {"USD", "EUR", "GBP", "CAD", "AUD", "NZD", "SGD", "CHF"}
-        if lo is not None and cur in dollarish:
-            budget = f"${int(lo)} - ${int(hi)} budget"
-        elif lo is not None:
+        # AN OPEN-ENDED BUDGET HAS NO MAXIMUM. Freelancer returns minimum set
+        # and maximum null for those, and this guarded on `lo` then called
+        # int(hi) anyway — so int(None) raised, the exception escaped the loop,
+        # and the WHOLE fetch returned nothing. Measured 2026-09-02: freelancer
+        # failed 12 cycles in a row and contributed 0 gigs, on the source that
+        # supplies most of the priced board.
+        # The code rides along in parentheses, the way PeoplePerHour's
+        # already does: 1,169 of 1,749 design projects in the 7-21 Sep window
+        # read "$" with no way to tell EUR from USD, and nothing downstream
+        # can compare them. The size classifier reads the "$n" and ignores
+        # the rest; nothing displays this string raw.
+        tag = "" if cur in ("USD", "") else f" ({cur})"
+        if lo is not None and hi is not None and cur in dollarish:
+            budget = f"${int(lo)} - ${int(hi)} budget{tag}"
+        elif lo is not None and cur in dollarish:
+            budget = f"${int(lo)}+ budget{tag}"
+        elif lo is not None and hi is not None:
             budget = f"{lo} - {hi} {cur} budget"
+        elif lo is not None:
+            budget = f"{lo}+ {cur} budget"
         else:
             budget = ""
         jobs = " ".join(j.get("name", "") for j in (p.get("jobs") or []))
@@ -385,7 +475,150 @@ def fetch_freelancer() -> list[dict]:
             "title": _clean_title(p.get("title", "")),
             "body": _body(desc, jobs, budget),
             "posted_at": _epoch_to_iso(p.get("time_submitted")),
+            # `local` is Freelancer's own "must be done in person" flag --
+            # False on 30/30 live projects on 2026-09-11, with every location
+            # field null; when it is True the country is filled in.
+            "remote": 0 if p.get("local") else 1,
+            "location": (((p.get("location") or {}).get("country") or {}).get("name")
+                         or (p.get("location") or {}).get("city") or ""),
+            "work_type": "project",     # config.PROJECT_SOURCES
+            # Freelancer's own per-project language ("en", "id", "tr"...).
+            # 11 of 100 live projects were not English on 2026-09-12 and the
+            # text detector could only see 8 of them; see lang.of().
+            "lang": _lang.normalize(p.get("language")),
         })
+      except Exception as e:
+        bad += 1
+        if bad == 1:                      # once per cycle, not once per row
+            print(f"  ! freelancer: skipped a project ({type(e).__name__}: {e})")
+    if bad:
+        print(f"  ! freelancer: {bad} of {len(projs)} projects unusable, "
+              f"kept {len(out)}")
+    return out
+
+
+# ---------------------------------------------------------------------------
+# PeoplePerHour — a marketplace: a client posts a project, freelancers bid.
+#
+# THE SECOND REAL MARKETPLACE ON THE BOARD. Measured on 2026-09-10: 72% of a
+# week's intake was job-board content, and 99% of the project work was one
+# source. Eleven marketplaces were probed that day; this was the only one that
+# is both public and structured. Guru, Workana, Malt and Truelancer block every
+# scripted request; Twine and Contra keep their listings behind sign-in; Behance
+# lists salaried roles. See MARKETPLACES.md.
+#
+# WHAT WAS CHECKED, NOT ASSUMED:
+#   - Serves the honest User-Agent above: three consecutive hits, all 200, no
+#     throttling. No pretending to be a browser.
+#   - The page is server-rendered React and carries its data in
+#     window.PPHReact.initialState as JSON:API -- entities.projects keyed by
+#     id, each with an `attributes` dict. Parsed as JSON, not regexed.
+#   - posted_dt is UTC with no marker. Proven, not guessed: the site's own
+#     detail page rendered a listing as "1 hour ago" when posted_dt was 74
+#     minutes old; UK time would have shown "2 hours ago". A wrong zone here
+#     shifts every card's age by an hour.
+#   - budget_converted is USD: ratio 1.000 on USD-priced projects, 1.342 on
+#     GBP, 1.149 on EUR. The budget hint is written in dollars so the size
+#     classifier can read it, with the original currency kept beside it.
+#   - Applying needs an account there (a login gate on the "send proposal"
+#     button), so this is in config.ACCOUNT_REQUIRED_SOURCES.
+#   - ~35-70 new projects a day; 20 per page, 37 pages of open projects. One
+#     page per two-minute cycle sees everything.
+#   - proj_desc on the list page is a ~100-char preview and the detail page
+#     holds ~190: the whole description, on a marketplace where the median
+#     budget is $75. Not worth twenty extra requests a cycle to one host.
+#
+# location_type is a STRUCTURED remote flag ('remote' / 'remote_country'),
+# the field LOCATION.md says the board lacks. It rides in the body hints for
+# now; when posts grows a location column this is the first source to fill it.
+# ---------------------------------------------------------------------------
+def _pph_country(proj: dict, countries: dict) -> str:
+    """The restricting country's name for a remote_country project, else ''."""
+    try:
+        if (proj.get("attributes") or {}).get("location_type") != "remote_country":
+            return ""
+        ref = ((proj.get("relationships") or {}).get("remoteCountry") or {}).get("data") or {}
+        ent = countries.get(str(ref.get("id"))) or {}
+        return ((ent.get("attributes") or {}).get("country") or "").strip()
+    except Exception:
+        return ""
+
+
+_PPH_STATE = re.compile(
+    r"window\.PPHReact\.initialState\s*=\s*(\{.*?\});\s*(?:window\.|</script>)", re.S)
+
+
+def fetch_peopleperhour() -> list[dict]:
+    r = _get("https://www.peopleperhour.com/freelance-jobs")
+    if r.status_code != 200:
+        print(f"  ! peopleperhour: HTTP {r.status_code}"); return []
+    m = _PPH_STATE.search(r.text)
+    if not m:
+        print("  ! peopleperhour: no initialState on the page — layout changed?")
+        return []
+    try:
+        state = json.loads(m.group(1))
+        projects = state["entities"]["projects"]
+        # JSON:API sideloads: remoteCountry is a relationship to an
+        # iso_countries entity, so the name is looked up, not on the project.
+        countries = state["entities"].get("iso_countries") or {}
+    except (ValueError, KeyError, TypeError) as e:
+        print(f"  ! peopleperhour: state unreadable ({type(e).__name__}: {e})")
+        return []
+    out, bad = [], 0
+    for pid, proj in projects.items():
+      # ONE MALFORMED PROJECT IS NOT AN OUTAGE -- same floor as freelancer.
+      try:
+        a = proj.get("attributes") or {}
+        if (a.get("item_state") or "open") != "open":
+            continue
+        title = _clean_title(a.get("title") or "")
+        url = (a.get("url") or "").strip()
+        if not title or not url.startswith("http"):
+            continue
+        usd = a.get("budget_converted")
+        cur = (a.get("currency") or "").upper()
+        raw = a.get("budget")
+        if usd:
+            budget = f"${int(float(usd))} budget"
+            if cur and cur != "USD" and raw:
+                budget += f" ({raw} {cur})"
+        else:
+            budget = ""
+        kind = {"fixed_price": "fixed price", "hourly": "hourly"}.get(
+            a.get("project_type") or "", "")
+        where = {"remote": "remote", "remote_country": "remote"}.get(
+            a.get("location_type") or "", "")
+        cat = (a.get("category") or {}).get("cate_name") or ""
+        sub = (a.get("sub_category") or {}).get("subcate_name") or ""
+        bids = a.get("proposalCount")
+        out.append({
+            "source": "peopleperhour",
+            "source_id": str(a.get("proj_id") or pid),
+            "url": url,
+            "title": title,
+            "body": _body(a.get("proj_desc") or "", cat, sub, budget, kind, where,
+                          f"{bids} proposals" if bids not in (None, "") else "",
+                          "urgent" if a.get("isUrgent") else ""),
+            # UTC with no marker -- see the header. to_iso keeps naive input
+            # naive, so the zone is pinned here, once, deliberately.
+            "posted_at": to_iso((a.get("posted_dt") or "").replace(" ", "T") + "+00:00"),
+            # location_type is 'remote' (18/20 live) or 'remote_country'
+            # (2/20), never on-site on this feed. For remote_country the
+            # relationship names the ISO code and iso_countries names the
+            # country ("AU" -> "Australia"); the tagger turns that into the
+            # restriction. Plain 'remote' with no country is anywhere.
+            "remote": 1,
+            "location": _pph_country(proj, countries),
+            "work_type": "project",     # config.PROJECT_SOURCES
+        })
+      except Exception as e:
+        bad += 1
+        if bad == 1:
+            print(f"  ! peopleperhour: skipped a project ({type(e).__name__}: {e})")
+    if bad:
+        print(f"  ! peopleperhour: {bad} of {len(projects)} projects unusable, "
+              f"kept {len(out)}")
     return out
 
 
@@ -395,7 +628,11 @@ def fetch_freelancer() -> list[dict]:
 # confirmed on a live listing before adding this source.
 # ---------------------------------------------------------------------------
 def fetch_workingnomads() -> list[dict]:
-    r = _get("https://www.workingnomads.co/api/exposed_jobs/")
+    # .com, not .co: Working Nomads moved domains and the old host answers
+    # every call with a 301. requests follows it, so this kept working by
+    # luck rather than by address — one dropped redirect and the source is
+    # silently gone. Measured 2026-08-26: the .com endpoint serves 41 jobs.
+    r = _get("https://www.workingnomads.com/api/exposed_jobs/")
     if r.status_code != 200:
         print(f"  ! workingnomads: HTTP {r.status_code}"); return []
     out = []
@@ -410,6 +647,11 @@ def fetch_workingnomads() -> list[dict]:
             "body": _body(j.get("description", ""), j.get("category_name", ""),
                           (j.get("tags") or "").replace(",", " "), j.get("location", "")),
             "posted_at": to_iso(j.get("pub_date")),
+            # Remote-only. location on 43/43 as region lists ("USA, Canada or
+            # UK only", "Remote (Worldwide) - Working East Coast hours").
+            "remote": 1,
+            "location": (j.get("location") or "").strip(),
+            "work_type": "",
         })
     return out
 
@@ -429,6 +671,12 @@ def fetch_weworkremotely() -> list[dict]:
             "title": _strip(e.get("title", "")),
             "body": _strip(e.get("summary", "")),
             "posted_at": to_iso(e.get("published")),
+            # Remote-only. `region` on 89/89 ("Anywhere in the World",
+            # "North America Only"); `type` on 89/89 (Full-Time / Contract).
+            "remote": 1,
+            "location": ("" if "anywhere" in (e.get("region") or "").lower()
+                         else (e.get("region") or "").strip()),
+            "work_type": _work_type(e.get("type")),
         })
     return out
 
@@ -487,6 +735,51 @@ def fetch_soundlister() -> list[dict]:
 # ---------------------------------------------------------------------------
 # registry + orchestration
 # ---------------------------------------------------------------------------
+# Feed-specific location fields on the generic RSS path. feedparser exposes a
+# custom namespace element as <prefix>_<name>; Himalayas carries its country
+# restriction that way and it is the single biggest source on the board (57%
+# of intake), so the generic fetcher cannot afford to drop it. Each hook
+# returns (remote, location, work_type); a feed with no hook gets None/''/''
+# and the tagger falls back to the prose, exactly as before.
+_RSS_LOCATION = {
+    # Remote-only board. locationrestriction is a country name or '' for
+    # anywhere (9 of 20 live entries on 2026-09-11); timezonerestriction is
+    # hours of allowed offset (14 = unrestricted) and is not a place.
+    "himalayas": lambda e: (1, (e.get("himalayasjobs_locationrestriction") or "").strip(), ""),
+    # The three WWR category feeds share the main feed's fields.
+    "wwr_sales": lambda e: (1, "" if "anywhere" in (e.get("region") or "").lower()
+                            else (e.get("region") or "").strip(), _work_type(e.get("type"))),
+    "wwr_management": lambda e: (1, "" if "anywhere" in (e.get("region") or "").lower()
+                                 else (e.get("region") or "").strip(), _work_type(e.get("type"))),
+    "jobicy_dev": lambda e: (1, "", _work_type(e.get("type"))),
+}
+
+
+# ONE LISTING, ONE ID, WHATEVER FEED IT ARRIVED BY. Jobicy publishes the same
+# posting through its JSON API (fetch_jobicy keys it on the numeric id) and
+# through fourteen category feeds (keyed here on the guid, which is the URL).
+# Both wrote under source "jobicy", so UNIQUE(source, source_id) never saw a
+# collision and the board showed the listing twice -- 491 of them on
+# 2026-09-21, 3% of every card a visitor scrolled, with the title dedupe
+# unable to help because the API appends " -- Company" to its titles. Every
+# Jobicy URL carries the numeric id in its slug (2,662 of 2,662 stored rows),
+# so the feed row takes that id and simply never stores a second time.
+_RSS_ID = {
+    "jobicy": re.compile(r"jobicy\.com/jobs/(\d+)-"),
+}
+
+
+def _rss_id(src: str, entry, link: str) -> str:
+    rx = _RSS_ID.get(src)
+    m = rx.search(link or "") if rx else None
+    return m.group(1) if m else (entry.get("id") or link)
+
+
+# Characters of a feed's full description kept as the body. ~250 words: a
+# card's "See more" reads as a description, the draft has the actual brief.
+RSS_BODY_CAP = 1500
+
+
 def fetch_rss(key: str) -> list[dict]:
     """
     Any board that publishes an RSS feed, driven entirely by config.
@@ -512,13 +805,47 @@ def fetch_rss(key: str) -> list[dict]:
         link = e.get("link", "")
         if not link:
             continue
+        # By feed key first, then by the board it folds into: a category
+        # feed keeps its own hook after it starts writing under the parent.
+        hook = _RSS_LOCATION.get(key) or _RSS_LOCATION.get(src)
+        try:
+            remote, location, work_type = hook(e) if hook else (None, "", "")
+        except Exception:
+            remote, location, work_type = None, "", ""
+        title = _strip(e.get("title", ""))
+        body = _strip(e.get("summary", "") or e.get("description", ""))
+        # THE FULL POSTING, CAPPED. Himalayas' feed carries a one-sentence
+        # summary (median 118 chars, measured 2026-09-12) and the whole
+        # description in <content:encoded> (~1,900 chars stripped). The
+        # board stored the summary, so 57% of its cards opened to a single
+        # line, the language detector had nothing to read ("Téléconseiller
+        # H/F 100% Télétravail" sat on the English board tagged en) and the
+        # AI draft wrote from a teaser. Storing the whole text would have
+        # grown the boot pull -- the number every capacity decision here
+        # turns on -- by ~60MB across 32,000 rows; RSS_BODY_CAP keeps it to
+        # about two-thirds of that and still gives a card a real description.
+        # Only new rows carry it, so the pull grows over the 14-day window
+        # rather than at once, and /health's boot_pull_s says by how much.
+        # The language is read off the uncapped text, once, and travels as
+        # the row's `lang` like a source-stated language would (lang.of).
+        lang_code = ""
+        try:
+            full = (e.get("content") or [{}])[0].get("value") or ""
+            if len(full) > len(body) + 200:
+                full = _strip(full)
+                lang_code = _lang.detect(title, full)
+                body = full[:RSS_BODY_CAP].rsplit(" ", 1)[0] if len(full) > RSS_BODY_CAP else full
+        except Exception:
+            lang_code = ""
         out.append({
             "source": src,
-            "source_id": e.get("id") or link,
+            "source_id": _rss_id(src, e, link),
             "url": link,
-            "title": _strip(e.get("title", "")),
-            "body": _strip(e.get("summary", "") or e.get("description", "")),
+            "title": title,
+            "body": body,
             "posted_at": to_iso(e.get("published") or e.get("updated")),
+            "remote": remote, "location": location, "work_type": work_type,
+            "lang": lang_code,
         })
     return out
 
@@ -526,6 +853,7 @@ def fetch_rss(key: str) -> list[dict]:
 _FETCHERS = {
     "reddit": fetch_reddit,
     "freelancer": fetch_freelancer,
+    "peopleperhour": fetch_peopleperhour,
     "remoteok": fetch_remoteok,
     "remotive": fetch_remotive,
     "arbeitnow": fetch_arbeitnow,

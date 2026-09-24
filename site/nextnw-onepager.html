@@ -11,6 +11,7 @@
      document presenting the collaboration, so it stays in Nabbly's colors
      throughout; the co-branding lives in the two logos in the letterhead,
      not in a second accent hue competing with amber. */
+  @font-face{font-family:'Archivo';src:url('/archivo.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}
   :root{
     --amber:#E8933A; --amber-l:#F7B569; --amber-d:#CB6F16;
     --bg:#121418; --bg2:#15181d; --panel:#171a20;
@@ -80,7 +81,7 @@
     overflow:hidden}
   .fb-fill{height:100%;border-radius:5px;background:var(--line2)}
   .fitbar.hi .fb-fill{background:linear-gradient(90deg,var(--amber-d),var(--amber-l))}
-  /* Names what the empty part of each track means, so a 27% bar reads as
+  /* Names what the empty part of each track means, so a 18% bar reads as
      "a quarter of the whole board" rather than "a bar that didn't fill up". */
   .fb-foot{font-size:11px;color:var(--faint);margin-top:2px}
   .fit p{font-size:13.5px;color:var(--ink2);line-height:1.6;margin:0;max-width:640px}
@@ -168,42 +169,47 @@
         <li>Every gig, every field on the board</li>
         <li>Filter by location, budget, and keyword</li>
         <li>Save gigs to come back to, so a good one isn't lost by morning</li>
-        <li>A weekly email with gigs picked to your own skills</li>
+        <li>A daily email with gigs picked to your own skills</li>
       </ul>
     </div>
     <div class="deal-col give">
       <div class="dc-label">Pro</div>
       <ul>
-        <li>Every gig sorted to your skills as you browse, not just in a weekly email</li>
-        <li>Alerted the moment a match lands, not a weekly summary</li>
+        <li>Every gig sorted to your skills as you browse, not just in a daily email</li>
+        <li>Alerted the moment a match lands, not a daily summary</li>
         <li>A first reply already drafted from the actual posting</li>
         <li>What similar gigs are paying, so you know the going rate</li>
       </ul>
     </div>
   </div>
 
-  <!-- Shares, not counts. The raw numbers move every few minutes — this chart
-       read 3,737 / 2,469 / 991 when it was built and 3,837 / 2,570 / 1,035 a
-       few hours later — so a printed count is stale before the page is read.
-       The proportions barely moved across the same window (26.7%→26.5%,
-       17.6%→17.7%), which is the honest version of the claim anyway: the
-       argument is that this work is the biggest slice of the board, not that
-       there are exactly N of them today.
-       Bar width IS the percentage, so the track reads as the whole board and
-       the top bar genuinely looks like about a quarter of it. -->
+  <!-- Shares, not counts: raw numbers are stale before the page is read.
+       RECHECKED 2026-08-25 against the live mirror, over the same 14-day
+       window the board actually serves (50,334 live gigs). The creative
+       fields came out at 18.1%, not the 26-27% this chart was built on, so
+       the top bar was overstating the fit to NextNW's own membership by
+       around nine points — the single worst number on the page to get wrong.
+       Dev/tech was accurate at 18.3%; sales had grown from 7% to 10.2%.
+       Creative and dev/tech are now level, so these bars no longer show one
+       slice dominating. They do not need to: there is deliberately no lead-in
+       sentence here, and the only claim in the visible copy is the headline's
+       "Built for the fields NextNW already works in" — which 18% of a 50,000
+       gig board supports perfectly well. Nothing on the page had to be
+       re-argued, only re-measured.
+       Bar width IS the percentage, so the track reads as the whole board. -->
   <div class="fit">
     <div class="fitbars">
       <div class="fitbar hi">
-        <div class="fb-top"><span>Design, marketing, writing &amp; video</span><span class="fb-n">27%</span></div>
-        <div class="fb-track"><div class="fb-fill" style="width:27%"></div></div>
+        <div class="fb-top"><span>Design, marketing, writing &amp; video</span><span class="fb-n">18%</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:18%"></div></div>
       </div>
       <div class="fitbar">
         <div class="fb-top"><span>Development / tech</span><span class="fb-n">18%</span></div>
         <div class="fb-track"><div class="fb-fill" style="width:18%"></div></div>
       </div>
       <div class="fitbar">
-        <div class="fb-top"><span>Sales / outreach</span><span class="fb-n">7%</span></div>
-        <div class="fb-track"><div class="fb-fill" style="width:7%"></div></div>
+        <div class="fb-top"><span>Sales / outreach</span><span class="fb-n">10%</span></div>
+        <div class="fb-track"><div class="fb-fill" style="width:10%"></div></div>
       </div>
       <div class="fb-foot">Share of everything live on the board</div>
     </div>

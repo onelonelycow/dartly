@@ -19,6 +19,7 @@ Runs alongside the Streamlit app rather than replacing it — same database,
 same db.py. Nothing here writes.
 """
 import os
+import re
 import secrets
 import threading
 import sys
@@ -42,6 +43,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import accounts  # noqa: E402
+import billing  # noqa: E402
 import analytics  # noqa: E402
 import config  # noqa: E402
 import googleauth  # noqa: E402
@@ -75,14 +77,30 @@ def _viewer(request):
     try:
         acc = webauth.account_for(request)
         if not acc:
-            return {"pro": False, "owner": False}
+            return {"pro": False, "owner": False, "admin_url": ""}
         st = accounts.status(acc)
-        return {"pro": bool(st.get("pro")),
-                "owner": bool(accounts.is_owner(st.get("email") or ""))}
+        owner = bool(accounts.is_owner(st.get("email") or ""))
+        # THE ADMIN PANEL STILL LIVES ON THE APP, AND THE APP DOES NOT SHARE
+        # THIS SIGN-IN. It knows a visitor by its own Google cookie or by a
+        # ?u= / ?e= token in the URL -- nothing else -- so a bare
+        # /?nav=admin arrived as a stranger: the founder clicked Admin and got
+        # an empty page with a signed-out icon (2026-09-21). The link now
+        # carries the account's own sign-in token as ?u=, which is exactly how
+        # the app identifies every email-signed-in member on every internal
+        # link it renders (app._u). The first attempt used the HMAC email
+        # token (?e=); that only resolves when both services share the same
+        # AUTH_COOKIE_SECRET, and it did not open the panel. ?u= needs no
+        # shared secret. Rendered only inside the owner's own signed-in chrome,
+        # never in an email. Goes away with the app (RETIRE-APP.md §2).
+        admin_url = ""
+        if owner and APP_URL and acc.get("token"):
+            admin_url = f"{APP_URL}/?nav=admin&u={quote_plus(acc['token'])}"
+        return {"pro": bool(st.get("pro")), "owner": owner,
+                "admin_url": admin_url}
     except Exception:
         # Chrome must never take a page down. Unknown reads as "not pro",
         # which shows an upgrade link — wrong, but harmless and self-correcting.
-        return {"pro": False, "owner": False}
+        return {"pro": False, "owner": False, "admin_url": ""}
 
 
 templates.env.globals["viewer"] = _viewer
@@ -124,6 +142,54 @@ SKILL_GROUPS = _skill_groups()
 # Where the Streamlit app lives, for the handful of pages still served there.
 APP_URL = (os.environ.get("NABBLY_APP_URL")
            or "https://app.nabbly.co").rstrip("/")
+
+# The card's word for each work_type the sources emit (sources._work_type and
+# the two marketplaces' literal "project"). Anything else renders no pill.
+_WORK_NOTE = {"project": "Project", "contract": "Contract",
+              "fulltime": "Full-time"}
+
+# THE NUMBER, ONLY WHEN ITS CURRENCY IS KNOWN. The card has always said
+# "Medium budget" and never the amount, because until 2026-09-21 a Freelancer
+# "$250" could be USD, EUR, GBP or five other codes and the fetcher had thrown
+# the code away. PeoplePerHour rows have always carried theirs ("$26 budget
+# (20 GBP)"), Freelancer rows stored from 2026-09-21 16:35Z carry one too
+# ("$250 - $750 budget (GBP)"), and non-dollar rows always did ("1500 - 12500
+# INR budget"). Those three shapes get an amount pill; a bare "$" from before
+# the fix keeps the tier and nothing is guessed.
+_BUDGET_KNOWN = re.compile(
+    r"\$(\d[\d,]*)(?:\s*-\s*\$(\d[\d,]*))?(\+)?\s*budget\s*\(([\d.,]+\s*)?([A-Z]{3})\)"
+    # Anchored so "800.25 INR" cannot be read from its ".25" -- that printed
+    # "25 INR" on a 250.5-800.25 range. Whole amounts only; a fractional
+    # budget shows the tier and no pill rather than a wrong number.
+    r"|(?<![\d.])(\d[\d,]*)(?:\.0+)?(?:\s*-\s*(\d[\d,]*)(?:\.0+)?)?(\+)?\s+([A-Z]{3})\s*budget")
+
+
+def _budget_note(body: str) -> str:
+    tail = (body or "").split("\x1f", 1)
+    if len(tail) < 2:
+        return ""
+    m = _BUDGET_KNOWN.search(tail[1])
+    if not m:
+        return ""
+    if m.group(5):                                   # "$lo - $hi budget (CUR)"
+        lo, hi, plus, orig, cur = m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)
+        if orig:                                     # PPH: USD conversion, original kept
+            return f"${lo} · {orig.strip()} {cur}"
+        # Freelancer wrote "$" for a dollar-ish code; the code is the truth,
+        # so "250–750 GBP", not "$250–$750 GBP".
+        amt = f"{lo}–{hi}" if hi else f"{lo}{'+' if plus else ''}"
+        return f"{amt} {cur}"
+    lo, hi, plus, cur = m.group(6), m.group(7), m.group(8), m.group(9)
+    amt = f"{lo}–{hi}" if hi else f"{lo}{'+' if plus else ''}"
+    return f"{amt} {cur}"
+
+
+def _budget_note_with_period(body: str) -> str:
+    """The amount pill, with /hr when PeoplePerHour says the project is hourly."""
+    note = _budget_note(body)
+    if note and " hourly" in (body or "").split("\x1f", 1)[-1]:
+        note += " /hr"
+    return note
 
 
 def decorate(rows, ranked=False):
@@ -184,16 +250,59 @@ def decorate(rows, ranked=False):
             r["loc_note"] = ""
         for k in ("is_remote", "is_onsite", "restrict_cc", "is_worldwide"):
             r.pop(k, None)
+        # Project or job, in the source's own words (see queries._filters).
+        # Empty for rows from before the field existed, so no pill rather
+        # than a guessed one.
+        r["work_note"] = _WORK_NOTE.get(r.pop("work_type", None) or "", "")
+        r["budget_note"] = _budget_note_with_period(r.get("body") or "")
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
+            r["apply_short"] = "Apply by email"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
             r["apply_note"], r["apply_cls"] = "Paid subscription to apply", "urgent"
+            r["apply_short"] = "Paid subscription"
+        elif src in getattr(config, "VIEW_REQUIRES_ACCOUNT_SOURCES", ()):
+            # Before the apply-gated branch on purpose: these sources sit in
+            # both sets, and the wall a reader meets first is the one worth
+            # naming. "read and apply", not "apply", because they are stopped
+            # before the post.
+            r["apply_note"], r["apply_cls"] = "Free account needed to read and apply", "locoff"
+            r["apply_short"] = "Free account to read"
         elif src in getattr(config, "ACCOUNT_REQUIRED_SOURCES", ()):
-            r["apply_note"], r["apply_cls"] = "Free account needed to apply", "locoff"
+            # Named, so nobody reads it as a Nabbly wall: the account is on
+            # the board that holds the posting, and Nabbly never asks for one
+            # to read or click through.
+            r["apply_note"] = f"Free {config.source_label(src)} account to apply"
+            # THE PHONE ALREADY KNOWS WHOSE. "via Freelancer.com" sits two
+            # lines below on the same card, and spelling the board out again
+            # made this the longest chip by far -- on a 390px screen it took a
+            # third pill row to itself, which is why six labels needed three
+            # rows before a word of the gig. The fact a reader needs here is
+            # that an account is wanted at all. CSS picks which one shows.
+            r["apply_short"] = "Free account needed"
+            r["apply_cls"] = "locoff"
         else:
             r["apply_note"] = ""
+            r["apply_short"] = ""
         r.pop("apply_email", None)   # a real address; never reaches the page
         r.pop("body", None)      # not rendered raw; drop it before the template
+
+    # A NOTE EVERY ROW CARRIES IS NOT A NOTE. On the open board this pill earns
+    # its place -- 22.6% of live gigs need no account at all, so "an account is
+    # needed" genuinely separates one row from the next. Filter to the project
+    # marketplaces, though, and every row needs one: the ad landing page shows
+    # it on 25 of 25, where it says nothing and takes the widest chip on the
+    # card.
+    #
+    # Dropped only when the WHOLE page is the account-needed kind, and only
+    # that kind: "Apply by email" is the good news of not needing one, and a
+    # paid-subscription warning must never be hidden by a crowding rule. The
+    # board each gig came from is still on every card -- "via Freelancer.com"
+    # in the meta line -- so what is lost is the repetition, not the fact.
+    # Four rows, because on a page of one or two nothing is being crowded.
+    if len(rows) >= 4 and all(r.get("apply_cls") == "locoff" for r in rows):
+        for r in rows:
+            r["apply_note"] = r["apply_short"] = ""
     return rows
 
 
@@ -241,9 +350,44 @@ _BOT_UA = ("bot", "crawler", "spider", "slurp", "curl/", "wget", "python-request
            "nabbly-selfcheck")   # our own monitoring is not a visitor either
 
 
+_INTERNAL_DOMAINS = tuple(d.strip().lower() for d in (
+    os.environ.get("NABBLY_INTERNAL_DOMAINS") or "onelonelycow.com").split(",") if d.strip())
+
+
+def _is_internal(email: str) -> bool:
+    """The founder and the test accounts: real traffic to the server, not to the business."""
+    e = (email or "").strip().lower()
+    if not e:
+        return False
+    return accounts.is_owner(e) or e.rsplit("@", 1)[-1] in _INTERNAL_DOMAINS
+
+
 def _is_bot(ua: str) -> bool:
     ua = (ua or "").lower()
     return not ua or any(b in ua for b in _BOT_UA)
+
+
+# Which admin-panel bucket each board event belongs in, and what to call it
+# there. A page someone looked at is a view; anything they did is a click.
+# Events missing from here fall through to clicks under their own name, so a
+# new _ev() call is counted the day it ships rather than the day someone
+# remembers to add it.
+_ROLLUP_BUCKET = {
+    "board_view":  ("views", "Gigs"),
+    "market_view": ("views", "Market"),
+    "draft_view":  ("views", "Draft a reply"),
+    "gig_click":   ("clicks", "Opened a gig"),
+    "search":      ("clicks", "Search"),
+    "signup":      ("clicks", "Signed up"),
+    "trial_start": ("clicks", "Started a trial"),
+    "purchase":    ("clicks", "Paid"),
+    "cancel":      ("clicks", "Cancelled"),
+    "resume":      ("clicks", "Resumed"),
+    "plan_switch": ("clicks", "Switched plan"),
+    "bid_placed":  ("clicks", "Placed a bid"),
+    "bid_retracted": ("clicks", "Retracted a bid"),
+    "unsubscribe": ("clicks", "Unsubscribed"),
+}
 
 
 def _ev(request: Request, event: str, detail: str = ""):
@@ -274,15 +418,91 @@ def _ev(request: Request, event: str, detail: str = ""):
         # trust is worse than no number, because you act on it.
         if _is_bot(request.headers.get("user-agent", "")):
             return
+        # NEITHER DO WE. The founder's own account and the test accounts on
+        # the founder's domain are most of the activity on an 8-account board;
+        # counted, every funnel reads as "converts great" because the person
+        # who built it keeps walking through it.
+        if _is_internal(webauth.current_email(request)):
+            return
         sid = request.session.get("_vid")
+        first_of_session = not sid
         if not sid:
             sid = secrets.token_urlsafe(9)
             request.session["_vid"] = sid
         path = request.url.path
-        telemetry.capture(event, detail, sid, path)
-        camp = request.session.get("_camp")
+        # HOW THEY GOT HERE, ONCE PER SESSION. Every event below says what a
+        # visitor did; none of them said where they came from, so the one
+        # question worth asking about a stranger — how did they find this —
+        # had no answer even with telemetry switched on. It fires on the first
+        # tracked view of a session only: the referrer on later pages is
+        # Nabbly itself, and repeating it would bury the real source.
+        #
+        # referrer_label reduces the header to a bare host and maps our own
+        # domains to "Direct", so what leaves the server is "reddit.com" or
+        # "Direct" — no paths, no query strings, which is what the privacy
+        # page already promises about referrers.
+        if first_of_session:
+            telemetry.capture(
+                "arrival",
+                analytics.referrer_label(request.headers.get("referer", "")),
+                sid, path)
+        # The same event, counted for the admin panel. PostHog answers "what
+        # are people doing"; this answers "is anyone here at all", which is the
+        # question the panel asks and could not answer for the board.
+        #
+        # NOT EVERY FIRST REQUEST IS A VISITOR. Counting them made the number
+        # meaningless: of 2,370 apparent visitors in PostHog over 1-22 Sep,
+        # 2,318 arrived with no referrer, viewed one page and never came back
+        # with the same cookie -- scrapers that simply do not send a user agent
+        # this file knows. Ninety-seven behaved like people. A panel that says
+        # 108 a day when the truth is four is worse than the blank one it
+        # replaced, so a session is counted when it does a SECOND thing, or
+        # when it arrives from somewhere real. Both are things a one-shot
+        # fetcher does not do.
+        ref = (analytics.referrer_label(request.headers.get("referer", ""))
+               if first_of_session else "")
+        seen = int(request.session.get("_evn") or 0) + 1
+        request.session["_evn"] = seen
+        # TWO DIFFERENT QUESTIONS, and conflating them lost a day's visitors.
+        #   _ok   has this visitor ever proved to be a person? Decides whether
+        #         what they do is counted at all.
+        #   _eng  which UTC day they were last counted as a visitor ON.
+        # The cookie lasts 30 days, so a single flag meant somebody who came
+        # back on Wednesday had their page views counted and themselves not --
+        # the panel showed "0 visitors, 1 page view" on the morning of
+        # 2026-09-24, which is nonsense on its face. The backfilled days count
+        # a person on each day they were active, so the live counter does too.
+        qualified = bool(request.session.get("_ok"))
+        if not qualified and (seen >= 2 or (ref and ref != "Direct")):
+            qualified = True
+            request.session["_ok"] = 1
+        today = analytics.live_day()
+        if qualified and request.session.get("_eng") != today:
+            request.session["_eng"] = today
+            analytics.bump("sessions", "1")
+            analytics.bump("refs", request.session.get("_ref") or ref or "Direct")
+            analytics.bump("devices", analytics.device_label(
+                request.headers.get("user-agent", "")))
+            # Whatever this session did before it qualified, counted now rather
+            # than lost -- the first page view is the one that matters most.
+            for held in (request.session.pop("_evq", None) or []):
+                kind, _, label = held.partition("|")
+                analytics.bump(kind, label)
+        elif first_of_session:
+            request.session["_ref"] = ref or "Direct"
+        engaged = qualified
+        kind, label = _ROLLUP_BUCKET.get(event, ("clicks", event))
+        if engaged:
+            analytics.bump(kind, label)
+        else:
+            held = list(request.session.get("_evq") or [])
+            if len(held) < 3:
+                held.append(f"{kind}|{label}")
+                request.session["_evq"] = held
+        camp = request.session.get("_camp") or ""
+        telemetry.capture(event, detail, sid, path, campaign=camp)
         if camp and event == "board_view":
-            telemetry.capture("from_campaign", camp, sid, path)
+            telemetry.capture("from_campaign", camp, sid, path, campaign=camp)
     except Exception:
         pass          # a counter must never stand between someone and a gig
 
@@ -307,11 +527,133 @@ async def _remember_campaign(request: Request, call_next):
     return await call_next(request)
 
 
+# ── the "take me to my board" hint ───────────────────────────────────────────
+#
+# nabbly.co is a STATIC site. It already receives nb_session, because that
+# cookie is scoped to .nabbly.co — but the cookie is httponly, so the page has
+# no way to read it, and there is no server there to read it for us. The
+# result is what a signed-in member actually experiences: they close the tab,
+# come back to nabbly.co, and are shown the front door again as though they
+# had never signed up.
+#
+# So the board publishes one bit next to the session: nb_home, readable by
+# script, carrying no identity and granting no access — it says "somebody is
+# signed in on this browser" and nothing else. The marketing page reads it and
+# steps aside. Never trusted for anything: authentication is still nb_session,
+# still httponly, still checked server-side on every request.
+#
+# Kept in sync here rather than at each sign-in point because there are three
+# of those (code, Google, and session restore) and a missed one is a member
+# who is silently never sent home again.
+HOME_HINT_COOKIE = "nb_home"
+
+
+def _home_hint(email: str, sent: str) -> str:
+    """
+    What to do with the hint cookie: "set", "clear", or "" for leave alone.
+
+    Only acts on a MISMATCH, so the common request — signed in, cookie already
+    there — adds no Set-Cookie header at all.
+    """
+    if email and sent != "1":
+        return "set"
+    if not email and sent:
+        return "clear"
+    return ""
+
+
+@app.middleware("http")
+async def _home_hint_mw(request: Request, call_next):
+    resp = await call_next(request)
+    try:
+        action = _home_hint(request.session.get("email", ""),
+                            request.cookies.get(HOME_HINT_COOKIE, ""))
+        if action == "set":
+            resp.set_cookie(
+                HOME_HINT_COOKIE, "1", max_age=webauth.SESSION_MAX_AGE,
+                path="/", samesite="lax", httponly=False,
+                secure=os.environ.get("NABBLY_LOCAL") != "1", **_session_kw)
+        elif action == "clear":
+            resp.delete_cookie(HOME_HINT_COOKIE, path="/", **_session_kw)
+    except Exception:
+        # Never worth failing a render for. Same reasoning as the campaign
+        # middleware directly above.
+        pass
+    return resp
+
+
 app.add_middleware(
     SessionMiddleware, secret_key=webauth._SECRET,
     session_cookie=webauth.SESSION_COOKIE, max_age=webauth.SESSION_MAX_AGE,
     same_site="lax", https_only=os.environ.get("NABBLY_LOCAL") != "1",
     **_session_kw)
+
+
+# Crawlers this board has already told to go away, in words they ignored.
+#
+# robots.txt serves "User-agent: *  Disallow: /" whenever the board is not
+# indexable, which is its normal state. Meta's crawler reads that and keeps
+# going: measured 2026-08-27, meta-externalagent was making ~8,500 requests an
+# hour from 57.141.18.*, around the clock, walking /draft/<id>?back=/gigs?<every
+# filter combination> — a URL space that is combinatorial by construction and
+# infinite in practice. It cost 175MB an hour, 4.2GB a day, and 70% of a 25GB
+# monthly allowance on a board with three members. Nobody was reading any of it.
+#
+# The list is deliberately about CRAWLERS, not humans or our own tools. curl and
+# python-requests are not here: the uptime check and the capture scripts use
+# them, and a monitor that gets 403 is a monitor that lies.
+#
+# NOT ON THE LIST ANY MORE: oai-searchbot and chatgpt-user. The first builds
+# ChatGPT's search index, the second fetches a page when a person asks
+# ChatGPT about it -- both are how someone looking for exactly this board
+# gets sent here, and on 2026-09-12 a real visitor arrived from chatgpt.com
+# while both were still blocked. Measured over the week to 2026-09-13: every
+# blocked agent together drew ~17 requests a day, the OpenAI two about a
+# dozen for the week, and robots.txt already keeps an indexer off /gigs?*,
+# /draft/ and /out/. gptbot stays: that one is training-data collection.
+# perplexitybot followed on 2026-09-14 for the same reason: it is the search
+# index behind an answer engine, its live-fetch agent (Perplexity-User) was
+# never on this list, and blocking one half of the pair was inconsistent.
+_BOTS = tuple(t.strip().lower() for t in (
+    os.environ.get("NABBLY_BLOCK_UA") or
+    "meta-externalagent,meta-externalfetcher,facebookbot,bytespider,gptbot,"
+    "ccbot,claudebot,anthropic-ai,"
+    "amazonbot,applebot-extended,google-extended,semrushbot,ahrefsbot,mj12bot,"
+    "dotbot,dataforseobot,petalbot,imagesiftbot,timpibot,omgili,diffbot,"
+    # NOT our own agents. This list BLOCKS with a 403; the analytics filter is
+    # _BOT_UA, which has excluded nabbly-selfcheck since d55d471. Adding them
+    # here 403'd ops_watch's page checks, the uptime workflow and the daily bug
+    # check -- monitoring that answers 403 reports the site as down.
+    "seznambot,serpstatbot,barkrowler,zoominfobot"
+).split(",") if t.strip())
+
+# Reachable even to a blocked agent. robots.txt is how a crawler learns to stop
+# on its own, so 403-ing it would remove the only polite exit; /health is how
+# Render decides this instance is alive.
+_BOT_ALLOW = ("/robots.txt", "/health")
+
+
+@app.middleware("http")
+async def _turn_away_crawlers(request: Request, call_next):
+    """
+    Answer a known crawler in ~30 bytes instead of ~75KB.
+
+    Registered LAST so it runs FIRST — see the note above SessionMiddleware for
+    why that reads backwards. It has to be outermost: the point is to answer
+    before a session is loaded or the board is queried, so a crawl costs a
+    string comparison rather than a page render.
+
+    A 403 does not require the crawler to stop, and this one probably will not.
+    That is fine and is the whole design: even if it keeps asking at the same
+    rate, the reply is three orders of magnitude smaller, which turns 4.2GB a
+    day into single-digit megabytes.
+    """
+    if request.url.path not in _BOT_ALLOW:
+        ua = (request.headers.get("user-agent") or "").lower()
+        if ua and any(b in ua for b in _BOTS):
+            return PlainTextResponse("Not available to automated clients.",
+                                     status_code=403)
+    return await call_next(request)
 
 def _safe_next(v: str) -> str:
     """
@@ -334,6 +676,27 @@ def _signin_to(path: str) -> str:
     """Bounce to sign-in, remembering where they were trying to get to."""
     nxt = _safe_next(path)
     return f"/signin?next={quote_plus(nxt)}" if nxt else "/signin"
+
+
+def _signin_lede(nxt: str) -> str:
+    """
+    The one line under "Sign in to Nabbly", written for where they came from.
+
+    A generic sign-in page after a specific click is a dead end: someone
+    presses "Draft my reply" and the next screen talks about saving picks and
+    getting alerts, which is not what they asked for and reads as a toll booth.
+    The destination is already carried in `next` for the redirect, so the copy
+    is derived from it rather than from a second parameter that could drift.
+    """
+    if nxt.startswith("/draft/"):
+        return ("Your reply is drafted and waiting on the other side of this. "
+                "No password.")
+    if nxt.startswith("/market"):
+        return "See what this kind of work is paying right now. No password."
+    if nxt.startswith("/saved"):
+        return "Keep the gigs you saved, on every device. No password."
+    return ("Save your profile and picks, get alerts, and keep your board "
+            "across visits. No password.")
 
 
 def _landing(request, nxt: str) -> str:
@@ -390,20 +753,13 @@ def _reading_languages(prof) -> list[str]:
 
     An explicit ?langs= still wins: this only supplies the default.
     """
-    prof = prof or {}
-    if prof.get("show_all_languages"):
-        return []                      # they asked for everything
-    codes = {"en"}
     try:
         import lang as _lang
-        implied = _lang.COUNTRY_LANG.get((prof.get("country") or "").strip())
-        if implied:
-            codes.add(implied)
+        return _lang.reading_languages(prof)
     except Exception:
-        # A missing table must not silently widen the board back out to every
+        # A failure here must not silently widen the board back out to every
         # language; English alone is the safe answer.
-        pass
-    return sorted(codes)
+        return ["en"]
 
 
 def _campaign(request) -> str:
@@ -420,6 +776,20 @@ DB_PATH = os.environ.get("NABBLY_DB") or None
 _SYNC = not DB_PATH and os.environ.get("NABBLY_NO_SYNC") != "1"
 
 
+def _warm_market():
+    """Rebuild the market snapshot on the ingest thread. Never raises."""
+    try:
+        conn = queries.connect(DB_PATH)
+        try:
+            _market.get(conn)
+        finally:
+            conn.close()
+    except Exception as e:
+        # One line, ours to see. A blank teaser is a worse page, not an error,
+        # and it must never be able to stop an ingest cycle.
+        print(f"  market warm failed: {e!r}", flush=True)
+
+
 @app.on_event("startup")
 def _boot():
     if not _SYNC:
@@ -430,6 +800,32 @@ def _boot():
     # "No open ports detected". /health reports unhealthy until rows land, so
     # Render holds traffic on the old instance meanwhile.
     sync.start_background()
+    # INGEST LIVES HERE NOW, not only in the Streamlit app.
+    #
+    # There it starts when Streamlit runs the script, and Streamlit runs the
+    # script when a BROWSER SESSION connects — so after every deploy the board
+    # collected nothing until a person opened the app. This service is a real
+    # always-on server process, so starting it here is the difference between
+    # "every gig the moment it drops" and "every gig the moment somebody looks".
+    #
+    # refresh.start() takes a lease on the durable heartbeat, so the two
+    # services cannot both ingest: whichever is running holds it, and if this
+    # one dies the lease goes stale and the app picks ingest back up. Off with
+    # NABBLY_DISABLE_REFRESH=1 if this ever costs the board its responsiveness,
+    # which is the one risk of moving it onto the service that serves pages.
+    try:
+        import refresh
+        # WARM THE MARKET SNAPSHOT FROM THE INGEST, not from a page load.
+        # _Market.peek() hands a signed-out reader the cache or nothing, and
+        # only a Pro visit to /market ever filled it -- so after every deploy
+        # the free teaser was blank until a member happened to look, which on a
+        # service that redeploys often is most of the time. The hook already
+        # exists, fires only on a cycle that found something, and is wrapped in
+        # refresh.py's own except; this is the work it was built for.
+        refresh.start(_warm_market)
+    except Exception as e:
+        print(f"  ! could not start ingest on the board: "
+              f"{type(e).__name__}: {e}", flush=True)
     global DB_PATH
     DB_PATH = sync.BOARD_DB
     # Market's first scan costs 4.6-6.1s on this box (measured from the
@@ -567,6 +963,19 @@ class _Market:
             return value
         return self._build()
 
+    def peek(self):
+        """
+        The cached numbers if we already have them, else None. NEVER builds.
+
+        get() falls through to a blocking _build() when the slot is empty,
+        which is right for a member and wrong for anonymous traffic: it would
+        hand the open internet a lever that runs a multi-second scan on
+        demand. peek() is the read a signed-out visitor gets — a dict lookup
+        or nothing, so the free page cannot cost more than a template render.
+        """
+        with self._lock:
+            return self._value
+
     def warm(self):
         """
         Build once in the background so no member ever pays the first scan.
@@ -658,9 +1067,23 @@ class _Suggest:
 _suggest = _Suggest()
 
 
-# Sequential amber ramp for budget size — the same three hex values the app
-# uses, light = small, deep = large.
-_BUDGET_COLORS = {"Small": "#F3C07A", "Medium": "#E8933A", "Large": "#A85D1B"}
+# Sequential amber ramp for budget size: one hue, light = small, deep = large.
+# Ordered data, so it stays a ramp — three unrelated hues would say these bands
+# are different KINDS of thing rather than more and less of one.
+#
+# RE-STEPPED because the old ramp failed on separation, not on taste. The
+# founder: "it just seems kind of hard to read because of the orange". Measured
+# on #F3C07A/#E8933A/#A85D1B, the worst adjacent pair was Small↔Medium at ΔE
+# 11.2 for NORMAL colour vision — under the 15 floor, i.e. hard to tell apart
+# for everyone, before considering colour blindness. Not the pair either of us
+# would have picked by eye; Medium↔Large looked like the problem and was not.
+#
+# Now 16.5, with the brand amber kept exactly as the middle step so the chart
+# still belongs to this page. All three clear 3:1 against the #121418 surface
+# (13.0 / 7.6 / 3.2) and lightness stays monotonic, which is what a sequential
+# ramp has to promise. The 2px surface gaps between segments do the rest — see
+# .gr-stack-bar in base.html.
+_BUDGET_COLORS = {"Small": "#F7D49B", "Medium": "#E8933A", "Large": "#9A5316"}
 
 
 def _market_view(m: dict) -> dict:
@@ -671,12 +1094,15 @@ def _market_view(m: dict) -> dict:
     """
     hot = m["hot"]
     hottest = hot[0][0] if hot else "—"
-    top_rate = m["priced"][0][1] if m["priced"] else 0
+    # A skill with too few sources now has no typical at all, so "priced" can
+    # legitimately be short or empty. "$0" would read as free work.
+    top_rate = m["priced"][0][1] if m["priced"] else None
     cards = [
         ("Gigs on the board", f"{m['total']:,}", "#E8933A", False),
         ("Skills tracked", str(m["stats_n"]), "#4C8DFF", False),
         ("Hottest skill", hottest, "#35B37E", True),
-        ("Top typical rate", f"${top_rate:,}", "#B889F0", False),
+        ("Top typical rate",
+         f"${top_rate:,}" if top_rate else "\u2014", "#B889F0", top_rate is None),
     ]
     def bars(pairs):
         top = max((v for _, v in pairs), default=1) or 1
@@ -693,13 +1119,28 @@ def _market_view(m: dict) -> dict:
     urg_pairs = [(t, m["urgency_mix"].get(t, 0))
                  for t in ("Standard", "Urgent") if m["urgency_mix"].get(t)]
     urg_colors = {"Standard": "#4C8DFF", "Urgent": "#E96250"}
+    # SORTED BY THE THING THE HEADING ASKS ABOUT. This read "by skill and
+    # budget" and was ordered by total volume, which is the question the chart
+    # directly above it already answers — so the skill with the largest share
+    # of big budgets (Marketing / SEO, 29%) sat fifth and the smallest (Other /
+    # general, 6.4%) sat third. Someone scanning for where the money is got a
+    # ranking of where the work is.
+    #
+    # It also repairs what a stacked bar is worst at. Large is the last segment,
+    # so it begins at a different x in every row and the eye cannot compare
+    # widths that start in different places — 29% does not LOOK bigger than
+    # 23%. Ordering the rows by that share moves the comparison into the row
+    # order, where it is read rather than measured, and the direct label makes
+    # it a number instead of a hover.
     stack_rows = []
     for jt in m["top_skills"]:
         cells = [(t, m["cross"].get((jt, t), 0)) for t in ("Small", "Medium", "Large")]
         row_total = sum(v for _, v in cells) or 1
+        large_pct = round(dict(cells).get("Large", 0) / row_total * 100)
         stack_rows.append((jt, [(t, v, _BUDGET_COLORS[t],
                                  round(v / row_total * 100, 1))
-                                for t, v in cells if v]))
+                                for t, v in cells if v], large_pct))
+    stack_rows.sort(key=lambda r: r[2], reverse=True)
     return {
         "total": m["total"],
         "cards": cards,
@@ -714,6 +1155,37 @@ def _market_view(m: dict) -> dict:
         "stack_legend": [(t, _BUDGET_COLORS[t]) for t in ("Small", "Medium", "Large")],
     }
 
+
+
+def _market_teaser(m: dict | None) -> dict | None:
+    """
+    The half of Market a signed-out visitor can see: how much work there is.
+
+    DEMAND IS COUNTED, PRICE IS ESTIMATED, so only one of them belongs on a
+    page anyone can open. The totals here are COUNT(*) over the public board
+    and are exact. The rates are not: market.py says so itself — budgets
+    "blend project, hourly, and annual figures across sources", which is
+    honest as a Pro range to price against, sitting next to the caveat that
+    page carries, and indefensible as a headline number shown to a stranger
+    who has no way to know what it blends.
+
+    So the upsell stops asserting that the data is good and starts being the
+    data, with the pricing analysis as the thing behind the wall. Returns
+    None when the cache is cold, and the page falls back to the plain upsell
+    rather than showing a zero.
+    """
+    if not m or not m.get("total"):
+        return None
+    hot = m.get("hot") or []
+    top = max((v for _, v in hot), default=1) or 1
+    return {
+        "cards": [
+            ("Gigs on the board", f"{m['total']:,}", "#E8933A", False),
+            ("Skills tracked", str(m["stats_n"]), "#4C8DFF", False),
+            ("Hottest skill", hot[0][0] if hot else "—", "#35B37E", True),
+        ],
+        "hot_rows": [(l, v, round(v / top * 100, 1)) for l, v in hot[:6]],
+    }
 
 
 def resolve_field(raw: str) -> str:
@@ -834,6 +1306,19 @@ def _oops_page(request: Request, status: int, heading: str, message: str,
         headers={"X-Robots-Tag": "noindex, nofollow"})
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """
+    Browsers, link previews and some crawlers ask for /favicon.ico whatever
+    the page declares; it was the one 404 in every day's log. Same file the
+    <link> tags already point at.
+    """
+    from fastapi.responses import FileResponse
+    return FileResponse(os.path.join(os.path.dirname(__file__), "static", "favicon.png"),
+                        media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/robots.txt")
 def robots():
     from fastapi.responses import PlainTextResponse
@@ -859,8 +1344,14 @@ def robots():
                "Disallow: /profile\n"
                "Disallow: /saved\n"
                "Disallow: /draft/\n"
-               "Disallow: /market\n"
                "Disallow: /signin\n")
+    # /market IS crawlable, deliberately. It was closed here with the private
+    # pages, but it is not one: signed out it renders a teaser -- board-wide
+    # counts, no rates -- which is the answer to "what does this pay" that the
+    # field pages are trying to rank for. And it cannot be used as a lever: a
+    # signed-out reader gets _Market.peek(), a dict lookup that never builds,
+    # so a crawler costs a template render whatever it does. The /gigs?* rule
+    # above closes the query space that actually hurt.
     body = ("User-agent: *\nAllow: /\n" + private if _INDEXABLE
             else "User-agent: *\nDisallow: /\n")
     return PlainTextResponse(body)
@@ -880,6 +1371,7 @@ def signin_page(request: Request, sent: str = Query(""), err: str = Query(""),
     if nxt:
         request.session["_next"] = nxt
     return templates.TemplateResponse(request, "signin.html", {
+        "lede": _signin_lede(nxt),
         "sent": sent, "err": err, "mail_ok": webauth.mail_enabled(),
         "google_ok": googleauth.enabled(),
         "me": "", "tab": "", "css_v": CSS_V, "indexable": _INDEXABLE,
@@ -924,10 +1416,11 @@ def google_callback(request: Request, code: str = Query(""),
     if err:
         return _back("/signin", err=err)
     nxt = _safe_next(request.session.get("_next", ""))
-    ok, err = webauth.sign_in_google(email, campaign=_campaign(request))
+    ok, flag = webauth.sign_in_google(email, campaign=_campaign(request))
     if not ok:
-        return _back("/signin", err=err)
+        return _back("/signin", err=flag)
     webauth.sign_in_session(request, email)
+    _ev(request, "signup" if flag == "new" else "signin", "google")
     return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
@@ -949,10 +1442,11 @@ def signin_verify(request: Request, email: str = Form(""), code: str = Form(""))
     # partner tag with it.
     camp = _campaign(request)
     nxt = _safe_next(request.session.get("_next", ""))
-    ok, err = webauth.verify(email, code, campaign=camp)
+    ok, flag = webauth.verify(email, code, campaign=camp)
     if not ok:
-        return _back("/signin", sent=email.strip().lower(), err=err)
+        return _back("/signin", sent=email.strip().lower(), err=flag)
     webauth.sign_in_session(request, email)
+    _ev(request, "signup" if flag == "new" else "signin", "email")
     return RedirectResponse(_landing(request, nxt), status_code=303)
 
 
@@ -1046,6 +1540,11 @@ async def resume_upload(request: Request):
 @app.post("/resume/clear")
 async def resume_clear(request: Request):
     webauth.scope_for_request(request)
+    # Same gate as /resume. Without it a signed-out POST wrote an empty
+    # resume.json into the anonymous scope and bounced to "saved" -- nothing
+    # lost, but a route that says it saved for someone it never identified.
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
     try:
         import paths
         paths.write_user_json("resume.json", {})
@@ -1224,6 +1723,8 @@ def draft_text(request: Request, gig_id: int, regen: int = Query(0)):
 @app.get("/draft/{gig_id}", response_class=HTMLResponse)
 def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
                regen: int = Query(0), saved_ok: int = Query(0),
+               bid: str = Query("", pattern="^(placed|retracted|)$"),
+               bid_err: str = Query(""),
                sync: int = Query(0)):
     """
     A reply, drafted for one gig, generated ON REQUEST.
@@ -1285,6 +1786,10 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
         else:
             text = pitch.draft_template(g, prof)
 
+    # THE FIRST USEFUL ACTION. A reply drafted for a real posting is the moment
+    # the product did something for this person; /out/ (gig_click) is the other.
+    # Detail is the category, never the text.
+    _ev(request, "draft_view", "pro" if pro else "free")
     mailto = ""
     addr = (g.get("apply_email") or "").strip()
     if addr:
@@ -1293,6 +1798,13 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
 
     resp = templates.TemplateResponse(request, "draft.html", {
         "g": g, "draft": text, "pro": pro, "me": me, "back": back,
+        "bid": _bid_context(g, me) if me else None,
+        "bid_done": bid, "bid_err": bid_err[:200],
+        # Where this gig actually lives, as a name a person recognises —
+        # "Freelancer.com", not "freelancer". The Apply button below the draft
+        # is labelled with it so the last step reads as a destination.
+        "source_label": config.source_label(g.get("source") or ""),
+        "apply_by_email": bool((g.get("apply_email") or "").strip()),
         "mailto": mailto, "saved_ok": bool(saved_ok),
         "pending": pending, "apply_addr": addr,
         "text_url": f"/draft/{gig_id}/text" + ("?regen=1" if regen else ""),
@@ -1303,6 +1815,147 @@ def draft_page(request: Request, gig_id: int, back: str = Query("/gigs"),
     resp.headers["Cache-Control"] = "private, no-store"
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"
     return resp
+
+
+def _gig_by_id(gig_id: int) -> dict | None:
+    conn = queries.connect(DB_PATH)
+    try:
+        rows = queries.by_ids([gig_id], conn=conn)
+    finally:
+        conn.close()
+    return rows[0] if rows else None
+
+
+def _bid_context(g: dict, me: str) -> dict | None:
+    """
+    Everything the bid panel on a Freelancer gig needs, or None to draw nothing.
+
+    None when: not a Freelancer gig, no keys on this deploy, this member has
+    not connected, or Freelancer could not be reached. The panel is only ever
+    drawn from LIVE project data -- currency, budget, open or closed, bids so
+    far -- because a bid goes against the project as it is now, not as the
+    feed described it hours ago. FIXED-PRICE ONLY: what `amount` and `period`
+    mean on an hourly project is not something the docs settled on
+    2026-09-10, and a guess here spends somebody's real bids. Hourly gigs
+    keep the ordinary Apply link.
+    """
+    if (g.get("source") or "") != "freelancer":
+        return None
+    try:
+        import freelancer
+        if not freelancer.enabled():
+            return None
+        tok = freelancer.load_tokens()
+        if not tok:
+            return None
+        pid = int(g.get("source_id") or 0)
+        proj, err = freelancer.project(tok["access_token"], pid)
+        if err:
+            return {"pid": pid, "unreachable": err}
+        cur = (proj.get("currency") or {})
+        b = proj.get("budget") or {}
+        left, _ = freelancer.bids_left(tok["access_token"])
+        rec = freelancer.bid_record(pid)
+        status = str(proj.get("status") or "")
+        # A frozen/closed project would take the request and refuse it; say
+        # so before the form, not after the click.
+        open_ = status in ("active", "open", "") and not proj.get("frozen")
+        return {
+            "pid": pid, "type": str(proj.get("type") or ""),
+            "hourly": str(proj.get("type") or "").lower() == "hourly",
+            "open": open_, "status": status,
+            "currency": cur.get("code") or "", "sign": cur.get("sign") or "",
+            "lo": b.get("minimum"), "hi": b.get("maximum"),
+            "bids": (proj.get("bid_stats") or {}).get("bid_count"),
+            "left": left, "username": tok.get("username", ""),
+            "placed": rec if rec and not rec.get("retracted") else None,
+        }
+    except Exception as e:
+        print(f"  ! bid context {g.get('id')}: {type(e).__name__}: {e}", flush=True)
+        return None
+
+
+@app.post("/draft/{gig_id}/bid")
+def draft_bid(request: Request, gig_id: int, amount: str = Form(""),
+              period: str = Form(""), description: str = Form(""),
+              back: str = Form("/gigs")):
+    """
+    Place the member's bid on Freelancer, from the numbers and text THEY
+    submitted. Nothing is inferred at this step: the amount, the period and
+    the proposal are exactly what was on the form. One bid per project per
+    member is kept locally so the page can show it and offer the retraction.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
+    here = f"/draft/{gig_id}?back={quote_plus(_safe_next(back) or '/gigs')}"
+    import freelancer
+    g = _gig_by_id(gig_id)
+    if not g or (g.get("source") or "") != "freelancer":
+        return _back(f"/draft/{gig_id}", bid_err="That gig isn't on Freelancer.")
+    try:
+        amt = float(str(amount).replace(",", "").strip())
+        days = int(str(period).strip())
+    except ValueError:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Amount and days both need to be numbers."), status_code=303)
+    text = (description or "").strip()
+    if amt <= 0 or not (1 <= days <= 365):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Amount must be above zero and days between 1 and 365."), status_code=303)
+    if len(text) < 20:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "Your proposal is the draft above -- it needs at least a sentence."), status_code=303)
+    tok = freelancer.load_tokens()
+    if not tok:
+        return RedirectResponse("/profile?tab=acct&err=" + quote_plus(
+            "Connect your Freelancer account first."), status_code=303)
+    pid = int(g.get("source_id") or 0)
+    if freelancer.bid_record(pid) and not freelancer.bid_record(pid).get("retracted"):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "You already have a bid on this project. Retract it first to bid again."), status_code=303)
+    who, err = freelancer.me(tok["access_token"])
+    if err or not who.get("id"):
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            f"Freelancer didn't say who you are: {err or 'no id'}"), status_code=303)
+    res, err = freelancer.place_bid(tok["access_token"], pid, int(who["id"]),
+                                    amt, days, text)
+    if err:
+        print(f"  freelancer bid FAILED {me} project {pid}: {err}", flush=True)
+        return RedirectResponse(here + "&bid_err=" + quote_plus(err), status_code=303)
+    bid_id = res.get("id") or (res.get("bid") or {}).get("id")
+    print(f"  freelancer bid placed {me} project {pid} bid {bid_id} "
+          f"{amt} / {days}d", flush=True)
+    if bid_id:
+        freelancer.remember_bid(pid, bid_id, amt, days)
+    _ev(request, "bid_placed", "freelancer")
+    return RedirectResponse(here + "&bid=placed", status_code=303)
+
+
+@app.post("/draft/{gig_id}/bid/retract")
+def draft_bid_retract(request: Request, gig_id: int, back: str = Form("/gigs")):
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to(f"/draft/{gig_id}"), status_code=303)
+    here = f"/draft/{gig_id}?back={quote_plus(_safe_next(back) or '/gigs')}"
+    import freelancer
+    g = _gig_by_id(gig_id)
+    pid = int((g or {}).get("source_id") or 0)
+    rec = freelancer.bid_record(pid)
+    tok = freelancer.load_tokens()
+    if not rec or not tok:
+        return RedirectResponse(here + "&bid_err=" + quote_plus(
+            "No bid of yours on this project to retract."), status_code=303)
+    _, err = freelancer.retract_bid(tok["access_token"], rec["bid_id"])
+    if err:
+        print(f"  freelancer retract FAILED {me} bid {rec['bid_id']}: {err}", flush=True)
+        return RedirectResponse(here + "&bid_err=" + quote_plus(err), status_code=303)
+    print(f"  freelancer bid retracted {me} project {pid} bid {rec['bid_id']}", flush=True)
+    freelancer.remember_bid(pid, rec["bid_id"], rec["amount"], rec["period"], retracted=True)
+    _ev(request, "bid_retracted", "freelancer")
+    return RedirectResponse(here + "&bid=retracted", status_code=303)
 
 
 @app.post("/draft/{gig_id}/save")
@@ -1320,7 +1973,7 @@ def draft_save(request: Request, gig_id: int, text: str = Form(""),
 
 
 @app.get("/suggest")
-def suggest(request: Request, q: str = Query("", max_length=40)):
+def suggest(request: Request, q: str = Query("")):
     """
     Search suggestions, drawn from what is actually on the board.
 
@@ -1333,7 +1986,11 @@ def suggest(request: Request, q: str = Query("", max_length=40)):
     ranked by how many live gigs carry the term. Cheap by construction: a
     scan of ~400 short strings against a cached list, no database.
     """
-    term = (q or "").strip().lower()
+    # Truncated, not rejected — same reasoning as the board's own q. This is
+    # called on every keystroke, so a 422 here is a suggestion panel that dies
+    # the moment somebody pastes instead of types. Nothing on the board is a
+    # 40-character term anyway, so the slice costs no match that could hit.
+    term = (q or "").strip().lower()[:40]
     if len(term) < 2:
         return JSONResponse([])
     try:
@@ -1371,15 +2028,20 @@ def market_page(request: Request):
     except Exception:
         is_pro = False
     m = None
+    teaser = None
     if is_pro:
         conn = queries.connect(DB_PATH)
         try:
             m = _market_view(_market.get(conn))
         finally:
             conn.close()
+    else:
+        # peek(), not get(): a free reader reads the cache or gets nothing,
+        # and can never trigger the scan. See _Market.peek.
+        teaser = _market_teaser(_market.peek())
     _ev(request, "market_view", "pro" if is_pro else "free")
     resp = templates.TemplateResponse(request, "market.html", {
-        "m": m, "is_pro": is_pro, "me": me, "tab": "market",
+        "m": m, "teaser": teaser, "is_pro": is_pro, "me": me, "tab": "market",
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
         "took_ms": (time.perf_counter() - t0) * 1000,
     })
@@ -1388,10 +2050,411 @@ def market_page(request: Request):
     return resp
 
 
+# What each tier costs, in one place on this service.
+#
+# HAND-WRITTEN, and STRIPE.md says why that is a liability: nothing reads these
+# back from Stripe, so changing a price there without changing them here makes
+# the page advertise one number while checkout charges another. They are here
+# rather than in the template so there is exactly one line to change.
+PLAN_PRICE = {"alerts": 5, "pro": 15}
+
+
+@app.get("/plans", response_class=HTMLResponse)
+def plans_page(request: Request, stripe_session: str = Query(""),
+                done: str = Query("")):
+    """
+    The plans, on the board — the surface people actually use.
+
+    Pricing lived on nabbly.co and on the Streamlit app, and nowhere on the
+    board, so the only way to see what Pro costs from inside the product was to
+    leave it. That is the same "three front doors" problem the review named:
+    every Upgrade link walked a member backwards into the old app.
+
+    CHECKOUT IS ATTEMPTED HERE FIRST and falls back to the app. Stripe's keys
+    live on the dartly service today, so billing.enabled() is False here until
+    they are added to nabbly-board too; until then the buttons link to the app
+    exactly as before, and the page is still worth having. Add the keys and
+    they become native without another deploy of anything else.
+    """
+    t0 = time.perf_counter()
+    webauth.scope_for_request(request)      # MUST be first
+    me = webauth.current_email(request)
+    acc = webauth.account_for(request)
+    try:
+        st_ = accounts.status(acc) or {}
+    except Exception:
+        st_ = {}
+
+    # Coming back from Stripe. Re-asks Stripe whether the session actually paid
+    # before touching anything — see billing.confirm_session.
+    paid_ok = False
+    if stripe_session and me:
+        try:
+            paid_ok, _ = billing.confirm_session(stripe_session)
+            if paid_ok:
+                st_ = accounts.status(webauth.account_for(request)) or st_
+                # ONCE. The success URL can be reloaded; the checkout session
+                # id is remembered so a refresh does not count a second sale.
+                if request.session.get("_paid_sid") != stripe_session[:64]:
+                    request.session["_paid_sid"] = stripe_session[:64]
+                    _ev(request, "purchase", st_.get("plan") or "")
+        except Exception:
+            paid_ok = False
+
+    on_paid = bool(st_.get("paid") or st_.get("plan") in ("pro", "alerts"))
+    links = {}
+    # SAY IT WHEN NOTHING CAN BE SOLD. A signed-in visitor who is not paying and
+    # gets no checkout link is looking at a page that cannot take their money,
+    # and until now that looked identical to a page working correctly -- the
+    # button quietly fell back to the old app, which forwards /?nav=pricing
+    # straight back here, so it read as a click that did nothing.
+    if me and not on_paid and not billing.enabled():
+        print("  ! plans: billing not configured on this service — no checkout "
+              "offered (STRIPE_SECRET_KEY / STRIPE_PRO_PRICE_ID)", flush=True)
+    elif me and not on_paid and not billing.alerts_enabled():
+        print("  ! plans: alerts tier not sellable here "
+              "(STRIPE_ALERTS_PRICE_ID unset)", flush=True)
+    if me and not on_paid and billing.enabled():
+        base = str(request.base_url).rstrip("/")
+        for tier in ("alerts", "pro"):
+            if tier == "alerts" and not billing.alerts_enabled():
+                continue
+            try:
+                links[tier] = billing.checkout_url(
+                    me, success_url=f"{base}/plans?stripe_session={{CHECKOUT_SESSION_ID}}",
+                    cancel_url=f"{base}/plans", tier=tier)
+            except Exception:
+                links[tier] = None
+
+    # WHAT STRIPE SAYS, not what this database last heard. There is no webhook,
+    # so a subscription that ended -- because it was cancelled at period end, or
+    # because a card expired -- would otherwise keep serving a plan nobody is
+    # paying for. This is the one page where the answer matters and the reader
+    # is already waiting on a render, so it is the natural place to ask.
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    ends_at = ""
+
+    # SELF-HEAL A PAYMENT THAT NEVER LANDED. A checkout became a plan in
+    # exactly one way -- the browser returning here with the session id on the
+    # URL -- so a closed tab, a dropped connection or a stripped query string
+    # meant the money was taken and nothing granted, for good. That is not
+    # hypothetical: it happened on the first real purchase, on 2026-09-08.
+    #
+    # Asking Stripe what this ADDRESS pays for needs no session and no
+    # redirect, so it also recovers an account whose confirm_session refused
+    # for a reason nobody has thought of yet. Only for a signed-in member who
+    # appears unpaid and has no subscription on file, so it is one extra call
+    # on a page that is not hot, and never for anyone already served.
+    if me and not on_paid and not sub_id and billing.enabled():
+        try:
+            found_sub, found_plan = billing.subscription_for_email(me)
+            if found_sub and found_plan:
+                accounts.set_plan(me, found_plan)
+                accounts.set_stripe_ids(me, "", found_sub)
+                print(f"  billing: recovered {found_plan} for {me} from Stripe "
+                      f"(sub {found_sub}) — the checkout redirect never landed",
+                      flush=True)
+                st_ = accounts.status(webauth.account_for(request)) or st_
+                on_paid = True
+                sub_id = found_sub
+                links = {}
+        except Exception as e:
+            print(f"  ! billing recover: {type(e).__name__}: {e}", flush=True)
+    if me and sub_id and billing.enabled():
+        try:
+            settled = billing.reconcile_plan(me, sub_id)
+            if settled:
+                st_ = accounts.status(webauth.account_for(request)) or st_
+                on_paid = bool(st_.get("paid") or st_.get("plan") in ("pro", "alerts"))
+            # A subscription set to stop still runs to the end of the period, so
+            # the card must say when rather than pretend nothing changed.
+            if billing.cancelling(sub_id):
+                ts = billing.period_end(sub_id)
+                if ts:
+                    ends_at = datetime.fromtimestamp(
+                        ts, tz=timezone.utc).strftime("%-d %B %Y")
+        except Exception:
+            pass
+
+    # WHAT TO ACKNOWLEDGE, and only when the state agrees with the claim. The
+    # query string is a hint from our own redirect, never the evidence: a
+    # cancellation banner is shown because Stripe reports a stopping date, and
+    # a plan banner because the account is actually on that plan now. Someone
+    # editing the URL gets nothing.
+    done = done[:12]
+    did = ""
+    if done == "free" and ends_at:
+        did = "cancelled"
+    # THE STATE IS THE EVIDENCE, same rule as every branch here: the banner
+    # says the cancellation is off only when Stripe has stopped reporting a
+    # stopping date. ends_at is recomputed from Stripe above, so a resume that
+    # did not take cannot show a success.
+    elif done == "trial" and st_.get("pro"):
+        # The state is the evidence: only says the trial started if the account
+        # really is on Pro now.
+        did = "trial"
+    elif done in ("trial", "notrial"):
+        did = "notrial"
+    elif done == "resumed" and not ends_at:
+        did = "resumed"
+    elif done in ("resumed", "noresume"):
+        did = "noresume"
+    elif done in ("pro", "alerts") and (st_.get("plan") or "") == done:
+        did = done
+    elif done == "failed":
+        did = "failed"
+
+    return templates.TemplateResponse(request, "plans.html", {
+        "me": me, "tab": "plans", "st": st_, "price": PLAN_PRICE,
+        "links": links, "on_paid": on_paid, "paid_ok": paid_ok, "did": did,
+        "plan_label": "Pro" if st_.get("pro") else "Alerts",
+        # NOT WHILE A CANCELLATION IS PENDING. switch_plan re-prices the
+        # subscription but leaves cancel_at_period_end set, so an "Upgrade
+        # to Pro" offered here would charge more for something already on
+        # its way out. The pending state is shown instead.
+        "ends_at": ends_at,
+        "can_switch": bool(sub_id and billing.enabled() and not ends_at),
+        "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
+        "took_ms": (time.perf_counter() - t0) * 1000,
+    })
+
+
+@app.get("/plan/cancel", response_class=HTMLResponse)
+def plan_cancel_page(request: Request):
+    """
+    Ask before ending a subscription, and say what ending it means.
+
+    Cancel was a single click that changed what somebody is charged, with no
+    step in between and -- while period_end was broken -- no visible result
+    either. The founder clicked it three times in a row because nothing
+    appeared to happen. A confirmation would have shown him where he stood on
+    the first click, and it is the right shape for a billing action regardless.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    acc = webauth.account_for(request)
+    st_ = accounts.status(acc) or {}
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    # Nothing to cancel: a comped or founding plan has no Stripe subscription
+    # behind it, and offering to end one would be a lie.
+    if not sub_id or not billing.enabled():
+        return RedirectResponse("/plans", status_code=303)
+    ends_at = ""
+    try:
+        ts = billing.period_end(sub_id)
+        if ts:
+            ends_at = datetime.fromtimestamp(
+                ts, tz=timezone.utc).strftime("%-d %B %Y")
+    except Exception:
+        pass
+    return templates.TemplateResponse(request, "cancel.html", {
+        "me": me, "tab": "plans", "st": st_, "ends_at": ends_at,
+        "plan_name": "Pro" if st_.get("pro") else "Alerts",
+        "css_v": CSS_V, "indexable": False, "app_url": APP_URL,
+    })
+
+
+@app.post("/plan/trial")
+def plan_trial(request: Request):
+    """
+    Start the 14-day Pro trial — the one that grants Pro, not the one that
+    charges for it.
+
+    THIS ROUTE DID NOT EXIST, and that was the bug. accounts.start_trial has
+    always been the opt-in trial ("Pro is opt-in", TRIAL_DAYS = 14), but only
+    app.py ever called it. On the board the "Start free trial" button, sitting
+    under a "14 days free" badge, pointed at billing.checkout_url instead --
+    so somebody taking the offer landed on a Stripe page reading "Total due
+    today $15.00". Verified against the live checkout on 2026-09-10. A promise
+    on the button and a charge on the next screen is the worst thing this site
+    could do to somebody, and it was on the path a new member is most likely
+    to take.
+
+    POST, like every other route here that changes what somebody has: a GET
+    would let a crawler or a link prefetcher spend a person's one free trial
+    for them.
+
+    start_trial owns the guards -- already Pro, mid-grant, or a grant already
+    spent are all refused there, so this route does not second-guess them and
+    cannot drift from them.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    ok, msg = accounts.start_trial(me)
+    if not ok:
+        print(f"  ! plan trial: {me} refused — {msg}", flush=True)
+        return RedirectResponse("/plans?done=notrial", status_code=303)
+    print(f"  plan: {me} started the {accounts.TRIAL_DAYS}-day trial", flush=True)
+    _ev(request, "trial_start", "pro")
+    return RedirectResponse("/plans?done=trial", status_code=303)
+
+
+@app.post("/plan/resume")
+def plan_resume(request: Request):
+    """
+    Change your mind about cancelling, before the period runs out.
+
+    POST for the same reason /plan/switch is: it changes what somebody is
+    charged, and a GET would let a link in an email or a crawler following
+    hrefs restart a subscription nobody asked to restart.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+    acc = webauth.account_for(request)
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    if not sub_id:
+        print(f"  ! plan resume: {me} has no stripe_subscription_id on file",
+              flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    if not billing.enabled():
+        print("  ! plan resume: billing not configured on this service",
+              flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    ok, err = billing.resume_subscription(sub_id)
+    if not ok:
+        print(f"  ! plan resume: {me} refused — {err}", flush=True)
+        return RedirectResponse("/plans?done=noresume", status_code=303)
+    print(f"  plan: {me} resumed — the cancellation is off", flush=True)
+    _ev(request, "resume", "")
+    return RedirectResponse("/plans?done=resumed", status_code=303)
+
+
+@app.post("/plan/switch")
+def plan_switch(request: Request, tier: str = Form(""),
+                why: str = Form("")):
+    """
+    Move an existing subscriber between plans, including off them.
+
+    NEVER CHECKOUT. checkout_url() is for someone who is not paying; sending a
+    current subscriber there opens a second subscription and bills them for
+    both. Everything here goes through the subscription they already have --
+    see billing.switch_plan and billing.cancel_at_period_end.
+
+    POST because it changes what someone is charged. A GET would let a link in
+    an email, or a crawler following hrefs, downgrade an account.
+    """
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/plans"), status_code=303)
+
+    acc = webauth.account_for(request)
+    sub_id = (acc or {}).get("stripe_subscription_id") or ""
+    tier = (tier or "").strip().lower()
+    # AND SAY WHICH ONE. This returned a bare 303 -- the same status a success
+    # returns -- so a refused switch and a completed one were indistinguishable
+    # from the browser AND from the logs. That is the fourth silent return to
+    # cost an hour today, and it is in code written while fixing the other
+    # three. A guard that refuses correctly and says nothing is still a bug.
+    if tier not in ("free", "alerts", "pro"):
+        print(f"  ! plan switch: bad tier {tier!r} for {me}", flush=True)
+        return RedirectResponse("/plans", status_code=303)
+    if not sub_id:
+        print(f"  ! plan switch: {me} has no stripe_subscription_id on file — "
+              f"nothing to change", flush=True)
+        return RedirectResponse("/plans", status_code=303)
+    if not billing.enabled():
+        print("  ! plan switch: billing not configured on this service",
+              flush=True)
+        return RedirectResponse("/plans", status_code=303)
+
+    if tier == "free":
+        # Not a delete. They have paid for this period and keep it; Stripe
+        # stops the renewal, and reconcile_plan on the next /plans load moves
+        # the account to free once the subscription actually ends.
+        ok, err = billing.cancel_at_period_end(sub_id)
+        if ok:
+            print(f"  plan: {me} cancels at period end"
+                  f"{' (' + why + ')' if why else ''}", flush=True)
+            _ev(request, "cancel", "")          # the reason stays out of analytics
+            # WHY, WHEN THEY OFFER IT. At this size a single churn reason is a
+            # large fraction of what is known about why anyone leaves, and it
+            # is unrecoverable after the fact. Keyed by email so a second
+            # cancellation replaces the first rather than accumulating.
+            # THE RECEIPT. A page can be closed, misread or never returned to,
+            # and the fact that outlives all of that is a date: when access
+            # stops. That belongs in their inbox, not only on a card they may
+            # never load again. Never blocks the cancellation -- a mail that
+            # fails to send must not make someone think they are still being
+            # charged.
+            try:
+                import mailer
+                ends_txt = ""
+                ts = billing.period_end(sub_id)
+                if ts:
+                    ends_txt = datetime.fromtimestamp(
+                        ts, tz=timezone.utc).strftime("%-d %B %Y")
+                # THE SAME NUMBER THEIR DIGEST REPORTS, not a new one invented
+                # for this email: gigs from the last seven days through their
+                # own skills, which is exactly weekly_digest's `matched`. A
+                # figure they have seen before is one they can trust; a figure
+                # only this email produces is one they cannot check.
+                week_n = 0
+                try:
+                    import profile as profile_mod
+                    prof = profile_mod.load() or {}
+                    since = (datetime.now(timezone.utc)
+                             - timedelta(days=7)).isoformat(timespec="seconds")
+                    c = queries.connect(DB_PATH)
+                    try:
+                        week_n = queries.count_since(
+                            since, conn=c, job_types=prof.get("skills") or [])
+                    finally:
+                        c.close()
+                except Exception:
+                    week_n = 0        # a missing number just prints nothing
+                if ends_txt and mailer.enabled():
+                    subject, html_body, text_body = mailer.cancelled_email(
+                        (acc or {}).get("name") or "",
+                        "Pro" if st_.get("pro") else "Alerts",
+                        ends_txt, accounts.email_token((acc or {}).get("token") or ""),
+                        week_matches=week_n)
+                    mailer.send(me, subject, html_body, text_body)
+                    print(f"  plan: cancellation receipt sent to {me}", flush=True)
+            except Exception as e:
+                print(f"  ! cancellation receipt failed for {me}: {e!r}", flush=True)
+            if why:
+                try:
+                    import store
+                    if store.enabled():
+                        store.put("_churn", me, {
+                            "email": me, "reason": why,
+                            "plan": st_.get("plan") or "",
+                            "at": datetime.now(timezone.utc).isoformat(
+                                timespec="seconds")})
+                except Exception:
+                    pass
+    else:
+        ok, err = billing.switch_plan(sub_id, tier)
+        if ok:
+            # Locally too, and now: there is no webhook to tell us later, and a
+            # member who just paid for a different plan should not have to wait
+            # for a reconciliation pass to receive it.
+            accounts.set_plan(me, tier)
+            print(f"  plan: {me} -> {tier}", flush=True)
+            _ev(request, "plan_switch", tier)
+    if not ok:
+        print(f"  ! plan switch failed for {me} -> {tier}: {err}", flush=True)
+        return RedirectResponse("/plans?done=failed", status_code=303)
+    # SAYS WHAT JUST HAPPENED, so /plans can acknowledge it. The card changing
+    # from "Current plan" to "Cancels 8 October" is not confirmation -- the
+    # founder pressed cancel five times because a quietly different label is
+    # indistinguishable from nothing happening. The param is a HINT only: the
+    # banner still refuses to render unless the state below actually agrees.
+    return RedirectResponse(f"/plans?done={tier}", status_code=303)
+
+
 @app.get("/profile", response_class=HTMLResponse)
 def profile_page(request: Request, saved_ok: int = Query(0),
                  welcome: int = Query(0), tab: str = Query(""),
-                 resume_bad: int = Query(0)):
+                 resume_bad: int = Query(0), err: str = Query(""),
+                 connected: str = Query(""), disconnected: str = Query("")):
     """
     What ranks the board and what drafts are written from.
 
@@ -1406,12 +2469,16 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         return RedirectResponse(_signin_to("/profile"), status_code=303)
     import alerts as alerts_mod
     import profile as profile_mod
-    st_ = {}
+    st_, acc = {}, None
     try:
-        st_ = accounts.status(webauth.account_for(request)) or {}
+        acc = webauth.account_for(request)
+        st_ = accounts.status(acc) or {}
     except Exception:
         st_ = {}
     is_pro = bool(st_.get("pro"))
+    # Someone who clicked an unsubscribe link. The page must say so and offer
+    # the way back, because the unsubscribe page promises exactly that.
+    email_off = bool((acc or {}).get("email_opt_out"))
     # What the Account tab says you are on. Read from accounts.status rather
     # than inferred from is_pro, so a trial with days left reads as a trial.
     if is_pro and st_.get("plan") == "trial":
@@ -1420,6 +2487,13 @@ def profile_page(request: Request, saved_ok: int = Query(0),
     elif is_pro:
         plan = {"name": "Pro", "tag": "Active",
                 "what": "Ranking, post-aware drafts, market rates and instant alerts."}
+    elif st_.get("alerts"):
+        # A paying member, just not a Pro one. Without this branch the card
+        # below would tell somebody who pays us every month that they are on
+        # the free plan.
+        plan = {"name": "Alerts", "tag": "Active",
+                "what": "Instant pings the moment a matching gig lands. "
+                        "The rest of the board is the free one."}
     else:
         plan = {"name": "Free", "tag": "The whole board",
                 "what": "Every gig from every source, search and browse, "
@@ -1439,7 +2513,12 @@ def profile_page(request: Request, saved_ok: int = Query(0),
         _resume_chars = 0
     resp = templates.TemplateResponse(request, "profile.html", {
         "prof": profile_mod.load(), "prefs": alerts_mod.load_prefs(),
-        "is_pro": is_pro, "plan": plan, "inbox_address": inbox_address,
+        "fl": _freelancer_state(),
+        "fl_err": err[:200], "fl_connected": connected == "freelancer",
+        "fl_disconnected": disconnected == "freelancer",
+        "is_pro": is_pro, "can_alerts": bool(st_.get("alerts")),
+        "email_off": email_off,
+        "plan": plan, "inbox_address": inbox_address,
         "resume_chars": _resume_chars, "resume_bad": bool(resume_bad),
         "all_skills": ALL_SKILLS, "skill_groups": SKILL_GROUPS, "me": me,
         "tab_open": tab if tab in ("board", "acct") else "you",
@@ -1518,6 +2597,11 @@ async def profile_save(request: Request):
         if v in allowed:
             prefs[field] = v
     prefs["urgent_only"] = bool(form.get("urgent_only"))
+    # An unchecked box submits nothing, so presence IS the value — which also
+    # means this is the one place someone can turn the email channel off.
+    # No email fields here: email is weekly_digest's, not an alert channel,
+    # and the only switch for it is accounts.email_opt_out via the unsubscribe
+    # link that every one of those emails carries.
     alerts_mod.save_prefs(prefs)
     # Back to the tab they were on. Saving from "Preferences" and landing on
     # "About you" reads as the page having thrown the edit away.
@@ -1533,8 +2617,123 @@ async def profile_save(request: Request):
     return RedirectResponse(f"/profile?saved_ok=1&tab={_tab}", status_code=303)
 
 
+def _freelancer_state() -> dict:
+    """
+    What the Connected-accounts row renders from.
+
+    Deliberately does NOT decrypt or refresh anything: this runs on every
+    profile view, and a token refresh is a network round trip that a page load
+    should never pay for. connected() reads the two plaintext display fields
+    beside the ciphertext; the token itself is only touched when a bid is
+    actually placed.
+    """
+    try:
+        import freelancer
+        if not freelancer.enabled():
+            return {"available": False}
+        acc = freelancer.connected()
+        return {"available": True, "account": acc,
+                "sandbox": bool(acc and acc.get("sandbox"))}
+    except Exception:
+        return {"available": False}
+
+
+@app.post("/profile/email")
+def profile_email_on(request: Request):
+    """Turn email back on -- the way back from the unsubscribe link."""
+    webauth.scope_for_request(request)
+    me = webauth.current_email(request)
+    if not me:
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    try:
+        accounts.resubscribe(me)
+    except Exception as e:
+        print(f"  ! resubscribe {me}: {type(e).__name__}: {e}", flush=True)
+    return RedirectResponse("/profile?tab=board&saved_ok=1", status_code=303)
+
+
+@app.get("/connect/freelancer")
+def freelancer_start(request: Request):
+    """
+    Begin the Freelancer handshake.
+
+    Signed-in only, and the in-flight marker goes in the session BEFORE the
+    redirect — the callback refuses anything that cannot show one.
+    """
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    import freelancer
+    if not freelancer.enabled():
+        return _back("/profile", tab="acct",
+                     err="Freelancer connect isn't switched on yet.")
+    state = freelancer.new_state()
+    request.session[freelancer.STATE_KEY] = state
+    return RedirectResponse(freelancer.authorize_url(state), status_code=303)
+
+
+@app.get("/connect/freelancer/callback")
+def freelancer_callback(request: Request, code: str = Query(""),
+                        state: str = Query(""), error: str = Query("")):
+    """
+    Where Freelancer sends the browser back.
+
+    FREELANCER DOES NOT DOCUMENT A `state` PARAMETER. Its authorize endpoint
+    lists response_type, client_id, redirect_uri, scope, advanced_scopes and
+    prompt, and nothing else (read 2026-09-10). We send state regardless and
+    check it when it comes back, but the guard that actually holds is the
+    in-flight marker: this route refuses any callback for a session that did
+    not just start a handshake, which is the login-CSRF that would otherwise
+    bind an attacker's Freelancer account to somebody else's Nabbly account.
+    The marker is popped whatever the outcome, so a code cannot be replayed.
+    """
+    webauth.scope_for_request(request)
+    import freelancer
+    want = request.session.pop(freelancer.STATE_KEY, "")
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    if error:
+        return _back("/profile", tab="acct",
+                     err="" if error == "access_denied"
+                     else "Freelancer couldn't complete that connection.")
+    if not want:
+        return _back("/profile", tab="acct",
+                     err="That connection link expired. Start again from here.")
+    if state and state != want:
+        return _back("/profile", tab="acct",
+                     err="That connection link didn't check out. Try again.")
+    if not code:
+        return _back("/profile", tab="acct",
+                     err="Freelancer didn't send a code back.")
+    tok, err = freelancer.exchange_code(code)
+    if err:
+        return _back("/profile", tab="acct", err=err)
+    # Name the account before storing it, so the profile row can say WHICH
+    # Freelancer account is connected. A row that just says "connected" is
+    # useless to somebody who has two.
+    who, werr = freelancer.me(tok["access_token"])
+    if werr:
+        return _back("/profile", tab="acct", err=werr)
+    tok["user_id"] = who.get("id")
+    tok["username"] = who.get("username") or who.get("display_name") or ""
+    if not freelancer.save_tokens(tok):
+        return _back("/profile", tab="acct",
+                     err="Couldn't store that connection securely.")
+    return _back("/profile", tab="acct", connected="freelancer")
+
+
+@app.post("/connect/freelancer/disconnect")
+def freelancer_disconnect(request: Request):
+    webauth.scope_for_request(request)
+    if not webauth.current_email(request):
+        return RedirectResponse(_signin_to("/profile"), status_code=303)
+    import freelancer
+    freelancer.disconnect()
+    return _back("/profile", tab="acct", disconnected="freelancer")
+
+
 @app.get("/out/{gig_id}")
-def out(request: Request, gig_id: int):
+def out(request: Request, gig_id: int, e: str = Query("")):
     """
     Log an apply click, then send the browser to the posting.
 
@@ -1565,14 +2764,73 @@ def out(request: Request, gig_id: int):
     # feeds the outcomes number, and an anonymous click has nobody to
     # attribute it to.
     _ev(request, "gig_click", (rows[0].get("job_type") or "")[:60])
+    # WHO CLICKED, from a session OR from the email token in the link.
+    #
+    # A digest link is opened from a mailbox, often in a browser with no
+    # session, so attributing on session alone drops exactly the clicks the
+    # digest exists to produce. `e` is accounts.email_token: an HMAC of the
+    # sign-in token that identifies without granting anything, so it is safe
+    # to travel in an email and useless to anyone who copies it. It is only
+    # ever read to attribute a click — never to sign anybody in.
+    scope = None
     if webauth.current_email(request):
+        scope = paths.get_scope()
+    elif e:
+        try:
+            acc = accounts.by_email_token(e)
+            if acc:
+                scope = paths.scope_for(acc["email"])
+        except Exception:
+            scope = None
+    if scope:
         try:
             import activity
-            activity.log_apply(paths.get_scope(), gig_id)
+            activity.log_apply(scope, gig_id)
         except Exception:
             pass          # a counter must never stand between someone and a gig
     return RedirectResponse(rows[0]["url"], status_code=302)
 
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_page(request: Request, t: str = Query("")):
+    """
+    One click, no sign-in — the link at the bottom of every email.
+
+    Takes an EMAIL token, never a sign-in token: a link that travels in a
+    mailbox must not be a credential. accounts.unsubscribe does the same,
+    turning off every email for the account rather than only the kind that
+    carried the link.
+
+    THIS ROUTE IS PERMANENT. Every email already delivered carries an
+    unsubscribe URL, those never expire, and a broken opt-out is a legal
+    problem rather than a cosmetic one — so this must keep working long after
+    the Streamlit app it was copied from is gone. See RETIRE-APP.md.
+    """
+    webauth.scope_for_request(request)      # MUST be first
+    ok = False
+    if t:
+        try:
+            ok = bool(accounts.unsubscribe(t))
+        except Exception:
+            ok = False
+    _ev(request, "unsubscribe", "ok" if ok else "bad_token")
+    resp = templates.TemplateResponse(request, "unsubscribe.html", {
+        "ok": ok, "me": webauth.current_email(request), "tab": "",
+        "css_v": CSS_V, "indexable": False, "app_url": APP_URL, "took_ms": 0.0,
+    })
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return resp
+
+
+# When this process started. Only the health check uses it, to tell "still
+# filling itself" from "has been empty for a while", which need opposite
+# answers from the same fact.
+_BOOT_AT = time.monotonic()
+
+# How long an empty board may ask Render to hold traffic. Comfortably over the
+# ~50s first pull, and far under the 15 minutes after which Render cancels a
+# deploy outright.
+_FILL_GRACE_S = 300
 
 @app.get("/health")
 def health():
@@ -1583,11 +2841,68 @@ def health():
     is not monitored.
     """
     out = {"ok": True}
+    # WHETHER ANALYTICS IS ACTUALLY ON, which was invisible until now. The
+    # board has recorded events since the Gigs tab moved here, but every one
+    # is a no-op unless POSTHOG_API_KEY is set and the package imports — and
+    # from outside there was no way to tell "nobody visited" from "nothing was
+    # ever sent". telemetry.status() already answers it; it just had nowhere
+    # to say so. Reports off | ready | no-package | failed, and never the key.
+    try:
+        out["telemetry"] = telemetry.status()
+    except Exception:
+        out["telemetry"] = "unknown"
+    # WHETHER THIS SERVICE CAN TAKE MONEY, on the same terms as telemetry
+    # above: a state, never a key. Stripe's keys lived only on the dartly
+    # service, so /plans quietly offered no checkout and fell back to a link
+    # that bounced straight back here — a page that could not sell anything and
+    # looked identical to one that could. Now it is one curl away.
+    #   pro / alerts: sellable | no-price | off
+    try:
+        out["billing"] = ("off" if not billing.SECRET_KEY else
+                          "pro" if (billing.enabled() and not billing.alerts_enabled())
+                          else "pro+alerts" if billing.enabled()
+                          else "key-but-no-price")
+    except Exception:
+        out["billing"] = "unknown"
+    # WHETHER GIGS ARE STILL ARRIVING, which nothing could answer from outside.
+    # Ingest runs in the other service, and its only visible trace was the
+    # fetched_at of rows it wrote — so a quiet spell on the sources and a dead
+    # loop produced identical evidence, and two attempts to tell them apart from
+    # timestamps reached the wrong answer. refresh now writes a heartbeat every
+    # cycle whether or not it found anything; this reads it. Minutes, because
+    # the loop runs every two: single digits are healthy, an hour is not.
+    try:
+        import store as _store
+        hb = (_store.get("_refresh", "heartbeat") or {}) if _store.enabled() else {}
+        if hb.get("at"):
+            beat = datetime.fromisoformat(hb["at"])
+            out["ingest_age_m"] = round(
+                (datetime.now(timezone.utc) - beat).total_seconds() / 60, 1)
+            out["ingest_runs"] = hb.get("runs", 0)
+            if hb.get("fails"):
+                out["ingest_fails"] = hb["fails"]
+            if hb.get("last_error"):
+                out["ingest_last_error"] = str(hb["last_error"])[:120]
+        else:
+            out["ingest_age_m"] = None
+    except Exception:
+        out["ingest_age_m"] = None
     if _SYNC:
         import sync
         s = sync.state()
         out.update(rows=s["rows"], drift_s=s["drift_s"],
-                   archived=s["archived"], errors=s["errors"])
+                   archived=s["archived"], errors=s["errors"],
+                   boot_pull_s=s.get("boot_pull_s"))
+        # RETENTION, VISIBLE. The sweep runs unattended once a day and can
+        # legitimately decline to run — the floor guard, an unreachable
+        # mirror — so "it never happened" and "it happened and found nothing"
+        # have to be distinguishable from outside. That distinction is the
+        # entire reason the old arrangement went unnoticed for weeks.
+        out["swept"] = s.get("swept", 0)
+        if s.get("sweep_note"):
+            out["sweep_note"] = s["sweep_note"]
+        if s.get("last_sweep"):
+            out["sweep_age_h"] = round((time.time() - s["last_sweep"]) / 3600, 1)
         if s["note"]:
             out["note"] = s["note"]
         # An empty board is not healthy. This reported ok:true while serving
@@ -1611,23 +2926,54 @@ def health():
         # Two missed refreshes is a real problem, not a blip.
         if s["drift_s"] is not None and s["drift_s"] > sync.REFRESH_S * 3:
             out["ok"] = False
+    # AND SAY IT IN THE STATUS CODE, not only in the body. Render decides a
+    # health check on the HTTP status alone and never reads the JSON, so this
+    # route answered 200 while reporting ok:false and status:"starting" — the
+    # comment in _boot claims Render "holds traffic on the old instance" during
+    # the first pull, and it never did. Measured 2026-09-05: every deploy cut
+    # traffic to the new instance immediately and served an EMPTY BOARD for
+    # about a minute while the mirror filled.
+    #
+    # STRICTLY TIME-BOXED, because the same signal restarts a running instance
+    # after 60s of failures. An unbounded 503 on an empty board would turn a
+    # broken mirror into a restart loop that never serves anything. After the
+    # grace window an empty board goes back to 200 and stays visible as
+    # ok:false to whatever is reading the body — a bad board that is up beats a
+    # bad board that is cycling.
+    #
+    # Drift deliberately does NOT reach this: stale gigs are worth serving, and
+    # failing the check for them would restart a service that is working.
+    if out.get("status") == "starting" and time.monotonic() - _BOOT_AT < _FILL_GRACE_S:
+        out["holding"] = "503 while the board fills — Render keeps the old instance"
+        return JSONResponse(out, status_code=503)
     return out
 
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/gigs", response_class=HTMLResponse)
 def board(request: Request,
-          q: str = Query("", max_length=120),
+          # NO max_length HERE, DELIBERATELY. This is the search box, and a
+          # Query cap turns anything longer into a 422 error page: paste a job
+          # title and a company into the box, press Search, and the board
+          # answers "That address has a setting the board doesn't use" — which
+          # is not even true, nothing was wrong with the sort or the filter.
+          # Reproduced in a browser on 2026-09-09 with a single pasted
+          # sentence. A search box's contract is to search for what it can and
+          # show what it finds; it is never the place to refuse the request.
+          # Truncated to 120 below, which is what the cap was protecting.
+          q: str = Query(""),
           field: str = Query(""),
           size: str = Query(""),
           source: str = Query(""),
           urgent: int = Query(0),
           where: str = Query("", pattern="^(remote|onsite|)$"),
+          work: str = Query("", pattern="^(project|)$"),
           langs: str = Query(""),
           sort: str = Query("", pattern="^(fit|new|)$"),
           qf: str = Query("", pattern="^(recent|mine|urgent|)$"),
           page: int = Query(0, ge=0, le=2000)):
     t0 = time.perf_counter()
+    q = q[:120]
     # MUST be first: sets the thread-local scope the per-user helpers read.
     webauth.scope_for_request(request)
     me = webauth.current_email(request)
@@ -1639,7 +2985,8 @@ def board(request: Request,
                   if raw_field.strip() and not field else "")
     ctx = {"job_types": _csv(field), "sizes": _csv(size),
            "sources": _csv(source), "languages": _csv(langs),
-           "urgent_only": bool(urgent), "where_work": where, "since_hours": 0}
+           "urgent_only": bool(urgent), "where_work": where, "since_hours": 0,
+           "work_type": work}
     # Fit ranking is a Pro feature AND needs a profile with something in it.
     # score.fit_score gives every gig a flat +30 when there are no skills, so
     # an empty profile would produce the same number on every card and present
@@ -1774,8 +3121,8 @@ def board(request: Request,
 
     def link(**over):
         cur = {"q": q, "field": field, "size": size, "source": source,
-               "urgent": urgent or "", "where": where, "langs": langs,
-               "sort": sort, "qf": qf, "page": ""}
+               "urgent": urgent or "", "where": where, "work": work,
+               "langs": langs, "sort": sort, "qf": qf, "page": ""}
         cur.update(over)
         parts = [f"{k}={quote_plus(str(v))}" for k, v in cur.items() if v not in ("", None)]
         return f"{base}?" + "&".join(parts) if parts else base
@@ -1797,7 +3144,7 @@ def board(request: Request,
     # /gigs skips the block that assigns it and the template reads it
     # unconditionally, so a landing-only assignment is a 500 on /gigs. It was,
     # for one commit.
-    hero_gig, hero_draft = None, ""
+    hero_gig, hero_draft, hero_why = None, "", ""
     landing = request.url.path == "/"
     # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
     # for a visitor — it is the landing: hero, then the newest gigs. What it no
@@ -1825,9 +3172,62 @@ def board(request: Request,
                 import pitch
                 hero_gig = res["rows"][0]
                 hero_draft = pitch.draft_template(hero_gig, prof)
+                # WHY THIS ONE IS FIRST, in the member's own terms. fit_ranked
+                # already computed it into _why and nothing rendered it; the
+                # card said "your top gig" and left the reader to take that on
+                # faith. The note is the one thing on this card that changes
+                # from member to member and day to day.
+                #
+                # The SCORE is deliberately not shown. Measured across all 24
+                # categories against 4,000 live gigs, the top row lands on 78
+                # or 83 every single time — the number is a ranking device, and
+                # printing the same "83" for every member every day would be
+                # noise wearing the costume of data (FEEL §7).
+                #
+                # Empty when the member set neither skills nor keywords, and
+                # then the line simply does not render: an unranked feed has
+                # no reason to give, and inventing one is worse than silence.
+                hero_why = ", ".join(hero_gig.get("_why") or [])
             except Exception:
-                hero_gig, hero_draft = None, ""
+                hero_gig, hero_draft, hero_why = None, "", ""
     decorate(res["rows"], ranked)
+    # ONE MARKED ROW ON /GIGS, AND ONLY WHEN IT IS TRUE.
+    #
+    # /gigs is the whole board and its default order is newest-first, so
+    # nothing on the page says which of these 25 is actually yours — the fit
+    # numbers exist but only the dashboard ever showed them. This marks the
+    # best-fitting row so the page has one personal thing on it.
+    #
+    # Scoped to /gigs deliberately: the dashboard already carries its own note
+    # on the top-match card, and two hand-written marks on one screen is the
+    # thing the whole scheme is supposed to prevent.
+    #
+    # THE COPY HAS TO BE TRUE, so the row must actually match a declared skill
+    # — a high score from keywords or budget alone is not "matches your
+    # skills". No skills set, no match on the page, no note.
+    #
+    # Cost is 25 fit_score calls on rows already in memory, which is pure
+    # Python over dicts. The expensive version is queries.fit_ranked, which
+    # scores the whole board; this deliberately does not do that.
+    if not landing and me and (prof.get("skills") or []):
+        try:
+            import score as _sc
+            best, best_s = None, 0
+            for r in res["rows"]:
+                if r.get("job_type") not in prof["skills"]:
+                    continue
+                s, _why = _sc.fit_score(
+                    {k: r.get(k) for k in _sc.FIT_FIELDS}, prof)
+                if s > best_s:
+                    best, best_s = r, s
+            if best is not None:
+                # The short form is the data; _card.html supplies the
+                # "matches " prefix and hides it on a phone, where the full
+                # label measured 45% of the card's width and competed with
+                # the title instead of annotating it.
+                best["_tack"] = "your skills"
+        except Exception:
+            pass          # a flourish must never cost somebody the page
     # Ordered by how many gigs sit behind each bucket, not by however the dict
     # happens to be written — the app's dashboard leads with the biggest, and a
     # different order is the kind of difference you feel without being able to
@@ -1840,7 +3240,7 @@ def board(request: Request,
         key=lambda x: -x["n"])
     carry = {k: v for k, v in
              {"field": field, "size": size, "source": source, "langs": langs,
-              "where": where, "sort": sort, "qf": qf,
+              "where": where, "work": work, "sort": sort, "qf": qf,
               "urgent": urgent or ""}.items() if v}
 
     # AN EMPTY BOARD MID-DEPLOY IS NOT AN EMPTY BOARD. Render wipes the disk on
@@ -1856,7 +3256,7 @@ def board(request: Request,
         booting = False
     resp = templates.TemplateResponse(request, "board.html", {
         "booting": booting,
-        "hero_gig": hero_gig, "hero_draft": hero_draft,
+        "hero_gig": hero_gig, "hero_draft": hero_draft, "hero_why": hero_why,
         "new_since": new_since,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
@@ -1873,7 +3273,7 @@ def board(request: Request,
         # than suggesting nothing.
         "search_terms": sorted(config.FIELD_ALIASES.keys()),
         "sel_source": _csv(source), "sel_langs": _csv(langs),
-        "urgent": bool(urgent), "where": where, "link": link,
+        "urgent": bool(urgent), "where": where, "work": work, "link": link,
         "sort": sort, "ranked": ranked, "can_rank": can_rank,
         "qf": qf, "qf_label": QF_LABEL.get(qf, ""), "qf_note": qf_note,
         # Relative, not str(request.url): the absolute form would carry the

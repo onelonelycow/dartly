@@ -15,6 +15,7 @@ plan). That's the tradeoff we chose for $0.
 """
 import os
 import threading
+import datetime as _dt
 import time
 
 _INTERVAL_S = 120          # ~2 min between fetches
@@ -23,10 +24,51 @@ _ALERT_MIN_GAP_S = 900     # fallback gap if prefs can't be read (see _loop)
 _DIGEST_CHECK_S = 3600     # how often to check who's due for the weekly digest
 _NUDGE_CHECK_S = 3600      # how often to check for a lapsed "yes I'd pay" trial
 _ARCHIVE_CHECK_S = 86400   # how often to age gigs off the board
+_RARE_CHECK_S = 86400      # how often to recompute what's hard to find
 _GAP_RECHECK_S = 300       # how often to re-read everyone's alert interval
 _started = False
+
+# Who this process is, in the ingest lease below. Render sets the service name;
+# the pid keeps two instances of one service apart.
+OWNER = f"{os.environ.get('RENDER_SERVICE_NAME') or 'local'}:{os.getpid()}"
+# How stale a heartbeat must be before another process may take ingest over.
+# Comfortably longer than a cycle (which is ~2 min, and longer when the
+# second-pass classifier has a backlog to work through) so a slow cycle is never
+# mistaken for a dead owner.
+_LEASE_S = int(os.environ.get("NABBLY_INGEST_LEASE_S") or 900)
+# A LEASE HELD BY OUR OWN DEAD PREDECESSOR GOES STALE SOONER.
+#
+# OWNER carries the pid, so after every redeploy the new instance sees the old
+# instance's heartbeat under a different owner and waits the full 900s for it.
+# Measured on 2026-09-10, minutes after a deploy: lease holder
+# "nabbly-board:39" -- a pid killed by that very deploy -- heartbeat 795s old,
+# and /health reporting ingest_age_m 12.8 with nothing fetching. Every deploy
+# was costing up to fifteen minutes of board freshness on a product whose one
+# promise is "minutes after they post", and four deploys in an evening is most
+# of an hour.
+#
+# Render runs numInstances: 1, so a heartbeat under OUR OWN service name and a
+# different pid can only be a process that is already gone. Two missed cycles
+# (a cycle is ~150s) is proof enough. It stays conservative during the deploy
+# overlap, because a live old instance keeps its heartbeat fresh every cycle --
+# this only fires once it has actually stopped writing.
+#
+# A DIFFERENT service keeps the full 900s: that is the app-vs-board case, where
+# both are genuinely alive and the only question is which one ingests.
+_LEASE_SAME_SERVICE_S = int(os.environ.get("NABBLY_INGEST_LEASE_SELF_S") or 300)
 _lock = threading.Lock()
 _state = {"runs": 0, "last": None, "alerted": 0, "last_alert": None}
+
+
+def _trim():
+    """Return freed heap pages to the OS. glibc only; a no-op elsewhere."""
+    import gc
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
 
 
 def _rss_mb() -> float:
@@ -182,6 +224,13 @@ def _loop(on_update=None):
     # Same reasoning: the boot-time call above already archived anything stale
     # as of right now, so the clock for the NEXT pass starts here, not at zero.
     last_archive_check = time.time()
+    # 0.0 ON PURPOSE, unlike the archive clock above and the digest clock below.
+    # A zero there would re-archive on every deploy and mail every account on
+    # every deploy respectively; a zero here recomputes a marker that is
+    # idempotent and writes only the rows whose answer changed. The board
+    # restores from the mirror at boot, so starting at zero is how the badge is
+    # right shortly after a deploy instead of up to a day later.
+    last_rare_check = 0.0
 
     while True:
         try:
@@ -214,9 +263,21 @@ def _loop(on_update=None):
             # is the missing instrument: when (if) the next alert email
             # arrives, the log shows exactly what RSS was doing in the minutes
             # before, instead of us inferring it. ~720 short lines a day.
+            # HAND FREED MEMORY BACK. Killed for memory on 2026-09-15 with the
+            # log showing RSS climbing ~1MB a cycle all day, 401MB -> 485MB,
+            # on a 512MB instance -- and 433MB after 20 hours two days before,
+            # so it was always heading there. Nothing holds those bytes: each
+            # cycle allocates ~1,300 postings of text and frees them, and
+            # glibc keeps the freed, fragmented pages rather than returning
+            # them. malloc_trim gives them back; MALLOC_ARENA_MAX=2 in the
+            # environment stops the four threads each fragmenting an arena of
+            # their own. Both lines in the log so the slope is readable.
+            before = _rss_mb()
+            _trim()
             _state["rss_mb"] = _rss_mb()
             print(f"  mem: {_state['rss_mb']:.0f}MB rss "
-                  f"(cycle {_state['runs']})", flush=True)
+                  f"(cycle {_state['runs']}, {before:.0f}MB before trim)",
+                  flush=True)
 
             # Read anything people forwarded to their Nabbly address. Runs right
             # after the fetch so forwarded gigs are on the board before the
@@ -262,6 +323,10 @@ def _loop(on_update=None):
             try:
                 import analytics
                 analytics.flush()
+                # The board's own counters. flush() above is a no-op here --
+                # this service never writes the local events table -- so
+                # without this the admin panel sees nothing the board did.
+                analytics.flush_live()
             except Exception:
                 pass
             # Keep the AI spend ledger small — it only needs recent days.
@@ -286,6 +351,9 @@ def _loop(on_update=None):
                 # Retire postings the source has already taken down. The age
                 # cutoff alone missed a WWR gig that expired inside the window.
                 _dead = db.sweep_dead_links()
+                # PeoplePerHour says "Awarded" on a page that still answers
+                # 200; the sweep above cannot see that. See db.sweep_pph_status.
+                _dead += db.sweep_pph_status()
                 if _dead:
                     _state["dead_links"] = _state.get("dead_links", 0) + _dead
             except Exception:
@@ -325,6 +393,13 @@ def _loop(on_update=None):
                     nd = lapsed_nudge.run_all()
                     if nd:
                         _state["nudges_sent"] = _state.get("nudges_sent", 0) + nd
+                except Exception:
+                    pass
+                try:
+                    import ending_soon
+                    ne = ending_soon.run_all()
+                    if ne:
+                        _state["ending_soon_sent"] = _state.get("ending_soon_sent", 0) + ne
                 except Exception:
                     pass
                 last_nudge_check = time.time()
@@ -381,6 +456,59 @@ def _loop(on_update=None):
                 print(f"  ! refresh has failed {_state['fails']} cycles in a row "
                       f"— the board is not updating", flush=True)
                 traceback.print_exc()
+        # The second-pass classifier, once per cycle and strictly bounded. It
+        # reads only gigs the keyword rules left in "Other / general" and never
+        # touches one they placed, so a bad answer cannot undo a good tag. It
+        # runs last because it is the only step here that makes a network call
+        # to a paid API: everything the board needs from this cycle is already
+        # committed by the time it starts, and if it hangs or throws it costs a
+        # label rather than the refresh.
+        #
+        # AT THE LOOP'S INDENT, NOT THE HANDLER'S. This first shipped one level
+        # deeper, inside `except Exception as e:` above, where it ran only when
+        # a refresh cycle had already failed. Cycles were succeeding, so it
+        # never ran once in an hour on production and reported nothing: no
+        # error, no output, and a queue that stayed at 5,913 while looking
+        # exactly like a feature still waiting on a deploy.
+        try:
+            db.classify_unlabelled()
+        except Exception as e:
+            print(f"  ! llm classify step failed: "
+                  f"{type(e).__name__}: {e}", flush=True)
+
+        # Which gigs appear on none of the boards a member could check alone.
+        # On the archive's daily clock, not every cycle: it is two passes over
+        # the whole board, and the answer moves on the timescale of a gig being
+        # reposted elsewhere, not of a two-minute fetch.
+        if time.time() - last_rare_check >= _RARE_CHECK_S:
+            last_rare_check = time.time()
+            try:
+                _state["rare"] = db.mark_rare()
+            except Exception as e:
+                print(f"  ! mark_rare failed: {type(e).__name__}: {e}", flush=True)
+        # A HEARTBEAT, BECAUSE "no new gigs" AND "not running" LOOK IDENTICAL
+        # FROM OUTSIDE. This loop's only visible trace was the fetched_at of the
+        # rows it wrote, and a quiet half-hour on the sources produces exactly
+        # the same silence as a loop that died — which cost most of an afternoon
+        # of guessing from timestamps, twice, and got the wrong answer both
+        # times. The board serves a health endpoint that already reports the
+        # sweep this way; ingest is the more important of the two and reported
+        # nothing at all.
+        #
+        # Written every cycle, unconditionally, INCLUDING a cycle that found
+        # nothing. That is the entire point: the value being fresh is the proof
+        # the loop ran, independent of whether the sources had anything to give.
+        try:
+            import store
+            if store.enabled():
+                store.put("_refresh", "heartbeat",
+                          {"at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                           "owner": OWNER,
+                           "runs": _state.get("runs", 0),
+                           "fails": _state.get("fails", 0),
+                           "last_error": _state.get("last_error", "")})
+        except Exception:
+            pass
         time.sleep(_INTERVAL_S)
 
 
@@ -394,6 +522,41 @@ def start(on_update=None):
     module to start it, so the reverse import would be circular).
     """
     global _started
+    # ONE INGESTER AT A TIME, AND IT HANDS ITSELF OVER.
+    #
+    # This loop used to live only in the Streamlit app, where it starts when the
+    # script runs — and Streamlit runs the script when a BROWSER SESSION
+    # connects, not when the process boots. So after every deploy ingest stayed
+    # dead until a human opened the app. Measured 2026-08-26: immediately after
+    # opening a session the cycle counter read 2, and the heartbeat aged
+    # untouched from 1.5 to 10.2 minutes while nothing was looking at it. A
+    # board whose promise is "the moment it drops" was collecting gigs only
+    # while somebody watched it.
+    #
+    # It now also starts on the board service, which is a real always-on server
+    # process. Both may call this, so the heartbeat doubles as a lease: if
+    # another owner wrote one recently, stand down. The always-on service will
+    # hold it in practice, and if that service dies the lease goes stale and the
+    # next Streamlit session picks ingest back up on its own.
+    #
+    # A race here costs a duplicated cycle, not a duplicated gig: upserts are
+    # keyed on (source, source_id) in both stores.
+    if _lease_taken():
+        # STAND DOWN, BUT KEEP WATCHING. This used to return and never ask
+        # again, and start() runs exactly once per process — so on every
+        # zero-downtime deploy the new instance booted while the old one was
+        # still writing heartbeats, declined the lease, and then had no way to
+        # notice the old instance dying thirty seconds later. Measured
+        # 2026-09-02: ingest_age climbed to 31 minutes on a healthy board with
+        # a healthy store, and nothing logged, because this branch was silent.
+        # The Streamlit fallback that once picked it up is deliberately off.
+        # So the board now waits for the lease itself.
+        _state["note"] = "another process holds the ingest lease; waiting"
+        print("  ingest: another process holds the lease — will take it when "
+              "it goes stale", flush=True)
+        threading.Thread(target=_wait_for_lease, args=(on_update,),
+                         daemon=True, name="nabbly-lease-wait").start()
+        return
     # Local runs (load tests, UI work) otherwise fetch from ~40 live sources and
     # mirror the results, so a developer's laptop writes to the production
     # board. Off by default: production sets nothing and behaves exactly as
@@ -407,6 +570,41 @@ def start(on_update=None):
         _started = True
         threading.Thread(target=_loop, args=(on_update,), daemon=True,
                          name="nabbly-refresh").start()
+
+
+_LEASE_POLL_S = 60
+
+
+def _wait_for_lease(on_update=None):
+    """Poll until the other owner's heartbeat is stale, then start for real."""
+    while _lease_taken():
+        time.sleep(_LEASE_POLL_S)
+    print("  ingest: lease is stale — taking it", flush=True)
+    start(on_update)
+
+
+def _lease_taken() -> bool:
+    """True when a DIFFERENT process wrote a heartbeat recently enough."""
+    try:
+        import store
+        if not store.enabled():
+            return False
+        hb = store.get("_refresh", "heartbeat") or {}
+        owner, at = hb.get("owner"), hb.get("at")
+        if not owner or not at or owner == OWNER:
+            return False
+        age = (_dt.datetime.now(_dt.timezone.utc)
+               - _dt.datetime.fromisoformat(at)).total_seconds()
+        # Our own service, a different pid: our predecessor, and Render only
+        # runs one of us. See _LEASE_SAME_SERVICE_S.
+        same_service = owner.rsplit(":", 1)[0] == OWNER.rsplit(":", 1)[0]
+        return age < (_LEASE_SAME_SERVICE_S if same_service else _LEASE_S)
+    except Exception:
+        # Fail OPEN. A store that cannot be read must not be able to stop the
+        # board collecting gigs — the failure this guards against is two
+        # ingesters, which is wasteful, and the failure it must never cause is
+        # none at all.
+        return False
 
 
 def state() -> dict:

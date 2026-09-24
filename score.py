@@ -36,11 +36,58 @@ RANGE = re.compile(r"[$£€]\s?([0-9][0-9,]*)\s*(?:-|–|—|to)\s*[$£€]?\s?
 #
 # Those are company revenue, market size and a benefits line. They were being
 # averaged into "what work like yours pays" and sold as a Pro feature.
-_NOT_PAY = re.compile(
+# BENEFITS ARE NOT PAY. Measured on the live board: 202 of 9,405 priced posts
+# had their winning amount sitting in a perk — "$1,000 annual professional
+# development stipend", "a dedicated annual L&D budget of EUR 2,000", a
+# wellness programme "scaling to EUR 1,000 annually". Those carry a period, so
+# they sailed past every other check and landed in the yearly bucket, which is
+# why Development / tech reported a "typical" salary of $1,000 a year off 67
+# samples. It is not only a statistics problem: gig_amount drives ranking and
+# the lowball flag, so a gig could be ranked on the size of its home-office
+# budget.
+#
+# The specific phrases only. Bare "budget" stays allowed, because on
+# Freelancer.com "Budget $30-250" IS the pay.
+# Two lists, because these terms are not equally damning.
+#
+# HARD: the number is never the pay, whatever surrounds it. A valuation, a
+# market size, a stipend, an L&D budget.
+#
+# SOFT: the number is often the pay, and the term is merely mentioned in the
+# same breath. "Salary: $120,000 per year plus equity" is a salary. So is
+# "Pays $85/hr. Benefits include 401k matching." Both were being thrown away,
+# which is the mirror of the perk bug: discarding real pay instead of counting
+# fake pay, and it quietly shrank the sample every rate figure is drawn from.
+# A soft term only disqualifies when nothing nearby says this IS pay.
+_NOT_PAY_HARD = re.compile(
     r"\b(ARR|MRR|valuation|valued|raised|funding|funded|backed by|Series\s+[A-J]\b|"
-    r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|401\s?k|"
-    r"match(?:ing|es)?|equity|company\s+match|in\s+sales|portfolio|"
-    r"assets|AUM|budget\s+of\s+the\s+(?:company|department))\b", re.I)
+    r"revenue|industry|market\s+(?:size|worth|cap)|worth\s+over|"
+    r"in\s+sales|portfolio|assets|AUM|"
+    r"budget\s+of\s+the\s+(?:company|department)|"
+    r"stipend|reimbursement|reimbursed|allowance|"
+    r"signing\s+bonus|referral\s+bonus|wellness|well\s?-?being|"
+    r"professional\s+development|learning\s*&\s*development|"
+    r"(?:L&D|learning|training|education|home\s?-?office|equipment|wellness|"
+    r"annual|yearly)\s+budget)\b", re.I)
+
+_NOT_PAY_SOFT = re.compile(
+    r"\b(401\s?k|match(?:ing|es)?|equity|company\s+match|pension)\b", re.I)
+
+# What says "this number is the pay". Read from the text BEFORE the number
+# only: "$120,000 plus equity" needs the salary label in front of it, and
+# looking after would let the perk itself vouch for the number.
+_PAY_SAYS = re.compile(
+    r"\b(salary|salaries|salaried|compensation|remuneration|base\s+pay|"
+    r"pay(?:s|ing)?|paid|rate\s+is|earn(?:s|ing)?)\b", re.I)
+# "we offer" and "offering" are deliberately NOT here. They introduce a
+# benefit at least as often as a wage — "We offer a $5,000 401k match" — and
+# including them handed the soft veto's own examples a free pass.
+_PAY_BEFORE = 40
+
+# "$10 trillion annually" is a market-size statistic, not a salary. _is_pay
+# already refuses the LETTER suffixes on $350M and $2.4B; spelled out, the same
+# number walked straight through.
+_BIG_WORD = re.compile(r"\s*(?:million|billion|trillion|quadrillion)\b", re.I)
 
 # The unit is what makes a number comparable. 95.5% of postings state an amount
 # with no unit at all, so it can never be assumed — an unmarked 140 might be an
@@ -84,16 +131,33 @@ def _is_pay(text: str, lo: int, hi: int, suffix: str) -> bool:
     # $350M / $2.4B is never a rate for one piece of work. K is, so it stays.
     if suffix and suffix.lower() in ("m", "b"):
         return False
-    return not _NOT_PAY.search(text[max(0, lo - _WINDOW):hi + _WINDOW])
+    if _BIG_WORD.match(text[hi:hi + 12]):        # "...$10 trillion annually"
+        return False
+    window = text[max(0, lo - _WINDOW):hi + _WINDOW]
+    if _NOT_PAY_HARD.search(window):
+        return False
+    if (_NOT_PAY_SOFT.search(window)
+            and not _PAY_SAYS.search(text[max(0, lo - _PAY_BEFORE):lo])):
+        return False
+    return True
 
 
-def gig_pay(gig: dict):
+def gig_pay(gig: dict, allow_range: bool = True):
     """
     (amount, unit) for what this gig pays, or None.
 
     `unit` is "" when the posting never says — which is the overwhelming
     majority — and callers must not assume one. Aggregations should group by
     unit rather than average across it.
+
+    allow_range=False DROPS a ranged posting entirely rather than re-reading
+    it. The midpoint of a range is fine for ranking one gig against another,
+    and useless for a statistic: Freelancer.com does not let a client type a
+    budget, it offers a dropdown, so ~a quarter of its posts carry the same
+    "$30 - $250" and every one of them lands on exactly $140. Aggregated, that
+    is not a market rate, it is one platform's menu — see market.skill_stats.
+    Note it must SKIP the post, not just skip this branch: the single-figure
+    scan below would otherwise read "$30 - $250" as $250 and be more wrong.
     """
     text = f"{gig.get('title','')} {gig.get('body','')}"
 
@@ -101,6 +165,8 @@ def gig_pay(gig: dict):
     # if it survives the same context test as everything else.
     m = RANGE.search(text)
     if m and _is_pay(text, m.start(), m.end(), ""):
+        if not allow_range:
+            return None
         try:
             lo_v, hi_v = int(m.group(1).replace(",", "")), int(m.group(2).replace(",", ""))
             if hi_v >= lo_v:

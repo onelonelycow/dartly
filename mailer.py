@@ -30,6 +30,17 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "https://nabbly.co").rstrip("/")
 # product (the board, the unsubscribe route) needs the app host, not the
 # marketing one. Computed once here rather than repeated at each call site.
 APP_URL = PUBLIC_URL.replace("://nabbly.co", "://app.nabbly.co")
+# The board — where every link that does not have to sign somebody in now
+# goes. app.py is on its way out (RETIRE-APP.md) and these links outlive it:
+# an unsubscribe URL sits in a mailbox forever, so pointing it at the service
+# that is staying is the whole point of moving them.
+#
+# THE TWO ?u= LINKS BELOW STAY ON APP_URL, deliberately. They carry a sign-in
+# token in the URL, and the board has no such route — it signs people in with
+# a code, on purpose. Moving them means building credential-in-URL sign-in on
+# the board, which is a security decision rather than a find-and-replace, so
+# it is not smuggled in here.
+BOARD_URL = PUBLIC_URL.replace("://nabbly.co", "://board.nabbly.co")
 
 INK = "#1a1d23"
 MUTE = "#6b7280"
@@ -95,7 +106,7 @@ def send(to: str, subject: str, html_body: str, text_body: str) -> bool:
 # Outlook's Word rendering engine and Gmail stripping <style> blocks.
 # ---------------------------------------------------------------------------
 def _shell(preheader: str, body_html: str, unsub_token: str) -> str:
-    unsub = f"{APP_URL}/?nav=unsubscribe&t={unsub_token}" if unsub_token else ""
+    unsub = f"{BOARD_URL}/unsubscribe?t={unsub_token}" if unsub_token else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -153,7 +164,7 @@ def _button(label: str, url: str) -> str:
 # each just gets straight to the one thing that's actually news to THEM.
 # ---------------------------------------------------------------------------
 def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
-    board_url = f"{APP_URL}/?nav=dashboard"
+    board_url = f"{BOARD_URL}/"
     hi = f"{name}, y" if name else "Y"
     subject = "You're one of Nabbly's first fifty"
     body = f"""
@@ -178,8 +189,47 @@ def _welcome_founding(name: str, token: str) -> tuple[str, str, str]:
     return subject, _shell("Pro's on for two months, free.", body, token), text
 
 
+def pro_ending_email(name: str, days_left: int, ends_on: str, founding: bool,
+                     unsub_token: str) -> tuple[str, str, str]:
+    """
+    Three days before a founding grant or trial ends: what stays, what goes,
+    where to keep it. The only conversion touch a founding member gets.
+    """
+    plans_url = f"{BOARD_URL}/plans"
+    hi = f"{name}, y" if name else "Y"
+    what = "two months of Pro" if founding else "Pro trial"
+    when = f"in {days_left} day{'' if days_left == 1 else 's'}, on {ends_on}"
+    subject = f"Your Nabbly Pro ends {ends_on}"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  {hi}our {what} ends {when}.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  Nothing is charged and nothing you built goes anywhere. Your profile, your
+  saved gigs and your drafts stay. The whole board stays free.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  What stops: gigs ranked against your profile, replies written from the
+  actual posting, market rates, and instant alerts. Pro is $15 a month,
+  cancel any time.
+</p>
+{_button("Keep Pro", plans_url)}
+<p style="font-size:12.5px;color:{MUTE};line-height:1.6;margin:22px 0 0;">
+  Do nothing and you drop back to Free on the day. No card was ever taken.
+</p>
+"""
+    text = (f"{hi}our {what} ends {when}.\n\n"
+            "Nothing is charged and nothing you built goes anywhere. Your profile, "
+            "your saved gigs and your drafts stay. The whole board stays free.\n\n"
+            "What stops: gigs ranked against your profile, replies written from "
+            "the actual posting, market rates, and instant alerts. Pro is $15 a "
+            f"month, cancel any time.\n\nKeep Pro: {plans_url}\n\n"
+            "Do nothing and you drop back to Free on the day. No card was ever taken.\n")
+    return subject, _shell(f"Your Pro ends {ends_on}.", body, unsub_token), text
+
+
 def _welcome_standard(name: str, token: str) -> tuple[str, str, str]:
-    board_url = f"{APP_URL}/?nav=dashboard"
+    board_url = f"{BOARD_URL}/"
     hi = f"Hi {name}," if name else "Hi,"
     subject = "Welcome to Nabbly"
     body = f"""
@@ -239,14 +289,14 @@ def lapsed_payer_email(name: str, signin_token: str, unsub_token: str) -> tuple[
   If you'd like Pro back, it's one click below. If not, there's nothing
   else to do.
 </p>
-{_button("Upgrade to Pro — $12/mo", link)}
+{_button("Upgrade to Pro — $15/mo", link)}
 """
     text = ("Sorry to see your trial end.\n\n"
             f"{hi}our 14 days of Pro are up. Everything you've built here, "
             "your profile, your saved gigs, your board, is exactly where you "
             "left it. You're just back on the free plan for now.\n\n"
             "If you'd like Pro back, it's one click below. If not, there's "
-            f"nothing else to do.\n\nUpgrade to Pro — $12/mo: {link}\n")
+            f"nothing else to do.\n\nUpgrade to Pro — $15/mo: {link}\n")
     return subject, _shell("Sorry to see your trial end.", body, unsub_token), text
 
 
@@ -262,6 +312,9 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
     opening the email at all. No unsubscribe footer: this is a direct reply to
     something they just did, not a mailing (empty token drops it in _shell).
     """
+    # The lifetime is accounts.CODE_TTL_MIN's, not a number typed here: this
+    # said "10 minutes" for a week after the code started lasting 30.
+    from accounts import CODE_TTL_MIN as ttl
     subject = f"{code} is your Nabbly sign-in code"
     body = f"""
 <h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 16px;">
@@ -272,7 +325,7 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;">{code}</div>
 <p style="font-size:14px;color:{MUTE};line-height:1.6;margin:18px 0 0;">
   Type this back into Nabbly to finish signing in. It works once and runs out
-  after 10 minutes.
+  after {ttl} minutes.
 </p>
 <p style="font-size:12.5px;color:{FAINT};line-height:1.6;margin:14px 0 0;">
   If you didn't ask to sign in, you can ignore this. Nobody can get into your
@@ -281,7 +334,7 @@ def signin_code_email(code: str) -> tuple[str, str, str]:
 """
     text = (f"Your Nabbly sign-in code is {code}\n\n"
             "Type it back into Nabbly to finish signing in. It works once and "
-            "runs out after 10 minutes.\n\n"
+            f"runs out after {ttl} minutes.\n\n"
             "If you didn't ask to sign in, you can ignore this.\n")
     return subject, _shell(f"{code} — type this back into Nabbly.", body, ""), text
 
@@ -343,7 +396,71 @@ def _gig_out_url(gig: dict, email_tok: str) -> str:
     gid = gig.get("id")
     if gid is None:
         return gig.get("url", "")
-    return f"{APP_URL}/?nav=out&gid={gid}&e={email_tok}"
+    return f"{BOARD_URL}/out/{gid}?e={email_tok}"
+
+
+# ---------------------------------------------------------------------------
+# cancellation receipt — the one email someone gets for ENDING something. It
+# exists because a page can be closed, mis-read or never revisited, and the
+# one fact that matters afterwards is a date: when access stops. That belongs
+# somewhere they can find it later, which is their inbox.
+#
+# Deliberately not a win-back. Someone who just cancelled has decided, and an
+# offer stapled to their receipt reads as not listening. The door back is a
+# plain link, no discount, no countdown.
+# ---------------------------------------------------------------------------
+def cancelled_email(name: str, plan_name: str, ends_at: str,
+                    unsub_token: str, week_matches: int = 0) -> tuple[str, str, str]:
+    """
+    week_matches: gigs that matched their skills in the last seven days -- the
+    same count, on the same definition, the weekly digest reports. Stated and
+    left alone: no "don't miss out", no offer. Someone deciding whether to come
+    back is better served by the number than by being sold it, and a number
+    they have already seen in their own digest is one they trust. Zero, or a
+    failure to work it out, prints nothing rather than "0 matches".
+    """
+    hi = f"{name}, y" if name else "Y"
+    link = f"{BOARD_URL}/plans"
+    matches_html = matches_text = ""
+    if week_matches > 0:
+        gigs = f"{week_matches:,} gig" + ("" if week_matches == 1 else "s")
+        matches_html = (
+            f'<p style="font-size:14.5px;color:{INK};line-height:1.6;'
+            f'margin:0 0 16px;">For what it is worth: <b>{gigs}</b> matched '
+            f'your skills on the board in the last seven days. The board '
+            f'itself stays free, so you can keep watching it either way.</p>')
+        matches_text = (f"For what it is worth: {gigs} matched your skills on "
+                        f"the board in the last seven days. The board itself "
+                        f"stays free, so you can keep watching it either "
+                        f"way.\n\n")
+    subject = f"Your Nabbly {plan_name} plan ends {ends_at}"
+    body = f"""
+<h1 style="font-size:22px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 14px;">
+  Your subscription is cancelled.
+</h1>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  {hi}ou keep {plan_name} until <b>{ends_at}</b>. Nothing is charged after
+  that, and nothing is charged today.
+</p>
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 16px;">
+  Your account, your saved gigs and your profile all stay exactly as they
+  are. You drop to the free plan, not out of Nabbly, and the whole board
+  is still yours to search.
+</p>
+{matches_html}
+<p style="font-size:14.5px;color:{INK};line-height:1.6;margin:0 0 4px;">
+  <a href="{link}" style="color:{AMBER};font-weight:600;">Start again any time</a>
+  — same account, nothing to set up twice.
+</p>
+"""
+    text = (f"Your subscription is cancelled.\n\n"
+            f"{hi}ou keep {plan_name} until {ends_at}. Nothing is charged "
+            f"after that, and nothing is charged today.\n\n"
+            f"Your account, saved gigs and profile stay exactly as they are. "
+            f"You drop to the free plan, not out of Nabbly.\n\n"
+            + matches_text +
+            f"Start again any time: {link}\n")
+    return subject, _shell(f"{plan_name} ends {ends_at}", body, unsub_token), text
 
 
 def digest_email(name: str, gigs: list[dict], total: int, token: str,
@@ -359,7 +476,7 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
     of someone.
     """
     stats = stats or {}
-    board_url = f"{APP_URL}/?nav=gigs"
+    board_url = f"{BOARD_URL}/gigs"
     hi = f"{name}, " if name else ""
     plural = "s" if total != 1 else ""
     subject = f"{hi}{total} gig{plural} matched your profile this week".strip()
@@ -447,3 +564,174 @@ def digest_email(name: str, gigs: list[dict], total: int, token: str,
             f"The best fits from the last 7 days, ranked the same way the dashboard "
             f"ranks them.\n\n{text_rows}\n\nSee the whole board: {board_url}\n")
     return subject, _shell(f"{total} gigs matched your profile this week.", body, token), text
+
+
+# ---------------------------------------------------------------------------
+# the weekly email — one email, market first
+# ---------------------------------------------------------------------------
+def weekly_email(name: str, market: dict, gigs: list[dict], token: str,
+                 is_pro: bool = False, personalised: bool = False
+                 ) -> tuple[str, str, str]:
+    """
+    The single standing email: what the market did this week, then what landed
+    for this person in the last day or two.
+
+    MARKET FIRST, AND THAT IS THE WHOLE POINT. Measured on 2026-09-10 against
+    100 live Freelancer projects: the bid period is 7 days on 99 of them, the
+    median age of a project still listed as active is 1.1 hours, and a project
+    under two hours old already carries about thirty bids. A weekly email
+    cannot deliver a gig somebody can still win -- anything posted early in the
+    week is closed by the time it is read. What IS still true a week later is
+    the shape of the market: how much work there was, which fields moved, what
+    it paid. So the email leads with the thing that survives the delay, and the
+    listings are the freshest few at the moment of sending, not a week's
+    backlog dressed up as leads.
+
+    RATES ARE PRO. market.skill_stats computes them and /market gates them, so
+    mailing them to everybody would give away the one number the paid tier
+    sells. Volume and movement go to everyone; the figures do not.
+    """
+    import config
+
+    total = int(market.get("total") or 0)
+    prev = int(market.get("prev_total") or 0)
+    hot = market.get("hot") or []            # [(field, count, typical|None)]
+    urgent = int(market.get("urgent") or 0)
+    applied = int(market.get("applied") or 0)
+
+    plural = "s" if total != 1 else ""
+    hi = f"{name}, " if name else ""
+    # "LANDED", NOT "ON THE BOARD". This counts what arrived in seven days;
+    # "on the board" reads as current inventory, which is a different number --
+    # /market publishes that one, and two of our own numbers disagreeing in
+    # public is worse than either being wrong.
+    subject = f"{hi}{total:,} gig{plural} landed this week".strip()
+    if not hi:
+        subject = subject[0].upper() + subject[1:]
+
+    # The movement line, only when there is a real previous week to compare to.
+    move = ""
+    if prev:
+        pct = (total - prev) / prev * 100
+        if abs(pct) >= 3:
+            move = (f'<span style="color:{AMBER};font-weight:650;">'
+                    f'{"up" if pct > 0 else "down"} {abs(pct):.0f}%</span> on last week')
+        else:
+            move = "about level with last week"
+
+    stat_cells = [(f"{total:,}", f"gig{plural} this week")]
+    if urgent:
+        stat_cells.append((f"{urgent:,}", "marked urgent"))
+    if applied:
+        stat_cells.append((f"{applied}", "you applied to"))
+    _w = f"{100 / len(stat_cells):.3f}%"
+    stats_html = "".join(
+        f'<td width="{_w}" style="width:{_w};text-align:center;padding:12px 6px;">'
+        f'<div style="font-size:20px;font-weight:700;color:{AMBER};letter-spacing:-.02em;">{n}</div>'
+        f'<div style="font-size:11.5px;color:{MUTE};margin-top:2px;">{label}</div></td>'
+        for n, label in stat_cells)
+
+    hot_rows = []
+    for field, count, typical in hot:
+        rate = ""
+        if is_pro and typical:
+            rate = (f'<span style="color:{MUTE};">typically '
+                    f'<b style="color:{INK};">${typical:,}</b></span>')
+        hot_rows.append(
+            f'<tr><td style="padding:7px 0;border-top:1px solid {LINE};'
+            f'font-size:13.5px;color:{INK};">{field}</td>'
+            f'<td style="padding:7px 0;border-top:1px solid {LINE};'
+            f'font-size:13.5px;color:{MUTE};text-align:right;white-space:nowrap;">'
+            f'{count:,} gigs{"  &middot;  " + rate if rate else ""}</td></tr>')
+
+    rate_note = ""
+    if not is_pro and any(t for _, _, t in hot):
+        rate_note = (f'<p style="font-size:12.5px;color:{FAINT};margin:10px 0 0;">'
+                     f'<a href="{BOARD_URL}/plans" style="color:{MUTE};">Pro adds '
+                     f'what each field typically pays</a>.</p>')
+
+    # The listings, and there are few of them on purpose — see the docstring.
+    gig_rows = []
+    for g in gigs:
+        src = config.source_label(g.get("source", ""))
+        gig_rows.append(f"""
+<tr><td style="padding:12px 0;border-top:1px solid {LINE};">
+  <a href="{_gig_out_url(g, token)}" style="font-size:14.5px;font-weight:650;color:{INK};text-decoration:none;">
+    {g['title']}
+  </a>
+  <div style="font-size:12.5px;color:{MUTE};margin-top:3px;">
+    {g.get('job_type','')} &middot; {g.get('size_tier','')} budget &middot; {src}
+  </div>
+</td></tr>""")
+
+    # NEVER CLAIM A MATCH WE DID NOT MAKE. Rendered for a real recipient with
+    # an empty profile on 2026-09-10, this section said "the newest matches for
+    # your skills" above a florist vacancy, a Spotify engineering director and
+    # a transaction manager -- because with no skills set, matching passes
+    # everything. Somebody with no skills gets the newest on the board, said
+    # plainly, and a link to make it theirs.
+    sub_line = ("The newest matches for your skills, as of this morning."
+                if personalised else
+                f'The newest on the board. <a href="{BOARD_URL}/profile?tab=board#skills" '
+                f'style="color:{AMBER};">Tell us what you do</a> and this becomes '
+                f'your matches instead.')
+    listings = ""
+    if gig_rows:
+        listings = f"""
+<h2 style="font-size:15px;font-weight:700;color:{INK};margin:26px 0 2px;">
+  Just landed
+</h2>
+<p style="font-size:12.5px;color:{MUTE};margin:0 0 4px;">
+  {sub_line}
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{''.join(gig_rows)}
+</table>"""
+
+    body = f"""
+<h1 style="font-size:20px;font-weight:700;letter-spacing:-.02em;color:{INK};margin:0 0 4px;">
+  The week on Nabbly
+</h1>
+<p style="font-size:13.5px;color:{MUTE};margin:0 0 14px;">
+  {move or "Across every source on the board."}
+</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+  style="background:{AMBER_BG};border-radius:12px;margin:0 0 20px;">
+<tr>{stats_html}</tr>
+</table>
+
+<h2 style="font-size:15px;font-weight:700;color:{INK};margin:0 0 2px;">
+  Where the work was
+</h2>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+{''.join(hot_rows)}
+</table>
+{rate_note}
+{listings}
+
+<p style="font-size:13.5px;margin:22px 0 0;">
+  <a href="{BOARD_URL}/gigs?qf=recent" style="color:{AMBER};font-weight:650;
+  text-decoration:none;">See what is on the board right now &rarr;</a>
+</p>
+<p style="font-size:12.5px;color:{FAINT};margin:16px 0 0;">
+  Want to hear the moment a gig lands instead of once a week?
+  <a href="{BOARD_URL}/profile?tab=board#alerts" style="color:{MUTE};">Set up an
+  instant alert</a>.
+</p>
+"""
+    text_hot = "\n".join(
+        f"  {f} — {c:,} gigs" + (f", typically ${t:,}" if (is_pro and t) else "")
+        for f, c, t in hot)
+    text_gigs = "\n\n".join(
+        f"{g['title']}\n  {g.get('job_type','')} - {g.get('size_tier','')} budget\n"
+        f"  {_gig_out_url(g, token)}" for g in gigs)
+    text = (f"The week on Nabbly\n\n{total:,} gig{plural} landed"
+            + (f", {urgent:,} marked urgent" if urgent else "") + ".\n\n"
+            f"Where the work was:\n{text_hot}\n"
+            + (f"\nJust landed"
+               + ("" if personalised else " (the newest on the board — set your "
+                  "skills to make these your matches)")
+               + f":\n\n{text_gigs}\n" if text_gigs else "")
+            + f"\nSee the board: {BOARD_URL}/gigs?qf=recent\n")
+    return subject, _shell(f"{total:,} gigs landed on Nabbly this week.",
+                           body, token), text

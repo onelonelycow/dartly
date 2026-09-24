@@ -8,11 +8,12 @@
 <link rel="canonical" href="https://nabbly.co/privacy.html">
 <meta name="robots" content="index, follow">
 <style>
+  @font-face{font-family:'Archivo';src:url('/archivo.woff2') format('woff2');font-weight:100 900;font-stretch:62% 125%;font-display:swap}
   :root{--bg:#0B0D10;--card:#12151a;--ink:#ECEEF1;--mute:#98A0AB;--faint:#6C737E;
          --amber:#E8933A;--line:#232830}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
-    font:16px/1.75 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font:16px/1.75 'Archivo',ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased}
   .wrap{max-width:760px;margin:0 auto;padding:0 22px}
   header{border-bottom:1px solid var(--line);padding:20px 0}
@@ -48,7 +49,7 @@
 </div></header>
 <main><div class="wrap">
 <h1>Privacy Policy</h1>
-<p><strong>Last updated: 24 August 2026</strong></p>
+<p><strong>Last updated: 21 September 2026</strong></p>
 <p>Nabbly helps freelancers find work by gathering job postings from public boards and putting them in one place. This policy explains what we collect, why, and what we never do with it. It is written to be read, not to be survived.</p>
 <h3>Summary</h3>
 <p>We collect the little we need to show you relevant gigs and let you sign back in. We do not sell your data, we do not run advertising trackers, and we do not share your information with advertisers. Usage is counted on our own server, and a copy of those counts goes to PostHog, the service we use to read them.</p>
@@ -63,7 +64,7 @@
 <p>PostHog receives a rotating session identifier and nothing that identifies you: not your email, not your name, and nothing you have written into Nabbly — your profile, your resume and anything you forward are never sent. The counts are sent from our server, so there is no analytics script running in your browser, and we set no advertising cookies and no tracking pixels.</p>
 <p><strong>A sign-in token.</strong> A random token identifies you between visits. It is held in your browser session and appears in your address bar. Anyone who obtains that link can access your account, so treat it like a password and do not share it.</p>
 <h3>Information We Do Not Collect</h3>
-<p>We never ask for and never store passwords, payment card details, government identification, or your contacts. Nabbly does not currently take payments at all.</p>
+<p>We never ask for and never store passwords, government identification, or your contacts. If you subscribe to a paid plan, <strong>Stripe</strong> handles the payment: your card details go to Stripe and never touch our servers. We keep only Stripe&#x27;s reference for your subscription, so we can show you what you are on and let you cancel.</p>
 <h3>How We Share Information</h3>
 <p>We do not sell your data or share it with advertisers, ever. We use a small number of service providers to run Nabbly, and they only handle what they need to:</p>
 <ul>
@@ -73,6 +74,15 @@
 <p>redeploy.</p>
 <ul>
 <li><strong>Google</strong> handles sign-in, if you choose that option.</li>
+<li><strong>Stripe</strong> processes payments for paid plans.</li>
+<li><strong>Resend</strong> delivers our email: sign-in codes, the weekly email, and any</li>
+</ul>
+<p>alerts you set to email.</p>
+<ul>
+<li><strong>Freelancer.com</strong>, only if you connect your Freelancer account: your bid</li>
+</ul>
+<p>is sent to Freelancer under your own account, and the access token they give us is stored encrypted. You can disconnect at any time.</p>
+<ul>
 <li><strong>ip-api.com</strong> is queried only if you press &quot;Detect my location&quot;, to guess a</li>
 </ul>
 <p>country and city from an IP address.</p>
