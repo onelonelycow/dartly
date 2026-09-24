@@ -257,22 +257,33 @@ def decorate(rows, ranked=False):
         r["budget_note"] = _budget_note_with_period(r.get("body") or "")
         if (r.get("apply_email") or "").strip():
             r["apply_note"], r["apply_cls"] = "Apply by email", "match"
+            r["apply_short"] = "Apply by email"
         elif src in getattr(config, "SUBSCRIPTION_REQUIRED_SOURCES", ()):
             r["apply_note"], r["apply_cls"] = "Paid subscription to apply", "urgent"
+            r["apply_short"] = "Paid subscription"
         elif src in getattr(config, "VIEW_REQUIRES_ACCOUNT_SOURCES", ()):
             # Before the apply-gated branch on purpose: these sources sit in
             # both sets, and the wall a reader meets first is the one worth
             # naming. "read and apply", not "apply", because they are stopped
             # before the post.
             r["apply_note"], r["apply_cls"] = "Free account needed to read and apply", "locoff"
+            r["apply_short"] = "Free account to read"
         elif src in getattr(config, "ACCOUNT_REQUIRED_SOURCES", ()):
             # Named, so nobody reads it as a Nabbly wall: the account is on
             # the board that holds the posting, and Nabbly never asks for one
             # to read or click through.
             r["apply_note"] = f"Free {config.source_label(src)} account to apply"
+            # THE PHONE ALREADY KNOWS WHOSE. "via Freelancer.com" sits two
+            # lines below on the same card, and spelling the board out again
+            # made this the longest chip by far -- on a 390px screen it took a
+            # third pill row to itself, which is why six labels needed three
+            # rows before a word of the gig. The fact a reader needs here is
+            # that an account is wanted at all. CSS picks which one shows.
+            r["apply_short"] = "Free account needed"
             r["apply_cls"] = "locoff"
         else:
             r["apply_note"] = ""
+            r["apply_short"] = ""
         r.pop("apply_email", None)   # a real address; never reaches the page
         r.pop("body", None)      # not rendered raw; drop it before the template
 
@@ -291,7 +302,7 @@ def decorate(rows, ranked=False):
     # Four rows, because on a page of one or two nothing is being crowded.
     if len(rows) >= 4 and all(r.get("apply_cls") == "locoff" for r in rows):
         for r in rows:
-            r["apply_note"] = ""
+            r["apply_note"] = r["apply_short"] = ""
     return rows
 
 

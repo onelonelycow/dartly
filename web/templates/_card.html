@@ -52,7 +52,7 @@
        badge on 95% of cards distinguishes nothing — it is a constant printed
        eight times, costing each card a pill row. /gigs keeps it, where the
        mix is wider and someone is choosing between rows. #}
-    {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}">{{ g.apply_note }}</span>{% endif %}
+    {% if g.apply_note and not compact %}<span class="gr-pill {{ g.apply_cls }}"><span class="wide-only">{{ g.apply_note }}</span><span class="narrow-only">{{ g.apply_short or g.apply_note }}</span></span>{% endif %}
   </div>
 
   {# WHY THIS MATCHED YOU. The reasons were already computed and thrown away:
