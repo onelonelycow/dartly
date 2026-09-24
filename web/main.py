@@ -275,6 +275,23 @@ def decorate(rows, ranked=False):
             r["apply_note"] = ""
         r.pop("apply_email", None)   # a real address; never reaches the page
         r.pop("body", None)      # not rendered raw; drop it before the template
+
+    # A NOTE EVERY ROW CARRIES IS NOT A NOTE. On the open board this pill earns
+    # its place -- 22.6% of live gigs need no account at all, so "an account is
+    # needed" genuinely separates one row from the next. Filter to the project
+    # marketplaces, though, and every row needs one: the ad landing page shows
+    # it on 25 of 25, where it says nothing and takes the widest chip on the
+    # card.
+    #
+    # Dropped only when the WHOLE page is the account-needed kind, and only
+    # that kind: "Apply by email" is the good news of not needing one, and a
+    # paid-subscription warning must never be hidden by a crowding rule. The
+    # board each gig came from is still on every card -- "via Freelancer.com"
+    # in the meta line -- so what is lost is the repetition, not the fact.
+    # Four rows, because on a page of one or two nothing is being crowded.
+    if len(rows) >= 4 and all(r.get("apply_cls") == "locoff" for r in rows):
+        for r in rows:
+            r["apply_note"] = ""
     return rows
 
 
