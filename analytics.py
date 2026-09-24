@@ -448,6 +448,13 @@ def _live_day() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+def live_day() -> str:
+    """The UTC day the counters are filed under. Public: web/main._ev stamps a
+    session with it so a returning visitor is counted once per day, not once
+    ever."""
+    return _live_day()
+
+
 def bump(kind: str, key: str, n: int = 1):
     """Count one thing on the board. Never touches the disk or the network."""
     if not key:

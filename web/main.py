@@ -463,10 +463,22 @@ def _ev(request: Request, event: str, detail: str = ""):
                if first_of_session else "")
         seen = int(request.session.get("_evn") or 0) + 1
         request.session["_evn"] = seen
-        engaged = bool(request.session.get("_eng"))
-        if not engaged and (seen >= 2 or (ref and ref != "Direct")):
-            engaged = True
-            request.session["_eng"] = 1
+        # TWO DIFFERENT QUESTIONS, and conflating them lost a day's visitors.
+        #   _ok   has this visitor ever proved to be a person? Decides whether
+        #         what they do is counted at all.
+        #   _eng  which UTC day they were last counted as a visitor ON.
+        # The cookie lasts 30 days, so a single flag meant somebody who came
+        # back on Wednesday had their page views counted and themselves not --
+        # the panel showed "0 visitors, 1 page view" on the morning of
+        # 2026-09-24, which is nonsense on its face. The backfilled days count
+        # a person on each day they were active, so the live counter does too.
+        qualified = bool(request.session.get("_ok"))
+        if not qualified and (seen >= 2 or (ref and ref != "Direct")):
+            qualified = True
+            request.session["_ok"] = 1
+        today = analytics.live_day()
+        if qualified and request.session.get("_eng") != today:
+            request.session["_eng"] = today
             analytics.bump("sessions", "1")
             analytics.bump("refs", request.session.get("_ref") or ref or "Direct")
             analytics.bump("devices", analytics.device_label(
@@ -478,6 +490,7 @@ def _ev(request: Request, event: str, detail: str = ""):
                 analytics.bump(kind, label)
         elif first_of_session:
             request.session["_ref"] = ref or "Direct"
+        engaged = qualified
         kind, label = _ROLLUP_BUCKET.get(event, ("clicks", event))
         if engaged:
             analytics.bump(kind, label)
