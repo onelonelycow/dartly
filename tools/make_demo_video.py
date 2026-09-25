@@ -10,7 +10,12 @@ them is exact.
 
 Everything on screen is real. The gig, its tags, its age and every word of the
 reply were captured from board.nabbly.co signed in as a Pro account with the
-Draft Voice settings filled in. Nothing is invented copy. What is recreated is
+Draft Voice settings filled in. Nothing is invented copy, with ONE deliberate
+exception: the signature is a generic name. The capture signs off with the
+founder's own name, because it was his account, and a demo that goes out to
+strangers should show what a user's reply looks like rather than whose
+account it was recorded on. The Signature chip names the same generic value,
+so the beat still shows a setting matching its output. What is recreated is
 the typesetting, in the same Pillow code that draws the weekly cards, so the
 demo and the posts look like one piece of work.
 
@@ -37,16 +42,21 @@ OUT.mkdir(parents=True, exist_ok=True)
 S, M, FPS = mp.S, mp.M, 30
 
 # --- Real content, captured from board.nabbly.co -----------------------------
-GIG = "Modern Minimalist Website Build"
-TAGS = "Design / creative · Small budget   ·   Posted 2h ago"
+GIG = "Senior Technical Program Manager, GTM Transformation"
+TAGS = "Product / PM · Medium budget · Remote   ·   Posted 8h ago"
 
 # The clause that came from the Include setting is the only thing lit.
-HOT_SPAN = "Ten years doing brand identity work"
+HOT_SPAN = "business development, operations, and social media marketing"
 REPLY = [
-    "Monochrome-only is the part that trips most people up, they lean on imagery to create hierarchy and then have nothing to fall back on once color's off the table. Ten years doing brand identity work, mostly SaaS and healthcare, so typography-led systems that still feel warm in black and white is familiar territory.",
-    "For the CMS side, markdown workflow so you can publish without touching code is straightforward to set up, I'd lean toward something like that over a heavier CMS given how lightweight you want this.",
-    "Two things I'd want to know: do you have type preferences already, or is that open? And roughly how many pages beyond the blog are we talking?",
-    "Alex",
+    "Enterprise GTM transformation is mostly an operations problem wearing a "
+    "marketing hat: the motion has to survive handoffs between teams that have "
+    "never shared a number. I've spent eight years across business development, "
+    "operations, and social media marketing, most of it standing those handoffs "
+    "up from nothing, so the places this tends to break are familiar.",
+    "Before I put a number against the CAD 65-75 band, is this greenfield or a "
+    "re-platform of a motion already running? That decides whether month one is "
+    "discovery or migration, and those are very different contracts.",
+    "Jordan Ellis",
 ]
 
 # --- Beats, in frames -------------------------------------------------------
@@ -77,20 +87,34 @@ PARA_DUR = 30            # frames for one paragraph to fade up
 # upscaling 1080 pixels.
 HOLD_A = 26              # rest on the finished reply before the first zoom
 Z_IN = 22                # frames: full frame -> first target
-Z_HOLD = 40              # frames held on each target, chip visible
+# Frames held on each target, chip visible — ONE PER CHIP, because the three
+# beats are not the same size to read. 68 everywhere was 2.3s, long enough to
+# notice a chip and not long enough to read one. But Include and Signature are
+# not the same job either: Include and Avoid each carry a typed value as long
+# as "rates before scope · availability · client names" PLUS the sentence
+# underneath that the setting produced, while Signature is two words against a
+# name already sitting in frame. Holding a two-word beat as long as a clause
+# reads as the video stalling. 120 / 120 / 66, so each hold is the length of
+# what is actually in it. Subtract the 8-frame fade in and 6-frame fade out for
+# the time each chip is fully opaque: 3.5s, 3.5s, 1.7s.
+Z_HOLDS = (120, 120, 44)
 Z_MOVE = 20              # frames gliding between consecutive targets
 Z_OUT = 18               # frames: last target -> full frame
 SEND_SLIDE = 40          # frames: the reply lifts off the top of the frame
 SENT_HOLD = 44           # frames: the ping ring and the word Sent.
-WORDMARK = 124           # frames: the mark spells itself, then the line, then the domain
+WORDMARK = 96            # frames: the mark spells itself, then the domain
 
 # What each zoom is about: the setting name and the value the user typed.
-SLOGAN = "Every gig, the moment it drops."
-
+# EVERY CHIP NAMES A SETTING THAT IS ACTUALLY SET. The middle beat was Length
+# for a while, because the account had no Avoid value and a chip claiming the
+# reply avoided something it was never told to avoid is the one kind of lie a
+# demo cannot afford. Avoid is set now, and the paragraph the camera holds on
+# is the evidence: asked to keep rates out until scope is clear, the reply
+# answers the rate band with a scoping question instead of a number.
 CHIPS = [
-    ("Include", "ten years on brand identity"),
-    ("Avoid", "hourly rates · not one mention"),
-    ("Signature", "just Alex"),
+    ("Include", "business development, operations, social media marketing"),
+    ("Avoid", "rates before scope · availability · client names"),
+    ("Signature", "Jordan Ellis"),
 ]
 
 
@@ -167,10 +191,10 @@ def ground(W, H, box, strength=96):
     return Image.composite(Image.new("RGB", (W, H), (92, 56, 22)), img, glow)
 
 
-def rule(img, W, y):
+def rule(img, W, y, m=M):
     ss = 3
     layer = Image.new("RGBA", (W * ss, img.height * ss), (0, 0, 0, 0))
-    ImageDraw.Draw(layer).line([(M * ss, y * ss), ((W - M) * ss, y * ss)],
+    ImageDraw.Draw(layer).line([(m * ss, y * ss), ((W - m) * ss, y * ss)],
                                fill=(255, 255, 255, 26), width=ss)
     return Image.alpha_composite(
         img.convert("RGBA"),
@@ -187,6 +211,34 @@ def sign(img, d, W, y):
     d.text((x0 + mk + gap, y), t, font=f_url, fill=(190, 140, 92), anchor="lm")
 
 
+def gig_font(base_px, avail):
+    """
+    The gig title, sized so it CANNOT run off the frame.
+
+    The title is real, captured text, and real titles are long: "Senior
+    Technical Program Manager, GTM Transformation" needs 955px in the square
+    cut against 888px of column, and 1144px in the vertical. It was drawn at a
+    fixed size straight from the layout, so it simply bled off the right edge.
+    Only the 16:9 cut fitted, which is exactly why nobody caught it — that is
+    the one that gets watched on a desktop.
+
+    Stepping the size down is the smallest fix that keeps the beat intact: the
+    alternative, wrapping to a second line, moves the tags, the rule and the
+    whole reply block underneath it in three layouts. The floor stops a
+    pathological title shrinking the header into nothing; past that it clips
+    with an ellipsis, which is what the board itself does.
+    """
+    size = int(base_px)
+    floor = max(12, int(base_px * 0.62))
+    probe = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+    while size > floor:
+        f = mp.font(size, "Semibold")
+        if probe.textlength(GIG, font=f) <= avail:
+            return f
+        size -= 1
+    return mp.font(floor, "Semibold")
+
+
 def draw_master(L, k=2):
     """
     The finished reply, drawn once at k-times resolution, plus a box for every
@@ -195,23 +247,24 @@ def draw_master(L, k=2):
     (para_index, colour, x0, y0, x1, y1).
     """
     W, H = L["W"] * k, L["H"] * k
-    f_gig = mp.font(L["f"][0] * k, "Semibold")
+    m = L.get("m", M) * k          # a 16:9 frame needs a narrower text column
+    f_gig = gig_font(L["f"][0] * k, W - 2 * m)
     f_tag = mp.font(L["f"][1] * k, "Regular", mp.ARIAL)
     f_body = mp.font(L["f"][2] * k, "Regular", mp.ARIAL)
 
-    img = rule(ground(W, H, tuple(v * k for v in L["glow"])), W, L["rule_y"] * k)
+    img = rule(ground(W, H, tuple(v * k for v in L["glow"])), W, L["rule_y"] * k, m)
     d = ImageDraw.Draw(img)
-    d.text((M * k, L["gig"] * k), GIG, font=f_gig, fill=mp.BODY, anchor="lm")
-    d.text((M * k, L["tags"] * k), TAGS, font=f_tag, fill=mp.DIM, anchor="lm")
+    d.text((m, L["gig"] * k), GIG, font=f_gig, fill=mp.BODY, anchor="lm")
+    d.text((m, L["tags"] * k), TAGS, font=f_tag, fill=mp.DIM, anchor="lm")
 
-    paras = [wrap(d, p, f_body, W - 2 * M * k) for p in REPLY]
+    paras = [wrap(d, p, f_body, W - 2 * m) for p in REPLY]
     space = d.textlength(" ", font=f_body)
     half = L["f"][2] * k * 0.62
     boxes, y = [], L["body"] * k
     for pi, para in enumerate(paras):
         seq = 0                      # word index within this paragraph
         for line in para:
-            x = M * k
+            x = m
             for wi, (word, colour) in enumerate(line):
                 if wi and word[0] not in TIGHT:
                     x += space
@@ -338,18 +391,30 @@ LAYOUTS = [
          gig=350, tags=402, rule_y=446, body=548,
          f=(46, 28, 32), lead=46, gap=24, mark=1470,
          glow=(M - 190, 430, 1080 - M + 60, 860)),
+    # 16:9, for the product demo rather than a feed. The frame is WIDE AND
+    # SHORT, which is the opposite problem to the other two: there is room
+    # across and almost none down. So the text column is set by `m` rather
+    # than running to the house margin — 1200px at 32px lands near 70
+    # characters a line, where 1728 would have run past 110 — and the whole
+    # block is packed tighter vertically to leave the signature somewhere to
+    # sit above 1080.
+    dict(name="draft-my-reply-wide.mp4", W=1920, H=1080, m=360,
+         gig=170, tags=222, rule_y=264, body=352,
+         f=(48, 28, 32), lead=46, gap=24, mark=980,
+         glow=(360 - 190, 300, 1920 - 360 + 60, 720)),
 ]
 
 
 def render(L):
     W, H = L["W"], L["H"]
-    f_gig = mp.font(L["f"][0], "Semibold")
+    m = L.get("m", M)
+    f_gig = gig_font(L["f"][0], W - 2 * m)
     f_tag = mp.font(L["f"][1], "Regular", mp.ARIAL)
     f_body = mp.font(L["f"][2], "Regular", mp.ARIAL)
 
-    base = rule(ground(W, H, L["glow"]), W, L["rule_y"])
+    base = rule(ground(W, H, L["glow"]), W, L["rule_y"], m)
     probe = ImageDraw.Draw(Image.new("RGB", (10, 10)))
-    paras = [wrap(probe, p, f_body, W - 2 * M) for p in REPLY]
+    paras = [wrap(probe, p, f_body, W - 2 * m) for p in REPLY]
 
     reveal_out = TYPE_IN + (len(paras) - 1) * PARA_STEP + PARA_DUR
     end = reveal_out + HOLD_A
@@ -361,13 +426,13 @@ def render(L):
         d = ImageDraw.Draw(img)
 
         k = ease(CARD_IN, CARD_IN + 16, f)
-        d.text((M, L["gig"]), GIG, font=f_gig, fill=fade(mp.BODY, k), anchor="lm")
-        d.text((M, L["tags"]), TAGS, font=f_tag, fill=fade(mp.DIM, k), anchor="lm")
+        d.text((m, L["gig"]), GIG, font=f_gig, fill=fade(mp.BODY, k), anchor="lm")
+        d.text((m, L["tags"]), TAGS, font=f_tag, fill=fade(mp.DIM, k), anchor="lm")
 
         if WAIT_IN <= f < TYPE_IN:
             # The page comes back instantly and says so. This beat is the fix.
             dots = "." * (1 + (f - WAIT_IN) // 8 % 3)
-            d.text((M, L["body"]), "Writing your reply" + dots, font=f_body,
+            d.text((m, L["body"]), "Writing your reply" + dots, font=f_body,
                    fill=fade(mp.DIM, ease(WAIT_IN, WAIT_IN + 10, f)), anchor="lm")
 
         if f >= TYPE_IN:
@@ -377,7 +442,7 @@ def render(L):
                          TYPE_IN + pi * PARA_STEP + PARA_DUR, f)
                 for line in para:
                     if a > 0:
-                        draw_line(d, M, y, line, f_body, [a] * len(line))
+                        draw_line(d, m, y, line, f_body, [a] * len(line))
                     y += L["lead"]
                 y += L["gap"]
 
@@ -433,8 +498,9 @@ def render(L):
             t = ease(0, steps, f + 1)
             w.append_data(np.asarray(crop_frame(lerp_rect(prev, rect, t))))
         content = union((hot, avoid, sig)[bi])
-        for f in range(Z_HOLD):
-            a = ease(0, 8, f) * (1 - ease(Z_HOLD - 6, Z_HOLD, f))
+        hold = Z_HOLDS[bi]
+        for f in range(hold):
+            a = ease(0, 8, f) * (1 - ease(hold - 6, hold, f))
             w.append_data(np.asarray(crop_frame(rect, chip, a, content)))
     for f in range(Z_OUT):
         t = ease(0, Z_OUT, f + 1)
@@ -503,13 +569,8 @@ def render(L):
     # busy and pulled the eye left to right chasing each one; fading the
     # wordmark up as a single object lets it land with some weight instead.
     WORD_IN, WORD_DUR = 12, 24
-    # Then the line, then the domain. Three beats rather than two: the name
-    # says who, the line says what it does, the domain says where to go, and
-    # each waits for the one before it to settle. Landing the line and the URL
-    # together made the foot of the frame arrive as one grey lump.
-    SLOGAN_IN, SLOGAN_DUR = 38, 22
-    URL_IN, URL_DUR = 64, 20
-    f_slogan = mp.font(34, "Regular", mp.ARIAL)
+    # Then the domain, once the name has settled.
+    URL_IN, URL_DUR = 38, 20
     f_url_end = mp.font(34, "Semibold", mp.ARIAL_B)
 
     for f in range(WORDMARK):
@@ -532,25 +593,26 @@ def render(L):
                 dl.text((wx, cy), part, font=f_word,
                         fill=(*colour, int(255 * a)), anchor="lm")
                 wx += probe2.textlength(part, font=f_word)
-        sl = ease(SLOGAN_IN, SLOGAN_IN + SLOGAN_DUR, f)
-        if sl > 0:
-            dl.text((W / 2, cy + mk // 2 + 66), SLOGAN, font=f_slogan,
-                    fill=(126, 133, 143, int(255 * sl)), anchor="mm")
         u = ease(URL_IN, URL_IN + URL_DUR, f)
         if u > 0:
-            dl.text((W / 2, cy + mk // 2 + 126), "nabbly.co", font=f_url_end,
+            dl.text((W / 2, cy + mk // 2 + 66), "nabbly.co", font=f_url_end,
                     fill=(190, 140, 92, int(255 * u)), anchor="mm")
         img = Image.alpha_composite(img.convert("RGBA"), layer).convert("RGB")
         img.paste(mark, (int(mx), cy - mk // 2), mark)
         w.append_data(np.asarray(img))
 
     w.close()
-    total = (end + Z_IN + 2 * Z_MOVE + 3 * Z_HOLD + Z_OUT
+    total = (end + Z_IN + 2 * Z_MOVE + sum(Z_HOLDS) + Z_OUT
              + SEND_SLIDE + SENT_HOLD + WORDMARK)
     print(f"wrote {OUT / L['name']}  {W}x{H}  {total / FPS:.1f}s  "
           f"cascade {(reveal_out - TYPE_IN) / FPS:.1f}s + 3 zooms + send + wordmark")
 
 
 if __name__ == "__main__":
+    # A name fragment renders just the cuts that match, so adding a layout does
+    # not mean re-rendering the two that were already signed off.
+    pick = sys.argv[1] if len(sys.argv) > 1 else ""
     for L in LAYOUTS:
+        if pick and pick not in L["name"]:
+            continue
         render(L)

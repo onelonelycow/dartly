@@ -48,3 +48,18 @@ web/board.db-shm
 # capture can reach signed-in pages. A credential — never commit it, and
 # delete it once the capture is done.
 auth.json
+
+# Written at runtime by db.py to record which classifier version last scored
+# the board. Local state, not source.
+classifier.stamp
+
+# Per-person Claude Code permissions. The shared project config beside it
+# (.claude/launch.json, .claude/agents/) is tracked.
+.claude/settings.local.json
+
+# macOS folder metadata.
+.DS_Store
+
+# Data handoff bundles. They carry exports of scraped listings, which do not
+# belong in a public repo.
+*-handoff-*.zip

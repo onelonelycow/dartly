@@ -1,0 +1,49 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "board",
+      "runtimeExecutable": ".venv/bin/uvicorn",
+      "runtimeArgs": [
+        "web.main:app",
+        "--port",
+        "8788",
+        "--host",
+        "127.0.0.1"
+      ],
+      "port": 8788
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8789",
+        "--directory",
+        "site"
+      ],
+      "port": 8789
+    },
+    {
+      "name": "app",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "DATABASE_URL=",
+        "NABBLY_LOCAL=1",
+        "NABBLY_NO_SYNC=1",
+        "PUBLIC_URL=http://localhost:8790",
+        ".venv/bin/streamlit",
+        "run",
+        "app.py",
+        "--server.port",
+        "8790",
+        "--server.address",
+        "127.0.0.1",
+        "--server.headless",
+        "true"
+      ],
+      "port": 8790
+    }
+  ]
+}

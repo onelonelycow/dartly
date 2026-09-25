@@ -28,8 +28,8 @@ from playwright.sync_api import sync_playwright
 # — past 1440 the dashboard lays its cards out two across — so the landscape
 # capture is not a crop of this one, it is a different page. Pass WxH to pick.
 W, H = 1080, 1920
-DSF = 2                 # device scale factor: frames land at 2160x3840
-SEARCH = "logo design"
+DSF = 2                 # device scale factor: frames land at 2x the viewport
+SEARCH = "GTM"
 
 # The two things the brand rules keep out of marketing, removed from the live
 # page BEFORE the shutter rather than masked afterwards. Nothing else is
@@ -216,51 +216,99 @@ def main(out: Path):
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H}, device_scale_factor=DSF)
 
+        # THE JOURNEY CHANGED WITH THE SITE. The board was redesigned on
+        # 2026-08-23: the dashboard lost its search bar entirely and grew a
+        # category rail, and search now lives on /gigs. Opening on the
+        # dashboard and NAVIGATING to Gigs is both what a visitor actually does
+        # and the only route that still reaches a search box.
+        # ONE PAGE FOR THE WHOLE SEARCH BEAT. The dashboard grew its own working
+        # search box (form action="/", stays on the dashboard) — the founder's
+        # "search within your feed" pass. The first cut established the
+        # dashboard's search bar, then cut away to a DIFFERENT search box on
+        # /gigs to actually type into, which read as a mistake: the thing you
+        # were just shown is not the thing that moved. Typing into the same box
+        # the establishing shot lingers on removes the cut entirely for this
+        # beat — the video only switches pages when the story does (dashboard
+        # to the full board, after a result is picked).
         pg.goto("https://board.nabbly.co/", wait_until="networkidle", timeout=45000)
         pg.wait_for_timeout(400)
         strip(pg)
-        shot(pg, 34)                                    # the board, cold open
+        shot(pg, 30)                                    # the hero, cold open
 
-        box = pg.locator("input[type='search'], input[name='q']").first
+        box = pg.locator("input[name='q']").first
         box.click()
-        # THE SEARCH BAR'S OWN RECTANGLE, in device pixels. The assembler pushes
-        # in on exactly this while the query is typed, so the eye is on the box
-        # rather than hunting the page for what changed. Recorded here because
-        # only the live page knows where its own input actually sits.
-        bb = box.bounding_box()
-        zoom_from = n                                   # first shot of the push-in
+        row = box.evaluate("""el => {
+          const f = el.closest('form') || el.parentElement;
+          const r = f.getBoundingClientRect();
+          return {x: r.x, y: r.y, width: r.width, height: r.height};
+        }""")
+        zoom_from = n
         for ch in SEARCH:                               # a frame per keystroke
             box.type(ch, delay=0)
             shot(pg, 2)
         shot(pg, 10)
-        zoom_to = n - 1                                 # last shot still pushed in
+        zoom_to = n - 1
 
         pg.keyboard.press("Enter")
         pg.wait_for_load_state("networkidle", timeout=45000)
         pg.wait_for_timeout(300)
         strip(pg)
-        shot(pg, 26)                                    # results
+        shot(pg, 24)                                    # results, still on "/"
 
-        for _ in range(18):                             # scroll the real page
+        # THE RESULTS ARE WHERE THE GIG GETS PICKED, so the scroll and the
+        # choice both stay on "/". The cut to /gigs used to happen here, before
+        # the card was chosen — and navigating there drops the query, so the
+        # capture scrolled an UNFILTERED board and the matcher below never
+        # found a title containing the search term. It fell through to its
+        # positional default every time: a demo that types "go-to-market" and
+        # then hands the reply cut a translation gig.
+        #
+        # The comment above this block already described the right order —
+        # switch pages "after a result is picked". This is that order.
+        for _ in range(14):                             # scroll the real page
             pg.mouse.wheel(0, 88)
             pg.wait_for_timeout(20)
             shot(pg, 1)
-        shot(pg, 30)                                    # rest on a gig
+        shot(pg, 26)                                    # rest on a gig
 
-        # THE VIDEO HAS TO DRAFT FOR THE GIG IT JUST FOUND. The card under the
-        # cursor is read out here so the second half can be generated against
-        # this exact posting instead of a different one, which is what made the
-        # first cut show someone finding job X and replying to job Y.
-        card = pg.locator(".gr-cardwrap").nth(3)
+        # THE CARD ALSO HAS TO BE WORTH REPLYING TO. Matching the search was
+        # not enough on its own: "Go-To-Market (GTM) Specialist" is the top
+        # title match for a GTM search and its whole posting is 95 characters
+        # of boilerplate. The next beat claims the reply was written FROM the
+        # posting, so a card with nothing in it quietly disproves the thing the
+        # video exists to show. A body threshold picks the first result that
+        # both matches and has something to answer.
+        #
+        # Tokens under three characters are ignored. "go to market" split into
+        # "go"/"to"/"market", and "to" matches the "cto" inside "Director" —
+        # which is how a Managing Director posting once qualified as a
+        # go-to-market result.
+        MIN_BODY = 250
+        cards = pg.locator(".gr-cardwrap")
+        count = cards.count()
+        terms = [t.lower() for t in SEARCH.split() if len(t) >= 3]
+        idx, first_match = 3, None
+        for i in range(min(count, 12)):
+            c = cards.nth(i)
+            title = (c.locator(".gr-title").text_content() or "").lower()
+            if not any(t in title for t in terms):
+                continue
+            if first_match is None:
+                first_match = i
+            body = c.evaluate("el => (el.querySelector('.gr-full') || "
+                              "el.querySelector('.gr-body'))?.textContent || ''")
+            if len(body.strip()) >= MIN_BODY:
+                idx = i
+                break
+        else:
+            idx = first_match if first_match is not None else idx
+            print(f"  ! no match with a {MIN_BODY}+ char posting; "
+                  f"using card {idx}", flush=True)
+        card = cards.nth(idx)
         card.scroll_into_view_if_needed()
         pg.wait_for_timeout(150)
         shot(pg, 12)
 
-        # THE CLICKED CARD SAYS SO. Without this the cut to the reply looks like
-        # it came from nowhere: eight near-identical cards are on screen and
-        # nothing marks which one was picked. Brand amber, injected on the live
-        # element so it renders with the page's own radius and shadow rather
-        # than being drawn on afterwards.
         card.evaluate("""el => {
           el.style.transition = 'none';
           el.style.borderRadius = '16px';
@@ -288,9 +336,9 @@ def main(out: Path):
         b.close()
     (out / "holds.json").write_text(json.dumps(holds))
     (out / "zoom.json").write_text(json.dumps({
-        "search_rect": [bb["x"] * DSF, bb["y"] * DSF,
-                        (bb["x"] + bb["width"]) * DSF,
-                        (bb["y"] + bb["height"]) * DSF],
+        "search_rect": [row["x"] * DSF, row["y"] * DSF,
+                        (row["x"] + row["width"]) * DSF,
+                        (row["y"] + row["height"]) * DSF],
         "shots": [zoom_from, zoom_to],
         "master": [W * DSF, H * DSF],
     }))
