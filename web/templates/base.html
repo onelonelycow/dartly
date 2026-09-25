@@ -204,6 +204,13 @@ a.gr-title,.gr-saveform,.gr-save,.gr-more-cb,.gr-more-lbl{
    gives every other card the same floor. Desktop is untouched. */
 @media (max-width:640px){
   .draftlink{min-height:44px;display:inline-flex;align-items:center;padding:0 14px}
+  /* GIGS, MARKET AND PLANS WERE 29px TALL on a phone -- the primary navigation,
+     under the 44px a finger is guided by. Same trick .draftlink uses above and
+     the save star uses on the card: the padding grows the target, the negative
+     margin claws the row height back, so the nav is easier to hit without the
+     topbar getting taller. */
+  .topbar nav a{padding-top:14px;padding-bottom:14px;
+    margin-top:-7px;margin-bottom:-7px}
 }
 /* The card head: title and save star as flex siblings, so the star owns real
    space instead of being absolutely positioned over the text — five of eight

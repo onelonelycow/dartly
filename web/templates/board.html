@@ -1,7 +1,19 @@
 {% extends "base.html" %}
 {% from "_card.html" import card %}
 
-{% block title %}{% if q %}{{ q }} — {% endif %}Nabbly{% endblock %}
+{# THE TAB, THE SHARED LINK AND THE SEARCH RESULT ALL READ THIS. It was the
+   bare word "Nabbly" on the three pages that matter most -- the landing, the
+   board, and the filtered view an ad would point at -- while every static page
+   on nabbly.co had a real one. Five open tabs were five identical words, and
+   /gigs is indexable, so that was also the headline Google had to work with.
+   Describes what this particular view is showing, narrowest fact first. #}
+{% block title %}
+{%- if q %}{{ q }} · Nabbly
+{%- elif sel_field and sel_field|length == 1 %}{{ sel_field[0] }} gigs · Nabbly
+{%- elif landing %}{% if me %}Your board{% else %}Freelance and remote gigs{% endif %} · Nabbly
+{%- else %}Browse gigs · Nabbly
+{%- endif %}
+{%- endblock %}
 
 {% block extra_css %}
 /* The section heading and the "Fresh off the boards" rule, which app.py draws
@@ -435,6 +447,14 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
          aria-label="{% if me %}Search your feed{% else %}Search gigs{% endif %}"></span>
   <button class="go" type="submit">Search</button>
 </form>
+{# NO HEADING AT ALL BEFORE THIS. /gigs had no h1, h2 or h3 anywhere, and the
+   landing had only "Fresh off the boards" as an h2 under nothing. A screen
+   reader navigating by headings found the page had no subject, and an
+   indexable page gave Google none either. Visually hidden rather than drawn:
+   the page already says what it is through the nav, the search box and the
+   cards, and adding a visible title would be furniture for sighted readers to
+   pay for a fix they do not need. #}
+<h1 class="vh">{% if q %}Gigs matching “{{ q }}”{% elif sel_field and sel_field|length == 1 %}{{ sel_field[0] }} gigs{% elif landing %}{% if me %}Your board{% else %}The newest freelance and remote gigs{% endif %}{% else %}Browse freelance and remote gigs{% endif %}</h1>
 <div class="dash-solo">
   {# THE TOP MATCH, AND WHAT IT IS. This card used to open with a written
      reply, on the reasoning that the draft is the product's best moment and
