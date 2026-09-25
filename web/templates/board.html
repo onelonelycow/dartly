@@ -244,8 +244,14 @@ a.gr-cat.sm{font-size:12.5px;padding:5px 10px}
   border:1px solid var(--line2);border-radius:999px;padding:4px 11px;
   margin:0 0 12px}
 .hd-why b{color:var(--ink2);font-weight:600}
-.hd-body{font-size:14.5px;line-height:1.6;color:var(--ink2);white-space:pre-wrap;
-  margin:0 0 14px}
+/* Clamped, which the draft never needed: it was four short paragraphs of our
+   own writing, and a posting is up to 1,500 characters of someone else's. Four
+   lines rather than the feed's three, because this is the one card on the page
+   that is meant to be read rather than scanned; the rest is behind the gig. */
+.hd-body{font-size:14.5px;line-height:1.6;color:var(--ink2);white-space:pre-line;
+  max-width:760px;margin:0 0 14px;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;
+  overflow:hidden}
 .hd-go{display:flex;gap:10px;flex-wrap:wrap}
 .hd-go .draftlink{margin-top:0;padding:15px 15px}
 /* PREDICTIVE SEARCH. The board's one piece of JavaScript, and it buys the
@@ -430,12 +436,16 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <button class="go" type="submit">Search</button>
 </form>
 <div class="dash-solo">
-  {# THE FIRST DRAFT, ABOVE THE FEED. Honest heading: this is a real opener
-     written for this gig, but it has not read the posting — that is the AI
-     path behind "Edit this reply", and claiming otherwise here would oversell
-     a template (FEEL §7). Plain markup, no interactivity, nothing new to
-     style beyond one block. #}
-  {% if hero_draft %}
+  {# THE TOP MATCH, AND WHAT IT IS. This card used to open with a written
+     reply, on the reasoning that the draft is the product's best moment and
+     it sat one click deep. It put the answer before the question: a reply to
+     a gig the reader had not read yet, with the posting itself nowhere on the
+     card. The founder: "I would still have the description there, not the
+     draft email."
+     So the card shows the gig — what it is, why it was picked, what the
+     client wrote — and the reply stays one deliberate click away behind
+     "Draft my reply", which is where every other card on the board keeps it. #}
+  {% if hero_gig %}
   <div class="herodraft">
     {# "Today" is the whole scarcity beat: it says one of these arrives per
        visit and this is it. It is also true — the ranking runs against a
@@ -447,9 +457,13 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
   <div class="hd-k">Your top match today</div>
     <div class="hd-t">{{ hero_gig.title }}</div>
     {% if hero_why %}<div class="hd-why">Matched on <b>{{ hero_why }}</b></div>{% endif %}
-    <div class="hd-body">{{ hero_draft }}</div>
+    {# Some sources hand over a title and nothing else, and an archived gig has
+       had its body cleared. No description, no block: an empty one is 14px of
+       margin explaining nothing. The card still has the title, the reason and
+       both buttons. #}
+    {% if hero_gig.preview %}<div class="hd-body">{{ hero_gig.preview }}</div>{% endif %}
     <div class="hd-go">
-      <a class="draftlink" rel="nofollow" href="/draft/{{ hero_gig.id }}?back=/">Edit this reply →</a>
+      <a class="draftlink" rel="nofollow" href="/draft/{{ hero_gig.id }}?back=/">Draft my reply →</a>
       <a class="draftlink" href="/out/{{ hero_gig.id }}" target="_blank" rel="noopener noreferrer nofollow">Open the gig ↗</a>
     </div>
   </div>

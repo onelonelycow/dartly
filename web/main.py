@@ -3144,7 +3144,7 @@ def board(request: Request,
     # /gigs skips the block that assigns it and the template reads it
     # unconditionally, so a landing-only assignment is a 500 on /gigs. It was,
     # for one commit.
-    hero_gig, hero_draft, hero_why = None, "", ""
+    hero_gig, hero_why = None, ""
     landing = request.url.path == "/"
     # nabbly.co links straight at board.nabbly.co, so "/" must stay a real page
     # for a visitor — it is the landing: hero, then the newest gigs. What it no
@@ -3154,24 +3154,23 @@ def board(request: Request,
         # tens of thousands, and the founder called it. The dash-end line
         # renders rows|length, so the copy follows this number by itself.
         res["rows"] = res["rows"][:25]
-        # THE FIRST DRAFT, WITHOUT THE WAIT. The app's dashboard leads with a
-        # written reply and it is the product's best moment; on the board it
-        # sat one click deep behind a blank page. Generating here is not an
-        # option — the Pro path measured 27,542ms against 43ms for the
-        # template (see the /draft comment), so a generated dashboard would be
-        # a 27-second page and one model call per member per visit. Nor can we
-        # show "a draft if one is cached": this service has no disk, so the AI
-        # cache is empty after every deploy and the card would blink in and out.
+        # THE GIG, NOT THE REPLY TO IT. This card led with a template-written
+        # opener, on the reasoning that the draft is the product's best moment
+        # and it otherwise sat one click deep behind a blank page. That put the
+        # answer before the question: a reply to a posting the reader had not
+        # read, with the posting itself nowhere on the card. The founder, on
+        # seeing it: "I would still have the description there, not the draft
+        # email."
         #
-        # The template draft costs 0.013ms, no key, no network, no budget. It
-        # is a real gig-specific opener and it is what Free already gets. The
-        # click it removes is the BLANK one; "Edit this reply" still escalates
-        # to the real post-aware draft for Pro, which is the click worth making.
+        # So the card carries the gig — title, why it was picked, and the
+        # client's own words via decorate()'s preview, which runs a few lines
+        # below and writes onto these same row dicts. The draft has not moved
+        # further away: "Draft my reply" is the same single click every other
+        # card on the board offers, and for Pro it still escalates to the real
+        # post-aware draft rather than the template this used to print.
         if me and res["rows"]:
             try:
-                import pitch
                 hero_gig = res["rows"][0]
-                hero_draft = pitch.draft_template(hero_gig, prof)
                 # WHY THIS ONE IS FIRST, in the member's own terms. fit_ranked
                 # already computed it into _why and nothing rendered it; the
                 # card said "your top gig" and left the reader to take that on
@@ -3189,7 +3188,7 @@ def board(request: Request,
                 # no reason to give, and inventing one is worse than silence.
                 hero_why = ", ".join(hero_gig.get("_why") or [])
             except Exception:
-                hero_gig, hero_draft, hero_why = None, "", ""
+                hero_gig, hero_why = None, ""
     decorate(res["rows"], ranked)
     # ONE MARKED ROW ON /GIGS, AND ONLY WHEN IT IS TRUE.
     #
@@ -3256,7 +3255,7 @@ def board(request: Request,
         booting = False
     resp = templates.TemplateResponse(request, "board.html", {
         "booting": booting,
-        "hero_gig": hero_gig, "hero_draft": hero_draft, "hero_why": hero_why,
+        "hero_gig": hero_gig, "hero_why": hero_why,
         "new_since": new_since,
         "landing": landing, "groups": groups, "carry": carry,
         "css_v": CSS_V, "indexable": _INDEXABLE, "app_url": APP_URL,
