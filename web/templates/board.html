@@ -431,6 +431,15 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
    member's customized feed, and searching is what /gigs is for. The rail and
    its typeahead are the dashboard's way to narrow. #}
 
+{# NO HEADING AT ALL BEFORE THIS. /gigs had no h1, h2 or h3 anywhere, and the
+   landing had only "Fresh off the boards" as an h2 under nothing. A screen
+   reader navigating by headings found the page had no subject, and an
+   indexable page gave Google none either. Visually hidden rather than drawn:
+   the page already says what it is through the nav, the search box and the
+   cards, and adding a visible title would be furniture for sighted readers to
+   pay for a fix they do not need. #}
+<h1 class="vh">{% if q %}Gigs matching “{{ q }}”{% elif sel_field and sel_field|length == 1 %}{{ sel_field[0] }} gigs{% elif landing %}{% if me %}Your board{% else %}The newest freelance and remote gigs{% endif %}{% else %}Browse freelance and remote gigs{% endif %}</h1>
+
 {% if qf_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ qf_note }}</div>{% endif %}
 {% if field_note %}<div class="empty" style="text-align:left;padding:12px 15px">{{ field_note }}</div>{% endif %}
 
@@ -447,14 +456,6 @@ button.go.ghostgo:hover{background:var(--panel);border-color:var(--amber-d);colo
          aria-label="{% if me %}Search your feed{% else %}Search gigs{% endif %}"></span>
   <button class="go" type="submit">Search</button>
 </form>
-{# NO HEADING AT ALL BEFORE THIS. /gigs had no h1, h2 or h3 anywhere, and the
-   landing had only "Fresh off the boards" as an h2 under nothing. A screen
-   reader navigating by headings found the page had no subject, and an
-   indexable page gave Google none either. Visually hidden rather than drawn:
-   the page already says what it is through the nav, the search box and the
-   cards, and adding a visible title would be furniture for sighted readers to
-   pay for a fix they do not need. #}
-<h1 class="vh">{% if q %}Gigs matching “{{ q }}”{% elif sel_field and sel_field|length == 1 %}{{ sel_field[0] }} gigs{% elif landing %}{% if me %}Your board{% else %}The newest freelance and remote gigs{% endif %}{% else %}Browse freelance and remote gigs{% endif %}</h1>
 <div class="dash-solo">
   {# THE TOP MATCH, AND WHAT IT IS. This card used to open with a written
      reply, on the reasoning that the draft is the product's best moment and
