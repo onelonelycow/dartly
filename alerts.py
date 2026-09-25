@@ -200,7 +200,15 @@ def send_ntfy(topic: str, gigs: list[dict], total: int | None = None) -> bool:
             # anything left the machine — so every push failed, silently, from
             # the day it was written. The "zap" tag already draws a ⚡ on the
             # phone, so the emoji was breaking it for nothing. Keep this ASCII.
-            headers={"Title": f"Nabbly · {total} new gig{'s' if total != 1 else ''}",
+            #
+            # AND THEN IT DRIFTED BACK, one character at a time: the separator
+            # became "·", which IS latin-1, so requests raised nothing and the
+            # push went out looking fine from here. ntfy reads headers as UTF-8,
+            # where a lone 0xB7 is not a character, so every notification
+            # arrived titled "Nabbly <?> 1 new gig". Caught 2026-09-25 by
+            # sending one to a real topic and reading it back rather than
+            # trusting the 200. A colon is a separator that survives both.
+            headers={"Title": f"Nabbly: {total} new gig{'s' if total != 1 else ''}",
                      "Tags": "zap",
                      # Opens the board when there's more than one, so every gig
                      # in the message is actually reachable.
