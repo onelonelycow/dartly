@@ -2832,6 +2832,11 @@ _BOOT_AT = time.monotonic()
 # deploy outright.
 _FILL_GRACE_S = 300
 
+# How recently a mirror failure must have happened to count against health.
+# The ledger only ever rises, so without a window one transient timeout at boot
+# would leave the board reporting unhealthy until its next deploy.
+_MIRROR_FRESH_M = 15
+
 @app.get("/health")
 def health():
     """
@@ -2893,6 +2898,28 @@ def health():
         out.update(rows=s["rows"], drift_s=s["drift_s"],
                    archived=s["archived"], errors=s["errors"],
                    boot_pull_s=s.get("boot_pull_s"))
+        # MIRROR FAILURES, WHICH USED TO REACH NOBODY. `errors` above counts
+        # only what sync's own loop caught; board_store swallows its exceptions
+        # deliberately, so on 2026-09-25 every mirror read failed for eighteen
+        # hours while this endpoint reported errors: 0 and the board served an
+        # empty page. The ledger is cumulative, so a single old blip must not
+        # pin ok:false forever — only a RECENT failure, or a pull known to have
+        # stopped half way, is worth waking somebody for.
+        if s.get("mirror_fails"):
+            out["mirror_fails"] = s["mirror_fails"]
+            out["mirror_last"] = s.get("mirror_last")
+            age = s.get("mirror_fail_age_m")
+            if age is not None:
+                out["mirror_fail_age_m"] = age
+                if age <= _MIRROR_FRESH_M:
+                    out["ok"] = False
+                    out.setdefault("note", f"mirror failing: {s.get('mirror_last')}")
+        if s.get("pull_partial"):
+            # The board is knowingly incomplete: it holds some rows, so it is
+            # not "starting", and nothing else here would ever say so.
+            out["pull_partial"] = True
+            out["ok"] = False
+            out.setdefault("note", "last full pull did not finish — board is incomplete")
         # RETENTION, VISIBLE. The sweep runs unattended once a day and can
         # legitimately decline to run — the floor guard, an unreachable
         # mirror — so "it never happened" and "it happened and found nothing"
@@ -2920,6 +2947,11 @@ def health():
             out["status"] = "starting"
             out.setdefault(
                 "note",
+                # "is DATABASE_URL set?" was the only explanation offered here,
+                # and on 2026-09-25 it was the wrong one for eighteen hours:
+                # the variable was set, the mirror was timing out. Say which.
+                f"mirror reads are failing: {s.get('mirror_last')}"
+                if s.get("mirror_fails") else
                 "still loading the board from the mirror"
                 if s.get("errors", 0) == 0 and not s.get("note")
                 else "board is empty — is DATABASE_URL set?")

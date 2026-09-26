@@ -14,15 +14,65 @@ hot path.
 
 DEGRADES CLEANLY: with no DATABASE_URL set, enabled() is False and every call is
 a no-op — identical to how the app ran before Supabase. Every operation is
-wrapped so a slow or unreachable database can never block or crash a fetch; the
-worst case is a batch of gigs isn't mirrored and is re-mirrored next cycle.
+wrapped so a slow or unreachable database can never block or crash a fetch.
+
+THE SENTENCE THAT USED TO FOLLOW SAID "the worst case is a batch of gigs isn't
+mirrored and is re-mirrored next cycle". That was wrong, and believing it cost
+an eighteen-hour outage on 2026-09-25: a READ that fails here returns [] or
+stops yielding, which its caller cannot tell apart from a mirror that is simply
+empty — so nothing retries, and nothing reports. Every swallowed failure is now
+recorded in the ledger below and surfaced by /health. See failures().
 
 It reuses store.py's connection + DSN handling, so the SQLite-or-Postgres
 placeholder juggling lives in one place. Point DATABASE_URL at a sqlite file and
 this runs identically to how it runs against Supabase, which is how it's tested.
 """
 import os
+import time
+
 import store
+
+# THE FAILURE LEDGER. Every handler in this module swallows its exception, and
+# that part is deliberate: a slow or unreachable mirror must never take down an
+# ingest cycle or a page render. What was NOT deliberate is that a swallowed
+# failure was also an INVISIBLE one.
+#
+# On 2026-09-25 a statement timeout inside iter_all() returned an empty page.
+# full_sync() read that as "the walk finished", recorded 0 rows, and raised
+# nothing -- so /health reported `rows: 0, errors: 0` while the board served an
+# empty page for eighteen hours. A total failure, logged as a clean success.
+# The same shape had already cost three separate mirror-drift incidents.
+#
+# The rule now: still never raise, but ALWAYS COUNT. _note() is the single
+# place a failure is recorded, /health reads failures(), and callers that care
+# whether a read was COMPLETE (not merely non-empty) compare the count before
+# and after -- see web/sync.full_sync. A read that returns [] because the
+# mirror timed out is a different fact from a mirror with nothing in it, and
+# the two must never again be indistinguishable.
+_fails = {"n": 0, "op": "", "last": "", "at": 0.0}
+
+
+def _note(op: str, e: BaseException) -> None:
+    """Record a swallowed mirror failure. Never raises, returns nothing."""
+    try:
+        _fails["n"] += 1
+        _fails["op"] = op
+        _fails["last"] = f"{type(e).__name__}: {e}"[:200]
+        _fails["at"] = time.time()
+        print(f"  ! mirror {op} failed: {_fails['last']}", flush=True)
+    except Exception:
+        # The ledger itself must never be the thing that breaks a fetch.
+        pass
+
+
+def failures() -> dict:
+    """
+    What has gone wrong against the mirror since boot, for /health.
+
+    `n` is cumulative and only ever rises; a caller wanting "did THIS operation
+    fail" reads n before and after rather than checking for zero.
+    """
+    return dict(_fails)
 
 _TABLE = "nabbly_posts"
 # Rehydrate the newest N. This has to stay comfortably ahead of the real board
@@ -118,6 +168,62 @@ _ADDED = (("apply_email", "text"),
           ("lang", "text"))
 
 
+# THE INDEXES THE MIRROR ACTUALLY NEEDS, AND DID NOT HAVE. Until 2026-09-26
+# this table carried exactly ONE index — the primary key — while the local
+# SQLite copy it feeds carried nine, each added against a measurement. So every
+# read of the mirror was a sequential scan of ~212,000 rows:
+#
+#   iter_all/pull  WHERE is_demand=1 ORDER BY COALESCE(posted_at, fetched_at)
+#                  a scan AND a full sort, once per 10,000-row page, five pages
+#                  deep, on every single boot.
+#   pull_since     WHERE fetched_at > ? ORDER BY fetched_at
+#                  a scan and an external merge sort that SPILLED TO DISK —
+#                  every 60 seconds, forever. That was the steady drain that
+#                  emptied the disk-IO budget, not the occasional deploy.
+#
+# Once the budget was gone a page could no longer finish inside the mirror's
+# 2-minute statement_timeout, iter_all() swallowed the timeout, and the board
+# served nothing for eighteen hours. Measured on the live mirror, 2026-09-26:
+#
+#   boot page 1   timed out at 120s        ->  1.97s   (index scan, no sort)
+#   pull_since    2,822ms / 23,291 buffers ->  457ms / 1,192 buffers, no spill
+#
+# Created here, not by hand, so that a rebuilt or restored mirror is never
+# quietly slow in a way only a production outage would reveal.
+_INDEXES = (
+    # Partial, so it covers the ~44,500 live rows rather than all 212,000:
+    # 1.8MB on disk against the table's 171MB.
+    ("nabbly_posts_live_recent",
+     "((COALESCE(posted_at, fetched_at)) DESC) WHERE is_demand = 1"),
+    ("nabbly_posts_fetched_at", "(fetched_at)"),
+)
+_indexed = False
+
+
+def _ensure_indexes(conn):
+    """
+    Create the mirror's indexes once per process. Never raises.
+
+    A missing index makes this module slow, never wrong, so a failure here must
+    not stop a push — but it must not be silent either, or it becomes the next
+    thing nobody notices for eighteen hours. The flag is only set once every
+    index is in place, so a transient failure is retried on the next connection
+    instead of being written off for the life of the process.
+    """
+    global _indexed
+    if _indexed:
+        return
+    ok = True
+    for name, decl in _INDEXES:
+        try:
+            conn.execute(f"CREATE INDEX IF NOT EXISTS {name} ON {_TABLE} {decl}")
+            conn.commit()
+        except Exception as e:
+            ok = False
+            _note(f"create index {name}", e)
+    _indexed = ok
+
+
 def _migrate(conn):
     """
     Add any missing columns to an already-created mirror table.
@@ -132,7 +238,8 @@ def _migrate(conn):
     try:
         cur = conn.execute(f"SELECT * FROM {_TABLE} LIMIT 0")
         have = {d[0] for d in (cur.description or ())}
-    except Exception:
+    except Exception as e:
+        _note("schema check", e)
         return
     added = False
     for col, decl in _ADDED:
@@ -143,6 +250,7 @@ def _migrate(conn):
         # pull()/count() never commit, so without this the DDL rolls back on
         # close and every boot re-runs the migration.
         conn.commit()
+    _ensure_indexes(conn)
 
 
 def _row(rec: dict) -> tuple:
@@ -180,7 +288,8 @@ def push(records) -> int:
             return len(records)
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("push", e)
         return 0
 
 
@@ -227,11 +336,13 @@ def push_tags(rows) -> int:
                     conn.cursor().executemany(sql, chunk)
                 sent += len(chunk)
             return sent
-        except Exception:
+        except Exception as e:
+            _note("push_tags", e)
             return 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("push_tags", e)
         return 0
 
 
@@ -268,11 +379,13 @@ def push_llm_result(rows) -> int:
                     conn.cursor().executemany(sql, chunk)
                 sent += len(chunk)
             return sent
-        except Exception:
+        except Exception as e:
+            _note("push_llm_result", e)
             return 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("push_llm_result", e)
         return 0
 
 
@@ -303,11 +416,13 @@ def push_rare(rows) -> int:
                     conn.cursor().executemany(sql, chunk)
                 sent += len(chunk)
             return sent
-        except Exception:
+        except Exception as e:
+            _note("push_rare", e)
             return 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("push_rare", e)
         return 0
 
 
@@ -332,7 +447,8 @@ def compact_archived() -> int:
             return cur.rowcount or 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("compact_archived", e)
         return 0
 
 
@@ -350,7 +466,8 @@ def pull(cap: int = CAP) -> list[dict]:
             return [dict(zip(_COLS, r)) for r in cur.fetchall()]
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("pull", e)
         return []
 
 
@@ -391,7 +508,8 @@ def iter_all(batch: int = 10000, demand_only: bool = False):
                 rows = [dict(zip(_COLS, r)) for r in cur.fetchall()]
             finally:
                 conn.close()
-        except Exception:
+        except Exception as e:
+            _note("iter_all", e)
             return
         if not rows:
             return
@@ -428,7 +546,8 @@ def pull_since(since: str, cap: int = CAP) -> list[dict]:
             return [dict(zip(_COLS, r)) for r in cur.fetchall()]
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("pull_since", e)
         return []
 
 
@@ -466,7 +585,8 @@ def iter_flags(batch: int = 20000):
                 rows = [(r[0], r[1], r[2], r[3], r[4]) for r in cur.fetchall()]
             finally:
                 conn.close()
-        except Exception:
+        except Exception as e:
+            _note("iter_flags", e)
             return
         if not rows:
             return
@@ -499,7 +619,8 @@ def pull_flags(cap: int = CAP) -> list[tuple]:
             return [(r[0], r[1], r[2]) for r in cur.fetchall()]
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("pull_flags", e)
         return []
 
 
@@ -538,11 +659,13 @@ def push_sweep(rows) -> int:
             with conn:
                 conn.cursor().executemany(sql, rows)
             return len(rows)
-        except Exception:
+        except Exception as e:
+            _note("push_sweep", e)
             return 0
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("push_sweep", e)
         return 0
 
 
@@ -557,7 +680,8 @@ def count() -> int:
             return int(conn.execute(f"SELECT COUNT(*) FROM {_TABLE}").fetchone()[0])
         finally:
             conn.close()
-    except Exception:
+    except Exception as e:
+        _note("count", e)
         return -1
 
 

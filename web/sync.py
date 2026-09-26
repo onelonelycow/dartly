@@ -107,7 +107,16 @@ _state = {"rows": 0, "last_sync": 0.0, "last_reconcile": 0.0, "boot_pull_s": Non
           "hidden_dupes": 0, "note": "",
           # Retention against the mirror. last_sweep starts at 0 so the first
           # pass runs shortly after boot rather than a day later.
-          "last_sweep": 0.0, "swept": 0, "sweep_note": ""}
+          "last_sweep": 0.0, "swept": 0, "sweep_note": "",
+          # Did the last full pull WALK THE WHOLE MIRROR, or stop early? A
+          # truncated walk yields fewer pages and raises nothing, so without
+          # this the board cannot tell a complete rehydrate from a half one.
+          "pull_partial": False, "last_full_try": 0.0}
+
+# How long to wait before re-attempting a full pull that failed. Long enough
+# that a mirror which is down does not get a 40,000-row request every minute,
+# short enough that the board heals itself well inside a working day.
+REFILL_S = int(os.environ.get("NABBLY_REFILL_S") or 300)
 _lock = threading.Lock()
 _started = False
 
@@ -115,6 +124,19 @@ _started = False
 def state() -> dict:
     d = dict(_state)
     d["drift_s"] = int(time.time() - d["last_sync"]) if d["last_sync"] else None
+    # MIRROR FAILURES, CARRIED OUT TO /health. board_store swallows every
+    # exception by design; this is the only path by which a swallowed one
+    # reaches a human. `errors` above counts what THIS loop caught, which on
+    # 2026-09-25 was zero for eighteen hours while every mirror read failed.
+    try:
+        hit = board_store.failures()
+        d["mirror_fails"] = hit["n"]
+        if hit["n"]:
+            d["mirror_last"] = f"{hit['op']}: {hit['last']}"[:160]
+            d["mirror_fail_age_m"] = (round((time.time() - hit["at"]) / 60, 1)
+                                      if hit["at"] else None)
+    except Exception:
+        d["mirror_fails"] = -1
     return d
 
 
@@ -252,6 +274,13 @@ def full_sync() -> int:
     n = 0
     t0 = time.time()
     conn = _connect_rw()
+    # A FAILED PAGE IS NOT AN EMPTY ONE. iter_all() stops yielding on any
+    # exception -- a statement timeout included -- and raises nothing, so this
+    # loop cannot tell "that was the last page" from "the mirror gave up on
+    # page two". On 2026-09-25 it was page one: n stayed 0, this returned 0,
+    # and the board served nothing for eighteen hours reporting errors: 0.
+    # board_store counts what it swallows; compare across the walk.
+    fails_before = board_store.failures()["n"]
     try:
         _ensure_schema(conn)
         for page in board_store.iter_all(demand_only=True):
@@ -261,6 +290,14 @@ def full_sync() -> int:
         _state["hidden_dupes"] = mark_primaries(conn)
     finally:
         conn.close()
+    hit = board_store.failures()
+    _state["pull_partial"] = hit["n"] > fails_before
+    if _state["pull_partial"]:
+        # Keep whatever did arrive -- a partial board beats an empty one -- but
+        # say so, and leave it eligible for another attempt in _loop().
+        _state["note"] = (f"full pull incomplete after {n:,} rows: "
+                          f"{hit['op']}: {hit['last']}")[:200]
+        print(f"  ! board: {_state['note']}", flush=True)
     if not n:
         return 0
     _migrate_mod.migrate(BOARD_DB, verbose=False)   # indexes + FTS
@@ -400,7 +437,22 @@ def sweep_mirror() -> int:
 def _loop():
     while True:
         try:
-            incremental()
+            # SELF-HEAL, AND THIS IS THE WHOLE REASON THE OUTAGE LASTED.
+            # incremental() reads its watermark from the LOCAL copy
+            # (MAX(fetched_at) over `posts`), so on an empty board the mark is
+            # "" and it returns 0 immediately WITHOUT EVER CONTACTING THE
+            # MIRROR. A board that lost its first pull therefore stayed at zero
+            # rows for as long as the process lived -- eighteen hours on
+            # 2026-09-25 -- and only a manual restart could fix it. Nothing
+            # here retried, because nothing here knew there was anything to
+            # retry. Rate-limited by REFILL_S so a mirror that is genuinely
+            # down is not asked for the whole board every minute.
+            if not _state["rows"] or _state["pull_partial"]:
+                if time.time() - _state["last_full_try"] >= REFILL_S:
+                    _state["last_full_try"] = time.time()
+                    full_sync()
+            else:
+                incremental()
             if time.time() - _state["last_reconcile"] > RECONCILE_S:
                 reconcile()
             if time.time() - _state["last_sweep"] > SWEEP_S:
