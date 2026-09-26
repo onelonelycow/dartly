@@ -214,9 +214,24 @@ def check_board() -> list[str]:
     if not data.get("ok"):
         problems.append(f"board reports unhealthy: {json.dumps(data)}")
     if rows <= 0:
-        problems.append("board is serving ZERO gigs — is DATABASE_URL set?")
+        # NAME THE ACTUAL CAUSE. This used to read "is DATABASE_URL set?",
+        # which is one cause and not the likely one — on 2026-09-25 the board
+        # served zero gigs for eighteen hours because mirror reads were hitting
+        # a statement timeout, and four failure emails all pointed at an
+        # environment variable that was set correctly the whole time. /health
+        # now carries mirror_last; quote it instead of guessing.
+        why = data.get("mirror_last")
+        problems.append(
+            f"board is serving ZERO gigs — mirror reads are failing: {why}"
+            if why else
+            "board is serving ZERO gigs — /health reports no mirror failure, "
+            "so check DATABASE_URL and that the mirror has rows")
     if drift is not None and drift > MAX_DRIFT_S:
         problems.append(f"board has not synced in {drift}s — its copy is going stale")
+    # A board that is up and serving can still be quietly half a board.
+    if data.get("pull_partial"):
+        problems.append(f"board is INCOMPLETE — the last full pull stopped early "
+                        f"with {rows:,} rows: {data.get('mirror_last')}")
     # Only meaningful when a boot was actually caught in progress. On the runs
     # where the board was already up (most of them) there is nothing to measure
     # and nothing is said, which is what keeps this quiet.
